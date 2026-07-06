@@ -2,22 +2,13 @@
 <html lang="pt-br">
 <head>
   <meta charset="UTF-8">
-  <title>Buscar arquivos no Drive</title>
-  <link rel="stylesheet" href="style.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>APP HUB - Central de documentos</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
-
-  <div class="container">
-    <h1>🔎 Buscar no Google Drive</h1>
-
-    <div class="busca-container">
-      <input type="text" id="busca" placeholder="Digite o nome do arquivo ou pasta...">
-      <button onclick="buscar()">Buscar</button>
-    </div>
-
-    <ul id="resultados"></ul>
-  </div>
-
-  <script src="script.js"></script>
+  <div id="app"></div>
+  <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

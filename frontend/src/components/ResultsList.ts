@@ -1,5 +1,5 @@
 import { createElement, emptyState } from '../dom';
-import { documentType, formattedDate } from '../documentRules';
+import { documentType, formattedDate } from '../services/documentRules';
 import type { DriveItem } from '../types';
 
 type ResultsListOptions = {

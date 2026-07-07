@@ -1,5 +1,5 @@
 import { createElement, emptyState } from '../dom';
-import { documentType, isFolder } from '../documentRules';
+import { documentType, isFolder } from '../services/documentRules';
 import type { DriveItem } from '../types';
 
 type ReservedPanelOptions = {

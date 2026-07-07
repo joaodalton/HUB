@@ -3,7 +3,7 @@ export function createElement<K extends keyof HTMLElementTagNameMap>(
   options: {
     className?: string;
     textContent?: string;
-    type?: string;
+    type?: HTMLButtonElement['type'];
   } = {}
 ): HTMLElementTagNameMap[K] {
   const element = document.createElement(tagName);

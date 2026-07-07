@@ -1,10 +1,51 @@
-# APP HUB - Central de documentos
+# APP HUB - Operacao solar
 
-Busca arquivos no Google Drive, permite reservar documentos e baixar os arquivos selecionados em ZIP.
+Organiza documentos, clientes, UCs e usinas em uma interface unica para operacao.
+
+## Estrutura
+
+```text
+backend/
+  app.py
+  config.py
+  routes/
+  services/
+  database/
+  models/
+  utils/
+
+frontend/
+  src/
+    pages/
+    components/
+    layouts/
+    hooks/
+    services/
+    styles/
+```
+
+## Configuracao
+
+O projeto usa variaveis de ambiente para deixar credenciais, portas e URLs fora do codigo.
+
+Arquivos locais:
+
+```text
+backend/.env
+frontend/.env
+```
+
+Modelo de referencia:
+
+```text
+.env.example
+```
+
+Coloque o `credentials.json` da Service Account dentro da pasta `backend/`. Esse arquivo nao deve ser enviado ao GitHub.
 
 ## Como rodar
 
-### 1. Backend Python
+### Backend Python
 
 ```bash
 cd backend
@@ -27,9 +68,7 @@ O backend roda em:
 http://localhost:8000
 ```
 
-### 2. Frontend TypeScript
-
-Instale o Node.js antes de rodar o frontend.
+### Frontend TypeScript
 
 Na primeira vez:
 
@@ -52,7 +91,53 @@ O frontend roda em:
 http://127.0.0.1:5173
 ```
 
-## Importante
+## Validacao
 
-Coloque seu `credentials.json` da Service Account dentro da pasta `backend/`.
-Esse arquivo NAO deve ser enviado ao GitHub.
+```bash
+cd frontend
+npm run build
+```
+
+```bash
+cd backend
+venv\Scripts\python.exe -c "from app import app; print(app.url_map)"
+```
+
+## Funcionalidades atuais
+
+- Buscar documentos e pastas no Google Drive.
+- Filtrar resultados por tudo, pastas, imagens em PDF e termo de adesao.
+- Reservar documentos para uso.
+- Abrir documentos reservados.
+- Baixar documentos reservados em ZIP.
+- Visualizar tela de Clientes com dashboard e listagem.
+- Visualizar tela de Usinas com dashboard e listagem.
+- Gerenciar Configuracoes com bloco de Banco de dados.
+
+## Navegacao
+
+- Documentos: busca e reserva de arquivos do Google Drive.
+- Clientes: tabela com nome, UC, usina, consumo e status.
+- Usinas: tabela com nome, UC, media de geracao e status.
+- Configuracoes: parametros do app e Banco de dados.
+
+O Google Drive saiu da barra lateral como item separado e agora fica dentro de Configuracoes > Banco de dados. Por enquanto ele e a fonte operacional inicial, mas a tela ja comunica a futura migracao para SQL em servidor.
+
+## Proximas fases
+
+A arquitetura ja separa rotas, servicos, modelos, paginas, componentes, layout, hooks e services para receber:
+
+- Clientes
+- UCs
+- Usinas
+- Documentos
+- Configuracoes
+- Pendencias
+- Dashboard inteligente
+- Agenda operacional
+
+Modelo futuro planejado: um cliente pode ter varias UCs, cada UC pode ser conectada a varias usinas e documentos podem ser anexados ao perfil de cada cliente.
+
+## Instalavel .exe
+
+A refatoracao manteve frontend e backend separados para permitir uma futura versao desktop instalavel. O caminho recomendado para a proxima etapa e empacotar a interface com Electron ou Tauri e iniciar o backend Python junto do aplicativo, sem exigir que o usuario abra o navegador manualmente.

@@ -99,9 +99,13 @@ export function createClientCard({
   left.append(header, fields, actions);
   panel.appendChild(left);
 
-  if (isEditing) {
+  if (client) {
     panel.appendChild(createUcPanel(client));
   }
+
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay) onCancel();
+  });
 
   overlay.appendChild(panel);
   return overlay;
@@ -155,7 +159,7 @@ function createUcPanel(client: ClientRow): HTMLElement {
     items.forEach((uc) => {
       const item = createElement('li', { className: 'uc-row' });
       const code = createElement('strong', { textContent: uc });
-      const meta = createElement('span', { textContent: client.usina });
+      const meta = createElement('span', { textContent: 'UC vinculada ao cliente' });
 
       item.append(code, meta);
       list.appendChild(item);

@@ -619,14 +619,28 @@ ul#reservados {
   font-size: 14px;
 }
 
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  background: rgba(7, 12, 20, 0.72);
+}
+
 .client-card {
   display: grid;
   gap: 0;
-  overflow: hidden;
+  width: min(720px, 100%);
+  max-height: calc(100vh - 56px);
+  overflow: auto;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.38);
 }
 
 .client-card-split {
   grid-template-columns: minmax(0, 1fr) minmax(320px, 0.86fr);
+  width: min(980px, 100%);
 }
 
 .client-form {

@@ -111,6 +111,9 @@ venv\Scripts\python.exe -c "from app import app; print(app.url_map)"
 - Abrir documentos reservados.
 - Baixar documentos reservados em ZIP.
 - Visualizar tela de Clientes com dashboard e listagem.
+- Cadastrar e editar clientes em popup.
+- Excluir clientes com confirmacao.
+- Anexar documentos ao cliente em memoria local da interface.
 - Visualizar tela de Usinas com dashboard e listagem.
 - Gerenciar Configuracoes com bloco de Banco de dados.
 
@@ -120,6 +123,8 @@ venv\Scripts\python.exe -c "from app import app; print(app.url_map)"
 - Clientes: tabela com nome, UC, usina, consumo e status.
 - Usinas: tabela com nome, UC, media de geracao e status.
 - Configuracoes: parametros do app e Banco de dados.
+
+Na tela de Clientes, o botao "Novo cliente" abre um popup de cadastro com nome, CPF e email obrigatorios, consumo, UC principal e anexos. Ao clicar em um cliente existente, o popup abre em duas partes: dados do cliente na esquerda e UCs vinculadas na direita. A usina nao fica no card de cadastro nesta fase.
 
 O Google Drive saiu da barra lateral como item separado e agora fica dentro de Configuracoes > Banco de dados. Por enquanto ele e a fonte operacional inicial, mas a tela ja comunica a futura migracao para SQL em servidor.
 

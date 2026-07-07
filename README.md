@@ -113,9 +113,13 @@ venv\Scripts\python.exe -c "from app import app; print(app.url_map)"
 - Visualizar tela de Clientes com dashboard e listagem.
 - Cadastrar e editar clientes em popup.
 - Excluir clientes com confirmacao.
-- Anexar documentos ao cliente em memoria local da interface.
+- Anexar, renomear e baixar documentos do cliente quando o arquivo foi anexado pela interface.
+- Cadastrar concessionaria do cliente. Por enquanto a lista possui `Copel`, preparada no codigo para receber novas opcoes.
 - Visualizar tela de Usinas com dashboard e listagem.
+- Cadastrar, editar e excluir usinas com confirmacao.
 - Gerenciar Configuracoes com bloco de Banco de dados.
+- Configurar contas Google Drive operacionais, SQL futuro, cor principal e logotipo local.
+- Visualizar rascunho inicial da Agenda operacional em formato de calendario.
 
 ## Navegacao
 
@@ -123,14 +127,19 @@ venv\Scripts\python.exe -c "from app import app; print(app.url_map)"
 - Clientes: tabela com nome, UC, usina, consumo e status.
 - Usinas: tabela com nome, UC, media de geracao e status.
 - Configuracoes: parametros do app e Banco de dados.
+- Agenda: calendario inicial para futuros lembretes de boleto, vencimento e contratos.
 
-Na tela de Clientes, o botao "Novo cliente" abre um popup de cadastro com nome, CPF, email obrigatorios e anexos. Ao clicar em um cliente existente, o popup abre em duas partes: dados do cliente na esquerda e UCs vinculadas na direita.
+Na tela de Clientes, o botao "Novo cliente" abre um popup de cadastro com nome, CPF, email obrigatorios, concessionaria e anexos. Tambem e possivel adicionar UCs ja no cadastro do novo cliente. Ao clicar em um cliente existente, o popup abre em duas partes: dados do cliente na esquerda e UCs vinculadas na direita.
 
-Na area de UCs, cada cliente pode ter mais de uma unidade consumidora. Cada UC possui codigo, subnome, consumo, base tarifaria, desconto, tipo de ligacao e conexoes com usinas. A lista de conexao mostra apenas usinas com percentual disponivel acima de 0%, permitindo informar quantos por cento daquela UC serao conectados em cada usina.
+Na area de UCs, cada cliente pode ter mais de uma unidade consumidora. Cada UC aparece em acordeao para manter o popup compacto. Ao abrir a UC, ficam disponiveis codigo, subnome, consumo, base tarifaria, desconto, tipo de ligacao e conexoes com usinas. A base tarifaria usa uma lista fechada com `A1`, `A2`, `A3`, `A3a`, `AS`, `B1`, `B2`, `B3` e `B4`, com ajuda por tooltip. A lista de conexao mostra apenas usinas com percentual disponivel acima de 0%, permitindo informar quantos por cento daquela UC serao conectados em cada usina.
 
-Nesta fase, os cadastros de clientes ficam salvos no `localStorage` do navegador, usando a chave `hub.operations.v1`. Isso evita perder dados ao atualizar a pagina, mas ainda nao e armazenamento definitivo nem compartilhado entre maquinas. A proxima etapa de dados deve ligar esse service ao backend, primeiro usando Google Drive como fonte operacional e depois SQL em servidor.
+Nesta fase, os cadastros de clientes e os anexos adicionados pela interface ficam salvos no `localStorage` do navegador, usando a chave `hub.operations.v1`. Isso evita perder dados ao atualizar a pagina, mas ainda nao e armazenamento definitivo nem compartilhado entre maquinas. Anexos antigos/mockados que nao possuem conteudo salvo aparecem na lista, mas nao podem ser baixados ate existirem no backend. A proxima etapa de dados deve ligar esse service ao backend, primeiro usando Google Drive como fonte operacional e depois SQL em servidor.
 
 O Google Drive saiu da barra lateral como item separado e agora fica dentro de Configuracoes > Banco de dados. Por enquanto ele e a fonte operacional inicial, mas a tela ja comunica a futura migracao para SQL em servidor.
+
+Na tela de Usinas, e possivel cadastrar nome, UC, kW pico, status e porcentagem disponivel para rateio. O cadastro usa popup, permite edicao pela linha da tabela e exclusao com confirmacao.
+
+Em Configuracoes, a aba Banco de dados organiza contas Google Drive, conta ativa e campos de SQL futuro. Credenciais reais, URLs sensiveis e chaves continuam fora do frontend e devem permanecer em variaveis de ambiente no backend. A aba Aparencia salva cor principal e logotipo PNG/JPG no armazenamento local do navegador.
 
 ## Proximas fases
 

@@ -35,8 +35,10 @@ export type ClientRow = {
 };
 
 export type PlantRow = {
+  id: string;
   nome: string;
   uc: string;
+  kwPico: string;
   mediaGeracao: string;
   status: string;
   percentualDisponivel: number;
@@ -148,13 +150,15 @@ const initialClients: ClientRow[] = [
   }
 ];
 
-const plants: PlantRow[] = [
-  { nome: 'Solar Norte', uc: 'UC-G001', mediaGeracao: '2.400 kWh', status: 'Online', percentualDisponivel: 34 },
-  { nome: 'Solar Leste', uc: 'UC-G002', mediaGeracao: '1.820 kWh', status: 'Online', percentualDisponivel: 18 },
-  { nome: 'Solar Serra', uc: 'UC-G003', mediaGeracao: '0 kWh', status: 'Implantacao', percentualDisponivel: 0 }
+const initialPlants: PlantRow[] = [
+  { id: 'usina-1', nome: 'Solar Norte', uc: 'UC-G001', kwPico: '520', mediaGeracao: '2.400 kWh', status: 'Online', percentualDisponivel: 34 },
+  { id: 'usina-2', nome: 'Solar Leste', uc: 'UC-G002', kwPico: '410', mediaGeracao: '1.820 kWh', status: 'Online', percentualDisponivel: 18 },
+  { id: 'usina-3', nome: 'Solar Serra', uc: 'UC-G003', kwPico: '300', mediaGeracao: '0 kWh', status: 'Implantacao', percentualDisponivel: 0 }
 ];
 
-const clients: ClientRow[] = loadClients();
+const storedData = loadData();
+const clients: ClientRow[] = storedData.clients;
+const plants: PlantRow[] = storedData.plants;
 
 export function getClients(): ClientRow[] {
   return clients;
@@ -176,7 +180,7 @@ export function createClient(data: Omit<ClientRow, 'id' | 'status'>): ClientRow 
   });
 
   clients.unshift(client);
-  persistClients();
+  persistData();
   return client;
 }
 
@@ -191,7 +195,7 @@ export function updateClient(id: string, data: Omit<ClientRow, 'id' | 'status'>)
     status: getClientStatus(data.usina, data.ucs)
   });
 
-  persistClients();
+  persistData();
   return clients[index];
 }
 
@@ -200,7 +204,42 @@ export function deleteClient(id: string): void {
 
   if (index >= 0) {
     clients.splice(index, 1);
-    persistClients();
+    persistData();
+  }
+}
+
+export function createPlant(data: Omit<PlantRow, 'id' | 'mediaGeracao'>): PlantRow {
+  const plant: PlantRow = {
+    ...data,
+    id: crypto.randomUUID(),
+    mediaGeracao: `${data.kwPico} kWp`
+  };
+
+  plants.unshift(plant);
+  persistData();
+  return plant;
+}
+
+export function updatePlant(id: string, data: Omit<PlantRow, 'id' | 'mediaGeracao'>): PlantRow | null {
+  const index = plants.findIndex((plant) => plant.id === id);
+
+  if (index < 0) return null;
+
+  plants[index] = {
+    ...data,
+    id,
+    mediaGeracao: `${data.kwPico} kWp`
+  };
+  persistData();
+  return plants[index];
+}
+
+export function deletePlant(id: string): void {
+  const index = plants.findIndex((plant) => plant.id === id);
+
+  if (index >= 0) {
+    plants.splice(index, 1);
+    persistData();
   }
 }
 
@@ -217,8 +256,8 @@ export function getPlantMetrics() {
   return [
     { label: 'Total de usinas', value: String(plants.length) },
     { label: 'Usinas online', value: String(plants.filter((item) => item.status === 'Online').length), tone: 'success' as const },
-    { label: 'Media geracao', value: '1.407 kWh' },
-    { label: 'Uso total', value: '68%' }
+    { label: 'Media geracao', value: getAveragePeakPower() },
+    { label: 'Uso total', value: `${getUsedPlantPercent()}%` }
   ];
 }
 
@@ -276,19 +315,46 @@ function normalizeUc(uc: ClientUc | string): ClientUc {
   };
 }
 
-function loadClients(): ClientRow[] {
+function loadData(): { clients: ClientRow[]; plants: PlantRow[] } {
   const saved = window.localStorage.getItem(STORAGE_KEY);
 
-  if (!saved) return initialClients;
+  if (!saved) return { clients: initialClients, plants: initialPlants };
 
   try {
-    const parsed = JSON.parse(saved) as { clients?: ClientRow[] };
-    return parsed.clients?.length ? parsed.clients.map(normalizeClient) : initialClients;
+    const parsed = JSON.parse(saved) as { clients?: ClientRow[]; plants?: PlantRow[] };
+
+    return {
+      clients: parsed.clients?.length ? parsed.clients.map(normalizeClient) : initialClients,
+      plants: parsed.plants?.length ? parsed.plants.map(normalizePlant) : initialPlants
+    };
   } catch {
-    return initialClients;
+    return { clients: initialClients, plants: initialPlants };
   }
 }
 
-function persistClients(): void {
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ clients }));
+function persistData(): void {
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ clients, plants }));
+}
+
+function normalizePlant(plant: PlantRow): PlantRow {
+  return {
+    ...plant,
+    id: plant.id ?? crypto.randomUUID(),
+    kwPico: plant.kwPico ?? plant.mediaGeracao.replace(/[^\d,.]/g, ''),
+    percentualDisponivel: Number(plant.percentualDisponivel) || 0
+  };
+}
+
+function getAveragePeakPower(): string {
+  if (plants.length === 0) return '0 kWp';
+
+  const total = plants.reduce((sum, plant) => sum + Number(plant.kwPico.replace(',', '.')), 0);
+  return `${Math.round(total / plants.length)} kWp`;
+}
+
+function getUsedPlantPercent(): number {
+  if (plants.length === 0) return 0;
+
+  const available = plants.reduce((sum, plant) => sum + plant.percentualDisponivel, 0) / plants.length;
+  return Math.max(0, Math.round(100 - available));
 }

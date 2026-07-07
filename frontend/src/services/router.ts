@@ -1,4 +1,5 @@
 import { createClientsPage } from '../pages/ClientsPage';
+import { createAgendaPage } from '../pages/AgendaPage';
 import { createDocumentsPage } from '../pages/DocumentsPage';
 import { createPlaceholderPage } from '../pages/PlaceholderPage';
 import { createPlantsPage } from '../pages/PlantsPage';
@@ -33,11 +34,7 @@ export function createRouter(root: HTMLElement) {
     },
     {
       path: '/agenda',
-      render: () => createPlaceholderPage({
-        eyebrow: 'Agenda',
-        title: 'Agenda operacional',
-        message: 'A agenda operacional ficara preparada para prazos, visitas e proximas acoes.'
-      })
+      render: createAgendaPage
     },
     { path: '/configuracoes', render: createSettingsPage }
   ];

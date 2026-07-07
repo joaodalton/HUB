@@ -1,3 +1,25 @@
+export type PlantConnection = {
+  usina: string;
+  percentual: string;
+};
+
+export type ClientUc = {
+  id: string;
+  codigo: string;
+  apelido: string;
+  consumo: string;
+  baseTarifaria: string;
+  desconto: string;
+  tipoLigacao: 'Monofasico' | 'Bifasico' | 'Trifasico';
+  conexoes: PlantConnection[];
+};
+
+export type ClientDocument = {
+  id: string;
+  nome: string;
+  dataUrl?: string;
+};
+
 export type ClientRow = {
   id: string;
   nome: string;
@@ -7,8 +29,9 @@ export type ClientRow = {
   usina: string;
   consumo: string;
   status: string;
-  documentos: string[];
-  ucs: string[];
+  concessionaria: string;
+  documentos: ClientDocument[];
+  ucs: ClientUc[];
 };
 
 export type PlantRow = {
@@ -16,9 +39,13 @@ export type PlantRow = {
   uc: string;
   mediaGeracao: string;
   status: string;
+  percentualDisponivel: number;
 };
 
-const clients: ClientRow[] = [
+const STORAGE_KEY = 'hub.operations.v1';
+export const concessionarias = ['Copel'];
+
+const initialClients: ClientRow[] = [
   {
     id: 'cliente-1',
     nome: 'Ana Ribeiro',
@@ -28,8 +55,18 @@ const clients: ClientRow[] = [
     usina: 'Solar Norte',
     consumo: '480 kWh',
     status: 'Concluido',
-    documentos: ['contrato-ana.pdf'],
-    ucs: ['UC-1042']
+    concessionaria: 'Copel',
+    documentos: [{ id: 'doc-1', nome: 'contrato-ana.pdf' }],
+    ucs: [{
+      id: 'uc-1',
+      codigo: 'UC-1042',
+      apelido: 'Casa',
+      consumo: '480 kWh',
+      baseTarifaria: 'B1 Residencial',
+      desconto: '15%',
+      tipoLigacao: 'Bifasico',
+      conexoes: [{ usina: 'Solar Norte', percentual: '100' }]
+    }]
   },
   {
     id: 'cliente-2',
@@ -40,8 +77,18 @@ const clients: ClientRow[] = [
     usina: 'A definir',
     consumo: '620 kWh',
     status: 'Esperando usina',
+    concessionaria: 'Copel',
     documentos: [],
-    ucs: ['UC-1189']
+    ucs: [{
+      id: 'uc-2',
+      codigo: 'UC-1189',
+      apelido: 'Apartamento',
+      consumo: '620 kWh',
+      baseTarifaria: 'B1 Residencial',
+      desconto: '12%',
+      tipoLigacao: 'Monofasico',
+      conexoes: []
+    }]
   },
   {
     id: 'cliente-3',
@@ -52,8 +99,30 @@ const clients: ClientRow[] = [
     usina: 'Solar Leste',
     consumo: '1.840 kWh',
     status: 'Esperando rateio',
-    documentos: ['termo-jm.pdf', 'documentos-jm.zip'],
-    ucs: ['UC-1320', 'UC-1321']
+    concessionaria: 'Copel',
+    documentos: [
+      { id: 'doc-2', nome: 'termo-jm.pdf' },
+      { id: 'doc-3', nome: 'documentos-jm.zip' }
+    ],
+    ucs: [{
+      id: 'uc-3',
+      codigo: 'UC-1320',
+      apelido: 'Matriz',
+      consumo: '1.100 kWh',
+      baseTarifaria: 'B3 Comercial',
+      desconto: '18%',
+      tipoLigacao: 'Trifasico',
+      conexoes: [{ usina: 'Solar Leste', percentual: '70' }]
+    }, {
+      id: 'uc-4',
+      codigo: 'UC-1321',
+      apelido: 'Deposito',
+      consumo: '740 kWh',
+      baseTarifaria: 'B3 Comercial',
+      desconto: '18%',
+      tipoLigacao: 'Trifasico',
+      conexoes: [{ usina: 'Solar Leste', percentual: '30' }]
+    }]
   },
   {
     id: 'cliente-4',
@@ -64,16 +133,28 @@ const clients: ClientRow[] = [
     usina: 'Solar Norte',
     consumo: '390 kWh',
     status: 'Concluido',
+    concessionaria: 'Copel',
     documentos: [],
-    ucs: ['UC-1404']
+    ucs: [{
+      id: 'uc-5',
+      codigo: 'UC-1404',
+      apelido: 'Casa',
+      consumo: '390 kWh',
+      baseTarifaria: 'B1 Residencial',
+      desconto: '15%',
+      tipoLigacao: 'Bifasico',
+      conexoes: [{ usina: 'Solar Norte', percentual: '100' }]
+    }]
   }
 ];
 
 const plants: PlantRow[] = [
-  { nome: 'Solar Norte', uc: 'UC-G001', mediaGeracao: '2.400 kWh', status: 'Online' },
-  { nome: 'Solar Leste', uc: 'UC-G002', mediaGeracao: '1.820 kWh', status: 'Online' },
-  { nome: 'Solar Serra', uc: 'UC-G003', mediaGeracao: '0 kWh', status: 'Implantacao' }
+  { nome: 'Solar Norte', uc: 'UC-G001', mediaGeracao: '2.400 kWh', status: 'Online', percentualDisponivel: 34 },
+  { nome: 'Solar Leste', uc: 'UC-G002', mediaGeracao: '1.820 kWh', status: 'Online', percentualDisponivel: 18 },
+  { nome: 'Solar Serra', uc: 'UC-G003', mediaGeracao: '0 kWh', status: 'Implantacao', percentualDisponivel: 0 }
 ];
+
+const clients: ClientRow[] = loadClients();
 
 export function getClients(): ClientRow[] {
   return clients;
@@ -83,18 +164,19 @@ export function getPlants(): PlantRow[] {
   return plants;
 }
 
-export function getAvailablePlantNames(): string[] {
-  return plants.map((plant) => plant.nome);
+export function getAvailablePlants(): PlantRow[] {
+  return plants.filter((plant) => plant.percentualDisponivel > 0);
 }
 
 export function createClient(data: Omit<ClientRow, 'id' | 'status'>): ClientRow {
-  const client: ClientRow = {
+  const client = normalizeClient({
     ...data,
     id: crypto.randomUUID(),
-    status: getClientStatus(data.usina)
-  };
+    status: getClientStatus(data.usina, data.ucs)
+  });
 
   clients.unshift(client);
+  persistClients();
   return client;
 }
 
@@ -103,18 +185,23 @@ export function updateClient(id: string, data: Omit<ClientRow, 'id' | 'status'>)
 
   if (index < 0) return null;
 
-  clients[index] = {
+  clients[index] = normalizeClient({
     ...data,
     id,
-    status: getClientStatus(data.usina)
-  };
+    status: getClientStatus(data.usina, data.ucs)
+  });
 
+  persistClients();
   return clients[index];
 }
 
 export function deleteClient(id: string): void {
   const index = clients.findIndex((client) => client.id === id);
-  if (index >= 0) clients.splice(index, 1);
+
+  if (index >= 0) {
+    clients.splice(index, 1);
+    persistClients();
+  }
 }
 
 export function getClientMetrics() {
@@ -135,6 +222,73 @@ export function getPlantMetrics() {
   ];
 }
 
-function getClientStatus(usina: string): string {
-  return usina && usina !== 'A definir' ? 'Concluido' : 'Esperando usina';
+function getClientStatus(usina: string, ucs: ClientUc[]): string {
+  if (ucs.some((uc) => uc.conexoes.length > 1)) return 'Esperando rateio';
+  if (ucs.some((uc) => uc.conexoes.length > 0) || (usina && usina !== 'A definir')) return 'Concluido';
+  return 'Esperando usina';
+}
+
+function normalizeClient(client: ClientRow): ClientRow {
+  const rawUcs = (client.ucs ?? []) as Array<ClientUc | string>;
+  const normalizedUcs = rawUcs.map(normalizeUc);
+  const firstUc = normalizedUcs[0];
+  const firstConnection = firstUc?.conexoes[0]?.usina;
+  const rawDocuments = (client.documentos ?? []) as Array<ClientDocument | string>;
+
+  return {
+    ...client,
+    uc: firstUc?.codigo ?? client.uc,
+    usina: firstConnection ?? client.usina ?? 'A definir',
+    consumo: firstUc?.consumo ?? client.consumo,
+    concessionaria: client.concessionaria ?? concessionarias[0],
+    documentos: rawDocuments.map((documento) => {
+      if (typeof documento === 'string') {
+        return { id: crypto.randomUUID(), nome: documento };
+      }
+
+      return documento;
+    }),
+    ucs: normalizedUcs,
+    status: getClientStatus(client.usina, normalizedUcs)
+  };
+}
+
+function normalizeUc(uc: ClientUc | string): ClientUc {
+  if (typeof uc === 'string') {
+    return {
+      id: crypto.randomUUID(),
+      codigo: uc,
+      apelido: '',
+      consumo: '',
+      baseTarifaria: 'B1',
+      desconto: '',
+      tipoLigacao: 'Monofasico',
+      conexoes: []
+    };
+  }
+
+  return {
+    ...uc,
+    id: uc.id ?? crypto.randomUUID(),
+    baseTarifaria: uc.baseTarifaria || 'B1',
+    tipoLigacao: uc.tipoLigacao || 'Monofasico',
+    conexoes: uc.conexoes ?? []
+  };
+}
+
+function loadClients(): ClientRow[] {
+  const saved = window.localStorage.getItem(STORAGE_KEY);
+
+  if (!saved) return initialClients;
+
+  try {
+    const parsed = JSON.parse(saved) as { clients?: ClientRow[] };
+    return parsed.clients?.length ? parsed.clients.map(normalizeClient) : initialClients;
+  } catch {
+    return initialClients;
+  }
+}
+
+function persistClients(): void {
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ clients }));
 }

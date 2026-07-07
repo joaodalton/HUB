@@ -7,6 +7,7 @@ import { createBaseLayout } from '../layouts/BaseLayout';
 import {
   createClient,
   deleteClient,
+  getAvailablePlants,
   getClientMetrics,
   getClients,
   type ClientRow,
@@ -69,6 +70,7 @@ export function createClientsPage(): HTMLElement {
   function createClientEditor(): HTMLElement {
     return createClientCard({
       client: selectedClient ?? undefined,
+      availablePlants: getAvailablePlants(),
       onCancel: () => {
         selectedClient = null;
         isCreating = false;
@@ -98,9 +100,10 @@ export function createClientsPage(): HTMLElement {
       nome: data.nome,
       cpf: data.cpf,
       email: data.email,
-      uc: data.uc,
+      uc: data.ucs[0]?.codigo ?? '',
       usina: selectedClient?.usina ?? 'A definir',
-      consumo: data.consumo,
+      consumo: data.ucs[0]?.consumo ?? '',
+      concessionaria: data.concessionaria,
       documentos: data.documentos,
       ucs: data.ucs
     };

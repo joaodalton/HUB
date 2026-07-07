@@ -124,7 +124,11 @@ venv\Scripts\python.exe -c "from app import app; print(app.url_map)"
 - Usinas: tabela com nome, UC, media de geracao e status.
 - Configuracoes: parametros do app e Banco de dados.
 
-Na tela de Clientes, o botao "Novo cliente" abre um popup de cadastro com nome, CPF e email obrigatorios, consumo, UC principal e anexos. Ao clicar em um cliente existente, o popup abre em duas partes: dados do cliente na esquerda e UCs vinculadas na direita. A usina nao fica no card de cadastro nesta fase.
+Na tela de Clientes, o botao "Novo cliente" abre um popup de cadastro com nome, CPF, email obrigatorios e anexos. Ao clicar em um cliente existente, o popup abre em duas partes: dados do cliente na esquerda e UCs vinculadas na direita.
+
+Na area de UCs, cada cliente pode ter mais de uma unidade consumidora. Cada UC possui codigo, subnome, consumo, base tarifaria, desconto, tipo de ligacao e conexoes com usinas. A lista de conexao mostra apenas usinas com percentual disponivel acima de 0%, permitindo informar quantos por cento daquela UC serao conectados em cada usina.
+
+Nesta fase, os cadastros de clientes ficam salvos no `localStorage` do navegador, usando a chave `hub.operations.v1`. Isso evita perder dados ao atualizar a pagina, mas ainda nao e armazenamento definitivo nem compartilhado entre maquinas. A proxima etapa de dados deve ligar esse service ao backend, primeiro usando Google Drive como fonte operacional e depois SQL em servidor.
 
 O Google Drive saiu da barra lateral como item separado e agora fica dentro de Configuracoes > Banco de dados. Por enquanto ele e a fonte operacional inicial, mas a tela ja comunica a futura migracao para SQL em servidor.
 

@@ -15,7 +15,8 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   });
 
   if (!response.ok) {
-    throw new Error('Falha na comunicacao com a API.');
+    const payload = await response.json().catch(() => null) as { message?: string; error?: string } | null;
+    throw new Error(payload?.message ?? payload?.error ?? 'Falha na comunicacao com a API.');
   }
 
   return response.json() as Promise<T>;
@@ -32,7 +33,8 @@ export async function apiBlob(path: string, options: RequestOptions = {}): Promi
   });
 
   if (!response.ok) {
-    throw new Error('Falha na comunicacao com a API.');
+    const payload = await response.json().catch(() => null) as { message?: string; error?: string } | null;
+    throw new Error(payload?.message ?? payload?.error ?? 'Falha na comunicacao com a API.');
   }
 
   return response.blob();

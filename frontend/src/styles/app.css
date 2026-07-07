@@ -609,6 +609,13 @@ ul#reservados {
   border-bottom: none;
 }
 
+.settings-list.compact {
+  grid-template-columns: 180px minmax(0, 1fr);
+  border: 1px solid var(--navy-line);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
 .placeholder-panel {
   padding: 28px;
 }
@@ -922,6 +929,57 @@ ul#reservados {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.database-provider-stack {
+  display: grid;
+  gap: 18px;
+}
+
+.database-provider-card {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  background: rgba(22, 35, 58, 0.96);
+  border: 1px solid var(--navy-line);
+  border-left: 3px solid var(--navy-line);
+  border-radius: 6px;
+}
+
+.database-provider-card.active {
+  border-left-color: var(--copper);
+}
+
+.provider-header,
+.provider-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.provider-actions {
+  justify-content: flex-start;
+}
+
+.provider-badge {
+  border: 1px solid var(--navy-line);
+  border-radius: 999px;
+  padding: 6px 10px;
+  color: var(--paper-dim);
+  font-family: 'IBM Plex Mono', Consolas, monospace;
+  font-size: 11px;
+}
+
+.provider-badge.success {
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.provider-badge.warning {
+  border-color: var(--copper);
+  color: var(--copper);
 }
 
 .settings-tab {

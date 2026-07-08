@@ -3,7 +3,7 @@
 > Leia `VISAO.md` primeiro. Este arquivo é o estado atual, atualizado a cada tarefa concluída.
 > Regra: pegue a primeira tarefa `[ ]` de cima pra baixo. Não pule.
 
-Última atualização: (o Codex atualiza esta linha a cada sessão) — ainda não iniciado após a criação deste documento.
+Última atualização: 2026-07-08 — modelos do núcleo e migration inicial concluídos.
 
 ---
 
@@ -22,20 +22,44 @@
   - `backend/`: `database/`, `models/` (com `drive_item.py`), `routes/` (`config_routes`, `drive_routes`, `health_routes`), `services/` (`database_config_service`, `drive_service`), `utils/` (`api_response.py`, `files.py`), `app.py`, `config.py`, `requirements.txt`.
   - `frontend/src/`: `components/` (Client Card, DashboardCards, DataTable, ErrorBoundary, Header, Loading, PlantCard, ReservedPanel, ResultsList, SearchPanel, Sidebar, Toast), `hooks/` (useGlobalLoading, useToast), `layouts/` (BaseLayout), `pages/` (Agenda, Clients, Documents, Placeholder, Plants, Settings), `services/` (**apiClient.ts, router.ts, documentRules.ts** já existem — mais completo do que eu esperava), `styles/` (app.css).
 - [x] `backend/models/` e `backend/database/` já existem — **não recriar**, só completar o que falta dentro deles (ver abaixo).
-- [ ] Confirmar se os arquivos deste Project (Claude) foram corrigidos/ressincronizados com o repositório real antes de qualquer sessão do Codex usar esses arquivos como referência.
+- [x] Confirmar se os arquivos deste Project (Claude) foram corrigidos/ressincronizados com o repositório real antes de qualquer sessão do Codex usar esses arquivos como referência.
+  - Critério de pronto: arquivos centrais abertos direto no repositório real (`backend/app.py`, `frontend/package.json`, `backend/requirements.txt`, `README.md`) e confirmados como coerentes com suas funções.
+  - Feito: `HUB-main.zip` foi extraído em `C:\Users\deadj\Documents\HUB\HUB-main`; a estrutura e os arquivos centrais batem com a arquitetura esperada, sem troca evidente de conteúdo.
 
 ### Banco de dados local
 - [x] `backend/models/drive_item.py` já existe (dataclass `DriveItem`) — manter, é modelo de apoio pro Drive, não é entidade de banco.
-- [ ] Escolher ORM (sugestão: SQLAlchemy) e ferramenta de migration (sugestão: Alembic ou Flask-Migrate).
-- [ ] Modelo Cliente.
-- [ ] Modelo UC (FK para Cliente, FK opcional para Usina).
-- [ ] Modelo Usina.
-- [ ] Modelo Documento (FK para UC, FK para Categoria).
-- [ ] Modelo Categoria.
-- [ ] Modelo Configuração.
-- [ ] Modelo GoogleAccount.
-- [ ] Modelo Log.
-- [ ] Migration inicial rodando limpa em banco vazio.
+- [x] Escolher ORM (sugestão: SQLAlchemy) e ferramenta de migration (sugestão: Alembic ou Flask-Migrate).
+  - Critério de pronto: dependências declaradas, configuração `DATABASE_URL` com fallback SQLite local, extensões inicializadas no Flask e importação do app validada sem erro de sintaxe.
+  - Feito: escolhido SQLAlchemy com Flask-Migrate/Alembic; `backend/app.py` inicializa `db`/`migrate`, `backend/config.py` define `SQLALCHEMY_DATABASE_URI` via `DATABASE_URL` com fallback SQLite local, e `requirements.txt` declara as dependências.
+  - Validação: `.\venv\Scripts\python.exe -m py_compile app.py config.py database\__init__.py services\drive_service.py routes\drive_routes.py` e `.\venv\Scripts\python.exe -c "from app import app; print(app.url_map)"` passaram.
+- [x] Modelo Cliente.
+  - Critério de pronto: modelo SQLAlchemy criado em `backend/models/`, exportado por `backend/models/__init__.py`, com campos usados hoje pela tela de Clientes e validação de importação do app passando.
+  - Feito: criado `backend/models/client.py` com tabela `clients`, campos principais usados pela tela atual (`nome`, CPF/CNPJ, email, concessionária, status, UC/usina/consumo resumidos) e timestamps.
+  - Validação: `db.metadata.tables` lista `clients` e `db.create_all()` executou sem erro em SQLite local.
+- [x] Modelo UC (FK para Cliente, FK opcional para Usina).
+  - Critério de pronto: modelo SQLAlchemy criado com FK obrigatória para Cliente, FK opcional para Usina, campos atuais de UC e relacionamento de conexões/rateio preservado para expansão.
+  - Feito: criado `ConsumerUnit` com FK para `clients`, FK opcional para `plants`, campos atuais da tela e tabela auxiliar `plant_connections` para conexão UC↔Usina com percentual.
+- [x] Modelo Usina.
+  - Critério de pronto: modelo SQLAlchemy criado com campos usados hoje pela tela de Usinas e relacionamento reverso com UCs.
+  - Feito: criado `Plant` com nome, UC, kW pico, geração média, status e percentual disponível.
+- [x] Modelo Documento (FK para UC, FK para Categoria).
+  - Critério de pronto: modelo SQLAlchemy criado com vínculo opcional a Cliente, FK opcional a UC e FK obrigatória a Categoria.
+  - Feito: criado `Document` com vínculo opcional a Cliente/UC, FK obrigatória a Categoria e referência de armazenamento.
+- [x] Modelo Categoria.
+  - Critério de pronto: modelo SQLAlchemy criado para classificar documentos, com nome único e tipo/descrição opcionais.
+  - Feito: criado `Category` com nome único, tipo e descrição.
+- [x] Modelo Configuração.
+  - Critério de pronto: modelo SQLAlchemy chave/valor criado para configurações persistidas no banco.
+  - Feito: criado `Setting` chave/valor.
+- [x] Modelo GoogleAccount.
+  - Critério de pronto: modelo SQLAlchemy criado para múltiplas contas Google OAuth, sem hardcode de credenciais.
+  - Feito: criado `GoogleAccount` para OAuth com refresh token criptografado/serializado em campo dedicado, escopos e conta ativa.
+- [x] Modelo Log.
+  - Critério de pronto: modelo SQLAlchemy criado para registrar ações, entidade afetada e metadados.
+  - Feito: criado `LogEntry` com ação, entidade, mensagem e metadados.
+- [x] Migration inicial rodando limpa em banco vazio.
+  - Critério de pronto: migration inicial Alembic/Flask-Migrate criada e aplicada em SQLite vazio, gerando todas as tabelas do núcleo.
+  - Validação: `flask --app app db migrate -m "initial core schema"` gerou `backend/migrations/versions/652c22edc58c_initial_core_schema.py`; `flask --app app db upgrade` aplicado em SQLite vazio gerou `alembic_version`, `categories`, `clients`, `consumer_units`, `documents`, `google_accounts`, `logs`, `plant_connections`, `plants`, `settings`.
 
 ### CRUD Cliente / UC / Usina (ligar ao banco, hoje está em memória/localStorage no front)
 - [ ] API de Cliente (GET/POST/PUT/DELETE) usando o banco novo.
@@ -102,4 +126,8 @@
 ## Log de decisões tomadas durante o desenvolvimento
 (o Codex adiciona uma linha aqui sempre que resolver uma ambiguidade sozinho, pra você poder revisar depois)
 
-- —
+- 2026-07-08: enquanto o usuário não responder sobre single-user vs multi-máquina, mantido o default da visão: SQLite local.
+- 2026-07-08: escolhido SQLAlchemy + Flask-Migrate/Alembic para banco local e migrations.
+- 2026-07-08: `drive_service` passou a inicializar o cliente Google Drive sob demanda para permitir que o app Flask suba sem `credentials.json`; rotas do Drive retornam erro claro se a credencial faltar.
+- 2026-07-08: o modelo `Client` usa nomes internos em inglês e `to_dict()` compatível com os nomes atuais do frontend em português para facilitar a troca futura de `localStorage` por API.
+- 2026-07-08: criada tabela `plant_connections` além das entidades listadas para preservar o comportamento atual de uma UC conectada a múltiplas usinas com percentuais.

@@ -1,5 +1,7 @@
 flask
 flask-cors
+flask-sqlalchemy
+flask-migrate
 google-auth
 google-api-python-client
 python-dotenv

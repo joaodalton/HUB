@@ -1,9 +1,12 @@
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 
 
 load_dotenv()
+
+BASE_DIR = Path(__file__).resolve().parent
 
 
 class Config:
@@ -23,3 +26,7 @@ class Config:
     SQL_DATABASE = os.getenv('SQL_DATABASE', '')
     SQL_USER = os.getenv('SQL_USER', '')
     SQL_PASSWORD = os.getenv('SQL_PASSWORD', '')
+    SQLALCHEMY_DATABASE_URI = os.getenv(
+        'DATABASE_URL',
+        f"sqlite:///{BASE_DIR / 'database' / 'hub.db'}" )
+    SQLALCHEMY_TRACK_MODIFICATIONS = False

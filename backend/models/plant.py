@@ -1,7 +1,7 @@
 # backend/models/plant.py
 from datetime import datetime
 
-from app import db
+from extensions import db
 
 
 class Plant(db.Model):

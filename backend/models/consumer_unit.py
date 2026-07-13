@@ -1,7 +1,7 @@
 # backend/models/consumer_unit.py
 from datetime import datetime
 
-from app import db
+from extensions import db
 
 
 class ConsumerUnit(db.Model):

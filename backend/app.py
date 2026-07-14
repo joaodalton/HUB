@@ -1,12 +1,8 @@
 from flask import Flask
 from flask_cors import CORS
-from flask_migrate import Migrate
-from flask_sqlalchemy import SQLAlchemy
 
 from config import Config
-
-db = SQLAlchemy()
-migrate = Migrate()
+from extensions import db, migrate
 
 
 def create_app() -> Flask:
@@ -25,10 +21,12 @@ def create_app() -> Flask:
     from routes.config_routes import config_routes
     from routes.drive_routes import drive_routes
     from routes.health_routes import health_routes
+    from routes.client_routes import client_routes
 
     app.register_blueprint(health_routes)
     app.register_blueprint(drive_routes)
     app.register_blueprint(config_routes)
+    app.register_blueprint(client_routes)
 
     return app
 

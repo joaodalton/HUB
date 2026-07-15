@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent
+(BASE_DIR / 'database').mkdir(parents=True, exist_ok=True)
 
 
 class Config:
@@ -27,6 +28,7 @@ class Config:
     SQL_USER = os.getenv('SQL_USER', '')
     SQL_PASSWORD = os.getenv('SQL_PASSWORD', '')
     SQLALCHEMY_DATABASE_URI = os.getenv(
-        'DATABASE_URL',
-        f"sqlite:///{BASE_DIR / 'database' / 'hub.db'}" )
+    'DATABASE_URL',
+    f"sqlite:///{(BASE_DIR / 'database' / 'hub.db').as_posix()}" 
+    )
     SQLALCHEMY_TRACK_MODIFICATIONS = False

@@ -39,9 +39,12 @@ def store():
     if not data.get('email', '').strip():
         return error_response('Email e obrigatorio.', 400)
 
-    client = create_client(data)
-    return success_response(client, 'Cliente cadastrado.', 201)
+    try:
+        client = create_client(data)
+    except ValueError as exc:
+        return error_response(str(exc), 409)
 
+    return success_response(client, 'Cliente cadastrado.', 201)
 
 @client_routes.route('/<int:client_id>', methods=['PUT'])
 def update(client_id: int):
@@ -54,7 +57,10 @@ def update(client_id: int):
     if not data.get('email', '').strip():
         return error_response('Email e obrigatorio.', 400)
 
-    client = update_client(client_id, data)
+    try:
+        client = update_client(client_id, data)
+    except ValueError as exc:
+        return error_response(str(exc), 409)
 
     if not client:
         return error_response('Cliente nao encontrado.', 404)

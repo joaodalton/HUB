@@ -4,7 +4,7 @@ export type PlantConnection = {
 };
 
 export type ClientUc = {
-  id: string;
+  id: string | number;
   codigo: string;
   apelido: string;
   consumo: string;

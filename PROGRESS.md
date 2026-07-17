@@ -62,14 +62,17 @@
   - Validação: `flask --app app db migrate -m "initial core schema"` gerou `backend/migrations/versions/652c22edc58c_initial_core_schema.py`; `flask --app app db upgrade` aplicado em SQLite vazio gerou `alembic_version`, `categories`, `clients`, `consumer_units`, `documents`, `google_accounts`, `logs`, `plant_connections`, `plants`, `settings`.
 
 ### CRUD Cliente / UC / Usina (ligar ao banco, hoje está em memória/localStorage no front)
-- [ ] API de Cliente (GET/POST/PUT/DELETE) usando o banco novo.
-- [ ] API de UC, com vínculo a Cliente e Usina.
-- [ ] API de Usina.
+- [x] API de Cliente (GET/POST/PUT/DELETE) usando o banco novo.
+  - Feito: `backend/routes/client_routes.py` completo e registrado em `app.py`; `client_service.py` trata CPF duplicado (409) e diferencia UC nova (UUID) de UC existente (id numérico).
+  - Pendente dentro do mesmo módulo: `_sync_connections` ainda vincula UC↔Usina por nome da usina (string), não por `plant_id`. Precisa trocar para lookup por id antes de expor isso pro frontend real, senão renomear uma usina quebra vínculos existentes silenciosamente.
+- [ ] API de UC dedicada (GET/PUT/DELETE por UC, fora do payload aninhado de Cliente).
+- [ ] API de Usina (GET/POST/PUT/DELETE) — ainda não existe `plant_routes.py` nem blueprint registrado.
 - [ ] Frontend de Clientes consumindo a API nova (hoje usa `localStorage` com a chave `hub.operations.v1` — não remover a tela/fluxo, só trocar a fonte de dados).
 - [ ] Frontend de Usinas consumindo a API nova.
 - [ ] Migrar dados de exemplo/mock existentes, se fizer sentido, ou começar limpo (decidir com o usuário).
 
 ### Google Drive OAuth
+- [ ] `drive_service.py` ainda inicializa o cliente Google na importação do módulo (`drive_service = GoogleDriveService()` no fim do arquivo). Como `drive_routes` é sempre registrado em `app.py`, isso derruba o Flask inteiro se `credentials.json` não existir — não é isolado à rota do Drive. Fix de lazy-init (mover a criação do client pra dentro de cada método, com erro tratado) já foi desenhado antes e precisa ser aplicado.
 - [ ] Fluxo OAuth 2.0 (login interativo, autorizar, salvar refresh token).
 - [ ] Refresh token salvo de forma segura no banco (não em texto puro sem proteção).
 - [ ] Suporte a mais de uma conta Google conectada.
@@ -131,3 +134,4 @@
 - 2026-07-08: `drive_service` passou a inicializar o cliente Google Drive sob demanda para permitir que o app Flask suba sem `credentials.json`; rotas do Drive retornam erro claro se a credencial faltar.
 - 2026-07-08: o modelo `Client` usa nomes internos em inglês e `to_dict()` compatível com os nomes atuais do frontend em português para facilitar a troca futura de `localStorage` por API.
 - 2026-07-08: criada tabela `plant_connections` além das entidades listadas para preservar o comportamento atual de uma UC conectada a múltiplas usinas com percentuais.
+- 2026-07-17: revisão de código confirmou API de Cliente completa e registrada (estava marcada como pendente). Confirmado que Bug 4 (`_sync_connections` por nome de usina) e o eager-init do `drive_service.py` continuam sem correção aplicada — próximas tarefas prioritárias antes de ligar o frontend na API real.

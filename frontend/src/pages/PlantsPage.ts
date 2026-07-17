@@ -1,7 +1,9 @@
+// frontend/src/pages/PlantsPage.ts
 import { createDashboardCards } from '../components/DashboardCards';
 import { createDataTable } from '../components/DataTable';
 import { createPlantCard, type PlantFormData } from '../components/PlantCard';
 import { createElement } from '../dom';
+import { useGlobalLoading } from '../hooks/useGlobalLoading';
 import { useToast } from '../hooks/useToast';
 import { createBaseLayout } from '../layouts/BaseLayout';
 import {
@@ -11,21 +13,40 @@ import {
   getPlants,
   type PlantRow,
   updatePlant
-} from '../services/operationsService';
+} from '../services/plantService';
 
 export function createPlantsPage(): HTMLElement {
   const content = createElement('section', { className: 'content-stack' });
   const toast = useToast();
+  const loading = useGlobalLoading();
+  let plants: PlantRow[] = [];
   let selectedPlant: PlantRow | null = null;
   let isCreating = false;
+  let loadError = false;
 
-  renderContent();
-
-  return createBaseLayout({
+  const layout = createBaseLayout({
     content,
     eyebrow: 'Usinas',
     title: 'Visualize geracao, uso e status das usinas'
   });
+
+  loadPlants();
+
+  return layout;
+
+  async function loadPlants(): Promise<void> {
+    loading.show();
+    try {
+      plants = await getPlants();
+      loadError = false;
+    } catch {
+      loadError = true;
+      toast.error('Nao foi possivel carregar usinas. Verifique se o backend esta rodando.');
+    } finally {
+      loading.hide();
+      renderContent();
+    }
+  }
 
   function renderContent(): void {
     const pageActions = createElement('div', { className: 'page-actions' });
@@ -33,8 +54,8 @@ export function createPlantsPage(): HTMLElement {
     const table = createDataTable<PlantRow>({
       title: 'Usinas cadastradas',
       eyebrow: 'Listagem',
-      rows: getPlants(),
-      emptyMessage: 'Nenhuma usina cadastrada ainda.',
+      rows: plants,
+      emptyMessage: loadError ? 'Nao foi possivel carregar usinas.' : 'Nenhuma usina cadastrada ainda.',
       onRowClick: (plant) => {
         selectedPlant = plant;
         isCreating = false;
@@ -48,7 +69,7 @@ export function createPlantsPage(): HTMLElement {
         { key: 'status', label: 'Status' }
       ]
     });
-    const blocks: HTMLElement[] = [createDashboardCards(getPlantMetrics()), pageActions];
+    const blocks: HTMLElement[] = [createDashboardCards(getPlantMetrics(plants)), pageActions];
 
     newPlantButton.addEventListener('click', () => {
       selectedPlant = null;
@@ -74,33 +95,45 @@ export function createPlantsPage(): HTMLElement {
         isCreating = false;
         renderContent();
       },
-      onSave: (data) => {
-        savePlant(data);
+      onSave: async (data) => {
+        await savePlant(data);
         selectedPlant = null;
         isCreating = false;
-        renderContent();
+        await loadPlants();
       },
-      onDelete: selectedPlant ? () => {
+      onDelete: selectedPlant ? async () => {
         const confirmed = window.confirm(`Excluir a usina ${selectedPlant?.nome}? Essa acao nao pode ser desfeita.`);
-
         if (!confirmed || !selectedPlant) return;
 
-        deletePlant(selectedPlant.id);
-        toast.success('Usina excluida.');
-        selectedPlant = null;
-        renderContent();
+        loading.show();
+        try {
+          await deletePlant(selectedPlant.id);
+          toast.success('Usina excluida.');
+          selectedPlant = null;
+          await loadPlants();
+        } catch {
+          toast.error('Nao foi possivel excluir a usina.');
+        } finally {
+          loading.hide();
+        }
       } : undefined
     });
   }
 
-  function savePlant(data: PlantFormData): void {
-    if (selectedPlant) {
-      updatePlant(selectedPlant.id, data);
-      toast.success('Usina atualizada.');
-      return;
+  async function savePlant(data: PlantFormData): Promise<void> {
+    loading.show();
+    try {
+      if (selectedPlant) {
+        await updatePlant(selectedPlant.id, data);
+        toast.success('Usina atualizada.');
+      } else {
+        await createPlant(data);
+        toast.success('Usina cadastrada.');
+      }
+    } catch {
+      toast.error('Nao foi possivel salvar a usina.');
+    } finally {
+      loading.hide();
     }
-
-    createPlant(data);
-    toast.success('Usina cadastrada.');
   }
 }

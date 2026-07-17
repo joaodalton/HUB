@@ -113,15 +113,15 @@ def _sync_connections(uc: ConsumerUnit, conexoes_data: list[dict]) -> None:
     db.session.flush()
 
     for conexao_data in conexoes_data:
-        nome_usina = (conexao_data.get('usina') or '').strip()
-        plant = Plant.query.filter(
-            db.func.lower(Plant.nome) == nome_usina.lower()
-        ).first()
+        plant_id = conexao_data.get('plantId')
+
+        if not plant_id:
+            continue
+
+        plant = Plant.query.get(int(plant_id))
 
         if not plant:
-            # TODO: substituir por logging estruturado quando o modelo Log existir
-            print(f'[aviso] Usina "{nome_usina}" nao encontrada ao vincular UC {uc.id}. Conexao ignorada.')
-            continue
+            continue  # usina foi excluída; ignora conexão órfã silenciosamente
 
         db.session.add(PlantConnection(
             consumer_unit_id=uc.id,

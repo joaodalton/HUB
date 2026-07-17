@@ -22,12 +22,14 @@ def create_app() -> Flask:
     from routes.drive_routes import drive_routes
     from routes.health_routes import health_routes
     from routes.client_routes import client_routes
+    from routes.plant_routes import plant_routes
 
     app.register_blueprint(health_routes)
     app.register_blueprint(drive_routes)
     app.register_blueprint(config_routes)
     app.register_blueprint(client_routes)
-
+    app.register_blueprint(plant_routes)
+    
     return app
 
 

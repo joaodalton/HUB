@@ -1,4 +1,5 @@
 export type PlantConnection = {
+  plantId: string;
   usina: string;
   percentual: string;
 };
@@ -67,7 +68,7 @@ const initialClients: ClientRow[] = [
       baseTarifaria: 'B1 Residencial',
       desconto: '15%',
       tipoLigacao: 'Bifasico',
-      conexoes: [{ usina: 'Solar Norte', percentual: '100' }]
+      conexoes: [{ plantId: 'usina-1', usina: 'Solar Norte', percentual: '100' }]
     }]
   },
   {
@@ -114,7 +115,7 @@ const initialClients: ClientRow[] = [
       baseTarifaria: 'B3 Comercial',
       desconto: '18%',
       tipoLigacao: 'Trifasico',
-      conexoes: [{ usina: 'Solar Leste', percentual: '70' }]
+      conexoes: [{ plantId: "Usina-2", usina: 'Solar Leste', percentual: '70' }]
     }, {
       id: 'uc-4',
       codigo: 'UC-1321',
@@ -123,7 +124,7 @@ const initialClients: ClientRow[] = [
       baseTarifaria: 'B3 Comercial',
       desconto: '18%',
       tipoLigacao: 'Trifasico',
-      conexoes: [{ usina: 'Solar Leste', percentual: '30' }]
+      conexoes: [{ plantId: 'usina-2', usina: 'Solar Leste', percentual: '30' }]
     }]
   },
   {
@@ -145,7 +146,7 @@ const initialClients: ClientRow[] = [
       baseTarifaria: 'B1 Residencial',
       desconto: '15%',
       tipoLigacao: 'Bifasico',
-      conexoes: [{ usina: 'Solar Norte', percentual: '100' }]
+      conexoes: [{ plantId: "Usina-2", usina: 'Solar Norte', percentual: '100' }]
     }]
   }
 ];

@@ -53,6 +53,8 @@ class PlantConnection(db.Model):
 
     def to_dict(self) -> dict:
         return {
-            'usina': self.plant.nome if self.plant else '',
-            'percentual': self.percentual
-        }
+        "id": self.id,
+        "plantId": self.plant_id,
+        "usina": self.plant.nome if self.plant else "",
+        "percentual": self.percentual,
+    }

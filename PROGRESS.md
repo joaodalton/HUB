@@ -25,6 +25,16 @@
 - [x] Confirmar se os arquivos deste Project (Claude) foram corrigidos/ressincronizados com o repositório real antes de qualquer sessão do Codex usar esses arquivos como referência.
   - Critério de pronto: arquivos centrais abertos direto no repositório real (`backend/app.py`, `frontend/package.json`, `backend/requirements.txt`, `README.md`) e confirmados como coerentes com suas funções.
   - Feito: `HUB-main.zip` foi extraído em `C:\Users\deadj\Documents\HUB\HUB-main`; a estrutura e os arquivos centrais batem com a arquitetura esperada, sem troca evidente de conteúdo.
+  - [x] Launcher de desenvolvimento (`hub.py` + `comandos/iniciar.py`, `parar.py`, `status.py`).
+  - Critério de pronto: `python hub.py iniciar` sobe backend e frontend em janelas separadas e salva PIDs em `processos.json`; `python hub.py parar` mata os dois; `python hub.py status` reporta online/offline.
+  - Feito: já implementado e funcional, só não estava documentado aqui.
+
+## Decisões em aberto (resolver antes de travar arquitetura)
+- [ ] **Camada Repository (Route → Service → Repository → SQLAlchemy):** sugerida, mas adiada — hoje o projeto tem poucos models/services e o SQLAlchemy já cumpre o papel de abstração de banco. Reavaliar quando houver lógica de acesso a dados duplicada entre services, ou testes que precisem mockar o banco.
+- [ ] **Reestruturação em módulos completos (routes/services/models/repository por domínio como Clientes, UCs, Usinas):** sugerida, mas adiada — vale a pena quando `services/`/`routes/` começarem a ficar difíceis de navegar (provável ponto de gatilho: chegada do módulo de Documentos ou Financeiro). Fazer agora seria refatoração sem funcionalidade nova, contra a regra 3 do `VISAO.md`.
+
+## Regras não-negociáveis (adicionar à seção 3 do VISAO.md)
+- [ ] Toda funcionalidade nova deve ser utilizável pela interface: não criar endpoint que ainda não será consumido pelo frontend na mesma tarefa/sessão; não criar tela sem o backend correspondente já ligado.
 
 ### Banco de dados local
 - [x] `backend/models/drive_item.py` já existe (dataclass `DriveItem`) — manter, é modelo de apoio pro Drive, não é entidade de banco.

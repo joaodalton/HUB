@@ -28,7 +28,7 @@ class Plant(db.Model):
             'id': self.id,
             'nome': self.nome,
             'uc': self.uc,
-            'kwPico': str(self.kw_pico),
+            'kwPico': float(self.kw_pico),
             'mediaGeracao': f'{self.kw_pico} kWp',
             'status': self.status,
             'percentualDisponivel': self.percentual_disponivel

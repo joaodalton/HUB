@@ -39,6 +39,12 @@ Este app vai rodar **local, uma máquina, um usuário por vez** (aí SQLite loca
 - Toda API e componente novo deve nascer pensando em expansão futura (não é pra jogar rápido e sujo).
 - Documentação (`README.md`, este arquivo, `PROGRESS.md`) é atualizada ao final de cada tarefa, não "depois".
 - Se uma mudança pode impactar algo que já existe, o Codex explica antes de aplicar — não aplica silenciosamente.
+- O HUB deve ser desenvolvido assumindo um modelo cliente-servidor:"
+  O frontend nunca será responsável pela persistência dos dados.
+  Toda informação permanente deverá ser armazenada pelo backend através da API REST.
+  O frontend poderá manter apenas estados temporários de interface.
+  O backend deverá ser capaz de atender múltiplos clientes simultaneamente pela rede local ou internet.
+  O banco de dados deverá permanecer abstraído pelo SQLAlchemy para permitir futura migração de SQLite para PostgreSQL sem alterações significativas no código."
 
 ## 4. Arquitetura alvo
 

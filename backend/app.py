@@ -20,9 +20,11 @@ def create_app() -> Flask:
     from models.setting import Setting
     from models.google_account import GoogleAccount
     from models.log_entry import LogEntry
+    from models.user import User
 
     CORS(app)
 
+    from routes.auth_routes import auth_routes
     from routes.config_routes import config_routes
     from routes.drive_routes import drive_routes
     from routes.health_routes import health_routes
@@ -31,11 +33,15 @@ def create_app() -> Flask:
     from routes.uc_routes import uc_routes
 
     app.register_blueprint(health_routes)
+    app.register_blueprint(auth_routes)
     app.register_blueprint(drive_routes)
     app.register_blueprint(config_routes)
     app.register_blueprint(client_routes)
     app.register_blueprint(plant_routes)
     app.register_blueprint(uc_routes)
+
+    from utils.auth import register_auth_middleware
+    register_auth_middleware(app, public_paths={'/', '/auth/login', '/auth/bootstrap'})
 
     return app
 

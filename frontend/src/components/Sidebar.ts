@@ -1,4 +1,5 @@
 import { createElement } from '../dom';
+import { logout } from '../services/authService';
 
 const menuItems = [
   { label: 'Documentos', path: '/documentos' },
@@ -16,6 +17,11 @@ export function createSidebar(): HTMLElement {
   const brandMark = createElement('span', { className: 'sidebar-mark', textContent: 'H' });
   const brandText = createElement('span', { textContent: 'APP HUB' });
   const nav = createElement('nav', { className: 'sidebar-nav' });
+  const logoutButton = createElement('button', {
+    className: 'sidebar-logout',
+    textContent: 'Sair',
+    type: 'button'
+  });
 
   brand.append(brandMark, brandText);
 
@@ -35,6 +41,12 @@ export function createSidebar(): HTMLElement {
     nav.appendChild(link);
   });
 
-  sidebar.append(brand, nav);
+  logoutButton.addEventListener('click', () => {
+    logout();
+    window.history.pushState({}, '', '/login');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  });
+
+  sidebar.append(brand, nav, logoutButton);
   return sidebar;
 }

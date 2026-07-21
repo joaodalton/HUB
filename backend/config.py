@@ -29,6 +29,10 @@ class Config:
     # Usada por utils/crypto.py pra criptografar o refresh token do GoogleAccount.
     # Gerar com: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
     SECRET_ENCRYPTION_KEY = os.getenv('SECRET_ENCRYPTION_KEY', '')
+    # Usada por utils/auth.py pra assinar o token de login. Chave diferente da de cima
+    # de proposito -- nunca reaproveitar a mesma chave pra dois usos criptograficos distintos.
+    # Gerar com: python -c "import secrets; print(secrets.token_hex(32))"
+    SECRET_KEY = os.getenv('SECRET_KEY', '')
     SQLALCHEMY_DATABASE_URI = os.getenv(
     'DATABASE_URL',
     f"sqlite:///{(BASE_DIR / 'database' / 'hub.db').as_posix()}" 

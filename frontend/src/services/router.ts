@@ -1,9 +1,11 @@
 import { createClientsPage } from '../pages/ClientsPage';
 import { createAgendaPage } from '../pages/AgendaPage';
 import { createDocumentsPage } from '../pages/DocumentsPage';
+import { createLoginPage } from '../pages/LoginPage';
 import { createPlaceholderPage } from '../pages/PlaceholderPage';
 import { createPlantsPage } from '../pages/PlantsPage';
 import { createSettingsPage } from '../pages/SettingsPage';
+import { isAuthenticated } from './authService';
 
 type Route = {
   path: string;
@@ -43,7 +45,29 @@ export function createRouter(root: HTMLElement) {
     return routes.find((route) => route.path === window.location.pathname) ?? routes[0];
   }
 
+  function redirect(path: string): void {
+    window.history.replaceState({}, '', path);
+    render();
+  }
+
   function render(): void {
+    const isLoginPath = window.location.pathname === '/login';
+
+    if (!isAuthenticated() && !isLoginPath) {
+      redirect('/login');
+      return;
+    }
+
+    if (isAuthenticated() && isLoginPath) {
+      redirect('/');
+      return;
+    }
+
+    if (isLoginPath) {
+      root.replaceChildren(createLoginPage(() => redirect('/')));
+      return;
+    }
+
     const route = resolveRoute();
     root.replaceChildren(route.render());
   }

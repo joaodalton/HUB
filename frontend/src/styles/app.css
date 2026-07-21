@@ -1163,3 +1163,63 @@ ul#reservados {
     padding-top: 4px;
   }
 }
+
+.login-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.login-card {
+  width: min(420px, 100%);
+  background: rgba(22, 35, 58, 0.98);
+  border: 1px solid var(--navy-line);
+  border-radius: 6px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.38);
+  overflow: hidden;
+}
+
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 24px 24px 0;
+  color: var(--paper);
+  font-family: 'IBM Plex Mono', Consolas, monospace;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.login-card .form-grid {
+  grid-template-columns: 1fr;
+}
+
+.login-error {
+  margin: 0 18px 12px;
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.sidebar-logout {
+  margin-top: auto;
+  background: transparent;
+  border: 1px solid var(--navy-line);
+  color: var(--paper-dim);
+  padding: 11px 12px;
+}
+
+.sidebar-logout:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+  background: rgba(224, 108, 117, 0.08);
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-nav {
+  flex: 1;
+}

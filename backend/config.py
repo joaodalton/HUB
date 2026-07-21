@@ -26,6 +26,9 @@ class Config:
     SQL_DATABASE = os.getenv('SQL_DATABASE', '')
     SQL_USER = os.getenv('SQL_USER', '')
     SQL_PASSWORD = os.getenv('SQL_PASSWORD', '')
+    # Usada por utils/crypto.py pra criptografar o refresh token do GoogleAccount.
+    # Gerar com: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    SECRET_ENCRYPTION_KEY = os.getenv('SECRET_ENCRYPTION_KEY', '')
     SQLALCHEMY_DATABASE_URI = os.getenv(
     'DATABASE_URL',
     f"sqlite:///{(BASE_DIR / 'database' / 'hub.db').as_posix()}" 

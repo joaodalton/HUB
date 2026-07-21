@@ -5,3 +5,5 @@ flask-migrate
 google-auth
 google-api-python-client
 python-dotenv
+cryptography
+psutil

@@ -30,6 +30,8 @@ class ConsumerUnit(db.Model):
     def to_dict(self) -> dict:
         return {
             'id': self.id,
+            'clienteId': self.client_id,
+            'clienteNome': self.client.nome if self.client else None,
             'codigo': self.codigo,
             'apelido': self.apelido,
             'consumo': self.consumo,

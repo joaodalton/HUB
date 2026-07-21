@@ -1,7 +1,8 @@
 from extensions import db
 from sqlalchemy.exc import IntegrityError
 from models.client import Client
-from models.consumer_unit import ConsumerUnit, PlantConnection
+from models.consumer_unit import ConsumerUnit
+from services.uc_service import sync_connections
 
 
 def list_clients() -> list[dict]:
@@ -102,32 +103,8 @@ def _sync_ucs(client: Client, ucs_data: list[dict]) -> None:
         uc.tipo_ligacao = uc_data.get('tipoLigacao', 'Monofasico')
 
         db.session.flush()
-        _sync_connections(uc, uc_data.get('conexoes', []))
+        sync_connections(uc, uc_data.get('conexoes', []))
 
-
-def _sync_connections(uc: ConsumerUnit, conexoes_data: list[dict]) -> None:
-    from models.plant import Plant
-
-    for conexao in list(uc.conexoes):
-        db.session.delete(conexao)
-    db.session.flush()
-
-    for conexao_data in conexoes_data:
-        plant_id = conexao_data.get('plantId')
-
-        if not plant_id:
-            continue
-
-        plant = Plant.query.get(int(plant_id))
-
-        if not plant:
-            continue  # usina foi excluída; ignora conexão órfã silenciosamente
-
-        db.session.add(PlantConnection(
-            consumer_unit_id=uc.id,
-            plant_id=plant.id,
-            percentual=conexao_data.get('percentual', '')
-        ))
 
 def _is_persisted_id(value) -> bool:
     """UUIDs gerados no front (crypto.randomUUID()) são strings não-numéricas

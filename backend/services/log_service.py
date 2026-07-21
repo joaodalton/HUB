@@ -1,17 +1,17 @@
 # backend/services/log_service.py
 from extensions import db
-from models.log_entry import LogEntry  # ajustar import conforme nome real do arquivo do model
+from models.log_entry import LogEntry
 
 
 class LogService:
     @staticmethod
-    def _write(level: str, action: str, message: str, entity: str | None = None, metadata: dict | None = None) -> None:
+    def _write(nivel: str, acao: str, mensagem: str, entidade: str | None = None, metadados: dict | None = None) -> None:
         entry = LogEntry(
-            level=level,
-            action=action,
-            entity=entity,
-            message=message,
-            metadata=metadata
+            nivel=nivel,
+            acao=acao,
+            entidade=entidade,
+            mensagem=mensagem,
+            metadados=metadados
         )
         try:
             db.session.add(entry)
@@ -20,13 +20,13 @@ class LogService:
             db.session.rollback()
 
     @staticmethod
-    def info(action: str, message: str, entity: str | None = None, metadata: dict | None = None) -> None:
-        LogService._write('info', action, message, entity, metadata)
+    def info(acao: str, mensagem: str, entidade: str | None = None, metadados: dict | None = None) -> None:
+        LogService._write('info', acao, mensagem, entidade, metadados)
 
     @staticmethod
-    def warning(action: str, message: str, entity: str | None = None, metadata: dict | None = None) -> None:
-        LogService._write('warning', action, message, entity, metadata)
+    def warning(acao: str, mensagem: str, entidade: str | None = None, metadados: dict | None = None) -> None:
+        LogService._write('warning', acao, mensagem, entidade, metadados)
 
     @staticmethod
-    def error(action: str, message: str, entity: str | None = None, metadata: dict | None = None) -> None:
-        LogService._write('error', action, message, entity, metadata)
+    def error(acao: str, mensagem: str, entidade: str | None = None, metadados: dict | None = None) -> None:
+        LogService._write('error', acao, mensagem, entidade, metadados)

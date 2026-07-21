@@ -15,6 +15,11 @@ def create_app() -> Flask:
     from models.client import Client
     from models.plant import Plant
     from models.consumer_unit import ConsumerUnit, PlantConnection
+    from models.category import Category
+    from models.document import Document
+    from models.setting import Setting
+    from models.google_account import GoogleAccount
+    from models.log_entry import LogEntry
 
     CORS(app)
 
@@ -23,13 +28,15 @@ def create_app() -> Flask:
     from routes.health_routes import health_routes
     from routes.client_routes import client_routes
     from routes.plant_routes import plant_routes
+    from routes.uc_routes import uc_routes
 
     app.register_blueprint(health_routes)
     app.register_blueprint(drive_routes)
     app.register_blueprint(config_routes)
     app.register_blueprint(client_routes)
     app.register_blueprint(plant_routes)
-    
+    app.register_blueprint(uc_routes)
+
     return app
 
 

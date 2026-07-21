@@ -70,4 +70,12 @@ class GoogleDriveService:
         return zip_buffer
 
 
-drive_service = GoogleDriveService()
+drive_service = None
+
+def get_drive_service():
+    global drive_service
+
+    if drive_service is None:
+        drive_service = GoogleDriveService()
+
+    return drive_service

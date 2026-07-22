@@ -11,11 +11,22 @@ class ConsumerUnit(db.Model):
     client_id = db.Column(db.Integer, db.ForeignKey('clients.id'), nullable=False)
 
     codigo = db.Column(db.String(30), nullable=False)
+    codigo_aneel = db.Column(db.String(20), nullable=True)  # novo padrao nacional de 15 digitos (REN ANEEL 1.095/2024)
     apelido = db.Column(db.String(100), nullable=True, default='')
+    documento = db.Column(db.String(20), nullable=True)  # CPF/CNPJ da UC -- pode ser diferente do cpf do Cliente (ex.: casa no CPF, empresa no CNPJ do mesmo titular)
+    endereco = db.Column(db.String(255), nullable=True)
+    cep = db.Column(db.String(10), nullable=True)
+    concessionaria = db.Column(db.String(50), nullable=True)
+    geracao_propria = db.Column(db.Boolean, nullable=False, default=False)
+    dia_emissao_fatura = db.Column(db.Integer, nullable=True)  # dia do mes (1-31)
     consumo = db.Column(db.String(30), nullable=True, default='')
     base_tarifaria = db.Column(db.String(10), nullable=False, default='B1')
     desconto = db.Column(db.String(20), nullable=True, default='')
     tipo_ligacao = db.Column(db.String(20), nullable=False, default='Monofasico')
+    inicio_contrato = db.Column(db.Date, nullable=True)
+    termino_contrato = db.Column(db.Date, nullable=True)
+    carencia_meses = db.Column(db.Integer, nullable=True)
+    percentual_desconto_carencia = db.Column(db.String(10), nullable=True)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -33,11 +44,22 @@ class ConsumerUnit(db.Model):
             'clienteId': self.client_id,
             'clienteNome': self.client.nome if self.client else None,
             'codigo': self.codigo,
+            'codigoAneel': self.codigo_aneel,
             'apelido': self.apelido,
+            'documento': self.documento,
+            'endereco': self.endereco,
+            'cep': self.cep,
+            'concessionaria': self.concessionaria,
+            'geracaoPropria': self.geracao_propria,
+            'diaEmissaoFatura': self.dia_emissao_fatura,
             'consumo': self.consumo,
             'baseTarifaria': self.base_tarifaria,
             'desconto': self.desconto,
             'tipoLigacao': self.tipo_ligacao,
+            'inicioContrato': self.inicio_contrato.isoformat() if self.inicio_contrato else None,
+            'terminoContrato': self.termino_contrato.isoformat() if self.termino_contrato else None,
+            'carenciaMeses': self.carencia_meses,
+            'percentualDescontoCarencia': self.percentual_desconto_carencia,
             'conexoes': [conexao.to_dict() for conexao in self.conexoes]
         }
 

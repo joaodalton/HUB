@@ -13,6 +13,9 @@ class Plant(db.Model):
     kw_pico = db.Column(db.Numeric(10, 2), nullable=False)
     status = db.Column(db.String(30), nullable=False, default='Implantacao')
     percentual_disponivel = db.Column(db.Integer, nullable=False, default=0)
+    marca_inversor = db.Column(db.String(100), nullable=True)
+    telefone_proprietario = db.Column(db.String(20), nullable=True)
+    email_proprietario = db.Column(db.String(150), nullable=True)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -31,5 +34,8 @@ class Plant(db.Model):
             'kwPico': float(self.kw_pico),
             'mediaGeracao': f'{self.kw_pico} kWp',
             'status': self.status,
-            'percentualDisponivel': self.percentual_disponivel
+            'percentualDisponivel': self.percentual_disponivel,
+            'marcaInversor': self.marca_inversor,
+            'telefoneProprietario': self.telefone_proprietario,
+            'emailProprietario': self.email_proprietario
         }

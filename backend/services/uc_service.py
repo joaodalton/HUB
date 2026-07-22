@@ -1,4 +1,6 @@
 # backend/services/uc_service.py
+from datetime import date, datetime
+
 from extensions import db
 from models.client import Client
 from models.consumer_unit import ConsumerUnit, PlantConnection
@@ -22,15 +24,8 @@ def create_uc(data: dict) -> dict:
     if not client:
         raise ValueError('Cliente informado nao existe.')
 
-    uc = ConsumerUnit(
-        client_id=client.id,
-        codigo=data.get('codigo', '').strip(),
-        apelido=data.get('apelido', ''),
-        consumo=data.get('consumo', ''),
-        base_tarifaria=data.get('baseTarifaria', 'B1'),
-        desconto=data.get('desconto', ''),
-        tipo_ligacao=data.get('tipoLigacao', 'Monofasico')
-    )
+    uc = ConsumerUnit(client_id=client.id)
+    apply_uc_fields(uc, data)
     db.session.add(uc)
     db.session.flush()
 
@@ -53,12 +48,7 @@ def update_uc(uc_id: int, data: dict) -> dict | None:
             raise ValueError('Cliente informado nao existe.')
         uc.client_id = novo_cliente.id
 
-    uc.codigo = data.get('codigo', uc.codigo).strip()
-    uc.apelido = data.get('apelido', uc.apelido)
-    uc.consumo = data.get('consumo', uc.consumo)
-    uc.base_tarifaria = data.get('baseTarifaria', uc.base_tarifaria)
-    uc.desconto = data.get('desconto', uc.desconto)
-    uc.tipo_ligacao = data.get('tipoLigacao', uc.tipo_ligacao)
+    apply_uc_fields(uc, data)
 
     if 'conexoes' in data:
         sync_connections(uc, data.get('conexoes', []))
@@ -80,6 +70,35 @@ def delete_uc(uc_id: int) -> bool:
 
     LogService.info(acao='delete', mensagem=f'UC {uc_id} excluida', entidade='ConsumerUnit', metadados={'id': uc_id})
     return True
+
+
+def apply_uc_fields(uc: ConsumerUnit, data: dict) -> None:
+    """Aplica os campos simples (nao-relacionamento) de uma UC a partir do payload.
+    Compartilhado entre uc_service (CRUD avulso) e client_service (UC aninhada no
+    cliente) -- nao duplicar essa lista de campos em outro lugar."""
+    uc.codigo = data.get('codigo', uc.codigo or '').strip()
+    uc.codigo_aneel = data.get('codigoAneel', uc.codigo_aneel)
+    uc.apelido = data.get('apelido', uc.apelido)
+    uc.documento = data.get('documento', uc.documento)
+    uc.endereco = data.get('endereco', uc.endereco)
+    uc.cep = data.get('cep', uc.cep)
+    uc.concessionaria = data.get('concessionaria', uc.concessionaria)
+    uc.geracao_propria = bool(data.get('geracaoPropria', uc.geracao_propria))
+    uc.dia_emissao_fatura = data.get('diaEmissaoFatura', uc.dia_emissao_fatura)
+    uc.consumo = data.get('consumo', uc.consumo)
+    uc.base_tarifaria = data.get('baseTarifaria', uc.base_tarifaria or 'B1')
+    uc.desconto = data.get('desconto', uc.desconto)
+    uc.tipo_ligacao = data.get('tipoLigacao', uc.tipo_ligacao or 'Monofasico')
+    uc.inicio_contrato = _parse_date(data.get('inicioContrato')) if 'inicioContrato' in data else uc.inicio_contrato
+    uc.termino_contrato = _parse_date(data.get('terminoContrato')) if 'terminoContrato' in data else uc.termino_contrato
+    uc.carencia_meses = data.get('carenciaMeses', uc.carencia_meses)
+    uc.percentual_desconto_carencia = data.get('percentualDescontoCarencia', uc.percentual_desconto_carencia)
+
+
+def _parse_date(value: str | None) -> date | None:
+    if not value:
+        return None
+    return datetime.strptime(value, '%Y-%m-%d').date()
 
 
 def sync_connections(uc: ConsumerUnit, conexoes_data: list[dict]) -> None:

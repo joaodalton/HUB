@@ -11,6 +11,7 @@ class Client(db.Model):
     nome = db.Column(db.String(150), nullable=False)
     cpf = db.Column(db.String(20), nullable=False, unique=True)
     email = db.Column(db.String(150), nullable=False)
+    telefone = db.Column(db.String(20), nullable=True)
     concessionaria = db.Column(db.String(50), nullable=False, default='Copel')
     status = db.Column(db.String(30), nullable=False, default='Esperando usina')
 
@@ -26,6 +27,7 @@ class Client(db.Model):
             'nome': self.nome,
             'cpf': self.cpf,
             'email': self.email,
+            'telefone': self.telefone,
             'concessionaria': self.concessionaria,
             'status': self.status,
             'uc': first_uc.codigo if first_uc else '',

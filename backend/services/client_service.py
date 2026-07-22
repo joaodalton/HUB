@@ -2,7 +2,7 @@ from extensions import db
 from sqlalchemy.exc import IntegrityError
 from models.client import Client
 from models.consumer_unit import ConsumerUnit
-from services.uc_service import sync_connections
+from services.uc_service import apply_uc_fields, sync_connections
 
 
 def list_clients() -> list[dict]:
@@ -20,6 +20,7 @@ def create_client(data: dict) -> dict:
         nome=data.get('nome', '').strip(),
         cpf=data.get('cpf', '').strip(),
         email=data.get('email', '').strip(),
+        telefone=data.get('telefone', ''),
         concessionaria=data.get('concessionaria', 'Copel'),
         status=_resolve_status(data.get('ucs', []))
     )
@@ -45,6 +46,7 @@ def update_client(client_id: int, data: dict) -> dict | None:
     client.nome = data.get('nome', client.nome).strip()
     client.cpf = data.get('cpf', client.cpf).strip()
     client.email = data.get('email', client.email).strip()
+    client.telefone = data.get('telefone', client.telefone)
     client.concessionaria = data.get('concessionaria', client.concessionaria)
     client.status = _resolve_status(data.get('ucs', []))
 
@@ -95,12 +97,7 @@ def _sync_ucs(client: Client, ucs_data: list[dict]) -> None:
             uc = ConsumerUnit(client_id=client.id)
             db.session.add(uc)
 
-        uc.codigo = uc_data.get('codigo', '')
-        uc.apelido = uc_data.get('apelido', '')
-        uc.consumo = uc_data.get('consumo', '')
-        uc.base_tarifaria = uc_data.get('baseTarifaria', 'B1')
-        uc.desconto = uc_data.get('desconto', '')
-        uc.tipo_ligacao = uc_data.get('tipoLigacao', 'Monofasico')
+        apply_uc_fields(uc, uc_data)
 
         db.session.flush()
         sync_connections(uc, uc_data.get('conexoes', []))

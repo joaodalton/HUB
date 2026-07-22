@@ -19,7 +19,10 @@ def create_plant(data: dict) -> dict:
         uc=data.get('uc', '').strip(),
         kw_pico=data.get('kwPico', 0),
         status=data.get('status', 'Implantacao'),
-        percentual_disponivel=int(data.get('percentualDisponivel', 0))
+        percentual_disponivel=int(data.get('percentualDisponivel', 0)),
+        marca_inversor=data.get('marcaInversor'),
+        telefone_proprietario=data.get('telefoneProprietario'),
+        email_proprietario=data.get('emailProprietario')
     )
     db.session.add(plant)
     db.session.commit()
@@ -36,6 +39,9 @@ def update_plant(plant_id: int, data: dict) -> dict | None:
     plant.kw_pico = data.get('kwPico', plant.kw_pico)
     plant.status = data.get('status', plant.status)
     plant.percentual_disponivel = int(data.get('percentualDisponivel', plant.percentual_disponivel))
+    plant.marca_inversor = data.get('marcaInversor', plant.marca_inversor)
+    plant.telefone_proprietario = data.get('telefoneProprietario', plant.telefone_proprietario)
+    plant.email_proprietario = data.get('emailProprietario', plant.email_proprietario)
 
     db.session.commit()
     return plant.to_dict()

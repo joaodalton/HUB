@@ -10,7 +10,7 @@ import {
   type DatabaseConfig,
   type DatabaseProvider
 } from '../services/databaseConfigService';
-import { getSettings, saveSettings, type AppSettings } from '../services/settingsService';
+import { getSettings, loadSettings, saveSettings, type AppSettings } from '../services/settingsService';
 
 type SettingsTab = 'database' | 'appearance';
 
@@ -19,9 +19,11 @@ export function createSettingsPage(): HTMLElement {
   const toast = useToast();
   let activeTab: SettingsTab = 'database';
   let databaseConfig: DatabaseConfig | null = null;
+  let appearanceLoaded = false;
 
   renderContent();
   loadDatabaseConfig();
+  refreshAppearance();
 
   return createBaseLayout({
     content,
@@ -38,6 +40,17 @@ export function createSettingsPage(): HTMLElement {
     }
   }
 
+  async function refreshAppearance(): Promise<void> {
+    try {
+      await loadSettings();
+    } catch {
+      toast.error('Nao foi possivel carregar a aparencia salva. Usando padrao.');
+    } finally {
+      appearanceLoaded = true;
+      renderContent();
+    }
+  }
+
   function renderContent(): void {
     const tabs = createTabs(activeTab, (tab) => {
       activeTab = tab;
@@ -48,7 +61,7 @@ export function createSettingsPage(): HTMLElement {
         databaseConfig = await getDatabaseConfig();
         renderContent();
       })
-      : createAppearancePanel(getSettings(), toast.success);
+      : createAppearancePanel(getSettings(), appearanceLoaded, toast.success, toast.error);
 
     content.replaceChildren(tabs, panel);
   }
@@ -310,9 +323,23 @@ async function testProvider(
   }
 }
 
-function createAppearancePanel(settings: AppSettings, notify: (message: string) => void): HTMLElement {
+function createAppearancePanel(
+  settings: AppSettings,
+  loaded: boolean,
+  notify: (message: string) => void,
+  notifyError: (message: string) => void
+): HTMLElement {
   const panel = createElement('section', { className: 'settings-panel' });
   const header = createPanelHeader('Aparencia', 'Cores e identidade visual');
+
+  if (!loaded) {
+    panel.append(header, createElement('p', {
+      className: 'settings-hint',
+      textContent: 'Carregando aparencia salva...'
+    }));
+    return panel;
+  }
+
   const body = createElement('div', { className: 'settings-form' });
   const themeColor = createInput('Cor principal', 'color', settings.themeColor);
   const logo = createElement('input');
@@ -329,13 +356,19 @@ function createAppearancePanel(settings: AppSettings, notify: (message: string) 
     const file = logo.files?.[0];
     const logoDataUrl = file ? await readFileAsDataUrl(file) : settings.logoDataUrl;
 
-    saveSettings({
-      ...settings,
-      themeColor: themeColor.input.value,
-      logoDataUrl
-    });
-    notify('Aparencia salva.');
-    renderLogoPreview(preview, logoDataUrl);
+    saveButton.disabled = true;
+    try {
+      await saveSettings({
+        themeColor: themeColor.input.value,
+        logoDataUrl
+      });
+      notify('Aparencia salva.');
+      renderLogoPreview(preview, logoDataUrl);
+    } catch {
+      notifyError('Nao foi possivel salvar a aparencia no backend.');
+    } finally {
+      saveButton.disabled = false;
+    }
   });
 
   logoField.append(logoLabel, preview, logo);

@@ -33,6 +33,7 @@ def create_app() -> Flask:
     from routes.uc_routes import uc_routes
     from routes.document_routes import document_routes
     from routes.category_routes import category_routes
+    from routes.settings_routes import settings_routes
 
     app.register_blueprint(health_routes)
     app.register_blueprint(auth_routes)
@@ -43,6 +44,7 @@ def create_app() -> Flask:
     app.register_blueprint(uc_routes)
     app.register_blueprint(document_routes)
     app.register_blueprint(category_routes)
+    app.register_blueprint(settings_routes)
 
     from utils.auth import register_auth_middleware
     register_auth_middleware(app, public_paths={'/', '/auth/login', '/auth/bootstrap'})

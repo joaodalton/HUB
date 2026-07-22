@@ -1,66 +1,49 @@
-export type DriveAccount = {
-  id: string;
-  nome: string;
-  email: string;
-};
+import { apiRequest } from './apiClient';
 
 export type AppSettings = {
-  activeDriveAccountId: string;
-  driveAccounts: DriveAccount[];
-  sqlHost: string;
-  sqlDatabase: string;
   themeColor: string;
   logoDataUrl: string;
 };
 
-const SETTINGS_KEY = 'hub.settings.v1';
-
-const defaultSettings: AppSettings = {
-  activeDriveAccountId: 'drive-1',
-  driveAccounts: [
-    { id: 'drive-1', nome: 'Conta principal', email: 'service-account@hub.local' }
-  ],
-  sqlHost: '',
-  sqlDatabase: '',
+const DEFAULT_SETTINGS: AppSettings = {
   themeColor: '#C97A3D',
   logoDataUrl: ''
 };
 
-let settings = loadSettings();
+type ApiResponse<T> = {
+  success: boolean;
+  message: string;
+  data: T;
+};
+
+let cachedSettings: AppSettings = DEFAULT_SETTINGS;
 
 export function getSettings(): AppSettings {
-  return settings;
+  return cachedSettings;
 }
 
-export function saveSettings(nextSettings: AppSettings): AppSettings {
-  settings = nextSettings;
-  window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+export async function loadSettings(): Promise<AppSettings> {
+  const response = await apiRequest<ApiResponse<Record<string, string>>>('/settings');
+
+  cachedSettings = {
+    themeColor: response.data.themeColor || DEFAULT_SETTINGS.themeColor,
+    logoDataUrl: response.data.logoDataUrl || DEFAULT_SETTINGS.logoDataUrl
+  };
   applyAppearanceSettings();
-  return settings;
+  return cachedSettings;
 }
 
-export function addDriveAccount(nome: string, email: string): AppSettings {
-  const account = { id: crypto.randomUUID(), nome, email };
-
-  return saveSettings({
-    ...settings,
-    activeDriveAccountId: account.id,
-    driveAccounts: [...settings.driveAccounts, account]
+export async function saveSettings(nextSettings: AppSettings): Promise<AppSettings> {
+  await apiRequest<ApiResponse<Record<string, string>>>('/settings', {
+    method: 'PUT',
+    body: nextSettings
   });
+
+  cachedSettings = nextSettings;
+  applyAppearanceSettings();
+  return cachedSettings;
 }
 
 export function applyAppearanceSettings(): void {
-  document.documentElement.style.setProperty('--copper', settings.themeColor);
-}
-
-function loadSettings(): AppSettings {
-  const saved = window.localStorage.getItem(SETTINGS_KEY);
-
-  if (!saved) return defaultSettings;
-
-  try {
-    return { ...defaultSettings, ...JSON.parse(saved) as AppSettings };
-  } catch {
-    return defaultSettings;
-  }
+  document.documentElement.style.setProperty('--copper', cachedSettings.themeColor);
 }

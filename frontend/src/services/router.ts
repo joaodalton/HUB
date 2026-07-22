@@ -6,6 +6,7 @@ import { createPlaceholderPage } from '../pages/PlaceholderPage';
 import { createPlantsPage } from '../pages/PlantsPage';
 import { createSettingsPage } from '../pages/SettingsPage';
 import { isAuthenticated } from './authService';
+import { loadSettings } from './settingsService';
 
 type Route = {
   path: string;
@@ -41,6 +42,8 @@ export function createRouter(root: HTMLElement) {
     { path: '/configuracoes', render: createSettingsPage }
   ];
 
+  let appearanceLoaded = false;
+
   function resolveRoute(): Route {
     return routes.find((route) => route.path === window.location.pathname) ?? routes[0];
   }
@@ -48,6 +51,15 @@ export function createRouter(root: HTMLElement) {
   function redirect(path: string): void {
     window.history.replaceState({}, '', path);
     render();
+  }
+
+  function ensureAppearanceLoaded(): void {
+    if (appearanceLoaded) return;
+    appearanceLoaded = true;
+
+    loadSettings().catch(() => {
+      // Aparencia fica no padrao se o backend estiver fora do ar; nao trava a navegacao.
+    });
   }
 
   function render(): void {
@@ -64,9 +76,14 @@ export function createRouter(root: HTMLElement) {
     }
 
     if (isLoginPath) {
-      root.replaceChildren(createLoginPage(() => redirect('/')));
+      root.replaceChildren(createLoginPage(() => {
+        appearanceLoaded = false;
+        redirect('/');
+      }));
       return;
     }
+
+    ensureAppearanceLoaded();
 
     const route = resolveRoute();
     root.replaceChildren(route.render());

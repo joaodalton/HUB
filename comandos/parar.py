@@ -4,6 +4,8 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+PYTHON = BASE_DIR / "backend" / "venv" / "Scripts" / "python.exe"
+FRONTEND = BASE_DIR / "frontend"
 
 def parar():
 

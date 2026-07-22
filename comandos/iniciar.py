@@ -5,8 +5,7 @@ import time
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-PYTHON = BASE_DIR / "venv" / "Scripts" / "python.exe"
-BACKEND = BASE_DIR / "backend" / "app.py"
+PYTHON = BASE_DIR / "backend" / "venv" / "Scripts" / "python.exe"
 FRONTEND = BASE_DIR / "frontend"
 
 
@@ -16,13 +15,26 @@ def iniciar():
     print("Iniciando HUB")
     print("=" * 40)
 
-    backend = subprocess.Popen(["cmd", "/k", str(PYTHON), "app.py"], cwd=BASE_DIR / "backend" )
+    if not PYTHON.exists():
+        print(f"ERRO: nao encontrei o python do venv em: {PYTHON}")
+        print("Confirma se o venv foi criado dentro de backend/ (backend\\venv), nao na raiz do projeto.")
+        return
 
-    print("✔ Backend iniciado")
+    backend = subprocess.Popen(
+        [str(PYTHON), "app.py"],
+        cwd=BASE_DIR / "backend",
+        creationflags=subprocess.CREATE_NEW_CONSOLE
+    )
+
+    print("✔ Backend iniciado (janela propria, PID real salvo)")
 
     time.sleep(2)
 
-    frontend = subprocess.Popen(["cmd", "/k", "npm", "run", "dev"], cwd=BASE_DIR / "frontend")
+    frontend = subprocess.Popen(
+        ["npm.cmd", "run", "dev"],
+        cwd=BASE_DIR / "frontend",
+        creationflags=subprocess.CREATE_NEW_CONSOLE
+    )
 
     print("✔ Frontend iniciado")
 

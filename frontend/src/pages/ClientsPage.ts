@@ -2,31 +2,52 @@ import { createClientCard, type ClientFormData } from '../components/ClientCard'
 import { createDashboardCards } from '../components/DashboardCards';
 import { createDataTable } from '../components/DataTable';
 import { createElement } from '../dom';
+import { useGlobalLoading } from '../hooks/useGlobalLoading';
 import { useToast } from '../hooks/useToast';
 import { createBaseLayout } from '../layouts/BaseLayout';
+import { getAvailablePlants, type PlantRow } from '../services/plantService';
 import {
   createClient,
   deleteClient,
-  getAvailablePlants,
   getClientMetrics,
   getClients,
   type ClientRow,
   updateClient
-} from '../services/operationsService';
+} from '../services/clientsService';
 
 export function createClientsPage(): HTMLElement {
   const content = createElement('section', { className: 'content-stack' });
   const toast = useToast();
+  const loading = useGlobalLoading();
+  let clients: ClientRow[] = [];
+  let availablePlants: PlantRow[] = [];
   let selectedClient: ClientRow | null = null;
   let isCreating = false;
+  let loadError = false;
 
-  renderContent();
-
-  return createBaseLayout({
+  const layout = createBaseLayout({
     content,
     eyebrow: 'Clientes',
     title: 'Acompanhe clientes, UCs vinculadas e status operacional'
   });
+
+  loadClients();
+
+  return layout;
+
+  async function loadClients(): Promise<void> {
+    loading.show();
+    try {
+      [clients, availablePlants] = await Promise.all([getClients(), getAvailablePlants()]);
+      loadError = false;
+    } catch {
+      loadError = true;
+      toast.error('Nao foi possivel carregar clientes. Verifique se o backend esta rodando.');
+    } finally {
+      loading.hide();
+      renderContent();
+    }
+  }
 
   function renderContent(): void {
     const pageActions = createElement('div', { className: 'page-actions' });
@@ -34,8 +55,8 @@ export function createClientsPage(): HTMLElement {
     const table = createDataTable<ClientRow>({
       title: 'Clientes cadastrados',
       eyebrow: 'Listagem',
-      rows: getClients(),
-      emptyMessage: 'Nenhum cliente cadastrado ainda.',
+      rows: clients,
+      emptyMessage: loadError ? 'Nao foi possivel carregar clientes.' : 'Nenhum cliente cadastrado ainda.',
       onRowClick: (client) => {
         selectedClient = client;
         isCreating = false;
@@ -49,7 +70,7 @@ export function createClientsPage(): HTMLElement {
         { key: 'status', label: 'Status' }
       ]
     });
-    const blocks: HTMLElement[] = [createDashboardCards(getClientMetrics()), pageActions];
+    const blocks: HTMLElement[] = [createDashboardCards(getClientMetrics(clients)), pageActions];
 
     newClientButton.addEventListener('click', () => {
       selectedClient = null;
@@ -70,51 +91,60 @@ export function createClientsPage(): HTMLElement {
   function createClientEditor(): HTMLElement {
     return createClientCard({
       client: selectedClient ?? undefined,
-      availablePlants: getAvailablePlants(),
+      availablePlants,
       onCancel: () => {
         selectedClient = null;
         isCreating = false;
         renderContent();
       },
-      onSave: (data) => {
-        saveClient(data);
+      onSave: async (data) => {
+        await saveClient(data);
         selectedClient = null;
         isCreating = false;
-        renderContent();
+        await loadClients();
       },
-      onDelete: selectedClient ? () => {
+      onDelete: selectedClient ? async () => {
         const confirmed = window.confirm(`Excluir o cliente ${selectedClient?.nome}? Essa acao nao pode ser desfeita.`);
 
         if (!confirmed || !selectedClient) return;
 
-        deleteClient(selectedClient.id);
-        toast.success('Cliente excluido.');
-        selectedClient = null;
-        renderContent();
+        loading.show();
+        try {
+          await deleteClient(selectedClient.id);
+          toast.success('Cliente excluido.');
+          selectedClient = null;
+          await loadClients();
+        } catch {
+          toast.error('Nao foi possivel excluir o cliente.');
+        } finally {
+          loading.hide();
+        }
       } : undefined
     });
   }
 
-  function saveClient(data: ClientFormData): void {
-    const payload = {
-      nome: data.nome,
-      cpf: data.cpf,
-      email: data.email,
-      uc: data.ucs[0]?.codigo ?? '',
-      usina: selectedClient?.usina ?? 'A definir',
-      consumo: data.ucs[0]?.consumo ?? '',
-      concessionaria: data.concessionaria,
-      documentos: data.documentos,
-      ucs: data.ucs
-    };
+  async function saveClient(data: ClientFormData): Promise<void> {
+    loading.show();
+    try {
+      const payload = {
+        nome: data.nome,
+        cpf: data.cpf,
+        email: data.email,
+        concessionaria: data.concessionaria,
+        ucs: data.ucs
+      };
 
-    if (selectedClient) {
-      updateClient(selectedClient.id, payload);
-      toast.success('Cliente atualizado.');
-      return;
+      if (selectedClient) {
+        await updateClient(selectedClient.id, payload);
+        toast.success('Cliente atualizado.');
+      } else {
+        await createClient(payload);
+        toast.success('Cliente cadastrado.');
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Nao foi possivel salvar o cliente.');
+    } finally {
+      loading.hide();
     }
-
-    createClient(payload);
-    toast.success('Cliente cadastrado.');
   }
 }

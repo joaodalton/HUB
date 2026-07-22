@@ -1,5 +1,6 @@
 import { createElement } from '../dom';
-import { concessionarias, type ClientDocument, type ClientRow, type ClientUc, type PlantRow } from '../services/operationsService';
+import { concessionarias, type ClientDocument, type ClientRow, type ClientUc, type PlantConnection } from '../services/clientsService';
+import type { PlantRow } from '../services/plantService';
 
 export type ClientFormData = {
   nome: string;
@@ -143,7 +144,7 @@ function createDocumentPicker(currentDocuments: ClientDocument[]) {
   const text = createElement('span', { textContent: 'Documentos' });
   const input = createElement('input');
   const list = createDocumentList(currentDocuments);
-  const hint = createElement('small', { textContent: 'Novos anexos ficam salvos neste navegador ate a integracao com backend.' });
+  const hint = createElement('small', { textContent: 'Anexo rapido neste formulario. Para gerenciar documentos de verdade (upload permanente, categoria, download), use a tela de Documentos.' });
 
   input.type = 'file';
   input.multiple = true;
@@ -356,7 +357,7 @@ function createPlantConnections(uc: ClientUc, availablePlants: PlantRow[]): HTML
   }
 
   availablePlants.forEach((plant) => {
-    const existingConnection = uc.conexoes.find((connection) => connection.usina === plant.nome);
+    const existingConnection = uc.conexoes.find((connection) => connection.plantId === plant.id);
     const row = createElement('label', { className: 'plant-connection-row' });
     const checkbox = createElement('input');
     const info = createElement('span', {
@@ -375,10 +376,10 @@ function createPlantConnections(uc: ClientUc, availablePlants: PlantRow[]): HTML
 
     checkbox.addEventListener('change', () => {
       percent.disabled = !checkbox.checked;
-      updateConnection(uc, plant.nome, checkbox.checked, percent.value);
+      updateConnection(uc, plant, checkbox.checked, percent.value);
     });
     percent.addEventListener('input', () => {
-      updateConnection(uc, plant.nome, checkbox.checked, percent.value);
+      updateConnection(uc, plant, checkbox.checked, percent.value);
     });
 
     row.append(checkbox, info, percent);
@@ -388,15 +389,15 @@ function createPlantConnections(uc: ClientUc, availablePlants: PlantRow[]): HTML
   return wrapper;
 }
 
-function updateConnection(uc: ClientUc, usina: string, enabled: boolean, percentual: string): void {
-  const existingIndex = uc.conexoes.findIndex((connection) => connection.usina === usina);
+function updateConnection(uc: ClientUc, plant: PlantRow, enabled: boolean, percentual: string): void {
+  const existingIndex = uc.conexoes.findIndex((connection) => connection.plantId === plant.id);
 
   if (!enabled) {
     if (existingIndex >= 0) uc.conexoes.splice(existingIndex, 1);
     return;
   }
 
-  const connection = { usina, percentual };
+  const connection: PlantConnection = { plantId: plant.id, usina: plant.nome, percentual };
 
   if (existingIndex >= 0) {
     uc.conexoes[existingIndex] = connection;

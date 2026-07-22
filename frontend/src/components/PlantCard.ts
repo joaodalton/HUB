@@ -1,5 +1,5 @@
 import { createElement } from '../dom';
-import type { PlantRow } from '../services/operationsService';
+import type { PlantRow } from '../services/plantService';
 
 export type PlantFormData = {
   nome: string;

@@ -1,0 +1,913 @@
+diff --git a/PROGRESS.md b/PROGRESS.md
+index 25316bd..1b98225 100644
+--- a/PROGRESS.md
++++ b/PROGRESS.md
+@@ -3,163 +3,107 @@
+ > Leia `VISAO.md` primeiro. Este arquivo é o estado atual, atualizado a cada tarefa concluída.
+ > Regra: pegue a primeira tarefa `[ ]` de cima pra baixo. Não pule.
+ 
+-Última atualização: 2026-07-12 — revisão arquitetural (Claude): bug crítico de schema encontrado, padrão de documentação de API definido, itens de estabilidade do .exe listados.
++Última atualização: 2026-07-24 — **ressincronizado com o repositório real** (o arquivo que estava commitado tinha ficado parado em 12/07, antes de autenticação, CRUD de UC, API de Documentos/Categorias e remoção do localStorage terem sido implementados — nenhum desses ficou registrado aqui até agora, embora estivessem no código). A partir de hoje, toda sessão termina com commit deste arquivo — não só edição local — pra não repetir o descompasso.
+ 
+ ---
+ 
+-## 🔴 Bloqueador — resolver antes de qualquer tarefa de CRUD
++## Decisões já resolvidas (não reabrir sem motivo novo)
+ 
+-Encontrado na revisão de 2026-07-12, comparando os arquivos reais entre si (não confie nisso sem checar no repositório de verdade):
+-
+-- A migration que existe de fato (`backend/migrations/versions/45f056e2a73d_initial_core_schema.py`) só cria `clients`, `plants`, `consumer_units`, `plant_connections`.
+-- O checklist de "Banco de dados local" abaixo registra que uma migration `652c22edc58c` gerou também `categories`, `documents`, `google_accounts`, `logs`, `settings` — arquivo que não apareceu em nenhuma revisão de código feita até agora.
+-- `backend/app.py` só importa `Client`, `Plant`, `ConsumerUnit`, `PlantConnection` dentro de `create_app()`. Nenhuma importação de Category/Document/Setting/GoogleAccount/LogEntry.
+-- Conclusão possível: os models de Categoria, Documento, Configuração, GoogleAccount e Log foram marcados como `[x]` concluídos no checklist, mas nunca foram criados de fato — ou foram criados e nunca importados em `app.py`, então o `flask db migrate` nunca os viu.
+-
+-**Antes de começar a API de Cliente/UC/Usina:**
+-- [ ] Confirmar diretamente no repositório real se `backend/models/category.py`, `document.py`, `setting.py`, `google_account.py`, `log_entry.py` existem.
+-- [ ] Se existirem: importar em `create_app()` junto dos outros models e rodar `flask db migrate` de novo pra pegar o que ficou de fora.
+-- [ ] Se não existirem: recriar (o `VISAO.md` já define o formato esperado pra cada um) e então migrar.
+-- [ ] Depois de corrigido, atualizar os checkboxes de "Banco de dados local" abaixo pra refletir o estado real — hoje eles dizem "Feito" pra coisa que aparentemente não está.
+-
+----
+-
+-## Decisões em aberto (resolver antes de travar arquitetura)
+-
+-- [ ] **Modo de uso do app:** local/single-user (SQLite) ou multi-máquina (servidor)? — *default atual: local/SQLite, conforme `VISAO.md` seção 2.*
+-- [ ] **Empacotador desktop:** Tauri ou Electron? — *default atual: Tauri.*
+-- [x] ~~Reconciliar numeração de versão~~ — resolvido: mantém `V0.x` (fase atual, instável) até o núcleo funcional abaixo estar completo e estável, aí vira `V1.0` de verdade. Marcos seguintes mantêm `V1.5, V2.0, V3.0, V4.0, V5.0`.
++- [x] **Modo de uso do app:** local/single-user, só o João. Integração futura com sistema do colega será via API entre dois sistemas independentes — não é multi-tenant, não muda a arquitetura de dados local. Ver `VISAO.md` seção 2.
++- [x] **Empacotador desktop:** Tauri.
++- [x] **Numeração de versão:** `V0.x` até o núcleo fechar, vira `V1.0` de verdade só quando os itens desta seção estiverem todos `[x]`.
++- [x] **Plant.percentual_disponivel:** continua campo manual por enquanto (não calculado a partir de `PlantConnection`). Revisar quando o rateio automático (V3.0) for implementado.
++- [x] **CPF/CNPJ da UC:** UC tem campo `documento` próprio (pode diferir do CPF do Cliente). Sem validação rígida contra o cliente, é campo livre.
++- [x] **Código ANEEL:** UC tem `codigo` (atual/legado) e `codigoAneel` (novo padrão nacional de 15 dígitos, REN ANEEL 1.095/2024) como campos separados.
++- [x] **Escopo do fechamento do V1 (2026-07-24):** telas de UC e Documentos entram **simples e funcionais, sem estilização** — o redesign completo do frontend (Clientes/Usinas/Documentos/Configurações) fica pra uma sessão à parte, com imagens de inspiração.
+ 
+ ---
+ 
+ ## V0.x → V1.0 — Núcleo funcional
+ 
+-### Estrutura de pastas
+-- [x] Confirmado direto no repositório real (prints de 12h atrás) — a estrutura bate com a seção 4 de `VISAO.md`, mais madura do que o inicialmente assumido:
+-  - `backend/`: `database/`, `models/` (com `drive_item.py`), `routes/` (`config_routes`, `drive_routes`, `health_routes`), `services/` (`database_config_service`, `drive_service`), `utils/` (`api_response.py`, `files.py`), `app.py`, `config.py`, `requirements.txt`.
+-  - `frontend/src/`: `components/` (Client Card, DashboardCards, DataTable, ErrorBoundary, Header, Loading, PlantCard, ReservedPanel, ResultsList, SearchPanel, Sidebar, Toast), `hooks/` (useGlobalLoading, useToast), `layouts/` (BaseLayout), `pages/` (Agenda, Clients, Documents, Placeholder, Plants, Settings), `services/` (**apiClient.ts, router.ts, documentRules.ts** já existem — mais completo do que eu esperava), `styles/` (app.css).
+-- [x] `backend/models/` e `backend/database/` já existem — **não recriar**, só completar o que falta dentro deles (ver abaixo).
+-- [x] Confirmar se os arquivos deste Project (Claude) foram corrigidos/ressincronizados com o repositório real antes de qualquer sessão do Codex usar esses arquivos como referência.
+-  - Critério de pronto: arquivos centrais abertos direto no repositório real (`backend/app.py`, `frontend/package.json`, `backend/requirements.txt`, `README.md`) e confirmados como coerentes com suas funções.
+-  - Feito: `HUB-main.zip` foi extraído em `C:\Users\deadj\Documents\HUB\HUB-main`; a estrutura e os arquivos centrais batem com a arquitetura esperada, sem troca evidente de conteúdo.
+-
+-### Banco de dados local
+-- [x] `backend/models/drive_item.py` já existe (dataclass `DriveItem`) — manter, é modelo de apoio pro Drive, não é entidade de banco.
+-- [x] Escolher ORM (sugestão: SQLAlchemy) e ferramenta de migration (sugestão: Alembic ou Flask-Migrate).
+-  - Critério de pronto: dependências declaradas, configuração `DATABASE_URL` com fallback SQLite local, extensões inicializadas no Flask e importação do app validada sem erro de sintaxe.
+-  - Feito: escolhido SQLAlchemy com Flask-Migrate/Alembic; `backend/app.py` inicializa `db`/`migrate`, `backend/config.py` define `SQLALCHEMY_DATABASE_URI` via `DATABASE_URL` com fallback SQLite local, e `requirements.txt` declara as dependências.
+-  - Validação: `.\venv\Scripts\python.exe -m py_compile app.py config.py database\__init__.py services\drive_service.py routes\drive_routes.py` e `.\venv\Scripts\python.exe -c "from app import app; print(app.url_map)"` passaram.
+-- [x] Modelo Cliente.
+-  - Critério de pronto: modelo SQLAlchemy criado em `backend/models/`, exportado por `backend/models/__init__.py`, com campos usados hoje pela tela de Clientes e validação de importação do app passando.
+-  - Feito: criado `backend/models/client.py` com tabela `clients`, campos principais usados pela tela atual (`nome`, CPF/CNPJ, email, concessionária, status, UC/usina/consumo resumidos) e timestamps.
+-  - Validação: `db.metadata.tables` lista `clients` e `db.create_all()` executou sem erro em SQLite local.
+-- [x] Modelo UC (FK para Cliente, FK opcional para Usina).
+-  - Critério de pronto: modelo SQLAlchemy criado com FK obrigatória para Cliente, FK opcional para Usina, campos atuais de UC e relacionamento de conexões/rateio preservado para expansão.
+-  - Feito: criado `ConsumerUnit` com FK para `clients`, FK opcional para `plants`, campos atuais da tela e tabela auxiliar `plant_connections` para conexão UC↔Usina com percentual.
+-- [x] Modelo Usina.
+-  - Critério de pronto: modelo SQLAlchemy criado com campos usados hoje pela tela de Usinas e relacionamento reverso com UCs.
+-  - Feito: criado `Plant` com nome, UC, kW pico, geração média, status e percentual disponível.
+-- [ ] ⚠️ Modelo Documento (FK para UC, FK para Categoria) — **status real não confirmado, ver bloqueador no topo do arquivo antes de assumir concluído.**
+-  - Critério de pronto: modelo SQLAlchemy criado com vínculo opcional a Cliente, FK opcional a UC e FK obrigatória a Categoria.
+-- [ ] ⚠️ Modelo Categoria — **status real não confirmado, ver bloqueador no topo do arquivo.**
+-  - Critério de pronto: modelo SQLAlchemy criado para classificar documentos, com nome único e tipo/descrição opcionais.
+-- [ ] ⚠️ Modelo Configuração — **status real não confirmado, ver bloqueador no topo do arquivo.**
+-  - Critério de pronto: modelo SQLAlchemy chave/valor criado para configurações persistidas no banco.
+-- [ ] ⚠️ Modelo GoogleAccount — **status real não confirmado, ver bloqueador no topo do arquivo.**
+-  - Critério de pronto: modelo SQLAlchemy criado para múltiplas contas Google OAuth, sem hardcode de credenciais, com refresh token efetivamente criptografado (não só o campo nomeado assim).
+-- [ ] ⚠️ Modelo Log — **status real não confirmado, ver bloqueador no topo do arquivo.**
+-  - Critério de pronto: modelo SQLAlchemy criado para registrar ações, entidade afetada e metadados.
+-- [ ] ⚠️ Migration inicial rodando limpa em banco vazio — **a migration real encontrada (`45f056e2a73d`) só cobre Cliente/UC/Usina/PlantConnection. Precisa nova migration depois de resolver os 5 models acima.**
+-
+-### CRUD Cliente / UC / Usina (ligar ao banco, hoje está em memória/localStorage no front)
+-
+-> **Padrão obrigatório pra essa seção inteira (adicionado 2026-07-12):** todo endpoint novo nasce documentado de um jeito que dá pra mexer sem IA depois. Regras:
+-> 1. Um blueprint por domínio — `routes/clients_routes.py`, `routes/ucs_routes.py`, `routes/plants_routes.py`. Nunca misturar domínios no mesmo arquivo de rotas.
+-> 2. Cada rota leva um comentário de uma linha em cima explicando método, path e o shape do payload:
+->    ```python
+->    # POST /clients — cria cliente. Body: {nome, cpf, email, concessionaria, ucs: ClientUc[]}. Retorna ClientRow.
+->    ```
+-> 3. `to_dict()` de cada model continua sendo a ÚNICA fonte do formato que vai pro frontend — nunca montar JSON solto dentro da função de rota.
+-> 4. Toda mudança de campo no backend (nome, tipo, campo novo) muda o tipo TS correspondente em `frontend/src/services/operationsService.ts` (`ClientRow`, `PlantRow`, `ClientUc`) no mesmo commit — os dois nunca podem descrever formatos diferentes.
+-> 5. Ao terminar essa seção inteira, criar `API_CONTRACTS.md` na raiz do projeto listando: endpoint, método, payload de entrada, formato de resposta, pra toda rota ativa. É esse arquivo que se abre pra adicionar campo sem precisar perguntar pra IA onde mexer.
+-> 6. Decisão de design pendente antes de codar: `Plant.percentual_disponivel` hoje é um campo manual solto, não calculado a partir das `PlantConnection` reais — nada impede hoje que duas conexões somem mais de 100% de uma usina. Decidir: vira campo calculado (100 − soma dos percentuais já conectados) ou continua manual com validação na escrita? Registrar a escolha aqui antes de implementar.
+-
+-- [ ] API de Cliente (GET/POST/PUT/DELETE) usando o banco novo.
+-- [ ] API de UC, com vínculo a Cliente e Usina.
+-- [ ] API de Usina.
+-- [ ] Frontend de Clientes consumindo a API nova (hoje usa `localStorage` com a chave `hub.operations.v1` — não remover a tela/fluxo, só trocar a fonte de dados).
+-- [ ] Frontend de Usinas consumindo a API nova.
+-- [ ] Migrar dados de exemplo/mock existentes, se fizer sentido, ou começar limpo (decidir com o usuário).
+-- [ ] Mover a regra de status do cliente (`getClientStatus`, hoje só em `frontend/src/services/operationsService.ts`) pro backend — quando a API existir, o status não pode ser calculado nos dois lados ao mesmo tempo.
+-
+-### Google Drive OAuth
+-- [ ] Fluxo OAuth 2.0 (login interativo, autorizar, salvar refresh token).
+-- [ ] Refresh token salvo de forma segura no banco (não em texto puro sem proteção).
+-- [ ] Suporte a mais de uma conta Google conectada.
+-- [ ] Tela de gerenciamento de contas (trocar conta ativa).
+-- [ ] Fluxo antigo baseado em `credentials.json` continua funcionando até o OAuth estar validado — só remover depois de confirmado.
+-
+-### Documentos
+-- [ ] Módulo de Documentos ligado ao banco (Categoria, vínculo a UC/Cliente).
+-- [ ] Upload, busca, filtro, download — mantendo a experiência de busca/reserva/ZIP que já existe hoje no Drive.
+-
+-### Configurações
+-- [x] Aba Banco de dados (Google Drive + SQL futuro) já existe.
+-- [x] Aba Aparência (cor + logo) já existe.
+-- [ ] Ajustar aba Banco de dados pra refletir SQLite local em vez de "SQL futuro" genérico, se a decisão em aberto acima for confirmada.
++### Backend — Banco de dados e models
++- [x] SQLAlchemy + Flask-Migrate configurados via `extensions.py` (db/migrate centralizados).
++- [x] Migrations aplicadas em cadeia: `45f056e2a73d` → `cbc335adce4f` → `061e810abc38` → `c4b5632aaedd`. Testado rodando `flask db upgrade` do zero num banco limpo.
++- [x] Models completos: `Client`, `Plant`, `ConsumerUnit`, `PlantConnection`, `Category`, `Document`, `Setting`, `GoogleAccount`, `LogEntry`, `User`.
++- [x] `GoogleAccount.refresh_token` criptografado via `utils/crypto.py` (Fernet) — nunca aparece em `to_dict()`.
++
++### Backend — API
++- [x] Auth: `POST /auth/bootstrap`, `POST /auth/login`, middleware protegendo tudo exceto `/`, `/auth/login`, `/auth/bootstrap`, `/oauth/google/authorize`, `/oauth/google/callback` (essas duas últimas liberadas porque são navegação direta do navegador, não fetch com header).
++- [x] `GET/POST/PUT/DELETE /clients` (com sincronização de UCs aninhadas), `/ucs`, `/plants`.
++- [x] `GET/POST /categories`.
++- [x] `GET/POST/PUT/DELETE /documents` + `GET /documents/<id>/download` — upload/download real em disco (`backend/uploads/`, fora do git).
++- [x] `GET/PUT /settings`.
++- [x] **OAuth do Google (`/oauth/google/*`) — backend implementado e testado no sandbox (2026-07-24):** `services/oauth_service.py` monta o fluxo (`google-auth-oauthlib`), troca `code` por credenciais, descobre o email da conta, salva/atualiza `GoogleAccount` com refresh token criptografado. `routes/oauth_routes.py` expõe `authorize`, `callback`, `accounts` (listar), `accounts/<id>/activate`, `accounts/<id>` (DELETE). `drive_service.py` agora prefere a conta OAuth ativa e cai pro `credentials.json` de service account se não houver conta conectada ou o refresh falhar (rede fora do ar, token revogado) — nunca derruba a rota.
++  - Testado com credenciais fake: geração de URL de autorização, proteção contra `state` reaproveitado (CSRF), criptografia/descriptografia do refresh token, primeira conta ativando sozinha, segunda conta não pisando na ativa, troca de conta ativa, desconexão, e os 3 caminhos do `get_drive_service()` (OAuth ok / OAuth falha → fallback / sem conta nenhuma → fallback).
++  - **Pendente, só o João consegue fazer:** criar o Client ID OAuth (tipo "Web application") no Google Cloud Console e preencher `GOOGLE_OAUTH_CLIENT_ID`/`GOOGLE_OAUTH_CLIENT_SECRET` no `.env` real. Sem isso testado com o Google de verdade, considerar essa funcionalidade "implementada mas não validada em produção".
++  - **Risco conhecido:** se a Select não usa Google Workspace (conta com domínio próprio), o app OAuth fica em modo "Testing" no Google e o refresh token expira a cada 7 dias, pedindo reconexão manual. Se usa Workspace, dá pra configurar como "Internal" e esse problema não existe. Decidir isso ao criar a tela de consentimento no Google Cloud Console.
++- [x] `drive_routes.py` não derruba mais o backend se `credentials.json` não existir — erro controlado (503).
++
++### Frontend
++- [x] Login (tela + guarda de rota).
++- [x] Clientes: 100% via API real, zero `localStorage`.
++- [x] Usinas: 100% via API real.
++- [x] Aparência (cor, logo): via API real.
++- [x] `localStorage` eliminado do projeto inteiro.
++- [x] **Configurações > Banco de dados: gerenciamento de contas Google OAuth (2026-07-24)** — botão "Conectar nova conta" (leva pro login real do Google), lista de contas conectadas com "Usar esta conta" / "Desconectar", toast de sucesso/erro ao voltar do fluxo OAuth. Testado com `tsc --noEmit` e `vite build`, sem rodar contra o Google de verdade ainda (depende do Client ID real).
++- [ ] **Tela de UCs** — próximo item da fila. Rota `/ucs` ainda é o placeholder estático. API já existe e já foi testada. Combinado (2026-07-24): funcional e simples, sem estilização — reaproveitar padrão de `ClientsPage.ts`/`PlantsPage.ts` (dashboard + tabela + card de edição em popup).
++- [ ] **Tela de Documentos** — mesma combinação: funcional e simples agora, redesenho depois. API pronta e testada, zero UI ainda.
++- [ ] Formulário de Cliente/UC/Usina ainda não expõe os campos de negócio novos (telefone, endereço, CEP, concessionária por UC, geração própria, código ANEEL, contrato, carência, marca do inversor, contato do proprietário) — dado já tem onde morar no banco, só falta aparecer no formulário. Fica pro redesign geral (fora do escopo do fechamento do V1 combinado agora).
++
++### Documentação viva
++- [ ] `API_CONTRACTS.md` nunca foi criado — regra definida faz tempo, ainda pendente.
+ 
+ ---
+ 
+ ## Transversal — Empacotamento (.exe)
+-
+-> **Itens novos encontrados na revisão de 2026-07-12, além do checklist original:**
+-> - Trocar o servidor de dev do Flask (Werkzeug) por `waitress` no build empacotado — Werkzeug não é feito pra rodar de forma permanente como processo de fundo de um app desktop.
+-> - `SQLALCHEMY_DATABASE_URI` hoje é relativo a `BASE_DIR` do backend (`backend/config.py`) — não pode ir pro `.exe` assim. Empacotado, essa pasta pode ser somente-leitura (`Program Files`) ou temporária (PyInstaller `--onefile`). O banco tem que morar em pasta de dados do usuário (ex.: `%APPDATA%/APP_HUB/hub.db`).
+-> - Garantir que `FLASK_DEBUG` vá `false` fixo no build de produção, independente do que estiver no `.env` de dev — debug ligado expõe o debugger interativo do Werkzeug (risco de execução de código arbitrário via console web).
+-> - Usar o "sidecar" do Tauri pra gerenciar o ciclo de vida do processo do backend (start/kill), pra não deixar `hub-backend.exe` órfão rodando depois que o app fecha — causa mais comum de "na segunda vez que abro, trava".
+-> - Porta fixa (`API_PORT=8000`) sem fallback — se a porta estiver ocupada (inclusive por processo órfão do ponto anterior), o app não sobe. Checar disponibilidade antes de subir ou ter porta alternativa.
+-> - CORS hoje é `CORS(app)` sem allowlist e não há autenticação em nenhuma rota — resolver antes do empacotamento, não depois (ver seção de segurança da revisão).
+-
+-- [ ] Backend empacotado com PyInstaller, testado como `.exe` isolado fora do ambiente de dev.
+-- [ ] Projeto Tauri (ou Electron, conforme decisão em aberto) criado em `desktop/`.
+-- [ ] App desktop sobe o `.exe` do backend como subprocesso automaticamente.
+-- [ ] Instalador `.msi`/`.exe` gerado.
+-- [ ] Testado numa máquina limpa, sem Python/Node instalado.
++Nada disso foi tocado ainda:
++- [ ] Trocar Werkzeug por `waitress` no build de produção.
++- [ ] Path do SQLite não pode ser relativo ao `backend/` no `.exe` — precisa ir pra `%APPDATA%` (ou equivalente) antes do empacotamento.
++- [ ] `FLASK_DEBUG` forçado `false` no build, independente do `.env` de dev.
++- [ ] Ciclo de vida do processo via sidecar do Tauri.
++- [ ] Porta fixa sem fallback (`API_PORT=8000`) — checar disponibilidade antes de subir.
++- [ ] Backend empacotado com PyInstaller, testado isolado.
++- [ ] Projeto Tauri criado em `desktop/`.
++- [ ] Instalador testado em máquina limpa.
+ 
+ ---
+ 
+ ## V1.5 — Refinamento operacional
+ - [ ] Pendências.
+ - [ ] Dashboard inteligente com métricas reais.
+-- [ ] Agenda operacional funcional (hoje é grade estática com 3 itens de exemplo).
++- [ ] Agenda operacional real — hoje é grade estática com 3 itens de exemplo.
++- [ ] Importação em massa de Cliente/UC/Usina via planilha Excel.
++- [ ] Redesenho completo do frontend (Clientes/Usinas/Documentos/Configurações) — sessão à parte, com imagens de inspiração do João.
+ 
+-## V2.0 — Cobrança
+-- [ ] Integração ASAAS.
+-- [ ] WhatsApp.
++## V2.0 — Cobrança e automação de mensagens
++- [ ] Integração ASAAS (boleto).
++- [ ] Integração WhatsApp pra disparo automático dos eventos da Agenda.
+ - [ ] Cobranças automáticas.
+ 
+ ## V3.0 — Financeiro / Rateios
+-- [ ] Importação de fatura/planilha.
+-- [ ] Cálculo automático de rateio.
++- [ ] **Regra de cálculo do rateio automático ainda não definida** — João vai mandar um documento consolidando as versões que já levantou (inclusive uma sendo produzida por outra IA) antes de qualquer linha de código nessa parte.
++- [ ] Botão de rateio automático por Usina.
++- [ ] Importação de fatura e planilha de rateio.
+ - [ ] Relatórios + exportação Excel/PDF.
+ - [ ] Histórico de competências.
+ 
+ ## V4.0 — Monitoramento
+-- [ ] Integração com APIs de inversores.
+-- [ ] Alertas automáticos.
++- [ ] Integração com APIs de inversores (viabilidade depende da marca).
++- [ ] Leitura automatizada de fatura das concessionárias (robô/ML) — validar com prova de conceito pequena antes de comprometer prazo.
++- [ ] Alertas automáticos de produção/falha.
+ 
+ ## V5.0 — Automação
+ - [ ] Motor de automações.
+ - [ ] Portal do cliente.
++- [ ] Integração com SunHub via API.
+ 
+ ---
+ 
+ ## Log de decisões tomadas durante o desenvolvimento
+-(o Codex adiciona uma linha aqui sempre que resolver uma ambiguidade sozinho, pra você poder revisar depois)
+-
+-- 2026-07-08: enquanto o usuário não responder sobre single-user vs multi-máquina, mantido o default da visão: SQLite local.
+-- 2026-07-08: escolhido SQLAlchemy + Flask-Migrate/Alembic para banco local e migrations.
+-- 2026-07-08: `drive_service` passou a inicializar o cliente Google Drive sob demanda para permitir que o app Flask suba sem `credentials.json`; rotas do Drive retornam erro claro se a credencial faltar.
+-- 2026-07-08: o modelo `Client` usa nomes internos em inglês e `to_dict()` compatível com os nomes atuais do frontend em português para facilitar a troca futura de `localStorage` por API.
+-- 2026-07-08: criada tabela `plant_connections` além das entidades listadas para preservar o comportamento atual de uma UC conectada a múltiplas usinas com percentuais.
+-- 2026-07-12: revisão arquitetural (Claude) a partir dos arquivos colados no chat — encontrado descompasso entre a migration real (só 4 tabelas) e o checklist (que marcava 5 models adicionais como concluídos, ver bloqueador no topo do arquivo). Definido padrão obrigatório de documentação pra toda rota que fala com o frontend. Listados ajustes de estabilidade pro empacotamento .exe (waitress, path do banco em `%APPDATA%`, debug off forçado, ciclo de vida do processo via sidecar do Tauri, CORS/autenticação). `search_files` em `drive_service.py` tem risco de injeção de query por concatenar input sem escapar — não corrigido ainda, só registrado.
++
++- 2026-07-08 a 2026-07-12: fundação inicial (SQLAlchemy, migrations, models Cliente/UC/Usina).
++- 2026-07-19: resolvida single-user vs multi-máquina. Campos de negócio novos triados a partir do GDASH.
++- 2026-07-20/21: autenticação completa, CRUD de UC avulso, backend de Documentos + Categorias, `localStorage` eliminado do frontend inteiro, `iniciar.py` corrigido.
++- 2026-07-22: campos de negócio completos em Cliente/UC/Usina; migration testada contra banco com dado pré-existente.
++- 2026-07-23 (aprox.): sessão de OAuth começou numa conversa que foi interrompida antes do código ser commitado — o trabalho ficou só no sandbox daquela conversa e se perdeu (sandbox não persiste entre chats). Lição registrada: para qualquer coisa gerada diretamente pelo Claude num sandbox (não pelo Codex direto no repositório local), commitar/exportar antes de encerrar a sessão, não só no fim do V1.
++- 2026-07-24: `PROGRESS.md` ressincronizado com a realidade do repositório (estava parado em 12/07 apesar de semanas de trabalho commitado). OAuth do Google reimplementado do zero (service + rotas + integração com `drive_service.py` com fallback), testado com credenciais fake no sandbox, e tela de gerenciamento de contas adicionada em Configurações. Falta o João criar o Client ID real no Google Cloud Console pra validar contra o Google de verdade. Decidido fechar o V1 com telas de UC/Documentos simples e funcionais agora, redesenho completo fica pra depois.
+diff --git a/backend/.env.example b/backend/.env.example
+index 350e7a9..6e32e9f 100644
+--- a/backend/.env.example
++++ b/backend/.env.example
+@@ -5,6 +5,10 @@ GOOGLE_SERVICE_ACCOUNT_FILE=credentials.json
+ GOOGLE_DRIVE_ROOT_FOLDER_ID=
+ GOOGLE_DRIVE_DATA_FILE=hub-data.json
+ GOOGLE_DRIVE_SCOPES=https://www.googleapis.com/auth/drive.readonly
++GOOGLE_OAUTH_CLIENT_ID=
++GOOGLE_OAUTH_CLIENT_SECRET=
++GOOGLE_OAUTH_REDIRECT_URI=http://localhost:8000/oauth/google/callback
++FRONTEND_URL=http://localhost:5173
+ SQL_DRIVER=
+ SQL_HOST=
+ SQL_PORT=
+diff --git a/backend/app.py b/backend/app.py
+index cf7a91d..a945254 100644
+--- a/backend/app.py
++++ b/backend/app.py
+@@ -34,6 +34,7 @@ def create_app() -> Flask:
+     from routes.document_routes import document_routes
+     from routes.category_routes import category_routes
+     from routes.settings_routes import settings_routes
++    from routes.oauth_routes import oauth_routes
+ 
+     app.register_blueprint(health_routes)
+     app.register_blueprint(auth_routes)
+@@ -45,9 +46,14 @@ def create_app() -> Flask:
+     app.register_blueprint(document_routes)
+     app.register_blueprint(category_routes)
+     app.register_blueprint(settings_routes)
++    app.register_blueprint(oauth_routes)
+ 
+     from utils.auth import register_auth_middleware
+-    register_auth_middleware(app, public_paths={'/', '/auth/login', '/auth/bootstrap'})
++    register_auth_middleware(app, public_paths={
++        '/', '/auth/login', '/auth/bootstrap',
++        # navegacao direta do navegador (redirect), nunca carrega o Bearer token do HUB
++        '/oauth/google/authorize', '/oauth/google/callback'
++    })
+ 
+     return app
+ 
+diff --git a/backend/config.py b/backend/config.py
+index f528f45..c6f14d8 100644
+--- a/backend/config.py
++++ b/backend/config.py
+@@ -20,6 +20,13 @@ class Config:
+         'GOOGLE_DRIVE_SCOPES',
+         'https://www.googleapis.com/auth/drive.readonly'
+     ).split(',')
++    # OAuth 2.0 de usuario real (substitui/complementa o credentials.json de service account).
++    # Client ID/Secret vem do Google Cloud Console -- ver README pra passo a passo.
++    GOOGLE_OAUTH_CLIENT_ID = os.getenv('GOOGLE_OAUTH_CLIENT_ID', '')
++    GOOGLE_OAUTH_CLIENT_SECRET = os.getenv('GOOGLE_OAUTH_CLIENT_SECRET', '')
++    GOOGLE_OAUTH_REDIRECT_URI = os.getenv('GOOGLE_OAUTH_REDIRECT_URI', 'http://localhost:8000/oauth/google/callback')
++    # Pra onde redirecionar de volta depois do callback do Google (a SPA do frontend, nao o backend).
++    FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
+     SQL_DRIVER = os.getenv('SQL_DRIVER', '')
+     SQL_HOST = os.getenv('SQL_HOST', '')
+     SQL_PORT = os.getenv('SQL_PORT', '')
+diff --git a/backend/requirements.txt b/backend/requirements.txt
+index 39460f8..d83e696 100644
+--- a/backend/requirements.txt
++++ b/backend/requirements.txt
+@@ -3,6 +3,7 @@ flask-cors
+ flask-sqlalchemy
+ flask-migrate
+ google-auth
++google-auth-oauthlib
+ google-api-python-client
+ python-dotenv
+ cryptography
+diff --git a/backend/routes/oauth_routes.py b/backend/routes/oauth_routes.py
+new file mode 100644
+index 0000000..bfd3790
+--- /dev/null
++++ b/backend/routes/oauth_routes.py
+@@ -0,0 +1,64 @@
++# backend/routes/oauth_routes.py
++from flask import Blueprint, redirect, request
++
++from config import Config
++from services.oauth_service import (
++    build_authorize_url,
++    disconnect_account,
++    handle_callback,
++    list_accounts,
++    set_active_account
++)
++from utils.api_response import error_response, success_response
++
++oauth_routes = Blueprint('oauth_routes', __name__, url_prefix='/oauth/google')
++
++
++# GET /oauth/google/authorize -- redireciona o navegador pra tela de consentimento do Google.
++# Publica (sem Bearer token) de proposito: e navegacao direta do navegador (<a href>), nao fetch com header.
++@oauth_routes.route('/authorize')
++def authorize():
++    try:
++        return redirect(build_authorize_url())
++    except RuntimeError as exc:
++        return error_response(str(exc), 503)
++
++
++# GET /oauth/google/callback -- o Google chama essa URL de volta com ?code=...&state=...
++# Tambem publica pelo mesmo motivo da rota acima. Sempre volta pro frontend (nunca fica presa no backend).
++@oauth_routes.route('/callback')
++def callback():
++    if request.args.get('error'):
++        return redirect(f'{Config.FRONTEND_URL}/configuracoes?google_oauth=erro&motivo={request.args["error"]}')
++
++    try:
++        handle_callback(request.url, request.args.get('state', ''))
++    except ValueError as exc:
++        return redirect(f'{Config.FRONTEND_URL}/configuracoes?google_oauth=erro&motivo={exc}')
++    except Exception:
++        return redirect(f'{Config.FRONTEND_URL}/configuracoes?google_oauth=erro')
++
++    return redirect(f'{Config.FRONTEND_URL}/configuracoes?google_oauth=sucesso')
++
++
++# GET /oauth/google/accounts -- lista contas Google conectadas. Rota autenticada normal (fetch do front).
++@oauth_routes.route('/accounts')
++def accounts():
++    return success_response(list_accounts())
++
++
++# POST /oauth/google/accounts/<id>/activate -- troca qual conta e a ativa (so uma por vez).
++@oauth_routes.route('/accounts/<int:account_id>/activate', methods=['POST'])
++def activate(account_id: int):
++    account = set_active_account(account_id)
++    if not account:
++        return error_response('Conta nao encontrada.', 404)
++    return success_response(account, 'Conta ativada.')
++
++
++# DELETE /oauth/google/accounts/<id> -- desconecta e apaga a conta salva (nao revoga no lado do Google).
++@oauth_routes.route('/accounts/<int:account_id>', methods=['DELETE'])
++def destroy(account_id: int):
++    if not disconnect_account(account_id):
++        return error_response('Conta nao encontrada.', 404)
++    return success_response(None, 'Conta desconectada.')
+diff --git a/backend/services/drive_service.py b/backend/services/drive_service.py
+index 3c1c4b9..3b48079 100644
+--- a/backend/services/drive_service.py
++++ b/backend/services/drive_service.py
+@@ -1,7 +1,9 @@
+ import io
+ import zipfile
+ 
++from google.auth.transport.requests import Request as GoogleAuthRequest
+ from google.oauth2 import service_account
++from google.oauth2.credentials import Credentials as OAuthCredentials
+ from googleapiclient.discovery import build
+ from googleapiclient.http import MediaIoBaseDownload
+ 
+@@ -10,11 +12,7 @@ from utils.files import safe_filename, unique_filename
+ 
+ 
+ class GoogleDriveService:
+-    def __init__(self) -> None:
+-        credentials = service_account.Credentials.from_service_account_file(
+-            Config.GOOGLE_SERVICE_ACCOUNT_FILE,
+-            scopes=Config.GOOGLE_DRIVE_SCOPES
+-        )
++    def __init__(self, credentials) -> None:
+         self.client = build('drive', 'v3', credentials=credentials)
+ 
+     def search_files(self, query_text: str) -> list[dict]:
+@@ -70,12 +68,75 @@ class GoogleDriveService:
+         return zip_buffer
+ 
+ 
+-drive_service = None
++_drive_service_cache: GoogleDriveService | None = None
++
++
++def _build_oauth_credentials():
++    """Credenciais da conta Google conectada via OAuth (a marcada is_active=True).
++    Retorna None se nao houver conta conectada ou se o token nao puder ser renovado
++    -- nesses casos get_drive_service() cai pro credentials.json de service account,
++    em vez de derrubar a rota."""
++    from models.google_account import GoogleAccount  # import tardio: evita ciclo no app factory
++    from services.log_service import LogService
++
++    account = GoogleAccount.query.filter_by(is_active=True).first()
++    if not account:
++        return None
++
++    refresh_token = account.get_refresh_token()
++    if not refresh_token:
++        return None
++
++    credentials = OAuthCredentials(
++        token=None,
++        refresh_token=refresh_token,
++        token_uri='https://oauth2.googleapis.com/token',
++        client_id=Config.GOOGLE_OAUTH_CLIENT_ID,
++        client_secret=Config.GOOGLE_OAUTH_CLIENT_SECRET,
++        scopes=Config.GOOGLE_DRIVE_SCOPES
++    )
++
++    try:
++        credentials.refresh(GoogleAuthRequest())
++    except Exception as exc:  # RefreshError (token revogado/expirado) ou falha de rede -- nunca derruba a rota
++        LogService.warning(
++            acao='oauth_refresh_failed',
++            mensagem=f'Token da conta {account.email} nao renovou (revogacao/expiracao ou rede fora do ar). Reconecte em Configuracoes se persistir.',
++            entidade='GoogleAccount',
++            metadados={'id': account.id, 'erro': str(exc)}
++        )
++        return None
++
++    return credentials
++
++
++def _build_service_account_credentials():
++    return service_account.Credentials.from_service_account_file(
++        Config.GOOGLE_SERVICE_ACCOUNT_FILE,
++        scopes=Config.GOOGLE_DRIVE_SCOPES
++    )
++
++
++def get_drive_service() -> GoogleDriveService:
++    """Prefere a conta OAuth ativa (multi-conta, sem precisar compartilhar pasta
++    manualmente); cai pro credentials.json de service account se nao houver
++    conta conectada ou o token dela estiver morto."""
++    global _drive_service_cache
++
++    if _drive_service_cache is not None:
++        return _drive_service_cache
++
++    credentials = _build_oauth_credentials()
++
++    if credentials is None:
++        credentials = _build_service_account_credentials()
+ 
+-def get_drive_service():
+-    global drive_service
++    _drive_service_cache = GoogleDriveService(credentials)
++    return _drive_service_cache
+ 
+-    if drive_service is None:
+-        drive_service = GoogleDriveService()
+ 
+-    return drive_service
++def invalidate_drive_cache() -> None:
++    """Chamado pelo oauth_service ao conectar/ativar/desconectar uma conta, pra
++    forcar o proximo get_drive_service() a reconstruir com a credencial certa."""
++    global _drive_service_cache
++    _drive_service_cache = None
+diff --git a/backend/services/oauth_service.py b/backend/services/oauth_service.py
+new file mode 100644
+index 0000000..65e380d
+--- /dev/null
++++ b/backend/services/oauth_service.py
+@@ -0,0 +1,173 @@
++# backend/services/oauth_service.py
++"""
++Fluxo OAuth 2.0 pra conectar conta(s) Google reais de usuario -- complementa
++(nao substitui ainda) o credentials.json de service account usado hoje pelo
++Drive. Nao inicializa nada em tempo de import, so quando authorize()/callback()
++sao chamados (mesmo espirito lazy do drive_service.py).
++
++Guarda em memoria o 'state' pendente entre /authorize e /callback como
++protecao CSRF basica. Isso assume processo unico (waitress/dev server nao
++multi-processo) -- se um dia o backend rodar com varios workers, precisa
++mover pra algo compartilhado (Setting no banco, por exemplo).
++"""
++import secrets
++
++import requests as http_requests
++from google.oauth2.credentials import Credentials
++from google_auth_oauthlib.flow import Flow
++
++from config import Config
++from extensions import db
++from models.google_account import GoogleAccount
++from services.log_service import LogService
++
++# Sempre pede o mesmo escopo de Drive que a service account usa (fonte unica
++# de verdade em Config.GOOGLE_DRIVE_SCOPES), mais 'email' so pra identificar
++# qual conta Google foi conectada -- HUB nunca le nome/foto, so o email.
++_IDENTITY_SCOPES = ['openid', 'https://www.googleapis.com/auth/userinfo.email']
++
++_pending_states: set[str] = set()
++
++
++def _scopes() -> list[str]:
++    return [*Config.GOOGLE_DRIVE_SCOPES, *_IDENTITY_SCOPES]
++
++
++def _client_config() -> dict:
++    if not Config.GOOGLE_OAUTH_CLIENT_ID or not Config.GOOGLE_OAUTH_CLIENT_SECRET:
++        raise RuntimeError(
++            'GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET nao configurados no .env. '
++            'Crie um Client ID tipo "Web application" no Google Cloud Console primeiro.'
++        )
++
++    return {
++        'web': {
++            'client_id': Config.GOOGLE_OAUTH_CLIENT_ID,
++            'client_secret': Config.GOOGLE_OAUTH_CLIENT_SECRET,
++            'auth_uri': 'https://accounts.google.com/o/oauth2/auth',
++            'token_uri': 'https://oauth2.googleapis.com/token',
++            'redirect_uris': [Config.GOOGLE_OAUTH_REDIRECT_URI]
++        }
++    }
++
++
++def _build_flow() -> Flow:
++    return Flow.from_client_config(
++        _client_config(),
++        scopes=_scopes(),
++        redirect_uri=Config.GOOGLE_OAUTH_REDIRECT_URI
++    )
++
++
++def build_authorize_url() -> str:
++    flow = _build_flow()
++    state = secrets.token_urlsafe(24)
++    _pending_states.add(state)
++
++    auth_url, _ = flow.authorization_url(
++        access_type='offline',     # necessario pra ganhar refresh_token
++        prompt='consent',          # forca a tela de consentimento sempre -- sem isso o Google
++                                    # as vezes nao manda refresh_token de novo pra quem ja autorizou antes
++        include_granted_scopes='true',
++        state=state
++    )
++    return auth_url
++
++
++def handle_callback(request_url: str, state: str) -> dict:
++    """Troca o 'code' que o Google devolveu por credenciais, descobre o email
++    da conta e cria/atualiza o GoogleAccount correspondente."""
++    if state not in _pending_states:
++        raise ValueError('Link de autorizacao invalido ou expirado. Conecte a conta de novo.')
++
++    _pending_states.discard(state)
++
++    flow = _build_flow()
++    flow.fetch_token(authorization_response=request_url)
++    credentials = flow.credentials
++
++    if not credentials.refresh_token:
++        raise ValueError(
++            'Google nao retornou refresh_token. Revogue o acesso do HUB em '
++            'myaccount.google.com/permissions e tente conectar de novo.'
++        )
++
++    email = _fetch_email(credentials)
++    account = GoogleAccount.query.filter_by(email=email).first()
++
++    if not account:
++        account = GoogleAccount(email=email, nome=email.split('@')[0])
++        db.session.add(account)
++        db.session.flush()
++
++    account.nome = account.nome or email.split('@')[0]
++    account.set_refresh_token(credentials.refresh_token)
++    account.scopes = ','.join(credentials.scopes or _scopes())
++
++    # primeira conta conectada vira ativa sozinha; as seguintes ficam inativas
++    # ate o usuario escolher em Configuracoes.
++    if not GoogleAccount.query.filter_by(is_active=True).first():
++        account.is_active = True
++
++    db.session.commit()
++    _invalidate_drive_cache()
++
++    LogService.info(
++        acao='oauth_connect',
++        mensagem=f'Conta Google {email} conectada via OAuth',
++        entidade='GoogleAccount',
++        metadados={'id': account.id}
++    )
++    return account.to_dict()
++
++
++def _fetch_email(credentials: Credentials) -> str:
++    response = http_requests.get(
++        'https://www.googleapis.com/oauth2/v2/userinfo',
++        headers={'Authorization': f'Bearer {credentials.token}'},
++        timeout=10
++    )
++    response.raise_for_status()
++    return response.json()['email']
++
++
++def list_accounts() -> list[dict]:
++    accounts = GoogleAccount.query.order_by(GoogleAccount.created_at.desc()).all()
++    return [account.to_dict() for account in accounts]
++
++
++def set_active_account(account_id: int) -> dict | None:
++    account = GoogleAccount.query.get(account_id)
++    if not account:
++        return None
++
++    GoogleAccount.query.update({GoogleAccount.is_active: False})
++    account.is_active = True
++    db.session.commit()
++    _invalidate_drive_cache()
++
++    LogService.info(acao='oauth_activate', mensagem=f'Conta Google {account.email} ativada', entidade='GoogleAccount', metadados={'id': account.id})
++    return account.to_dict()
++
++
++def disconnect_account(account_id: int) -> bool:
++    account = GoogleAccount.query.get(account_id)
++    if not account:
++        return False
++
++    email, was_active = account.email, account.is_active
++    db.session.delete(account)
++    db.session.commit()
++
++    if was_active:
++        _invalidate_drive_cache()
++
++    LogService.info(acao='oauth_disconnect', mensagem=f'Conta Google {email} desconectada', entidade='GoogleAccount')
++    return True
++
++
++def _invalidate_drive_cache() -> None:
++    # import tardio pra evitar ciclo de import (drive_service tambem pode vir
++    # a importar coisas daqui no futuro).
++    from services.drive_service import invalidate_drive_cache
++    invalidate_drive_cache()
+diff --git a/frontend/src/pages/SettingsPage.ts b/frontend/src/pages/SettingsPage.ts
+index 385fcb7..2dcc93c 100644
+--- a/frontend/src/pages/SettingsPage.ts
++++ b/frontend/src/pages/SettingsPage.ts
+@@ -11,6 +11,13 @@ import {
+   type DatabaseProvider
+ } from '../services/databaseConfigService';
+ import { getSettings, loadSettings, saveSettings, type AppSettings } from '../services/settingsService';
++import {
++  activateGoogleAccount,
++  disconnectGoogleAccount,
++  getGoogleAccounts,
++  getGoogleAuthorizeUrl,
++  type GoogleAccountRow
++} from '../services/googleAccountService';
+ 
+ type SettingsTab = 'database' | 'appearance';
+ 
+@@ -19,10 +26,14 @@ export function createSettingsPage(): HTMLElement {
+   const toast = useToast();
+   let activeTab: SettingsTab = 'database';
+   let databaseConfig: DatabaseConfig | null = null;
++  let googleAccounts: GoogleAccountRow[] = [];
+   let appearanceLoaded = false;
+ 
++  handleGoogleOAuthRedirect(toast);
++
+   renderContent();
+   loadDatabaseConfig();
++  loadGoogleAccounts();
+   refreshAppearance();
+ 
+   return createBaseLayout({
+@@ -40,6 +51,38 @@ export function createSettingsPage(): HTMLElement {
+     }
+   }
+ 
++  async function loadGoogleAccounts(): Promise<void> {
++    try {
++      googleAccounts = await getGoogleAccounts();
++    } catch {
++      googleAccounts = [];
++    } finally {
++      renderContent();
++    }
++  }
++
++  async function handleActivateAccount(id: number): Promise<void> {
++    try {
++      await activateGoogleAccount(id);
++      toast.success('Conta Google ativada.');
++    } catch {
++      toast.error('Nao foi possivel ativar a conta.');
++    } finally {
++      await loadGoogleAccounts();
++    }
++  }
++
++  async function handleDisconnectAccount(id: number): Promise<void> {
++    try {
++      await disconnectGoogleAccount(id);
++      toast.success('Conta Google desconectada.');
++    } catch {
++      toast.error('Nao foi possivel desconectar a conta.');
++    } finally {
++      await loadGoogleAccounts();
++    }
++  }
++
+   async function refreshAppearance(): Promise<void> {
+     try {
+       await loadSettings();
+@@ -60,6 +103,10 @@ export function createSettingsPage(): HTMLElement {
+       ? createDatabasePanel(databaseConfig, toast.success, toast.error, async () => {
+         databaseConfig = await getDatabaseConfig();
+         renderContent();
++      }, {
++        items: googleAccounts,
++        onActivate: handleActivateAccount,
++        onDisconnect: handleDisconnectAccount
+       })
+       : createAppearancePanel(getSettings(), appearanceLoaded, toast.success, toast.error);
+ 
+@@ -67,6 +114,27 @@ export function createSettingsPage(): HTMLElement {
+   }
+ }
+ 
++// Depois do callback do Google, o backend redireciona pra /configuracoes?google_oauth=sucesso|erro.
++// Mostra o toast uma vez e limpa a URL pra nao repetir se a pagina for recarregada.
++function handleGoogleOAuthRedirect(toast: { success: (message: string) => void; error: (message: string) => void }): void {
++  const params = new URLSearchParams(window.location.search);
++  const status = params.get('google_oauth');
++
++  if (!status) return;
++
++  if (status === 'sucesso') {
++    toast.success('Conta Google conectada.');
++  } else {
++    const motivo = params.get('motivo');
++    toast.error(motivo ? `Nao foi possivel conectar a conta Google: ${motivo}` : 'Nao foi possivel conectar a conta Google.');
++  }
++
++  params.delete('google_oauth');
++  params.delete('motivo');
++  const query = params.toString();
++  window.history.replaceState({}, '', `${window.location.pathname}${query ? `?${query}` : ''}`);
++}
++
+ function createTabs(activeTab: SettingsTab, onChange: (tab: SettingsTab) => void): HTMLElement {
+   const tabs = createElement('div', { className: 'settings-tabs' });
+   const items: Array<{ key: SettingsTab; label: string }> = [
+@@ -92,7 +160,12 @@ function createDatabasePanel(
+   config: DatabaseConfig | null,
+   notify: (message: string) => void,
+   notifyError: (message: string) => void,
+-  onRefresh: () => Promise<void>
++  onRefresh: () => Promise<void>,
++  googleAccounts: {
++    items: GoogleAccountRow[];
++    onActivate: (id: number) => void;
++    onDisconnect: (id: number) => void;
++  }
+ ): HTMLElement {
+   const wrapper = createElement('section', { className: 'database-provider-stack' });
+ 
+@@ -123,6 +196,7 @@ function createDatabasePanel(
+       },
+       onTest: () => testProvider('google_drive', notify, notifyError)
+     }),
++    createGoogleAccountsSection(googleAccounts.items, googleAccounts.onActivate, googleAccounts.onDisconnect),
+     createProviderCard({
+       title: 'SQL',
+       eyebrow: 'Banco futuro',
+@@ -146,6 +220,68 @@ function createDatabasePanel(
+   return wrapper;
+ }
+ 
++// Contas Google conectadas via OAuth real (multiplas, com refresh token no banco) --
++// complementa o credentials.json de service account acima, nao substitui ainda.
++function createGoogleAccountsSection(
++  accounts: GoogleAccountRow[],
++  onActivate: (id: number) => void,
++  onDisconnect: (id: number) => void
++): HTMLElement {
++  const section = createElement('section', { className: 'database-provider-card' });
++  const header = createElement('div', { className: 'provider-header' });
++  const text = createElement('div');
++  const eyebrow = createElement('span', { className: 'eyebrow', textContent: 'OAuth' });
++  const heading = createElement('h2', { textContent: 'Contas Google conectadas' });
++  const connectLink = createElement('a', { className: 'small-button', textContent: 'Conectar nova conta' });
++
++  connectLink.href = getGoogleAuthorizeUrl();
++
++  text.append(eyebrow, heading);
++  header.append(text, connectLink);
++  section.appendChild(header);
++
++  if (accounts.length === 0) {
++    section.appendChild(createElement('p', {
++      className: 'settings-hint',
++      textContent: 'Nenhuma conta conectada ainda. "Conectar nova conta" leva pro login real do Google -- sem precisar compartilhar pasta manualmente.'
++    }));
++    return section;
++  }
++
++  const list = createElement('dl', { className: 'settings-list compact' });
++
++  accounts.forEach((account) => {
++    const label = createElement('dt', { textContent: account.email });
++    const valueRow = createElement('dd', { className: 'account-row' });
++    const status = createElement('span', {
++      className: account.ativa ? 'provider-badge success' : 'provider-badge',
++      textContent: account.ativa ? 'Ativa' : 'Inativa'
++    });
++    const activateButton = createElement('button', {
++      className: 'secondary-button',
++      textContent: 'Usar esta conta',
++      type: 'button'
++    });
++    const disconnectButton = createElement('button', {
++      className: 'danger-button',
++      textContent: 'Desconectar',
++      type: 'button'
++    });
++
++    activateButton.disabled = account.ativa;
++    activateButton.addEventListener('click', () => onActivate(account.id));
++    disconnectButton.addEventListener('click', () => {
++      if (window.confirm(`Desconectar a conta ${account.email}?`)) onDisconnect(account.id);
++    });
++
++    valueRow.append(status, activateButton, disconnectButton);
++    list.append(label, valueRow);
++  });
++
++  section.appendChild(list);
++  return section;
++}
++
+ function createProviderCard({
+   title,
+   eyebrow,
+diff --git a/frontend/src/services/googleAccountService.ts b/frontend/src/services/googleAccountService.ts
+new file mode 100644
+index 0000000..5bb14e8
+--- /dev/null
++++ b/frontend/src/services/googleAccountService.ts
+@@ -0,0 +1,37 @@
++import { config } from './config';
++import { apiRequest } from './apiClient';
++
++export type GoogleAccountRow = {
++  id: number;
++  nome: string;
++  email: string;
++  scopes: string[];
++  ativa: boolean;
++};
++
++type ApiResponse<T> = {
++  success: boolean;
++  message: string;
++  data: T;
++};
++
++export async function getGoogleAccounts(): Promise<GoogleAccountRow[]> {
++  const response = await apiRequest<ApiResponse<GoogleAccountRow[]>>('/oauth/google/accounts');
++  return response.data;
++}
++
++export async function activateGoogleAccount(id: number): Promise<GoogleAccountRow> {
++  const response = await apiRequest<ApiResponse<GoogleAccountRow>>(`/oauth/google/accounts/${id}/activate`, {
++    method: 'POST'
++  });
++  return response.data;
++}
++
++export async function disconnectGoogleAccount(id: number): Promise<void> {
++  await apiRequest<ApiResponse<null>>(`/oauth/google/accounts/${id}`, { method: 'DELETE' });
++}
++
++// Navegacao direta (nao fetch) -- o backend redireciona pra tela de consentimento do Google.
++export function getGoogleAuthorizeUrl(): string {
++  return `${config.apiBaseUrl}/oauth/google/authorize`;
++}

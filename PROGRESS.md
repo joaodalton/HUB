@@ -3,163 +3,107 @@
 > Leia `VISAO.md` primeiro. Este arquivo é o estado atual, atualizado a cada tarefa concluída.
 > Regra: pegue a primeira tarefa `[ ]` de cima pra baixo. Não pule.
 
-Última atualização: 2026-07-12 — revisão arquitetural (Claude): bug crítico de schema encontrado, padrão de documentação de API definido, itens de estabilidade do .exe listados.
+Última atualização: 2026-07-22 — reescrito do zero pra bater com o estado real do repositório (a versão anterior, de 12/07, estava desatualizada e ainda falava de um bloqueador já resolvido há semanas). Tudo abaixo foi verificado rodando de verdade (migration, testes de API via HTTP), não só lido no código.
 
 ---
 
-## 🔴 Bloqueador — resolver antes de qualquer tarefa de CRUD
+## Decisões já resolvidas (não reabrir sem motivo novo)
 
-Encontrado na revisão de 2026-07-12, comparando os arquivos reais entre si (não confie nisso sem checar no repositório de verdade):
-
-- A migration que existe de fato (`backend/migrations/versions/45f056e2a73d_initial_core_schema.py`) só cria `clients`, `plants`, `consumer_units`, `plant_connections`.
-- O checklist de "Banco de dados local" abaixo registra que uma migration `652c22edc58c` gerou também `categories`, `documents`, `google_accounts`, `logs`, `settings` — arquivo que não apareceu em nenhuma revisão de código feita até agora.
-- `backend/app.py` só importa `Client`, `Plant`, `ConsumerUnit`, `PlantConnection` dentro de `create_app()`. Nenhuma importação de Category/Document/Setting/GoogleAccount/LogEntry.
-- Conclusão possível: os models de Categoria, Documento, Configuração, GoogleAccount e Log foram marcados como `[x]` concluídos no checklist, mas nunca foram criados de fato — ou foram criados e nunca importados em `app.py`, então o `flask db migrate` nunca os viu.
-
-**Antes de começar a API de Cliente/UC/Usina:**
-- [ ] Confirmar diretamente no repositório real se `backend/models/category.py`, `document.py`, `setting.py`, `google_account.py`, `log_entry.py` existem.
-- [ ] Se existirem: importar em `create_app()` junto dos outros models e rodar `flask db migrate` de novo pra pegar o que ficou de fora.
-- [ ] Se não existirem: recriar (o `VISAO.md` já define o formato esperado pra cada um) e então migrar.
-- [ ] Depois de corrigido, atualizar os checkboxes de "Banco de dados local" abaixo pra refletir o estado real — hoje eles dizem "Feito" pra coisa que aparentemente não está.
-
----
-
-## Decisões em aberto (resolver antes de travar arquitetura)
-
-- [ ] **Modo de uso do app:** local/single-user (SQLite) ou multi-máquina (servidor)? — *default atual: local/SQLite, conforme `VISAO.md` seção 2.*
-- [ ] **Empacotador desktop:** Tauri ou Electron? — *default atual: Tauri.*
-- [x] ~~Reconciliar numeração de versão~~ — resolvido: mantém `V0.x` (fase atual, instável) até o núcleo funcional abaixo estar completo e estável, aí vira `V1.0` de verdade. Marcos seguintes mantêm `V1.5, V2.0, V3.0, V4.0, V5.0`.
+- [x] **Modo de uso do app:** local/single-user, só o João. Integração futura com sistema do colega será via API entre dois sistemas independentes — não é multi-tenant, não muda a arquitetura de dados local. Ver `VISAO.md` seção 2.
+- [x] **Empacotador desktop:** Tauri.
+- [x] **Numeração de versão:** `V0.x` até o núcleo fechar, vira `V1.0` de verdade só quando os itens desta seção estiverem todos `[x]`.
+- [x] **Plant.percentual_disponivel:** continua campo manual por enquanto (não calculado a partir de `PlantConnection`). Revisar quando o rateio automático (V3.0) for implementado.
+- [x] **CPF/CNPJ da UC:** UC tem campo `documento` próprio (pode diferir do CPF do Cliente — ex.: casa no CPF pessoal, empresa no CNPJ do mesmo titular). Sem validação rígida contra o cliente, é campo livre.
+- [x] **Código ANEEL:** UC tem `codigo` (atual/legado) e `codigoAneel` (novo padrão nacional de 15 dígitos, REN ANEEL 1.095/2024) como campos separados.
 
 ---
 
 ## V0.x → V1.0 — Núcleo funcional
 
-### Estrutura de pastas
-- [x] Confirmado direto no repositório real (prints de 12h atrás) — a estrutura bate com a seção 4 de `VISAO.md`, mais madura do que o inicialmente assumido:
-  - `backend/`: `database/`, `models/` (com `drive_item.py`), `routes/` (`config_routes`, `drive_routes`, `health_routes`), `services/` (`database_config_service`, `drive_service`), `utils/` (`api_response.py`, `files.py`), `app.py`, `config.py`, `requirements.txt`.
-  - `frontend/src/`: `components/` (Client Card, DashboardCards, DataTable, ErrorBoundary, Header, Loading, PlantCard, ReservedPanel, ResultsList, SearchPanel, Sidebar, Toast), `hooks/` (useGlobalLoading, useToast), `layouts/` (BaseLayout), `pages/` (Agenda, Clients, Documents, Placeholder, Plants, Settings), `services/` (**apiClient.ts, router.ts, documentRules.ts** já existem — mais completo do que eu esperava), `styles/` (app.css).
-- [x] `backend/models/` e `backend/database/` já existem — **não recriar**, só completar o que falta dentro deles (ver abaixo).
-- [x] Confirmar se os arquivos deste Project (Claude) foram corrigidos/ressincronizados com o repositório real antes de qualquer sessão do Codex usar esses arquivos como referência.
-  - Critério de pronto: arquivos centrais abertos direto no repositório real (`backend/app.py`, `frontend/package.json`, `backend/requirements.txt`, `README.md`) e confirmados como coerentes com suas funções.
-  - Feito: `HUB-main.zip` foi extraído em `C:\Users\deadj\Documents\HUB\HUB-main`; a estrutura e os arquivos centrais batem com a arquitetura esperada, sem troca evidente de conteúdo.
+### Backend — Banco de dados e models
+- [x] SQLAlchemy + Flask-Migrate configurados via `extensions.py` (db/migrate centralizados — não criar instância própria em nenhum outro arquivo, isso já causou bug real de produção).
+- [x] Migrations aplicadas em cadeia, testadas inclusive contra banco com dado pré-existente: `45f056e2a73d` (schema inicial) → `cbc335adce4f` (Categoria/Documento/Configuração/GoogleAccount/Log) → `061e810abc38` (users) → `c4b5632aaedd` (campos de negócio extras em Cliente/UC/Usina).
+- [x] Models completos: `Client`, `Plant`, `ConsumerUnit`, `PlantConnection`, `Category`, `Document`, `Setting`, `GoogleAccount`, `LogEntry`, `User`.
+- [x] Campos de negócio em Cliente: nome, cpf, email, telefone, concessionaria, status.
+- [x] Campos de negócio em UC: codigo, codigoAneel, apelido, documento, endereco, cep, concessionaria, geracaoPropria, diaEmissaoFatura, consumo, baseTarifaria, desconto, tipoLigacao, inicioContrato, terminoContrato, carenciaMeses, percentualDescontoCarencia.
+- [x] Campos de negócio em Usina: nome, uc, kwPico, status, percentualDisponivel, marcaInversor, telefoneProprietario, emailProprietario.
+- [x] `GoogleAccount.refresh_token` criptografado de verdade via `utils/crypto.py` (Fernet, chave em `SECRET_ENCRYPTION_KEY`) — nunca aparece em `to_dict()`.
 
-### Banco de dados local
-- [x] `backend/models/drive_item.py` já existe (dataclass `DriveItem`) — manter, é modelo de apoio pro Drive, não é entidade de banco.
-- [x] Escolher ORM (sugestão: SQLAlchemy) e ferramenta de migration (sugestão: Alembic ou Flask-Migrate).
-  - Critério de pronto: dependências declaradas, configuração `DATABASE_URL` com fallback SQLite local, extensões inicializadas no Flask e importação do app validada sem erro de sintaxe.
-  - Feito: escolhido SQLAlchemy com Flask-Migrate/Alembic; `backend/app.py` inicializa `db`/`migrate`, `backend/config.py` define `SQLALCHEMY_DATABASE_URI` via `DATABASE_URL` com fallback SQLite local, e `requirements.txt` declara as dependências.
-  - Validação: `.\venv\Scripts\python.exe -m py_compile app.py config.py database\__init__.py services\drive_service.py routes\drive_routes.py` e `.\venv\Scripts\python.exe -c "from app import app; print(app.url_map)"` passaram.
-- [x] Modelo Cliente.
-  - Critério de pronto: modelo SQLAlchemy criado em `backend/models/`, exportado por `backend/models/__init__.py`, com campos usados hoje pela tela de Clientes e validação de importação do app passando.
-  - Feito: criado `backend/models/client.py` com tabela `clients`, campos principais usados pela tela atual (`nome`, CPF/CNPJ, email, concessionária, status, UC/usina/consumo resumidos) e timestamps.
-  - Validação: `db.metadata.tables` lista `clients` e `db.create_all()` executou sem erro em SQLite local.
-- [x] Modelo UC (FK para Cliente, FK opcional para Usina).
-  - Critério de pronto: modelo SQLAlchemy criado com FK obrigatória para Cliente, FK opcional para Usina, campos atuais de UC e relacionamento de conexões/rateio preservado para expansão.
-  - Feito: criado `ConsumerUnit` com FK para `clients`, FK opcional para `plants`, campos atuais da tela e tabela auxiliar `plant_connections` para conexão UC↔Usina com percentual.
-- [x] Modelo Usina.
-  - Critério de pronto: modelo SQLAlchemy criado com campos usados hoje pela tela de Usinas e relacionamento reverso com UCs.
-  - Feito: criado `Plant` com nome, UC, kW pico, geração média, status e percentual disponível.
-- [ ] ⚠️ Modelo Documento (FK para UC, FK para Categoria) — **status real não confirmado, ver bloqueador no topo do arquivo antes de assumir concluído.**
-  - Critério de pronto: modelo SQLAlchemy criado com vínculo opcional a Cliente, FK opcional a UC e FK obrigatória a Categoria.
-- [ ] ⚠️ Modelo Categoria — **status real não confirmado, ver bloqueador no topo do arquivo.**
-  - Critério de pronto: modelo SQLAlchemy criado para classificar documentos, com nome único e tipo/descrição opcionais.
-- [ ] ⚠️ Modelo Configuração — **status real não confirmado, ver bloqueador no topo do arquivo.**
-  - Critério de pronto: modelo SQLAlchemy chave/valor criado para configurações persistidas no banco.
-- [ ] ⚠️ Modelo GoogleAccount — **status real não confirmado, ver bloqueador no topo do arquivo.**
-  - Critério de pronto: modelo SQLAlchemy criado para múltiplas contas Google OAuth, sem hardcode de credenciais, com refresh token efetivamente criptografado (não só o campo nomeado assim).
-- [ ] ⚠️ Modelo Log — **status real não confirmado, ver bloqueador no topo do arquivo.**
-  - Critério de pronto: modelo SQLAlchemy criado para registrar ações, entidade afetada e metadados.
-- [ ] ⚠️ Migration inicial rodando limpa em banco vazio — **a migration real encontrada (`45f056e2a73d`) só cobre Cliente/UC/Usina/PlantConnection. Precisa nova migration depois de resolver os 5 models acima.**
+### Backend — API
+- [x] `POST /auth/bootstrap` (cria o admin uma única vez), `POST /auth/login` (retorna token assinado via `itsdangerous`, expira em 7 dias).
+- [x] Middleware (`utils/auth.py`) protege toda rota exceto `/`, `/auth/login`, `/auth/bootstrap` — testado: sem token dá 401, token forjado dá 401, token válido passa.
+- [x] `GET/POST/PUT/DELETE /clients` — inclui sincronização de UCs aninhadas.
+- [x] `GET/POST/PUT/DELETE /ucs` — CRUD avulso, além de aninhado dentro de `/clients`. Lógica de conexão UC-Usina (`sync_connections`, por `plantId`) compartilhada entre os dois, sem duplicação.
+- [x] `GET/POST/PUT/DELETE /plants`.
+- [x] `GET/POST /categories`.
+- [x] `GET/POST/PUT/DELETE /documents` + `GET /documents/<id>/download` — upload/download de arquivo real em disco (`backend/uploads/`, fora do git), testado byte a byte.
+- [x] `GET/PUT /settings` — configuração chave/valor (hoje usado só por Aparência).
+- [x] `drive_routes.py` não derruba mais o backend se `credentials.json` não existir — erro controlado (503) em vez de crash.
 
-### CRUD Cliente / UC / Usina (ligar ao banco, hoje está em memória/localStorage no front)
+### Frontend
+- [x] Login (tela + guarda de rota — sem token, qualquer página redireciona pra `/login`).
+- [x] Clientes: 100% via API real (`clientsService.ts`), zero `localStorage`.
+- [x] Usinas: 100% via API real (`plantService.ts`).
+- [x] Aparência (cor, logo): via API real (`/settings`), zero `localStorage`.
+- [x] `localStorage` eliminado do projeto inteiro — confirmado por busca no código, não sobrou nenhum uso.
+- [ ] **Tela de UCs** — rota `/ucs` ainda é o placeholder estático original. A API já existe e já foi testada; falta só a tela consumir.
+- [ ] **Tela de Documentos** — API pronta e testada; zero UI ainda. Decidido ficar pra quando entrar a reforma geral do frontend.
+- [ ] Formulário de Cliente/UC/Usina ainda não expõe os campos de negócio novos (telefone, endereço, CEP, concessionária por UC, geração própria, código ANEEL, contrato, carência, marca do inversor, contato do proprietário) — dado já tem onde morar no banco, só falta aparecer no formulário.
 
-> **Padrão obrigatório pra essa seção inteira (adicionado 2026-07-12):** todo endpoint novo nasce documentado de um jeito que dá pra mexer sem IA depois. Regras:
-> 1. Um blueprint por domínio — `routes/clients_routes.py`, `routes/ucs_routes.py`, `routes/plants_routes.py`. Nunca misturar domínios no mesmo arquivo de rotas.
-> 2. Cada rota leva um comentário de uma linha em cima explicando método, path e o shape do payload:
->    ```python
->    # POST /clients — cria cliente. Body: {nome, cpf, email, concessionaria, ucs: ClientUc[]}. Retorna ClientRow.
->    ```
-> 3. `to_dict()` de cada model continua sendo a ÚNICA fonte do formato que vai pro frontend — nunca montar JSON solto dentro da função de rota.
-> 4. Toda mudança de campo no backend (nome, tipo, campo novo) muda o tipo TS correspondente em `frontend/src/services/operationsService.ts` (`ClientRow`, `PlantRow`, `ClientUc`) no mesmo commit — os dois nunca podem descrever formatos diferentes.
-> 5. Ao terminar essa seção inteira, criar `API_CONTRACTS.md` na raiz do projeto listando: endpoint, método, payload de entrada, formato de resposta, pra toda rota ativa. É esse arquivo que se abre pra adicionar campo sem precisar perguntar pra IA onde mexer.
-> 6. Decisão de design pendente antes de codar: `Plant.percentual_disponivel` hoje é um campo manual solto, não calculado a partir das `PlantConnection` reais — nada impede hoje que duas conexões somem mais de 100% de uma usina. Decidir: vira campo calculado (100 − soma dos percentuais já conectados) ou continua manual com validação na escrita? Registrar a escolha aqui antes de implementar.
+### Google Drive
+- [ ] Ainda no modelo antigo (`credentials.json` fixo, uma conta só). OAuth 2.0 real (múltiplas contas, refresh token no banco) não foi iniciado.
 
-- [ ] API de Cliente (GET/POST/PUT/DELETE) usando o banco novo.
-- [ ] API de UC, com vínculo a Cliente e Usina.
-- [ ] API de Usina.
-- [ ] Frontend de Clientes consumindo a API nova (hoje usa `localStorage` com a chave `hub.operations.v1` — não remover a tela/fluxo, só trocar a fonte de dados).
-- [ ] Frontend de Usinas consumindo a API nova.
-- [ ] Migrar dados de exemplo/mock existentes, se fizer sentido, ou começar limpo (decidir com o usuário).
-- [ ] Mover a regra de status do cliente (`getClientStatus`, hoje só em `frontend/src/services/operationsService.ts`) pro backend — quando a API existir, o status não pode ser calculado nos dois lados ao mesmo tempo.
-
-### Google Drive OAuth
-- [ ] Fluxo OAuth 2.0 (login interativo, autorizar, salvar refresh token).
-- [ ] Refresh token salvo de forma segura no banco (não em texto puro sem proteção).
-- [ ] Suporte a mais de uma conta Google conectada.
-- [ ] Tela de gerenciamento de contas (trocar conta ativa).
-- [ ] Fluxo antigo baseado em `credentials.json` continua funcionando até o OAuth estar validado — só remover depois de confirmado.
-
-### Documentos
-- [ ] Módulo de Documentos ligado ao banco (Categoria, vínculo a UC/Cliente).
-- [ ] Upload, busca, filtro, download — mantendo a experiência de busca/reserva/ZIP que já existe hoje no Drive.
-
-### Configurações
-- [x] Aba Banco de dados (Google Drive + SQL futuro) já existe.
-- [x] Aba Aparência (cor + logo) já existe.
-- [ ] Ajustar aba Banco de dados pra refletir SQLite local em vez de "SQL futuro" genérico, se a decisão em aberto acima for confirmada.
+### Documentação viva
+- [ ] `API_CONTRACTS.md` nunca foi criado — regra definida faz tempo, ainda pendente. Listar todo endpoint ativo (método, payload, resposta) antes de esquecer o formato de algum.
 
 ---
 
 ## Transversal — Empacotamento (.exe)
-
-> **Itens novos encontrados na revisão de 2026-07-12, além do checklist original:**
-> - Trocar o servidor de dev do Flask (Werkzeug) por `waitress` no build empacotado — Werkzeug não é feito pra rodar de forma permanente como processo de fundo de um app desktop.
-> - `SQLALCHEMY_DATABASE_URI` hoje é relativo a `BASE_DIR` do backend (`backend/config.py`) — não pode ir pro `.exe` assim. Empacotado, essa pasta pode ser somente-leitura (`Program Files`) ou temporária (PyInstaller `--onefile`). O banco tem que morar em pasta de dados do usuário (ex.: `%APPDATA%/APP_HUB/hub.db`).
-> - Garantir que `FLASK_DEBUG` vá `false` fixo no build de produção, independente do que estiver no `.env` de dev — debug ligado expõe o debugger interativo do Werkzeug (risco de execução de código arbitrário via console web).
-> - Usar o "sidecar" do Tauri pra gerenciar o ciclo de vida do processo do backend (start/kill), pra não deixar `hub-backend.exe` órfão rodando depois que o app fecha — causa mais comum de "na segunda vez que abro, trava".
-> - Porta fixa (`API_PORT=8000`) sem fallback — se a porta estiver ocupada (inclusive por processo órfão do ponto anterior), o app não sobe. Checar disponibilidade antes de subir ou ter porta alternativa.
-> - CORS hoje é `CORS(app)` sem allowlist e não há autenticação em nenhuma rota — resolver antes do empacotamento, não depois (ver seção de segurança da revisão).
-
-- [ ] Backend empacotado com PyInstaller, testado como `.exe` isolado fora do ambiente de dev.
-- [ ] Projeto Tauri (ou Electron, conforme decisão em aberto) criado em `desktop/`.
-- [ ] App desktop sobe o `.exe` do backend como subprocesso automaticamente.
-- [ ] Instalador `.msi`/`.exe` gerado.
-- [ ] Testado numa máquina limpa, sem Python/Node instalado.
+Nada disso foi tocado ainda. Continua valendo tudo que já foi levantado:
+- [ ] Trocar Werkzeug por `waitress` no build de produção.
+- [ ] Path do SQLite não pode ser relativo ao `backend/` no `.exe` — precisa ir pra `%APPDATA%` (ou equivalente) antes do empacotamento.
+- [ ] `FLASK_DEBUG` forçado `false` no build, independente do `.env` de dev (debug ligado expõe o debugger interativo do Werkzeug).
+- [ ] Ciclo de vida do processo via sidecar do Tauri (`comandos/iniciar.py`/`parar.py` já corrigidos localmente pro dev — isso é só o launcher manual, não é o empacotamento final).
+- [ ] Porta fixa sem fallback (`API_PORT=8000`) — checar disponibilidade antes de subir.
+- [ ] Backend empacotado com PyInstaller, testado isolado.
+- [ ] Projeto Tauri criado em `desktop/`.
+- [ ] Instalador testado em máquina limpa.
 
 ---
 
 ## V1.5 — Refinamento operacional
 - [ ] Pendências.
 - [ ] Dashboard inteligente com métricas reais.
-- [ ] Agenda operacional funcional (hoje é grade estática com 3 itens de exemplo).
+- [ ] **Agenda operacional real** — hoje é grade estática com 3 itens de exemplo, sem backend. Eventos definidos com o João: boas-vindas, verificação AVA, início/conclusão de rateio, primeiro desconto, fatura com desconto aplicado — cada um com opção de disparo de mensagem (provável API de WhatsApp, ver V2.0).
+- [ ] Importação em massa de Cliente/UC/Usina via planilha Excel.
 
-## V2.0 — Cobrança
-- [ ] Integração ASAAS.
-- [ ] WhatsApp.
+## V2.0 — Cobrança e automação de mensagens
+- [ ] Integração ASAAS (boleto).
+- [ ] Integração WhatsApp pra disparo automático dos eventos da Agenda.
 - [ ] Cobranças automáticas.
 
 ## V3.0 — Financeiro / Rateios
-- [ ] Importação de fatura/planilha.
-- [ ] Cálculo automático de rateio.
+- [ ] **Regra de cálculo do rateio automático ainda não definida** — é decisão de negócio, precisa de conversa com o João (como o GDASH calcula hoje) antes de qualquer linha de código.
+- [ ] Botão de rateio automático por Usina, calculando % de consumo de cada UC conectada.
+- [ ] Importação de fatura e planilha de rateio.
 - [ ] Relatórios + exportação Excel/PDF.
 - [ ] Histórico de competências.
 
 ## V4.0 — Monitoramento
-- [ ] Integração com APIs de inversores.
-- [ ] Alertas automáticos.
+- [ ] Integração com APIs de inversores (viabilidade depende da marca — levantar com o João antes de estimar).
+- [ ] Leitura automatizada de fatura das concessionárias (robô/ML) — alta incerteza, validar com prova de conceito pequena antes de comprometer prazo.
+- [ ] Alertas automáticos de produção/falha.
 
 ## V5.0 — Automação
 - [ ] Motor de automações.
 - [ ] Portal do cliente.
+- [ ] Integração com SunHub via API (se o comercial não for absorvido pelo HUB).
 
 ---
 
 ## Log de decisões tomadas durante o desenvolvimento
-(o Codex adiciona uma linha aqui sempre que resolver uma ambiguidade sozinho, pra você poder revisar depois)
 
-- 2026-07-08: enquanto o usuário não responder sobre single-user vs multi-máquina, mantido o default da visão: SQLite local.
-- 2026-07-08: escolhido SQLAlchemy + Flask-Migrate/Alembic para banco local e migrations.
-- 2026-07-08: `drive_service` passou a inicializar o cliente Google Drive sob demanda para permitir que o app Flask suba sem `credentials.json`; rotas do Drive retornam erro claro se a credencial faltar.
-- 2026-07-08: o modelo `Client` usa nomes internos em inglês e `to_dict()` compatível com os nomes atuais do frontend em português para facilitar a troca futura de `localStorage` por API.
-- 2026-07-08: criada tabela `plant_connections` além das entidades listadas para preservar o comportamento atual de uma UC conectada a múltiplas usinas com percentuais.
-- 2026-07-12: revisão arquitetural (Claude) a partir dos arquivos colados no chat — encontrado descompasso entre a migration real (só 4 tabelas) e o checklist (que marcava 5 models adicionais como concluídos, ver bloqueador no topo do arquivo). Definido padrão obrigatório de documentação pra toda rota que fala com o frontend. Listados ajustes de estabilidade pro empacotamento .exe (waitress, path do banco em `%APPDATA%`, debug off forçado, ciclo de vida do processo via sidecar do Tauri, CORS/autenticação). `search_files` em `drive_service.py` tem risco de injeção de query por concatenar input sem escapar — não corrigido ainda, só registrado.
+- 2026-07-08 a 2026-07-12: fundação inicial (SQLAlchemy, migrations, models Cliente/UC/Usina, revisão arquitetural que achou o bug dos 5 models faltando).
+- 2026-07-19: resolvida a dúvida de single-user vs multi-máquina (ver seção de decisões resolvidas). Vindo do GDASH, levantada lista extensa de campos de negócio pra Cliente/UC/Usina — triada entre "adota agora" (dado estático) e "ignora por enquanto" (tudo que é calculado ou depende de integração ainda não construída: economia total, saldo de crédito, gráficos de geração em tempo real, etc.).
+- 2026-07-20/21: sessão focada destravou em sequência — bug de duas instâncias `SQLAlchemy()` brigando (client_routes 500), blueprint de cliente nunca registrado, os 5 models faltando (criados e testados), autenticação completa (bootstrap/login/middleware, chave vazada no `.env.example` detectada e trocada), CRUD de UC avulso, backend de Documentos + Categorias, `localStorage` eliminado do frontend inteiro (Clientes, Usinas, Aparência), `iniciar.py` corrigido (venv apontava pra pasta errada, PID errado).
+- 2026-07-22: campos de negócio completos adicionados a Cliente/UC/Usina a partir de comparação com o GDASH; migration testada especificamente contra banco com dado pré-existente (achado e corrigido: `geracao_propria NOT NULL` sem default quebraria em banco real). `PROGRESS.md` reescrito do zero pra parar de arrastar informação desatualizada.

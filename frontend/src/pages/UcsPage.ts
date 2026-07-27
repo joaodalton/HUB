@@ -1,7 +1,6 @@
-// frontend/src/pages/UcsPage.ts
 import { createDashboardCards } from '../components/DashboardCards';
 import { createDataTable } from '../components/DataTable';
-import { createUcCard, type UcFormData } from '../components/UcCard';
+import { createUcCard } from '../components/UcCard';
 import { createElement } from '../dom';
 import { useGlobalLoading } from '../hooks/useGlobalLoading';
 import { useToast } from '../hooks/useToast';
@@ -16,16 +15,9 @@ import {
   type UcPayload,
   type UcRow,
   updateUc
-} from '../services/ucService';
+} from '../services/ucsService';
 
-type UcTableRow = {
-  id: number;
-  cliente: string;
-  codigo: string;
-  usina: string;
-  consumo: string;
-  status: string;
-};
+type UcTableRow = UcRow & { cliente: string; usina: string };
 
 export function createUcsPage(): HTMLElement {
   const content = createElement('section', { className: 'content-stack' });
@@ -41,14 +33,14 @@ export function createUcsPage(): HTMLElement {
   const layout = createBaseLayout({
     content,
     eyebrow: 'UCs',
-    title: 'Acompanhe unidades consumidoras, cliente vinculado e conexao com usinas'
+    title: 'Unidades consumidoras vinculadas a clientes e usinas'
   });
 
-  loadUcs();
+  loadAll();
 
   return layout;
 
-  async function loadUcs(): Promise<void> {
+  async function loadAll(): Promise<void> {
     loading.show();
     try {
       [ucs, clients, availablePlants] = await Promise.all([getUcs(), getClients(), getAvailablePlants()]);
@@ -62,28 +54,23 @@ export function createUcsPage(): HTMLElement {
     }
   }
 
-  function toTableRows(): UcTableRow[] {
-    return ucs.map((uc) => ({
-      id: uc.id,
-      cliente: uc.clienteNome ?? '-',
-      codigo: uc.apelido ? `${uc.codigo} (${uc.apelido})` : uc.codigo,
-      usina: uc.conexoes.length > 0 ? uc.conexoes.map((conexao) => conexao.usina).join(', ') : '-',
-      consumo: uc.consumo || '-',
-      status: uc.conexoes.length > 0 ? 'Conectada' : 'Sem usina'
-    }));
-  }
-
   function renderContent(): void {
     const pageActions = createElement('div', { className: 'page-actions' });
     const newUcButton = createElement('button', { textContent: 'Nova UC', type: 'button' });
-    const canCreate = clients.length > 0;
+
+    const rows: UcTableRow[] = ucs.map((uc) => ({
+      ...uc,
+      cliente: uc.clienteNome ?? '-',
+      usina: uc.conexoes.length > 0 ? uc.conexoes.map((conexao) => conexao.usina).join(', ') : 'Nenhuma'
+    }));
+
     const table = createDataTable<UcTableRow>({
       title: 'UCs cadastradas',
       eyebrow: 'Listagem',
-      rows: toTableRows(),
-      emptyMessage: loadError ? 'Nao foi possivel carregar UCs.' : 'Nenhuma UC cadastrada ainda.',
+      rows,
+      emptyMessage: loadError ? 'Nao foi possivel carregar UCs.' : 'Nenhuma UC cadastrada ainda. Cadastre clientes com UC pela tela de Clientes ou use "Nova UC" aqui.',
       onRowClick: (row) => {
-        selectedUc = ucs.find((uc) => uc.id === row.id) ?? null;
+        selectedUc = ucs.find((item) => item.id === row.id) ?? null;
         isCreating = false;
         renderContent();
       },
@@ -92,15 +79,16 @@ export function createUcsPage(): HTMLElement {
         { key: 'codigo', label: 'UC' },
         { key: 'usina', label: 'Usina' },
         { key: 'consumo', label: 'Consumo', align: 'right' },
-        { key: 'status', label: 'Status' }
+        { key: 'tipoLigacao', label: 'Ligacao' }
       ]
     });
     const blocks: HTMLElement[] = [createDashboardCards(getUcMetrics(ucs)), pageActions];
 
-    newUcButton.disabled = !canCreate;
-    newUcButton.title = canCreate ? '' : 'Cadastre um cliente antes de criar uma UC.';
     newUcButton.addEventListener('click', () => {
-      if (!canCreate) return;
+      if (clients.length === 0) {
+        toast.error('Cadastre um cliente antes de criar uma UC avulsa.');
+        return;
+      }
       selectedUc = null;
       isCreating = true;
       renderContent();
@@ -130,10 +118,11 @@ export function createUcsPage(): HTMLElement {
         await saveUc(data);
         selectedUc = null;
         isCreating = false;
-        await loadUcs();
+        await loadAll();
       },
       onDelete: selectedUc ? async () => {
         const confirmed = window.confirm(`Excluir a UC ${selectedUc?.codigo}? Essa acao nao pode ser desfeita.`);
+
         if (!confirmed || !selectedUc) return;
 
         loading.show();
@@ -141,7 +130,7 @@ export function createUcsPage(): HTMLElement {
           await deleteUc(selectedUc.id);
           toast.success('UC excluida.');
           selectedUc = null;
-          await loadUcs();
+          await loadAll();
         } catch {
           toast.error('Nao foi possivel excluir a UC.');
         } finally {
@@ -151,25 +140,14 @@ export function createUcsPage(): HTMLElement {
     });
   }
 
-  async function saveUc(data: UcFormData): Promise<void> {
+  async function saveUc(data: UcPayload): Promise<void> {
     loading.show();
     try {
-      const payload: UcPayload = {
-        clienteId: data.clienteId,
-        codigo: data.codigo,
-        apelido: data.apelido,
-        consumo: data.consumo,
-        baseTarifaria: data.baseTarifaria,
-        desconto: data.desconto,
-        tipoLigacao: data.tipoLigacao,
-        conexoes: data.conexoes.map((conexao) => ({ plantId: conexao.plantId, percentual: conexao.percentual }))
-      };
-
       if (selectedUc) {
-        await updateUc(selectedUc.id, payload);
+        await updateUc(selectedUc.id, data);
         toast.success('UC atualizada.');
       } else {
-        await createUc(payload);
+        await createUc(data);
         toast.success('UC cadastrada.');
       }
     } catch (error) {

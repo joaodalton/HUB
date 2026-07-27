@@ -1,6 +1,7 @@
-import { createInput, createPlantConnections, createSelect, createTariffSelect } from './formFields';
 import { createElement } from '../dom';
-import { concessionarias, type ClientDocument, type ClientRow, type ClientUc } from '../services/clientsService';
+import { createClientDocumentsPanel } from './ClientDocumentsPanel';
+import { createPlantConnections, createTariffSelect } from './PlantConnectionsField';
+import { concessionarias, type ClientRow, type ClientUc } from '../services/clientsService';
 import type { PlantRow } from '../services/plantService';
 
 export type ClientFormData = {
@@ -8,7 +9,6 @@ export type ClientFormData = {
   cpf: string;
   email: string;
   concessionaria: string;
-  documentos: ClientDocument[];
   ucs: ClientUc[];
 };
 
@@ -29,7 +29,6 @@ export function createClientCard({
 }: ClientCardOptions): HTMLElement {
   const isEditing = Boolean(client);
   const currentUcs = [...(client?.ucs ?? [])];
-  const currentDocuments = [...(client?.documentos ?? [])];
   const overlay = createElement('section', { className: 'modal-overlay' });
   const panel = createElement('article', {
     className: isEditing ? 'client-card client-card-split' : 'client-card'
@@ -54,14 +53,14 @@ export function createClientCard({
   const cpf = createInput('CPF', 'text', client?.cpf ?? '', true);
   const email = createInput('Email', 'email', client?.email ?? '', true);
   const concessionaria = createSelect('Concessionaria', client?.concessionaria ?? concessionarias[0], concessionarias);
-  const documents = createDocumentPicker(currentDocuments);
+  const documentsPanel = createClientDocumentsPanel(client?.id);
   const actions = createElement('div', { className: 'form-actions' });
   const saveButton = createElement('button', { textContent: 'Salvar cliente', type: 'submit' });
   const ucPanel = createUcPanel(currentUcs, availablePlants);
 
   titleText.append(eyebrow, heading);
   header.append(titleText, closeButton);
-  fields.append(nome.field, cpf.field, email.field, concessionaria.field, documents.field);
+  fields.append(nome.field, cpf.field, email.field, concessionaria.field);
   actions.appendChild(saveButton);
 
   if (isEditing && onDelete) {
@@ -76,7 +75,7 @@ export function createClientCard({
   }
 
   closeButton.addEventListener('click', onCancel);
-  left.addEventListener('submit', async (event) => {
+  left.addEventListener('submit', (event) => {
     event.preventDefault();
 
     if (!nome.input.value.trim() || !cpf.input.value.trim() || !email.input.value.trim()) {
@@ -86,19 +85,16 @@ export function createClientCard({
       return;
     }
 
-    const selectedDocuments = await readSelectedDocuments(documents.input.files);
-
     onSave({
       nome: nome.input.value.trim(),
       cpf: cpf.input.value.trim(),
       email: email.input.value.trim(),
       concessionaria: concessionaria.select.value,
-      documentos: [...currentDocuments, ...selectedDocuments],
       ucs: currentUcs.filter((uc) => uc.codigo.trim())
     });
   });
 
-  left.append(header, fields, actions);
+  left.append(header, fields, documentsPanel, actions);
   panel.appendChild(left);
 
   panel.appendChild(ucPanel);
@@ -111,84 +107,33 @@ export function createClientCard({
   return overlay;
 }
 
-function createDocumentPicker(currentDocuments: ClientDocument[]) {
-  const field = createElement('label', { className: 'form-field form-field-wide' });
-  const text = createElement('span', { textContent: 'Documentos' });
+function createInput(label: string, type: string, value: string, required: boolean) {
+  const field = createElement('label', { className: 'form-field' });
+  const text = createElement('span', { textContent: label });
   const input = createElement('input');
-  const list = createDocumentList(currentDocuments);
-  const hint = createElement('small', { textContent: 'Anexo rapido neste formulario. Para gerenciar documentos de verdade (upload permanente, categoria, download), use a tela de Documentos.' });
 
-  input.type = 'file';
-  input.multiple = true;
+  input.type = type;
+  input.value = value;
+  input.required = required;
 
-  field.append(text, list, input, hint);
+  field.append(text, input);
   return { field, input };
 }
 
-function createDocumentList(documents: ClientDocument[]): HTMLElement {
-  const list = createElement('div', { className: 'document-list' });
+function createSelect<T extends string>(label: string, value: T, options: T[]) {
+  const field = createElement('label', { className: 'form-field' });
+  const text = createElement('span', { textContent: label });
+  const select = createElement('select');
 
-  if (documents.length === 0) {
-    list.appendChild(createElement('small', { textContent: 'Nenhum documento anexado ainda.' }));
-    return list;
-  }
-
-  documents.forEach((documento) => {
-    const row = createElement('div', { className: 'document-row' });
-    const name = createElement('input');
-    const download = createElement('button', {
-      className: 'secondary-button',
-      textContent: 'Baixar',
-      type: 'button'
-    });
-
-    name.value = documento.nome;
-    name.addEventListener('input', () => {
-      documento.nome = name.value.trim() || documento.nome;
-    });
-
-    download.disabled = !documento.dataUrl;
-    download.title = documento.dataUrl ? 'Baixar anexo' : 'Arquivo antigo sem conteudo salvo localmente';
-    download.addEventListener('click', () => {
-      if (!documento.dataUrl) return;
-      downloadDocument(documento);
-    });
-
-    row.append(name, download);
-    list.appendChild(row);
+  options.forEach((optionValue) => {
+    const option = createElement('option', { textContent: optionValue });
+    option.value = optionValue;
+    select.appendChild(option);
   });
 
-  return list;
-}
-
-async function readSelectedDocuments(files: FileList | null): Promise<ClientDocument[]> {
-  if (!files) return [];
-
-  return Promise.all(Array.from(files).map(async (file) => ({
-    id: crypto.randomUUID(),
-    nome: file.name,
-    dataUrl: await readFileAsDataUrl(file)
-  })));
-}
-
-function readFileAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-
-    reader.addEventListener('load', () => resolve(String(reader.result)));
-    reader.addEventListener('error', () => reject(reader.error));
-    reader.readAsDataURL(file);
-  });
-}
-
-function downloadDocument(documento: ClientDocument): void {
-  const link = createElement('a');
-
-  link.href = documento.dataUrl ?? '';
-  link.download = documento.nome;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
+  select.value = value;
+  field.append(text, select);
+  return { field, select };
 }
 
 function createUcPanel(ucs: ClientUc[], availablePlants: PlantRow[]): HTMLElement {
@@ -255,7 +200,7 @@ function createUcEditor(uc: ClientUc, availablePlants: PlantRow[], onRemove: () 
     textContent: 'Remover UC',
     type: 'button'
   });
-  const plantArea = createPlantConnections(uc.conexoes, availablePlants);
+  const plantArea = createPlantConnections(uc, availablePlants);
 
   codigo.input.addEventListener('input', () => {
     uc.codigo = codigo.input.value;

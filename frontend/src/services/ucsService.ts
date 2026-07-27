@@ -1,4 +1,3 @@
-// frontend/src/services/ucService.ts
 import { apiRequest } from './apiClient';
 import type { PlantConnection } from './clientsService';
 
@@ -26,6 +25,10 @@ export type UcRow = {
   conexoes: PlantConnection[];
 };
 
+// So os campos que a tela expoe hoje. Os demais (codigoAneel, documento,
+// endereco, etc.) ficam preservados no backend mesmo sem serem enviados aqui
+// -- apply_uc_fields() no backend usa data.get(campo, valor_atual), entao
+// omitir um campo nunca apaga o que ja estava salvo.
 export type UcPayload = {
   clienteId: number;
   codigo: string;
@@ -34,7 +37,7 @@ export type UcPayload = {
   baseTarifaria: string;
   desconto: string;
   tipoLigacao: string;
-  conexoes: Array<{ plantId: number; percentual: string }>;
+  conexoes: PlantConnection[];
 };
 
 type ApiResponse<T> = {
@@ -69,17 +72,14 @@ export async function deleteUc(id: number): Promise<void> {
 }
 
 export function getUcMetrics(ucs: UcRow[]) {
+  const semUsina = ucs.filter((uc) => uc.conexoes.length === 0).length;
+
   return [
     { label: 'Total de UCs', value: String(ucs.length) },
     {
-      label: 'Conectadas a usina',
-      value: String(ucs.filter((uc) => uc.conexoes.length > 0).length),
-      tone: 'success' as const
-    },
-    {
-      label: 'Sem usina',
-      value: String(ucs.filter((uc) => uc.conexoes.length === 0).length),
-      tone: 'warning' as const
+      label: 'Sem usina conectada',
+      value: String(semUsina),
+      tone: semUsina > 0 ? ('warning' as const) : ('success' as const)
     },
     { label: 'Geracao propria', value: String(ucs.filter((uc) => uc.geracaoPropria).length) }
   ];

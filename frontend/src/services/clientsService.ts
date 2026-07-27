@@ -17,12 +17,6 @@ export type ClientUc = {
   conexoes: PlantConnection[];
 };
 
-export type ClientDocument = {
-  id: string;
-  nome: string;
-  dataUrl?: string;
-};
-
 export type ClientRow = {
   id: number;
   nome: string;
@@ -33,7 +27,6 @@ export type ClientRow = {
   consumo: string;
   status: string;
   concessionaria: string;
-  documentos: ClientDocument[];
   ucs: ClientUc[];
 };
 

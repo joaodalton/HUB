@@ -64,3 +64,28 @@ export async function apiBlob(path: string, options: RequestOptions = {}): Promi
 
   return response.blob();
 }
+
+// Upload multipart (FormData) -- nao usa buildHeaders() de proposito: definir
+// 'Content-Type' aqui quebraria o boundary que o browser gera sozinho pro
+// multipart/form-data. So token de auth, sem Content-Type manual.
+export async function apiUpload<T>(path: string, formData: FormData): Promise<T> {
+  const token = getToken();
+
+  const response = await fetch(`${config.apiBaseUrl}${path}`, {
+    method: 'POST',
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    },
+    body: formData
+  });
+
+  if (response.status === 401) {
+    redirectToLogin();
+  }
+
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response));
+  }
+
+  return response.json() as Promise<T>;
+}

@@ -5,6 +5,7 @@ import { createLoginPage } from '../pages/LoginPage';
 import { createPlaceholderPage } from '../pages/PlaceholderPage';
 import { createPlantsPage } from '../pages/PlantsPage';
 import { createSettingsPage } from '../pages/SettingsPage';
+import { createUcsPage } from '../pages/UcsPage';
 import { isAuthenticated } from './authService';
 import { loadSettings } from './settingsService';
 
@@ -18,14 +19,7 @@ export function createRouter(root: HTMLElement) {
     { path: '/', render: createDocumentsPage },
     { path: '/documentos', render: createDocumentsPage },
     { path: '/clientes', render: createClientsPage },
-    {
-      path: '/ucs',
-      render: () => createPlaceholderPage({
-        eyebrow: 'UCs',
-        title: 'Unidades consumidoras',
-        message: 'A tela de UCs sera conectada aos clientes e usinas nas proximas fases.'
-      })
-    },
+    { path: '/ucs', render: createUcsPage },
     { path: '/usinas', render: createPlantsPage },
     {
       path: '/pendencias',

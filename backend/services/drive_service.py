@@ -1,7 +1,9 @@
 import io
 import zipfile
 
+from google.auth.transport.requests import Request as GoogleAuthRequest
 from google.oauth2 import service_account
+from google.oauth2.credentials import Credentials as OAuthCredentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 
@@ -10,11 +12,7 @@ from utils.files import safe_filename, unique_filename
 
 
 class GoogleDriveService:
-    def __init__(self) -> None:
-        credentials = service_account.Credentials.from_service_account_file(
-            Config.GOOGLE_SERVICE_ACCOUNT_FILE,
-            scopes=Config.GOOGLE_DRIVE_SCOPES
-        )
+    def __init__(self, credentials) -> None:
         self.client = build('drive', 'v3', credentials=credentials)
 
     def search_files(self, query_text: str) -> list[dict]:
@@ -70,12 +68,75 @@ class GoogleDriveService:
         return zip_buffer
 
 
-drive_service = None
+_drive_service_cache: GoogleDriveService | None = None
 
-def get_drive_service():
-    global drive_service
 
-    if drive_service is None:
-        drive_service = GoogleDriveService()
+def _build_oauth_credentials():
+    """Credenciais da conta Google conectada via OAuth (a marcada is_active=True).
+    Retorna None se nao houver conta conectada ou se o token nao puder ser renovado
+    -- nesses casos get_drive_service() cai pro credentials.json de service account,
+    em vez de derrubar a rota."""
+    from models.google_account import GoogleAccount  # import tardio: evita ciclo no app factory
+    from services.log_service import LogService
 
-    return drive_service
+    account = GoogleAccount.query.filter_by(is_active=True).first()
+    if not account:
+        return None
+
+    refresh_token = account.get_refresh_token()
+    if not refresh_token:
+        return None
+
+    credentials = OAuthCredentials(
+        token=None,
+        refresh_token=refresh_token,
+        token_uri='https://oauth2.googleapis.com/token',
+        client_id=Config.GOOGLE_OAUTH_CLIENT_ID,
+        client_secret=Config.GOOGLE_OAUTH_CLIENT_SECRET,
+        scopes=Config.GOOGLE_DRIVE_SCOPES
+    )
+
+    try:
+        credentials.refresh(GoogleAuthRequest())
+    except Exception as exc:  # RefreshError (token revogado/expirado) ou falha de rede -- nunca derruba a rota
+        LogService.warning(
+            acao='oauth_refresh_failed',
+            mensagem=f'Token da conta {account.email} nao renovou (revogacao/expiracao ou rede fora do ar). Reconecte em Configuracoes se persistir.',
+            entidade='GoogleAccount',
+            metadados={'id': account.id, 'erro': str(exc)}
+        )
+        return None
+
+    return credentials
+
+
+def _build_service_account_credentials():
+    return service_account.Credentials.from_service_account_file(
+        Config.GOOGLE_SERVICE_ACCOUNT_FILE,
+        scopes=Config.GOOGLE_DRIVE_SCOPES
+    )
+
+
+def get_drive_service() -> GoogleDriveService:
+    """Prefere a conta OAuth ativa (multi-conta, sem precisar compartilhar pasta
+    manualmente); cai pro credentials.json de service account se nao houver
+    conta conectada ou o token dela estiver morto."""
+    global _drive_service_cache
+
+    if _drive_service_cache is not None:
+        return _drive_service_cache
+
+    credentials = _build_oauth_credentials()
+
+    if credentials is None:
+        credentials = _build_service_account_credentials()
+
+    _drive_service_cache = GoogleDriveService(credentials)
+    return _drive_service_cache
+
+
+def invalidate_drive_cache() -> None:
+    """Chamado pelo oauth_service ao conectar/ativar/desconectar uma conta, pra
+    forcar o proximo get_drive_service() a reconstruir com a credencial certa."""
+    global _drive_service_cache
+    _drive_service_cache = None

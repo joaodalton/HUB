@@ -11,6 +11,13 @@ import {
   type DatabaseProvider
 } from '../services/databaseConfigService';
 import { getSettings, loadSettings, saveSettings, type AppSettings } from '../services/settingsService';
+import {
+  activateGoogleAccount,
+  disconnectGoogleAccount,
+  getGoogleAccounts,
+  getGoogleAuthorizeUrl,
+  type GoogleAccountRow
+} from '../services/googleAccountService';
 
 type SettingsTab = 'database' | 'appearance';
 
@@ -19,17 +26,25 @@ export function createSettingsPage(): HTMLElement {
   const toast = useToast();
   let activeTab: SettingsTab = 'database';
   let databaseConfig: DatabaseConfig | null = null;
+  let googleAccounts: GoogleAccountRow[] = [];
   let appearanceLoaded = false;
 
   renderContent();
   loadDatabaseConfig();
+  loadGoogleAccounts();
   refreshAppearance();
 
-  return createBaseLayout({
+  const layout = createBaseLayout({
     content,
     eyebrow: 'Configuracoes',
     title: 'Organize integrações, banco de dados e parametros do HUB'
   });
+
+  // So depois do createBaseLayout() acima -- e o createToastContainer() la dentro --
+  // rodarem, senao toastState.container ainda ta null e showToast() nao faz nada.
+  handleGoogleOAuthRedirect(toast);
+
+  return layout;
 
   async function loadDatabaseConfig(): Promise<void> {
     try {
@@ -37,6 +52,38 @@ export function createSettingsPage(): HTMLElement {
       renderContent();
     } catch {
       toast.error('Nao foi possivel carregar configuracoes do backend.');
+    }
+  }
+
+  async function loadGoogleAccounts(): Promise<void> {
+    try {
+      googleAccounts = await getGoogleAccounts();
+    } catch {
+      googleAccounts = [];
+    } finally {
+      renderContent();
+    }
+  }
+
+  async function handleActivateAccount(id: number): Promise<void> {
+    try {
+      await activateGoogleAccount(id);
+      toast.success('Conta Google ativada.');
+    } catch {
+      toast.error('Nao foi possivel ativar a conta.');
+    } finally {
+      await loadGoogleAccounts();
+    }
+  }
+
+  async function handleDisconnectAccount(id: number): Promise<void> {
+    try {
+      await disconnectGoogleAccount(id);
+      toast.success('Conta Google desconectada.');
+    } catch {
+      toast.error('Nao foi possivel desconectar a conta.');
+    } finally {
+      await loadGoogleAccounts();
     }
   }
 
@@ -60,11 +107,36 @@ export function createSettingsPage(): HTMLElement {
       ? createDatabasePanel(databaseConfig, toast.success, toast.error, async () => {
         databaseConfig = await getDatabaseConfig();
         renderContent();
+      }, {
+        items: googleAccounts,
+        onActivate: handleActivateAccount,
+        onDisconnect: handleDisconnectAccount
       })
       : createAppearancePanel(getSettings(), appearanceLoaded, toast.success, toast.error);
 
     content.replaceChildren(tabs, panel);
   }
+}
+
+// Depois do callback do Google, o backend redireciona pra /configuracoes?google_oauth=sucesso|erro.
+// Mostra o toast uma vez e limpa a URL pra nao repetir se a pagina for recarregada.
+function handleGoogleOAuthRedirect(toast: { success: (message: string) => void; error: (message: string) => void }): void {
+  const params = new URLSearchParams(window.location.search);
+  const status = params.get('google_oauth');
+
+  if (!status) return;
+
+  if (status === 'sucesso') {
+    toast.success('Conta Google conectada.');
+  } else {
+    const motivo = params.get('motivo');
+    toast.error(motivo ? `Nao foi possivel conectar a conta Google: ${motivo}` : 'Nao foi possivel conectar a conta Google.');
+  }
+
+  params.delete('google_oauth');
+  params.delete('motivo');
+  const query = params.toString();
+  window.history.replaceState({}, '', `${window.location.pathname}${query ? `?${query}` : ''}`);
 }
 
 function createTabs(activeTab: SettingsTab, onChange: (tab: SettingsTab) => void): HTMLElement {
@@ -92,7 +164,12 @@ function createDatabasePanel(
   config: DatabaseConfig | null,
   notify: (message: string) => void,
   notifyError: (message: string) => void,
-  onRefresh: () => Promise<void>
+  onRefresh: () => Promise<void>,
+  googleAccounts: {
+    items: GoogleAccountRow[];
+    onActivate: (id: number) => void;
+    onDisconnect: (id: number) => void;
+  }
 ): HTMLElement {
   const wrapper = createElement('section', { className: 'database-provider-stack' });
 
@@ -123,6 +200,7 @@ function createDatabasePanel(
       },
       onTest: () => testProvider('google_drive', notify, notifyError)
     }),
+    createGoogleAccountsSection(googleAccounts.items, googleAccounts.onActivate, googleAccounts.onDisconnect),
     createProviderCard({
       title: 'SQL',
       eyebrow: 'Banco futuro',
@@ -144,6 +222,68 @@ function createDatabasePanel(
   );
 
   return wrapper;
+}
+
+// Contas Google conectadas via OAuth real (multiplas, com refresh token no banco) --
+// complementa o credentials.json de service account acima, nao substitui ainda.
+function createGoogleAccountsSection(
+  accounts: GoogleAccountRow[],
+  onActivate: (id: number) => void,
+  onDisconnect: (id: number) => void
+): HTMLElement {
+  const section = createElement('section', { className: 'database-provider-card' });
+  const header = createElement('div', { className: 'provider-header' });
+  const text = createElement('div');
+  const eyebrow = createElement('span', { className: 'eyebrow', textContent: 'OAuth' });
+  const heading = createElement('h2', { textContent: 'Contas Google conectadas' });
+  const connectLink = createElement('a', { className: 'small-button', textContent: 'Conectar nova conta' });
+
+  connectLink.href = getGoogleAuthorizeUrl();
+
+  text.append(eyebrow, heading);
+  header.append(text, connectLink);
+  section.appendChild(header);
+
+  if (accounts.length === 0) {
+    section.appendChild(createElement('p', {
+      className: 'settings-hint',
+      textContent: 'Nenhuma conta conectada ainda. "Conectar nova conta" leva pro login real do Google -- sem precisar compartilhar pasta manualmente.'
+    }));
+    return section;
+  }
+
+  const list = createElement('dl', { className: 'settings-list compact' });
+
+  accounts.forEach((account) => {
+    const label = createElement('dt', { textContent: account.email });
+    const valueRow = createElement('dd', { className: 'account-row' });
+    const status = createElement('span', {
+      className: account.ativa ? 'provider-badge success' : 'provider-badge',
+      textContent: account.ativa ? 'Ativa' : 'Inativa'
+    });
+    const activateButton = createElement('button', {
+      className: 'secondary-button',
+      textContent: 'Usar esta conta',
+      type: 'button'
+    });
+    const disconnectButton = createElement('button', {
+      className: 'danger-button',
+      textContent: 'Desconectar',
+      type: 'button'
+    });
+
+    activateButton.disabled = account.ativa;
+    activateButton.addEventListener('click', () => onActivate(account.id));
+    disconnectButton.addEventListener('click', () => {
+      if (window.confirm(`Desconectar a conta ${account.email}?`)) onDisconnect(account.id);
+    });
+
+    valueRow.append(status, activateButton, disconnectButton);
+    list.append(label, valueRow);
+  });
+
+  section.appendChild(list);
+  return section;
 }
 
 function createProviderCard({

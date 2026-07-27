@@ -34,6 +34,7 @@ def create_app() -> Flask:
     from routes.document_routes import document_routes
     from routes.category_routes import category_routes
     from routes.settings_routes import settings_routes
+    from routes.oauth_routes import oauth_routes
 
     app.register_blueprint(health_routes)
     app.register_blueprint(auth_routes)
@@ -45,9 +46,14 @@ def create_app() -> Flask:
     app.register_blueprint(document_routes)
     app.register_blueprint(category_routes)
     app.register_blueprint(settings_routes)
+    app.register_blueprint(oauth_routes)
 
     from utils.auth import register_auth_middleware
-    register_auth_middleware(app, public_paths={'/', '/auth/login', '/auth/bootstrap'})
+    register_auth_middleware(app, public_paths={
+        '/', '/auth/login', '/auth/bootstrap',
+        # navegacao direta do navegador (redirect), nunca carrega o Bearer token do HUB
+        '/oauth/google/authorize', '/oauth/google/callback'
+    })
 
     return app
 

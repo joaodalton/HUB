@@ -3,7 +3,7 @@
 > Leia `VISAO.md` primeiro. Este arquivo é o estado atual, atualizado a cada tarefa concluída.
 > Regra: pegue a primeira tarefa `[ ]` de cima pra baixo. Não pule.
 
-Última atualização: 2026-07-22 — reescrito do zero pra bater com o estado real do repositório (a versão anterior, de 12/07, estava desatualizada e ainda falava de um bloqueador já resolvido há semanas). Tudo abaixo foi verificado rodando de verdade (migration, testes de API via HTTP), não só lido no código.
+Última atualização: 2026-07-27 — conferido direto no código (zip do repositório), não só pelo relato: telas de UCs e Documentos, OAuth do Google (backend + frontend) e API_CONTRACTS.md confirmados prontos e batidos com as rotas reais.
 
 ---
 
@@ -31,13 +31,15 @@
 
 ### Backend — API
 - [x] `POST /auth/bootstrap` (cria o admin uma única vez), `POST /auth/login` (retorna token assinado via `itsdangerous`, expira em 7 dias).
-- [x] Middleware (`utils/auth.py`) protege toda rota exceto `/`, `/auth/login`, `/auth/bootstrap` — testado: sem token dá 401, token forjado dá 401, token válido passa.
+- [x] Middleware (`utils/auth.py`) protege toda rota exceto `/`, `/auth/login`, `/auth/bootstrap`, `/oauth/google/authorize`, `/oauth/google/callback` — testado: sem token dá 401, token forjado dá 401, token válido passa.
 - [x] `GET/POST/PUT/DELETE /clients` — inclui sincronização de UCs aninhadas.
 - [x] `GET/POST/PUT/DELETE /ucs` — CRUD avulso, além de aninhado dentro de `/clients`. Lógica de conexão UC-Usina (`sync_connections`, por `plantId`) compartilhada entre os dois, sem duplicação.
 - [x] `GET/POST/PUT/DELETE /plants`.
 - [x] `GET/POST /categories`.
 - [x] `GET/POST/PUT/DELETE /documents` + `GET /documents/<id>/download` — upload/download de arquivo real em disco (`backend/uploads/`, fora do git), testado byte a byte.
 - [x] `GET/PUT /settings` — configuração chave/valor (hoje usado só por Aparência).
+- [x] **`GET /config/database` + `POST /config/database/{provider,google-drive,sql,test}`** — tela de "Banco de dados" em Configurações escolhe entre Google Drive (service account) e SQL (cadastro de credencial pronto, driver real ainda não plugado), persistido no `.env` via `dotenv`. Não estava listado neste arquivo antes; adicionado agora que foi encontrado no código.
+- [x] **OAuth 2.0 do Google completo** (`oauth_routes.py` + `services/oauth_service.py`) — fluxo de autorização com PKCE, múltiplas contas (`GoogleAccount`, refresh token criptografado no banco), `GET/POST/DELETE /oauth/google/accounts...`. `drive_service.py` já prioriza a conta OAuth ativa e só cai pro `credentials.json` de service account se não houver conta conectada ou o refresh falhar — sem duplicidade entre os dois caminhos.
 - [x] `drive_routes.py` não derruba mais o backend se `credentials.json` não existir — erro controlado (503) em vez de crash.
 
 ### Frontend
@@ -46,15 +48,13 @@
 - [x] Usinas: 100% via API real (`plantService.ts`).
 - [x] Aparência (cor, logo): via API real (`/settings`), zero `localStorage`.
 - [x] `localStorage` eliminado do projeto inteiro — confirmado por busca no código, não sobrou nenhum uso.
-- [ ] **Tela de UCs** — rota `/ucs` ainda é o placeholder estático original. A API já existe e já foi testada; falta só a tela consumir.
-- [ ] **Tela de Documentos** — API pronta e testada; zero UI ainda. Decidido ficar pra quando entrar a reforma geral do frontend.
-- [ ] Formulário de Cliente/UC/Usina ainda não expõe os campos de negócio novos (telefone, endereço, CEP, concessionária por UC, geração própria, código ANEEL, contrato, carência, marca do inversor, contato do proprietário) — dado já tem onde morar no banco, só falta aparecer no formulário.
-
-### Google Drive
-- [ ] Ainda no modelo antigo (`credentials.json` fixo, uma conta só). OAuth 2.0 real (múltiplas contas, refresh token no banco) não foi iniciado.
+- [x] **Tela de UCs** — rota `/ucs` consome a API real (`ucsService.ts`): dashboard, listagem, criação/edição/exclusão em popup (`UcCard.ts`), com vínculo no cliente e conexão com usinas. Helpers de formulário reaproveitados via `components/formFields.ts` entre `ClientCard.ts` e `UcCard.ts`.
+- [x] **Tela de Documentos** (`DocumentsPage.ts` + `documentsService.ts`) — consome `/documents` e `/categories` de verdade.
+- [x] **Configurações → Banco de dados** — troca de provedor (Google Drive / SQL), formulário de credenciais de cada um, teste de configuração, e seção de contas Google OAuth conectadas (`googleAccountService.ts`) com ativar/desconectar.
+- [ ] Formulário de Cliente/UC/Usina ainda não expõe os campos de negócio novos (telefone, endereço, CEP, concessionária por UC, geração própria, código ANEEL, contrato, carência, marca do inversor, contato do proprietário) — dado já tem onde morar no banco, só falta aparecer no formulário. **Adiado de propósito**: vai entrar junto da reforma geral do frontend, não antes.
 
 ### Documentação viva
-- [ ] `API_CONTRACTS.md` nunca foi criado — regra definida faz tempo, ainda pendente. Listar todo endpoint ativo (método, payload, resposta) antes de esquecer o formato de algum.
+- [x] **`API_CONTRACTS.md` criado** — todo endpoint ativo documentado (método, payload, resposta), incluindo os que não estavam rastreados aqui (`/config/database/*`, `/oauth/google/*`, `/search` e `/download-zip` do Drive legado).
 
 ---
 
@@ -107,3 +107,5 @@ Nada disso foi tocado ainda. Continua valendo tudo que já foi levantado:
 - 2026-07-19: resolvida a dúvida de single-user vs multi-máquina (ver seção de decisões resolvidas). Vindo do GDASH, levantada lista extensa de campos de negócio pra Cliente/UC/Usina — triada entre "adota agora" (dado estático) e "ignora por enquanto" (tudo que é calculado ou depende de integração ainda não construída: economia total, saldo de crédito, gráficos de geração em tempo real, etc.).
 - 2026-07-20/21: sessão focada destravou em sequência — bug de duas instâncias `SQLAlchemy()` brigando (client_routes 500), blueprint de cliente nunca registrado, os 5 models faltando (criados e testados), autenticação completa (bootstrap/login/middleware, chave vazada no `.env.example` detectada e trocada), CRUD de UC avulso, backend de Documentos + Categorias, `localStorage` eliminado do frontend inteiro (Clientes, Usinas, Aparência), `iniciar.py` corrigido (venv apontava pra pasta errada, PID errado).
 - 2026-07-22: campos de negócio completos adicionados a Cliente/UC/Usina a partir de comparação com o GDASH; migration testada especificamente contra banco com dado pré-existente (achado e corrigido: `geracao_propria NOT NULL` sem default quebraria em banco real). `PROGRESS.md` reescrito do zero pra parar de arrastar informação desatualizada.
+- 2026-07-26 (aprox., commit "OAuth do Google Drive completo e testado"): OAuth 2.0 real implementado — fluxo PKCE, `GoogleAccount` com refresh token criptografado, múltiplas contas, `drive_service.py` priorizando a conta OAuth ativa. Junto veio a tela de Configurações → Banco de dados (Google Drive / SQL) e a lista de contas Google conectadas.
+- 2026-07-27: tela de UCs (`/ucs`) e tela de Documentos implementadas, ambas consumindo API real. `API_CONTRACTS.md` criado documentando todo endpoint ativo, inclusive os de `/config/database` e `/oauth/google` que não estavam rastreados. `PROGRESS.md` atualizado pra bater com o estado real do código (zip conferido, não só relato).

@@ -1,11 +1,11 @@
 import { createClientsPage } from '../pages/ClientsPage';
-import { createUcsPage } from '../pages/UcsPage';
 import { createAgendaPage } from '../pages/AgendaPage';
 import { createDocumentsPage } from '../pages/DocumentsPage';
 import { createLoginPage } from '../pages/LoginPage';
 import { createPlaceholderPage } from '../pages/PlaceholderPage';
 import { createPlantsPage } from '../pages/PlantsPage';
 import { createSettingsPage } from '../pages/SettingsPage';
+import { createUcsPage } from '../pages/UcsPage';
 import { isAuthenticated } from './authService';
 import { loadSettings } from './settingsService';
 

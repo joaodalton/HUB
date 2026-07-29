@@ -15,10 +15,22 @@ class GoogleDriveService:
     def __init__(self, credentials) -> None:
         self.client = build('drive', 'v3', credentials=credentials)
 
+    # Lista fechada de proposito -- ainda e um whitelist, so mais largo que so PDF/pasta,
+    # pra alimentar o filtro dinamico de "Tipo de arquivo" no frontend com algo real.
+    _SEARCHABLE_MIME_TYPES = [
+        'application/pdf',
+        'application/vnd.google-apps.folder',
+        'image/jpeg',
+        'image/png',
+        'application/vnd.google-apps.document',
+        'application/vnd.google-apps.spreadsheet'
+    ]
+
     def search_files(self, query_text: str) -> list[dict]:
+        mime_filter = ' or '.join(f"mimeType='{mime}'" for mime in self._SEARCHABLE_MIME_TYPES)
         query = (
             f"name contains '{query_text}' "
-            f"and (mimeType='application/pdf' or mimeType='application/vnd.google-apps.folder') "
+            f"and ({mime_filter}) "
             f"and trashed=false"
         )
 

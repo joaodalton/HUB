@@ -1,8 +1,9 @@
 # backend/routes/document_routes.py
-from flask import Blueprint, request, send_file
+from flask import Blueprint, redirect, request, send_file
 
 from services.document_service import (
     create_document,
+    create_drive_document,
     delete_document,
     get_document,
     list_documents,
@@ -57,6 +58,29 @@ def store():
     return success_response(document, 'Documento enviado.', 201)
 
 
+# POST /documents/drive-link -- Body JSON: {nome, driveFileId, categoriaId, clienteId?, ucId?, mimeType?}
+# Vincula um arquivo que ja esta no Google Drive a um cliente/UC sem copiar/mover
+# o arquivo -- so cria o registro em Document apontando pro fileId do Drive.
+@document_routes.route('/drive-link', methods=['POST'])
+def link_from_drive():
+    data = request.get_json(silent=True) or {}
+
+    if not data.get('categoriaId'):
+        return error_response('Categoria e obrigatoria.', 400)
+    if not (data.get('driveFileId') or '').strip():
+        return error_response('Arquivo do Google Drive e obrigatorio.', 400)
+
+    try:
+        document = create_drive_document(data)
+    except ValueError as exc:
+        return error_response(str(exc), 409)
+
+    return success_response(document, 'Documento vinculado.', 201)
+
+
+# PUT /documents/<id> -- Body: {nome}. So renomeia, nao troca o arquivo.
+
+
 # PUT /documents/<id> -- Body: {nome}. So renomeia, nao troca o arquivo.
 @document_routes.route('/<int:document_id>', methods=['PUT'])
 def rename(document_id: int):
@@ -88,6 +112,12 @@ def download(document_id: int):
 
     if not document:
         return error_response('Documento nao encontrado.', 404)
+
+    if document.storage_provider == 'google_drive':
+        # Nao ha arquivo local pra esse Document -- o Drive continua sendo o
+        # armazenamento (ver create_drive_document). Manda pra pagina de
+        # visualizacao nativa do Drive em vez de tentar servir um binario.
+        return redirect(f'https://drive.google.com/file/d/{document.storage_ref}/view')
 
     file_path = resolve_file_path(document)
 

@@ -104,3 +104,45 @@ def resolve_file_path(document: Document) -> Path | None:
 
     file_path = UPLOAD_ROOT / document.storage_ref
     return file_path if file_path.exists() else None
+
+
+def create_drive_document(data: dict) -> dict:
+    """Vincula um arquivo que ja esta no Google Drive a um cliente/UC, sem copiar
+    nem mover nada -- so cria o registro em Document apontando pro fileId
+    (storageProvider='google_drive', storageRef=fileId). O Drive continua sendo
+    o armazenamento; o Document e so o catalogo (dono, categoria, UC)."""
+    category = Category.query.get(data.get('categoriaId'))
+    if not category:
+        raise ValueError('Categoria informada nao existe.')
+
+    client_id = data.get('clienteId')
+    if client_id and not Client.query.get(client_id):
+        raise ValueError('Cliente informado nao existe.')
+
+    uc_id = data.get('ucId')
+    if uc_id and not ConsumerUnit.query.get(uc_id):
+        raise ValueError('UC informada nao existe.')
+
+    drive_file_id = (data.get('driveFileId') or '').strip()
+    if not drive_file_id:
+        raise ValueError('Arquivo do Google Drive nao informado.')
+
+    document = Document(
+        nome=(data.get('nome') or '').strip() or 'Documento do Drive',
+        client_id=client_id,
+        consumer_unit_id=uc_id,
+        category_id=category.id,
+        storage_provider='google_drive',
+        storage_ref=drive_file_id,
+        mime_type=data.get('mimeType')
+    )
+    db.session.add(document)
+    db.session.commit()
+
+    LogService.info(
+        acao='create',
+        mensagem=f'Documento "{document.nome}" vinculado do Google Drive',
+        entidade='Document',
+        metadados={'id': document.id, 'driveFileId': drive_file_id}
+    )
+    return document.to_dict()

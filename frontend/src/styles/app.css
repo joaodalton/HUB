@@ -283,6 +283,18 @@ a:focus-visible,
   color: var(--paper);
 }
 
+.refine-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.refine-row .form-field {
+  min-width: 160px;
+  flex: 1;
+}
+
 .search-hint {
   margin: 12px 0 0;
   font-size: 12px;

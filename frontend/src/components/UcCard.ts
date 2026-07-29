@@ -35,7 +35,7 @@ export function createUcCard({ uc, clients, availablePlants, onSave, onCancel, o
   const apelido = createInput('Subnome', 'text', uc?.apelido ?? '', false);
   const consumo = createInput('Consumo', 'text', uc?.consumo ?? '', false);
   const baseTarifaria = createTariffSelect(uc?.baseTarifaria ?? 'B1');
-  const desconto = createInput('Desconto', 'text', uc?.desconto ?? '', false);
+  const desconto = createInput('Desconto (%)', 'text', uc?.desconto ?? '', false);
   const tipoLigacao = createLigacaoSelect(uc?.tipoLigacao ?? 'Monofasico');
 
   // Estado local das conexoes, no mesmo formato que createPlantConnections espera.
@@ -71,6 +71,8 @@ export function createUcCard({ uc, clients, availablePlants, onSave, onCancel, o
     actions.appendChild(deleteButton);
   }
 
+  let isSubmitting = false;
+
   closeButton.addEventListener('click', onCancel);
   overlay.addEventListener('click', (event) => {
     if (event.target === overlay) onCancel();
@@ -79,11 +81,17 @@ export function createUcCard({ uc, clients, availablePlants, onSave, onCancel, o
   form.addEventListener('submit', (event) => {
     event.preventDefault();
 
+    if (isSubmitting) return;
+
     if (!cliente.select.value || !codigo.input.value.trim()) {
       cliente.select.reportValidity();
       codigo.input.reportValidity();
       return;
     }
+
+    isSubmitting = true;
+    saveButton.disabled = true;
+    saveButton.textContent = 'Salvando...';
 
     onSave({
       clienteId: Number(cliente.select.value),

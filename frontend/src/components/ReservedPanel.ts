@@ -7,6 +7,7 @@ type ReservedPanelOptions = {
   onClear: () => void;
   onOpenAll: () => void;
   onDownloadZip: () => void;
+  onLinkToClient: () => void;
 };
 
 export function createReservedPanel(options: ReservedPanelOptions): {
@@ -23,6 +24,7 @@ export function createReservedPanel(options: ReservedPanelOptions): {
   const list = createElement('ul');
   const actions = createElement('div', { className: 'reserved-actions' });
   const downloadButton = createElement('button', { textContent: 'Baixar ZIP', type: 'button' });
+  const linkButton = createElement('button', { textContent: 'Vincular a cliente', type: 'button' });
   const openAllButton = createElement('button', { textContent: 'Abrir todos', type: 'button' });
   const clearButton = createElement('button', {
     className: 'secondary-button',
@@ -33,10 +35,11 @@ export function createReservedPanel(options: ReservedPanelOptions): {
   list.id = 'reservados';
   titleText.append(eyebrow, heading);
   title.append(titleText, counter);
-  actions.append(downloadButton, openAllButton, clearButton);
+  actions.append(downloadButton, linkButton, openAllButton, clearButton);
   panel.append(title, list, actions);
 
   downloadButton.addEventListener('click', options.onDownloadZip);
+  linkButton.addEventListener('click', options.onLinkToClient);
   openAllButton.addEventListener('click', options.onOpenAll);
   clearButton.addEventListener('click', options.onClear);
 
@@ -51,9 +54,10 @@ export function createReservedPanel(options: ReservedPanelOptions): {
     list.replaceChildren();
     counter.textContent = `${items.length} ${items.length === 1 ? 'item' : 'itens'}`;
     downloadButton.disabled = downloadableCount === 0;
+    linkButton.disabled = downloadableCount === 0;
     openAllButton.disabled = items.length === 0;
     clearButton.disabled = items.length === 0;
-
+    
     if (items.length === 0) {
       list.appendChild(emptyState('Nenhum arquivo reservado ainda.', true));
       return;

@@ -1,0 +1,76 @@
+ * Serving Flask app 'app'
+ * Debug mode: on
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:8000
+Press CTRL+C to quit
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 270-218-396
+127.0.0.1 - - [28/Jul/2026 22:04:34] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:02] "OPTIONS /auth/login HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:03] "POST /auth/login HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:03] "OPTIONS /settings HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:03] "OPTIONS /clients HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:03] "GET /settings HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:03] "GET /clients HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:05] "GET /clients HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:06] "OPTIONS /plants HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:06] "GET /plants HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:07] "OPTIONS /categories HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:08] "OPTIONS /documents?clienteId=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:08] "GET /categories HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:08] "GET /documents?clienteId=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:08] "OPTIONS /clients/1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:09] "PUT /clients/1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:09] "OPTIONS /clients HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:09] "GET /plants HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:09] "GET /clients HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:10] "OPTIONS /ucs HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:11] "GET /plants HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:11] "GET /clients HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:11] "GET /ucs HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:12] "OPTIONS /ucs/2 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:12] "PUT /ucs/2 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:12] "GET /ucs HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:13] "GET /clients HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:13] "OPTIONS /plants HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:13] "GET /plants HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:17] "OPTIONS /clients HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:17] "GET /plants HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:17] "GET /clients HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:18] "OPTIONS /categories HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:18] "OPTIONS /documents?clienteId=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:18] "GET /categories HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:18] "GET /documents?clienteId=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:26] "OPTIONS /ucs HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:26] "OPTIONS /clients HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:26] "OPTIONS /plants HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:26] "GET /ucs HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:26] "GET /plants HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:26] "GET /clients HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:29] "GET /clients HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:29] "GET /plants HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:30] "OPTIONS /categories HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:30] "OPTIONS /documents?clienteId=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:30] "GET /categories HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:31] "GET /documents?clienteId=1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:37] "OPTIONS /clients/1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:37] "PUT /clients/1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:37] "OPTIONS /clients HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:37] "OPTIONS /plants HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:37] "GET /clients HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:37] "GET /plants HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:38] "OPTIONS /ucs HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:38] "GET /plants HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:39] "GET /clients HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:39] "GET /ucs HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:41] "OPTIONS /ucs/2 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:41] "PUT /ucs/2 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:41] "GET /ucs HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:42] "GET /plants HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:42] "GET /clients HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:42] "OPTIONS /clients HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:43] "OPTIONS /plants HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:43] "GET /clients HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:43] "GET /plants HTTP/1.1" 200 -
+127.0.0.1 - - [28/Jul/2026 22:09:43] "GET /plants HTTP/1.1" 200 -

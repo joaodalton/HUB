@@ -74,9 +74,13 @@ export function createClientCard({
     actions.appendChild(deleteButton);
   }
 
+  let isSubmitting = false;
+
   closeButton.addEventListener('click', onCancel);
-  left.addEventListener('submit', (event) => {
+  left.addEventListener('submit', async (event) => {
     event.preventDefault();
+
+    if (isSubmitting) return;
 
     if (!nome.input.value.trim() || !cpf.input.value.trim() || !email.input.value.trim()) {
       nome.input.reportValidity();
@@ -84,6 +88,10 @@ export function createClientCard({
       email.input.reportValidity();
       return;
     }
+
+    isSubmitting = true;
+    saveButton.disabled = true;
+    saveButton.textContent = 'Salvando...';
 
     onSave({
       nome: nome.input.value.trim(),
@@ -193,7 +201,7 @@ function createUcEditor(uc: ClientUc, availablePlants: PlantRow[], onRemove: () 
   const apelido = createInput('Subnome', 'text', uc.apelido, false);
   const consumo = createInput('Consumo', 'text', uc.consumo, false);
   const baseTarifaria = createTariffSelect(uc.baseTarifaria);
-  const desconto = createInput('Desconto', 'text', uc.desconto, false);
+  const desconto = createInput('Desconto (%)', 'text', uc.desconto, false);
   const tipoLigacao = createSelect('Ligacao', uc.tipoLigacao, ['Monofasico', 'Bifasico', 'Trifasico']);
   const removeButton = createElement('button', {
     className: 'danger-button',

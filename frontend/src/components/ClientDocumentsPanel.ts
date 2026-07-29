@@ -1,14 +1,12 @@
+import { createCategoryPicker } from './CategoryPicker';
 import { createElement } from '../dom';
 import { useToast } from '../hooks/useToast';
 import {
-  createCategory,
   deleteDocument,
   downloadDocumentFile,
-  getCategories,
   getDocuments,
   renameDocument,
   uploadDocument,
-  type CategoryRow,
   type DocumentRow
 } from '../services/documentsService';
 
@@ -32,24 +30,17 @@ export function createClientDocumentsPanel(clientId: number | undefined): HTMLEl
 
   const list = createElement('div', { className: 'document-list' });
   const uploadRow = createElement('div', { className: 'document-upload-row' });
-  const categorySelect = createElement('select');
-  const newCategoryButton = createElement('button', {
-    className: 'secondary-button',
-    textContent: '+ categoria',
-    type: 'button'
-  });
+  const categoryPicker = createCategoryPicker((message) => toast.error(message));
   const fileInput = createElement('input');
   const uploadButton = createElement('button', { textContent: 'Enviar', type: 'button' });
 
   fileInput.type = 'file';
 
   let documents: DocumentRow[] = [];
-  let categories: CategoryRow[] = [];
 
-  uploadRow.append(categorySelect, newCategoryButton, fileInput, uploadButton);
+  uploadRow.append(categoryPicker.wrapper, fileInput, uploadButton);
   panel.append(list, uploadRow);
 
-  loadCategories();
   loadDocuments();
 
   uploadButton.addEventListener('click', async () => {
@@ -59,7 +50,7 @@ export function createClientDocumentsPanel(clientId: number | undefined): HTMLEl
       toast.error('Escolha um arquivo antes de enviar.');
       return;
     }
-    if (!categorySelect.value) {
+    if (!categoryPicker.select.value) {
       toast.error('Escolha (ou crie) uma categoria antes de enviar.');
       return;
     }
@@ -68,7 +59,7 @@ export function createClientDocumentsPanel(clientId: number | undefined): HTMLEl
     uploadButton.textContent = 'Enviando...';
 
     try {
-      await uploadDocument({ clienteId: clientId, categoriaId: Number(categorySelect.value) }, file);
+      await uploadDocument({ clienteId: clientId, categoriaId: Number(categoryPicker.select.value) }, file);
       toast.success('Documento enviado.');
       fileInput.value = '';
       await loadDocuments();
@@ -79,47 +70,6 @@ export function createClientDocumentsPanel(clientId: number | undefined): HTMLEl
       uploadButton.textContent = 'Enviar';
     }
   });
-
-  newCategoryButton.addEventListener('click', async () => {
-    const nome = window.prompt('Nome da categoria (ex: Termo de adesao, Fatura, Contrato):');
-    if (!nome || !nome.trim()) return;
-
-    try {
-      const category = await createCategory(nome.trim());
-      categories = [...categories, category];
-      renderCategoryOptions();
-      categorySelect.value = String(category.id);
-      toast.success('Categoria criada.');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Nao foi possivel criar a categoria.');
-    }
-  });
-
-  async function loadCategories(): Promise<void> {
-    try {
-      categories = await getCategories();
-    } catch {
-      categories = [];
-    } finally {
-      renderCategoryOptions();
-    }
-  }
-
-  function renderCategoryOptions(): void {
-    categorySelect.replaceChildren();
-
-    const placeholder = createElement('option', {
-      textContent: categories.length === 0 ? 'Nenhuma categoria ainda' : 'Categoria...'
-    });
-    placeholder.value = '';
-    categorySelect.appendChild(placeholder);
-
-    categories.forEach((category) => {
-      const option = createElement('option', { textContent: category.nome });
-      option.value = String(category.id);
-      categorySelect.appendChild(option);
-    });
-  }
 
   async function loadDocuments(): Promise<void> {
     list.replaceChildren(createElement('small', { textContent: 'Carregando documentos...' }));
@@ -143,10 +93,14 @@ export function createClientDocumentsPanel(clientId: number | undefined): HTMLEl
     documents.forEach((doc) => {
       const row = createElement('div', { className: 'client-document-row' });
       const name = createElement('input');
-      const meta = createElement('span', { className: 'result-meta', textContent: doc.categoria ?? '' });
+      const isDriveDoc = doc.storageProvider === 'google_drive';
+      const meta = createElement('span', {
+        className: 'result-meta',
+        textContent: isDriveDoc ? `${doc.categoria ?? ''} - Google Drive` : (doc.categoria ?? '')
+      });
       const downloadButton = createElement('button', {
         className: 'secondary-button',
-        textContent: 'Baixar',
+        textContent: isDriveDoc ? 'Abrir no Drive' : 'Baixar',
         type: 'button'
       });
       const deleteButton = createElement('button', { className: 'icon-button', textContent: 'x', type: 'button' });
@@ -171,6 +125,11 @@ export function createClientDocumentsPanel(clientId: number | undefined): HTMLEl
       });
 
       downloadButton.addEventListener('click', () => {
+        if (isDriveDoc && doc.storageRef) {
+          window.open(`https://drive.google.com/file/d/${doc.storageRef}/view`, '_blank', 'noopener,noreferrer');
+          return;
+        }
+
         downloadDocumentFile(doc.id, doc.nome).catch(() => toast.error('Nao foi possivel baixar o documento.'));
       });
 

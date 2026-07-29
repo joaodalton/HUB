@@ -22,6 +22,7 @@ export type ClientRow = {
   nome: string;
   cpf: string;
   email: string;
+  telefone: string;
   uc: string;
   usina: string;
   consumo: string;

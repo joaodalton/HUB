@@ -9,6 +9,9 @@ export type PlantRow = {
   mediaGeracao: string;
   status: string;
   percentualDisponivel: number;
+  marcaInversor: string | null;
+  telefoneProprietario: string | null;
+  emailProprietario: string | null;
 };
 
 export type PlantPayload = {
@@ -17,6 +20,9 @@ export type PlantPayload = {
   kwPico: string;
   status: string;
   percentualDisponivel: number;
+  marcaInversor: string | null;
+  telefoneProprietario: string | null;
+  emailProprietario: string | null;
 };
 
 type ApiResponse<T> = {

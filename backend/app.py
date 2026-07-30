@@ -35,6 +35,7 @@ def create_app() -> Flask:
     from routes.category_routes import category_routes
     from routes.settings_routes import settings_routes
     from routes.oauth_routes import oauth_routes
+    from routes.log_routes import log_routes
 
     app.register_blueprint(health_routes)
     app.register_blueprint(auth_routes)
@@ -47,6 +48,7 @@ def create_app() -> Flask:
     app.register_blueprint(category_routes)
     app.register_blueprint(settings_routes)
     app.register_blueprint(oauth_routes)
+    app.register_blueprint(log_routes)
 
     from utils.auth import register_auth_middleware
     register_auth_middleware(app, public_paths={
@@ -62,10 +64,4 @@ app = create_app()
 
 
 if __name__ == '__main__':
-    # use_reloader=False de proposito -- o reloader do Flask sobe um processo
-    # FILHO pra vigiar arquivo e reiniciar sozinho. Se algo mata so o PID pai
-    # (como o parar.py fazia antes), o filho sobrevive e continua segurando
-    # a porta -- foi exatamente a causa dos backends duplicados na 8000.
-    # Efeito colateral: salvar um arquivo do backend nao reinicia mais
-    # sozinho: precisa 'python hub.py parar' + 'python hub.py iniciar'.
-    app.run(port=Config.API_PORT, debug=Config.DEBUG, use_reloader=False)
+    app.run(port=Config.API_PORT, debug=Config.DEBUG)

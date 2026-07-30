@@ -20,9 +20,13 @@ export type PlantPayload = {
   kwPico: string;
   status: string;
   percentualDisponivel: number;
-  marcaInversor: string | null;
-  telefoneProprietario: string | null;
-  emailProprietario: string | null;
+  // Opcionais: PlantCard.ts ainda nao expoe esses campos no formulario
+  // (adiamento registrado no PROGRESS.md, junto da reforma geral do frontend).
+  // Backend ja aceita ausencia dessas chaves (mantem o valor atual no update,
+  // grava null na criacao), entao nao precisam ser obrigatorias aqui.
+  marcaInversor?: string | null;
+  telefoneProprietario?: string | null;
+  emailProprietario?: string | null;
 };
 
 type ApiResponse<T> = {

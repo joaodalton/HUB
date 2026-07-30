@@ -30,3 +30,13 @@ class LogService:
     @staticmethod
     def error(acao: str, mensagem: str, entidade: str | None = None, metadados: dict | None = None) -> None:
         LogService._write('error', acao, mensagem, entidade, metadados)
+
+    @staticmethod
+    def list_recent(limit: int = 50, nivel: str | None = None) -> list[dict]:
+        query = LogEntry.query
+
+        if nivel:
+            query = query.filter(LogEntry.nivel == nivel)
+
+        entries = query.order_by(LogEntry.created_at.desc()).limit(limit).all()
+        return [entry.to_dict() for entry in entries]

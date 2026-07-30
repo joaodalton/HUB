@@ -1,4 +1,5 @@
 import { createElement } from '../dom';
+import { createDataTable } from '../components/DataTable';
 import { useToast } from '../hooks/useToast';
 import { createBaseLayout } from '../layouts/BaseLayout';
 import {
@@ -10,7 +11,16 @@ import {
   type DatabaseConfig,
   type DatabaseProvider
 } from '../services/databaseConfigService';
-import { getSettings, loadSettings, saveSettings, type AppSettings } from '../services/settingsService';
+import {
+  applyAppearanceSettings,
+  applyThemeVariables,
+  DEFAULT_SETTINGS,
+  getSettings,
+  loadSettings,
+  resetAppearanceToDefaults,
+  saveSettings,
+  type AppSettings
+} from '../services/settingsService';
 import {
   activateGoogleAccount,
   disconnectGoogleAccount,
@@ -18,21 +28,45 @@ import {
   getGoogleAuthorizeUrl,
   type GoogleAccountRow
 } from '../services/googleAccountService';
+import { formattedLogDate, getRecentLogs, type LogRow } from '../services/logsService';
 
-type SettingsTab = 'database' | 'appearance';
+type SettingsCategory = 'home' | 'geral' | 'database' | 'apis' | 'users' | 'automations' | 'logs' | 'appearance';
+
+type CategoryDefinition = {
+  key: SettingsCategory;
+  label: string;
+  // false = categoria so existe na navegacao, ainda sem backend por tras.
+  // Mostra um aviso "em breve" em vez de fingir que a funcionalidade existe
+  // (mesmo padrao ja usado em /pendencias, ver PlaceholderPage.ts).
+  ready: boolean;
+};
+
+const CATEGORIES: CategoryDefinition[] = [
+  { key: 'home', label: 'Home', ready: true },
+  { key: 'geral', label: 'Geral', ready: false },
+  { key: 'database', label: 'Banco de Dados', ready: true },
+  { key: 'apis', label: 'APIs e Integrações', ready: false },
+  { key: 'users', label: 'Usuários', ready: false },
+  { key: 'automations', label: 'Automações', ready: false },
+  { key: 'logs', label: 'Logs', ready: true },
+  { key: 'appearance', label: 'Aparência', ready: true }
+];
 
 export function createSettingsPage(): HTMLElement {
   const content = createElement('section', { className: 'content-stack' });
   const toast = useToast();
-  let activeTab: SettingsTab = 'database';
+  let activeCategory: SettingsCategory = 'home';
   let databaseConfig: DatabaseConfig | null = null;
   let googleAccounts: GoogleAccountRow[] = [];
   let appearanceLoaded = false;
+  let recentLogs: LogRow[] = [];
+  let logsLoaded = false;
 
   renderContent();
   loadDatabaseConfig();
   loadGoogleAccounts();
   refreshAppearance();
+  loadRecentLogs();
 
   const layout = createBaseLayout({
     content,
@@ -42,7 +76,7 @@ export function createSettingsPage(): HTMLElement {
 
   // So depois do createBaseLayout() acima -- e o createToastContainer() la dentro --
   // rodarem, senao toastState.container ainda ta null e showToast() nao faz nada.
-  handleGoogleOAuthRedirect(toast);
+  handleGoogleOAuthRedirect(toast, () => changeCategory('database'));
 
   return layout;
 
@@ -98,29 +132,71 @@ export function createSettingsPage(): HTMLElement {
     }
   }
 
-  function renderContent(): void {
-    const tabs = createTabs(activeTab, (tab) => {
-      activeTab = tab;
+  async function loadRecentLogs(): Promise<void> {
+    try {
+      recentLogs = await getRecentLogs(50);
+    } catch {
+      recentLogs = [];
+    } finally {
+      logsLoaded = true;
       renderContent();
-    });
-    const panel = activeTab === 'database'
-      ? createDatabasePanel(databaseConfig, toast.success, toast.error, async () => {
-        databaseConfig = await getDatabaseConfig();
-        renderContent();
-      }, {
-        items: googleAccounts,
-        onActivate: handleActivateAccount,
-        onDisconnect: handleDisconnectAccount
-      })
-      : createAppearancePanel(getSettings(), appearanceLoaded, toast.success, toast.error);
+    }
+  }
 
-    content.replaceChildren(tabs, panel);
+  function changeCategory(category: SettingsCategory): void {
+    // Sai da aba Aparencia sem salvar -> descarta a pre-visualizacao de cor
+    // pra nao deixar o tema "vazando" preview nao salvo pelo resto do app.
+    if (activeCategory === 'appearance' && category !== 'appearance') {
+      applyAppearanceSettings();
+    }
+
+    activeCategory = category;
+    renderContent();
+  }
+
+  function renderContent(): void {
+    const nav = createCategoryNav(activeCategory, changeCategory);
+    const panel = renderCategoryPanel();
+    const shell = createElement('div', { className: 'settings-shell' });
+
+    shell.append(nav, panel);
+    content.replaceChildren(shell);
+  }
+
+  function renderCategoryPanel(): HTMLElement {
+    switch (activeCategory) {
+      case 'home':
+        return createHomePanel(databaseConfig, recentLogs, logsLoaded, () => changeCategory('logs'));
+
+      case 'database':
+        return createDatabasePanel(databaseConfig, toast.success, toast.error, async () => {
+          databaseConfig = await getDatabaseConfig();
+          renderContent();
+        }, {
+          items: googleAccounts,
+          onActivate: handleActivateAccount,
+          onDisconnect: handleDisconnectAccount
+        });
+
+      case 'logs':
+        return createLogsPanel(recentLogs, logsLoaded);
+
+      case 'appearance':
+        return createAppearancePanel(getSettings(), appearanceLoaded, toast.success, toast.error);
+
+      default:
+        return createComingSoonPanel(categoryMessage(activeCategory));
+    }
   }
 }
 
 // Depois do callback do Google, o backend redireciona pra /configuracoes?google_oauth=sucesso|erro.
-// Mostra o toast uma vez e limpa a URL pra nao repetir se a pagina for recarregada.
-function handleGoogleOAuthRedirect(toast: { success: (message: string) => void; error: (message: string) => void }): void {
+// Mostra o toast uma vez, leva o usuario pra aba Banco de Dados (onde a lista de contas fica) e
+// limpa a URL pra nao repetir se a pagina for recarregada.
+function handleGoogleOAuthRedirect(
+  toast: { success: (message: string) => void; error: (message: string) => void },
+  onRedirected: () => void
+): void {
   const params = new URLSearchParams(window.location.search);
   const status = params.get('google_oauth');
 
@@ -137,28 +213,129 @@ function handleGoogleOAuthRedirect(toast: { success: (message: string) => void; 
   params.delete('motivo');
   const query = params.toString();
   window.history.replaceState({}, '', `${window.location.pathname}${query ? `?${query}` : ''}`);
+  onRedirected();
 }
 
-function createTabs(activeTab: SettingsTab, onChange: (tab: SettingsTab) => void): HTMLElement {
-  const tabs = createElement('div', { className: 'settings-tabs' });
-  const items: Array<{ key: SettingsTab; label: string }> = [
-    { key: 'database', label: 'Banco de dados' },
-    { key: 'appearance', label: 'Aparencia' }
-  ];
+function createCategoryNav(active: SettingsCategory, onChange: (category: SettingsCategory) => void): HTMLElement {
+  const nav = createElement('nav', { className: 'settings-category-nav' });
+  nav.appendChild(createElement('span', { className: 'settings-category-heading', textContent: 'Categorias' }));
 
-  items.forEach((item) => {
-    const button = createElement('button', {
-      className: activeTab === item.key ? 'settings-tab active' : 'settings-tab',
-      textContent: item.label,
+  CATEGORIES.forEach((category) => {
+    const link = createElement('button', {
+      className: category.key === active ? 'settings-category-link active' : 'settings-category-link',
       type: 'button'
     });
 
-    button.addEventListener('click', () => onChange(item.key));
-    tabs.appendChild(button);
+    link.appendChild(createElement('span', { textContent: category.label }));
+    if (!category.ready) {
+      link.appendChild(createElement('span', { className: 'settings-category-tag', textContent: 'em breve' }));
+    }
+
+    link.addEventListener('click', () => onChange(category.key));
+    nav.appendChild(link);
   });
 
-  return tabs;
+  return nav;
 }
+
+function categoryMessage(category: SettingsCategory): string {
+  switch (category) {
+    case 'geral':
+      return 'Em construção — fuso horário, concessionária padrão e outras preferências gerais chegam numa próxima etapa.';
+    case 'apis':
+      return 'Em construção — integrações externas (Asaas, WhatsApp, concessionárias, inversores) entram a partir da V2.0, quando cada uma for conectada de verdade.';
+    case 'users':
+      return 'Em construção — gestão de usuários e permissões por papel chega numa fase futura.';
+    case 'automations':
+      return 'Em construção — automações dependem das integrações de APIs acima, ainda não implementadas.';
+    default:
+      return 'Em construção.';
+  }
+}
+
+function createComingSoonPanel(message: string): HTMLElement {
+  const panel = createElement('section', { className: 'placeholder-panel' });
+  panel.appendChild(createElement('p', { textContent: message }));
+  return panel;
+}
+
+// ---------- Home ----------
+
+function createHomePanel(
+  config: DatabaseConfig | null,
+  logs: LogRow[],
+  logsLoaded: boolean,
+  onSeeAllLogs: () => void
+): HTMLElement {
+  const wrapper = createElement('div', { className: 'settings-home-grid' });
+
+  const driveCard = createElement('section', { className: 'settings-panel' });
+  driveCard.appendChild(createPanelHeader('Google Drive', 'Status da conexão'));
+
+  if (!config) {
+    driveCard.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Carregando...' }));
+  } else {
+    const list = createElement('dl', { className: 'settings-list compact' });
+    list.append(
+      createElement('dt', { textContent: 'Status' }),
+      createElement('dd', {
+        textContent: config.provider === 'google_drive' ? 'Ativo como banco de dados' : 'Configurado, mas não ativo'
+      }),
+      createElement('dt', { textContent: 'Credenciais' }),
+      createElement('dd', { textContent: config.googleDrive.credentialsFound ? 'Arquivo encontrado' : 'Arquivo não encontrado' }),
+      createElement('dt', { textContent: 'Pasta raiz' }),
+      createElement('dd', { textContent: config.googleDrive.rootFolderId || 'Não configurada' })
+    );
+    driveCard.appendChild(list);
+  }
+
+  const logsCard = createElement('section', { className: 'settings-panel' });
+  const seeAllButton = createElement('button', { className: 'secondary-link', textContent: 'Ver todos', type: 'button' });
+  seeAllButton.addEventListener('click', onSeeAllLogs);
+  logsCard.appendChild(createPanelHeader('Logs recentes', 'Últimos eventos do sistema', seeAllButton));
+
+  if (!logsLoaded) {
+    logsCard.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Carregando logs...' }));
+  } else if (logs.length === 0) {
+    logsCard.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Nenhum log registrado ainda.' }));
+  } else {
+    const list = createElement('div', { className: 'log-list' });
+    logs.slice(0, 5).forEach((log) => list.appendChild(createLogRow(log)));
+    logsCard.appendChild(list);
+  }
+
+  wrapper.append(driveCard, logsCard);
+  return wrapper;
+}
+
+function createLogRow(log: LogRow): HTMLElement {
+  const row = createElement('div', { className: 'log-row' });
+  row.append(
+    createElement('span', { className: `log-level log-level-${log.nivel}`, textContent: log.nivel }),
+    createElement('span', { className: 'log-message', textContent: log.mensagem || log.acao }),
+    createElement('span', { className: 'log-meta', textContent: formattedLogDate(log) })
+  );
+  return row;
+}
+
+// ---------- Logs ----------
+
+function createLogsPanel(logs: LogRow[], loaded: boolean): HTMLElement {
+  return createDataTable<LogRow & { dataFormatada: string }>({
+    title: 'Logs do sistema',
+    eyebrow: 'Histórico',
+    rows: logs.map((log) => ({ ...log, dataFormatada: formattedLogDate(log) })),
+    emptyMessage: loaded ? 'Nenhum log registrado ainda.' : 'Carregando logs...',
+    columns: [
+      { key: 'dataFormatada', label: 'Data/Hora' },
+      { key: 'nivel', label: 'Nível' },
+      { key: 'acao', label: 'Ação' },
+      { key: 'mensagem', label: 'Mensagem' }
+    ]
+  });
+}
+
+// ---------- Banco de dados (sem mudanca de comportamento, so mudou de lugar) ----------
 
 function createDatabasePanel(
   config: DatabaseConfig | null,
@@ -463,6 +640,8 @@ async function testProvider(
   }
 }
 
+// ---------- Aparencia ----------
+
 function createAppearancePanel(
   settings: AppSettings,
   loaded: boolean,
@@ -470,7 +649,7 @@ function createAppearancePanel(
   notifyError: (message: string) => void
 ): HTMLElement {
   const panel = createElement('section', { className: 'settings-panel' });
-  const header = createPanelHeader('Aparencia', 'Cores e identidade visual');
+  const header = createPanelHeader('Aparência', 'Identidade visual e preferências do HUB');
 
   if (!loaded) {
     panel.append(header, createElement('p', {
@@ -481,78 +660,185 @@ function createAppearancePanel(
   }
 
   const body = createElement('div', { className: 'settings-form' });
-  const themeColor = createInput('Cor principal', 'color', settings.themeColor);
-  const logo = createElement('input');
-  const logoField = createElement('label', { className: 'form-field form-field-wide' });
-  const logoLabel = createElement('span', { textContent: 'Logotipo PNG/JPG' });
-  const preview = createElement('div', { className: 'logo-preview' });
-  const saveButton = createElement('button', { textContent: 'Salvar aparencia', type: 'button' });
 
-  logo.type = 'file';
-  logo.accept = 'image/png,image/jpeg';
+  // Logo -- um botao so, salva sozinho assim que um arquivo e escolhido.
+  const logoField = createElement('label', { className: 'form-field' });
+  const logoLabel = createElement('span', { textContent: 'Logotipo' });
+  const logoRow = createElement('div', { className: 'logo-row' });
+  const preview = createElement('div', { className: 'logo-preview' });
+  const logoInput = createElement('input');
+  const logoButton = createElement('button', { className: 'secondary-button', textContent: 'Alterar logo', type: 'button' });
+
+  logoInput.type = 'file';
+  logoInput.accept = 'image/png,image/jpeg';
+  logoInput.hidden = true;
   renderLogoPreview(preview, settings.logoDataUrl);
 
-  saveButton.addEventListener('click', async () => {
-    const file = logo.files?.[0];
-    const logoDataUrl = file ? await readFileAsDataUrl(file) : settings.logoDataUrl;
+  logoButton.addEventListener('click', () => logoInput.click());
+  logoInput.addEventListener('change', async () => {
+    const file = logoInput.files?.[0];
+    if (!file) return;
 
-    saveButton.disabled = true;
+    logoButton.disabled = true;
+    logoButton.textContent = 'Enviando...';
+
     try {
-      await saveSettings({
-        themeColor: themeColor.input.value,
-        logoDataUrl
-      });
-      notify('Aparencia salva.');
+      const logoDataUrl = await readFileAsDataUrl(file);
+      await saveSettings({ logoDataUrl });
       renderLogoPreview(preview, logoDataUrl);
+      notify('Logo atualizada.');
     } catch {
-      notifyError('Nao foi possivel salvar a aparencia no backend.');
+      notifyError('Nao foi possivel salvar a logo.');
     } finally {
-      saveButton.disabled = false;
+      logoButton.disabled = false;
+      logoButton.textContent = 'Alterar logo';
+      logoInput.value = '';
     }
   });
 
-  logoField.append(logoLabel, preview, logo);
-  body.append(themeColor.field, logoField, saveButton);
-  panel.append(header, body);
+  logoRow.append(preview, logoButton, logoInput);
+  logoField.append(logoLabel, logoRow);
+
+  // Idioma -- por enquanto so guarda a preferencia (ver aviso abaixo).
+  const language = createSelectField('Idioma', settings.language, [
+    { value: 'pt-BR', label: 'Português (Brasil)' },
+    { value: 'en-US', label: 'English' }
+  ]);
+  const languageHint = createElement('p', {
+    className: 'settings-hint',
+    textContent: 'A troca de idioma so guarda a preferencia por enquanto -- ainda nao traduz os textos da interface.'
+  });
+
+  const companyName = createInput('Nome da empresa', 'text', settings.companyName);
+
+  // Cores do tema -- so as 4 bases; hover/fundo translucido/etc sao derivados
+  // (ver applyThemeVariables em settingsService.ts) pra nao virar uma tela
+  // cheia de color-picker solto.
+  const colorsTitle = createElement('span', { className: 'settings-subheading', textContent: 'Cores do tema' });
+  const colorGrid = createElement('div', { className: 'color-field-grid' });
+  const backgroundColor = createColorField('Fundo', settings.backgroundColor);
+  const cardColor = createColorField('Fundo dos cards', settings.cardColor);
+  const textColor = createColorField('Texto geral', settings.textColor);
+  const accentColor = createColorField('Cor de seleção', settings.accentColor);
+
+  const colorFields = [
+    { field: backgroundColor, key: 'backgroundColor' as const },
+    { field: cardColor, key: 'cardColor' as const },
+    { field: textColor, key: 'textColor' as const },
+    { field: accentColor, key: 'accentColor' as const }
+  ];
+
+  function previewColors(): void {
+    applyThemeVariables({
+      backgroundColor: backgroundColor.input.value,
+      cardColor: cardColor.input.value,
+      textColor: textColor.input.value,
+      accentColor: accentColor.input.value
+    });
+  }
+
+  colorFields.forEach(({ field }) => field.input.addEventListener('input', previewColors));
+
+  colorGrid.append(backgroundColor.field, cardColor.field, textColor.field, accentColor.field);
+
+  const actions = createElement('div', { className: 'form-actions' });
+  const saveButton = createElement('button', { textContent: 'Salvar aparência', type: 'button' });
+  const resetButton = createElement('button', { className: 'secondary-button', textContent: 'Restaurar padrão', type: 'button' });
+
+  saveButton.addEventListener('click', async () => {
+    saveButton.disabled = true;
+    saveButton.textContent = 'Salvando...';
+
+    try {
+      await saveSettings({
+        companyName: companyName.input.value.trim(),
+        language: language.select.value,
+        backgroundColor: backgroundColor.input.value,
+        cardColor: cardColor.input.value,
+        textColor: textColor.input.value,
+        accentColor: accentColor.input.value
+      });
+      notify('Aparência salva.');
+    } catch {
+      notifyError('Nao foi possivel salvar a aparencia no backend.');
+      applyAppearanceSettings();
+    } finally {
+      saveButton.disabled = false;
+      saveButton.textContent = 'Salvar aparência';
+    }
+  });
+
+  resetButton.addEventListener('click', async () => {
+    colorFields.forEach(({ field, key }) => {
+      field.input.value = DEFAULT_SETTINGS[key];
+      field.input.dispatchEvent(new Event('input'));
+    });
+
+    try {
+      await resetAppearanceToDefaults();
+      notify('Cores restauradas para o padrão.');
+    } catch {
+      notifyError('Nao foi possivel restaurar o padrao no backend.');
+    }
+  });
+
+  body.append(logoField, language.field, languageHint, companyName.field, colorsTitle, colorGrid);
+  actions.append(saveButton, resetButton);
+  panel.append(header, body, actions);
 
   return panel;
 }
 
-function createPanelHeader(eyebrowText: string, title: string): HTMLElement {
-  const header = createElement('div', { className: 'panel-title' });
-  const titleText = createElement('div');
-  const eyebrow = createElement('span', { className: 'eyebrow', textContent: eyebrowText });
-  const heading = createElement('h2', { textContent: title });
+function createColorField(label: string, value: string): { field: HTMLElement; input: HTMLInputElement } {
+  const field = createElement('label', { className: 'form-field color-field' });
+  const text = createElement('span', { textContent: label });
+  const row = createElement('div', { className: 'color-field-row' });
+  const input = createElement('input');
+  const hexLabel = createElement('span', { className: 'color-hex', textContent: value });
 
-  titleText.append(eyebrow, heading);
-  header.appendChild(titleText);
+  input.type = 'color';
+  input.value = value;
+  input.addEventListener('input', () => { hexLabel.textContent = input.value; });
 
-  return header;
+  row.append(input, hexLabel);
+  field.append(text, row);
+
+  return { field, input };
 }
 
-function createInput(label: string, type: string, value: string) {
+function createSelectField(
+  label: string,
+  value: string,
+  options: Array<{ value: string; label: string }>
+): { field: HTMLElement; select: HTMLSelectElement } {
   const field = createElement('label', { className: 'form-field' });
   const text = createElement('span', { textContent: label });
-  const input = createElement('input');
+  const select = createElement('select');
 
-  input.type = type;
-  input.value = value;
+  options.forEach((option) => {
+    const optionElement = createElement('option', { textContent: option.label });
+    optionElement.value = option.value;
+    select.appendChild(optionElement);
+  });
 
-  field.append(text, input);
-  return { field, input };
+  select.value = value;
+  field.append(text, select);
+
+  return { field, select };
 }
 
 function renderLogoPreview(container: HTMLElement, logoDataUrl: string): void {
   container.replaceChildren();
 
   if (!logoDataUrl) {
-    container.textContent = 'Sem logotipo definido.';
+    container.textContent = 'Sem logo';
     return;
   }
 
   const image = createElement('img');
   image.src = logoDataUrl;
   image.alt = 'Logotipo configurado';
+  image.className = 'logo-preview-image';
   container.appendChild(image);
 }
 
@@ -564,4 +850,31 @@ function readFileAsDataUrl(file: File): Promise<string> {
     reader.addEventListener('error', () => reject(reader.error));
     reader.readAsDataURL(file);
   });
+}
+
+// ---------- Helpers compartilhados ----------
+
+function createPanelHeader(eyebrowText: string, title: string, action?: HTMLElement): HTMLElement {
+  const header = createElement('div', { className: 'panel-title' });
+  const titleText = createElement('div');
+  const eyebrow = createElement('span', { className: 'eyebrow', textContent: eyebrowText });
+  const heading = createElement('h2', { textContent: title });
+
+  titleText.append(eyebrow, heading);
+  header.appendChild(titleText);
+  if (action) header.appendChild(action);
+
+  return header;
+}
+
+function createInput(label: string, type: string, value: string): { field: HTMLElement; input: HTMLInputElement } {
+  const field = createElement('label', { className: 'form-field' });
+  const text = createElement('span', { textContent: label });
+  const input = createElement('input');
+
+  input.type = type;
+  input.value = value;
+
+  field.append(text, input);
+  return { field, input };
 }

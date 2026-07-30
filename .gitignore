@@ -9,3 +9,4 @@ backend/database/*.db
 backend/database/*.db-journal
 processos.json
 backend/uploads/
+logs/ *.log

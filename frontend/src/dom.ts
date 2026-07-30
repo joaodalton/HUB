@@ -21,3 +21,14 @@ export function emptyState(message: string, small = false): HTMLLIElement {
     textContent: message
   });
 }
+
+// Compartilhado entre DataTable (dot de status) e ClientDetailView (badge de status) --
+// mesma regra de negocio, um lugar so pra decidir o que e "sucesso" vs "atencao".
+export function statusTone(status: string): 'success' | 'warning' {
+  const normalized = status
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  return normalized.includes('concluido') || normalized.includes('online') ? 'success' : 'warning';
+}

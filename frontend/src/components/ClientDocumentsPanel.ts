@@ -1,4 +1,3 @@
-import { createCategoryPicker } from './CategoryPicker';
 import { createElement } from '../dom';
 import { useToast } from '../hooks/useToast';
 import {
@@ -10,9 +9,9 @@ import {
   type DocumentRow
 } from '../services/documentsService';
 
-// Documentos sao acao imediata (upload/renomear/excluir acontecem na hora, via API),
-// nao dependem do botao "Salvar cliente" -- diferente do que o formulario fazia antes
-// (lia o arquivo como base64 e so jogava fora ao salvar, sem persistir nada de verdade).
+// Categoria de documento saiu da interface (decisao 2026-07-30) -- atrapalhava mais
+// do que ajudava no fluxo. O campo continua existindo no banco (agora opcional),
+// so nao aparece mais aqui nem em nenhum outro lugar de upload.
 export function createClientDocumentsPanel(clientId: number | undefined): HTMLElement {
   const toast = useToast();
   const panel = createElement('div', { className: 'client-documents-panel' });
@@ -29,45 +28,38 @@ export function createClientDocumentsPanel(clientId: number | undefined): HTMLEl
   }
 
   const list = createElement('div', { className: 'document-list' });
-  const uploadRow = createElement('div', { className: 'document-upload-row' });
-  const categoryPicker = createCategoryPicker((message) => toast.error(message));
   const fileInput = createElement('input');
-  const uploadButton = createElement('button', { textContent: 'Enviar', type: 'button' });
+  const dropButton = createElement('button', { className: 'upload-dropzone', type: 'button' });
 
+  dropButton.innerHTML = uploadIconSvg();
+  dropButton.setAttribute('aria-label', 'Adicionar documento');
   fileInput.type = 'file';
+  fileInput.hidden = true;
 
   let documents: DocumentRow[] = [];
 
-  uploadRow.append(categoryPicker.wrapper, fileInput, uploadButton);
-  panel.append(list, uploadRow);
-
+  panel.append(list, dropButton, fileInput);
   loadDocuments();
 
-  uploadButton.addEventListener('click', async () => {
+  dropButton.addEventListener('click', () => fileInput.click());
+
+  fileInput.addEventListener('change', async () => {
     const file = fileInput.files?.[0];
+    if (!file) return;
 
-    if (!file) {
-      toast.error('Escolha um arquivo antes de enviar.');
-      return;
-    }
-    if (!categoryPicker.select.value) {
-      toast.error('Escolha (ou crie) uma categoria antes de enviar.');
-      return;
-    }
-
-    uploadButton.disabled = true;
-    uploadButton.textContent = 'Enviando...';
+    dropButton.disabled = true;
+    dropButton.classList.add('loading');
 
     try {
-      await uploadDocument({ clienteId: clientId, categoriaId: Number(categoryPicker.select.value) }, file);
+      await uploadDocument({ clienteId: clientId }, file);
       toast.success('Documento enviado.');
-      fileInput.value = '';
       await loadDocuments();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Nao foi possivel enviar o documento.');
     } finally {
-      uploadButton.disabled = false;
-      uploadButton.textContent = 'Enviar';
+      dropButton.disabled = false;
+      dropButton.classList.remove('loading');
+      fileInput.value = '';
     }
   });
 
@@ -93,16 +85,7 @@ export function createClientDocumentsPanel(clientId: number | undefined): HTMLEl
     documents.forEach((doc) => {
       const row = createElement('div', { className: 'client-document-row' });
       const name = createElement('input');
-      const isDriveDoc = doc.storageProvider === 'google_drive';
-      const meta = createElement('span', {
-        className: 'result-meta',
-        textContent: isDriveDoc ? `${doc.categoria ?? ''} - Google Drive` : (doc.categoria ?? '')
-      });
-      const downloadButton = createElement('button', {
-        className: 'secondary-button',
-        textContent: isDriveDoc ? 'Abrir no Drive' : 'Baixar',
-        type: 'button'
-      });
+      const downloadButton = createElement('button', { className: 'secondary-button', textContent: 'Baixar', type: 'button' });
       const deleteButton = createElement('button', { className: 'icon-button', textContent: 'x', type: 'button' });
 
       name.value = doc.nome;
@@ -125,11 +108,6 @@ export function createClientDocumentsPanel(clientId: number | undefined): HTMLEl
       });
 
       downloadButton.addEventListener('click', () => {
-        if (isDriveDoc && doc.storageRef) {
-          window.open(`https://drive.google.com/file/d/${doc.storageRef}/view`, '_blank', 'noopener,noreferrer');
-          return;
-        }
-
         downloadDocumentFile(doc.id, doc.nome).catch(() => toast.error('Nao foi possivel baixar o documento.'));
       });
 
@@ -146,10 +124,18 @@ export function createClientDocumentsPanel(clientId: number | undefined): HTMLEl
         }
       });
 
-      row.append(name, meta, downloadButton, deleteButton);
+      row.append(name, downloadButton, deleteButton);
       list.appendChild(row);
     });
   }
 
   return panel;
+}
+
+function uploadIconSvg(): string {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="20" height="20">
+    <path d="M12 16V4"/>
+    <path d="M7 9l5-5 5 5"/>
+    <path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>
+  </svg>`;
 }

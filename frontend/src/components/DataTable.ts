@@ -1,4 +1,4 @@
-import { createElement } from '../dom';
+import { createElement, statusTone } from '../dom';
 
 export type TableColumn<T> = {
   key: keyof T;
@@ -23,7 +23,7 @@ export function createDataTable<T extends Record<string, unknown>>({
   emptyMessage,
   onRowClick
 }: DataTableOptions<T>): HTMLElement {
-  const panel = createElement('section', { className: 'data-panel' });
+  const panel = createElement('section', { className: 'data-panel data-panel-scroll' });
   const panelTitle = createElement('div', { className: 'panel-title' });
   const titleText = createElement('div');
   const eyebrowElement = createElement('span', { className: 'eyebrow', textContent: eyebrow });
@@ -78,14 +78,5 @@ export function createDataTable<T extends Record<string, unknown>>({
 }
 
 function createStatusMark(status: string): HTMLElement {
-  const normalized = status
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
-
-  const tone = normalized.includes('concluido') || normalized.includes('online')
-    ? 'success'
-    : 'warning';
-
-  return createElement('span', { className: `status-dot status-${tone}` });
+  return createElement('span', { className: `status-dot status-${statusTone(status)}` });
 }

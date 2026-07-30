@@ -47,9 +47,6 @@ def store():
         'categoriaId': request.form.get('categoriaId', type=int)
     }
 
-    if not data['categoriaId']:
-        return error_response('Categoria e obrigatoria.', 400)
-
     try:
         document = create_document(data, request.files['arquivo'])
     except ValueError as exc:

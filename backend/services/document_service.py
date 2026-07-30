@@ -31,8 +31,10 @@ def get_document(document_id: int) -> Document | None:
 
 
 def create_document(data: dict, file_storage) -> dict:
-    category = Category.query.get(data.get('categoriaId'))
-    if not category:
+    category_id = data.get('categoriaId')
+    category = Category.query.get(category_id) if category_id else None
+
+    if category_id and not category:
         raise ValueError('Categoria informada nao existe.')
 
     client_id = data.get('clienteId')
@@ -55,7 +57,7 @@ def create_document(data: dict, file_storage) -> dict:
         nome=(data.get('nome') or '').strip() or original_name,
         client_id=client_id,
         consumer_unit_id=uc_id,
-        category_id=category.id,
+        category_id=category.id if category else None,
         storage_provider='local',
         storage_ref=f'{subfolder}/{stored_name}',
         mime_type=file_storage.mimetype

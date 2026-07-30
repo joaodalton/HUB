@@ -1,32 +1,32 @@
-import json
-from pathlib import Path
+from comandos.process_utils import (
+    BACKEND_DIR,
+    BACKEND_PORT,
+    FRONTEND,
+    FRONTEND_PORT,
+    find_pids,
+    port_in_use
+)
 
-import psutil
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-
-PYTHON = BASE_DIR / "backend" / "venv" / "Scripts" / "python.exe"
-FRONTEND = BASE_DIR / "frontend"
 
 def status():
+    print("=" * 40)
+    print("STATUS DO HUB")
+    print("=" * 40)
 
-    arquivo = BASE_DIR / "processos.json"
+    _print_component('Backend', find_pids(BACKEND_DIR), BACKEND_PORT)
+    _print_component('Frontend', find_pids(FRONTEND), FRONTEND_PORT)
 
-    if not arquivo.exists():
-        print("HUB não iniciado.")
+
+def _print_component(label: str, pids: list[int], port: int) -> None:
+    if not pids:
+        print(f"{label:10} : 🔴 Offline")
         return
 
-    with open(arquivo) as f:
-        processos = json.load(f)
+    porta_aberta = port_in_use(port)
+    icone = '🟢 Online' if porta_aberta else '🟡 Processo ativo, porta ainda fechada'
+    pid_texto = ', '.join(str(pid) for pid in pids)
 
-    print("=" * 35)
-    print("STATUS DO HUB")
-    print("=" * 35)
-
-    for nome, pid in processos.items():
-
-        online = psutil.pid_exists(pid)
-
-        print(
-            f"{nome.capitalize():10} : {'🟢 Online' if online else '🔴 Offline'}"
-        )
+    if len(pids) > 1:
+        print(f"{label:10} : ⚠️  {len(pids)} processos encontrados (PIDs {pid_texto}) -- rode 'python hub.py parar' pra limpar antes de continuar")
+    else:
+        print(f"{label:10} : {icone}  (PID {pid_texto}, porta {port})")

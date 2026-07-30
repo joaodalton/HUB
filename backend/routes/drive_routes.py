@@ -4,7 +4,7 @@ from services.drive_service import get_drive_service
 from utils.api_response import error_response
 
 
-drive_routes = Blueprint('drive_routes', __name__)
+drive_routes = Blueprint('drive_routes', __name__, url_prefix='/drive')
 
 
 def _resolve_service():

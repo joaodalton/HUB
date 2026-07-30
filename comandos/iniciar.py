@@ -5,18 +5,22 @@ import time
 import urllib.request
 import urllib.error
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+from comandos.process_utils import (
+    BACKEND_DIR,
+    BACKEND_PORT,
+    BASE_DIR,
+    FRONTEND,
+    FRONTEND_PORT,
+    PYTHON,
+    find_pids
+)
+
 LOGS_DIR = BASE_DIR / "logs"
-
-PYTHON = BASE_DIR / "backend" / "venv" / "Scripts" / "python.exe"
-FRONTEND = BASE_DIR / "frontend"
-
-BACKEND_URL = "http://127.0.0.1:8000/"
-FRONTEND_URL = "http://localhost:5173"
+BACKEND_URL = f"http://127.0.0.1:{BACKEND_PORT}/"
+FRONTEND_URL = f"http://localhost:{FRONTEND_PORT}"
 
 
 def iniciar():
-
     print("=" * 40)
     print("Iniciando HUB")
     print("=" * 40)
@@ -26,19 +30,28 @@ def iniciar():
         print("Confirma se o venv foi criado dentro de backend/ (backend\\venv), nao na raiz do projeto.")
         return
 
+    # Trava de instancia unica -- varre processos de verdade (nao so
+    # processos.json), entao pega ate orfao que uma execucao anterior mal
+    # encerrada deixou pra tras. Foi rodar 'iniciar' varias vezes sem 'parar'
+    # direito antes que causou multiplos backends/frontends duplicados.
+    ja_rodando = find_pids(BACKEND_DIR) + find_pids(FRONTEND)
+    if ja_rodando:
+        print("✘ O HUB ja parece estar rodando.")
+        print(f"  PIDs encontrados: {', '.join(str(pid) for pid in ja_rodando)}")
+        print("  Rode 'python hub.py parar' antes de iniciar de novo.")
+        return
+
     LOGS_DIR.mkdir(exist_ok=True)
     backend_log_path = LOGS_DIR / "backend.log"
     frontend_log_path = LOGS_DIR / "frontend.log"
     backend_log = open(backend_log_path, "w", encoding="utf-8")
     frontend_log = open(frontend_log_path, "w", encoding="utf-8")
 
-    # Sem janela propria (CREATE_NO_WINDOW) -- antes usava CREATE_NEW_CONSOLE,
-    # que abre um cmd que fecha sozinho se o processo cair, sem dar tempo de
-    # ler o erro. Agora tudo vai pro arquivo de log, que fica disponivel
-    # mesmo depois do processo morrer.
+    # Sem janela propria (CREATE_NO_WINDOW) -- tudo vai pro arquivo de log,
+    # que fica disponivel mesmo depois do processo morrer.
     backend = subprocess.Popen(
         [str(PYTHON), "app.py"],
-        cwd=BASE_DIR / "backend",
+        cwd=BACKEND_DIR,
         stdout=backend_log,
         stderr=subprocess.STDOUT,
         creationflags=subprocess.CREATE_NO_WINDOW

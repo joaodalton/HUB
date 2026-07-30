@@ -62,4 +62,10 @@ app = create_app()
 
 
 if __name__ == '__main__':
-    app.run(port=Config.API_PORT, debug=Config.DEBUG)
+    # use_reloader=False de proposito -- o reloader do Flask sobe um processo
+    # FILHO pra vigiar arquivo e reiniciar sozinho. Se algo mata so o PID pai
+    # (como o parar.py fazia antes), o filho sobrevive e continua segurando
+    # a porta -- foi exatamente a causa dos backends duplicados na 8000.
+    # Efeito colateral: salvar um arquivo do backend nao reinicia mais
+    # sozinho: precisa 'python hub.py parar' + 'python hub.py iniciar'.
+    app.run(port=Config.API_PORT, debug=Config.DEBUG, use_reloader=False)

@@ -120,3 +120,13 @@ def _resolve_backend_path(value):
         return path
 
     return BASE_DIR / path
+
+
+def resolve_google_credentials_path():
+    """Caminho absoluto do credentials.json a partir do valor ATUAL do .env --
+    diferente de Config.GOOGLE_SERVICE_ACCOUNT_FILE, que so e lido uma vez
+    quando o processo Flask sobe. drive_service.py usa esta funcao (nao o
+    Config) exatamente pra pegar uma credencial trocada pela tela de
+    Configuracoes em tempo real, sem precisar reiniciar o backend."""
+    values = _read_env()
+    return _resolve_backend_path(values['GOOGLE_SERVICE_ACCOUNT_FILE'])

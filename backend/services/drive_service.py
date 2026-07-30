@@ -123,8 +123,11 @@ def _build_oauth_credentials():
 
 
 def _build_service_account_credentials():
+    # Le o caminho do credentials.json direto do .env a cada chamada (nao de Config, que so foi lido uma vez quando o processo subiu) -- assim uma credencial trocada pela tela de Configuracoes vale na hora, sem reiniciar.
+    from services.database_config_service import resolve_google_credentials_path  # import tardio: evita ciclo
+
     return service_account.Credentials.from_service_account_file(
-        Config.GOOGLE_SERVICE_ACCOUNT_FILE,
+        str(resolve_google_credentials_path()),
         scopes=Config.GOOGLE_DRIVE_SCOPES
     )
 

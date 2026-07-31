@@ -1,0 +1,165 @@
+/* ============================================================
+   HUB — Layout
+   Estrutura da casca do app: shell, sidebar, header/masthead,
+   cantinhos decorativos. Nada de tela especifica aqui.
+   ============================================================ */
+
+.app-shell { min-height: 100vh; }
+
+.app-body {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.app-main {
+  padding: 28px 32px 48px;
+  min-width: 0;
+}
+
+.content-stack {
+  display: grid;
+  gap: 20px;
+  margin-top: 24px;
+}
+
+/* ---------- Cantinhos decorativos ---------- */
+
+.corner {
+  position: fixed;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--accent-hover);
+  opacity: 0.5;
+  z-index: 10;
+}
+
+.corner-tl { top: 20px; left: 20px; border-right: none; border-bottom: none; }
+.corner-tr { top: 20px; right: 20px; border-left: none; border-bottom: none; }
+.corner-bl { bottom: 20px; left: 20px; border-right: none; border-top: none; }
+.corner-br { bottom: 20px; right: 20px; border-left: none; border-top: none; }
+
+@media (max-width: 620px) {
+  .corner { display: none; }
+}
+
+/* ---------- Sidebar ---------- */
+
+.sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 22px 14px;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+}
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 24px;
+  padding: 0 8px;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.sidebar-mark {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.sidebar-nav {
+  display: grid;
+  gap: 3px;
+}
+
+.sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  border-left: 2px solid transparent;
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.sidebar-link .sidebar-icon {
+  font-size: 15px;
+  width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.sidebar-link:hover {
+  background: var(--panel-hover);
+  color: var(--text);
+}
+
+.sidebar-link.active {
+  background: var(--accent-bg);
+  border-left-color: var(--accent);
+  color: var(--accent);
+}
+
+.sidebar-logout {
+  margin-top: auto;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-dim);
+  text-align: left;
+  cursor: pointer;
+}
+
+.sidebar-logout:hover {
+  border-color: var(--danger-border);
+  color: var(--danger);
+}
+
+/* ---------- Header (masthead) ---------- */
+
+.masthead {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.masthead-mark {
+  display: none;
+}
+
+.masthead-text .eyebrow {
+  display: block;
+  margin-bottom: 2px;
+}
+
+.masthead-text h1 {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}

@@ -1,0 +1,159 @@
+/* ============================================================
+   HUB — Clients
+   Pagina de detalhes do cliente (ClientDetailView.ts): colunas,
+   painel de info, secao de UCs (accordion reaproveitado do modal),
+   abas (Documentos + "em breve").
+   ============================================================ */
+
+.client-detail-view {
+  display: grid;
+  gap: 18px;
+}
+
+.detail-back-link {
+  width: fit-content;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.detail-back-link:hover {
+  color: var(--accent);
+}
+
+.detail-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+}
+
+.detail-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.detail-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.client-status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.client-status-badge.status-success {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.client-status-badge.status-warning {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.detail-info-panel,
+.detail-uc-section,
+.detail-tabs-panel {
+  padding: 18px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.detail-columns {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.85fr) minmax(420px, 1.15fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.detail-uc-section {
+  display: grid;
+  gap: 14px;
+}
+
+.detail-uc-section .uc-editor-list {
+  max-height: 460px;
+  overflow-y: auto;
+}
+
+.detail-info-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.detail-info-field {
+  display: grid;
+  gap: 6px;
+}
+
+.detail-info-label {
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.detail-info-value {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.detail-tabs-panel {
+  padding: 0;
+  overflow: hidden;
+}
+
+.detail-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 14px 18px 0;
+}
+
+.detail-tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  padding: 10px 4px;
+  color: var(--text-faint);
+  font-size: 13px;
+}
+
+.detail-tab.active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+
+.detail-tab.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.detail-tab.disabled:hover {
+  background: transparent;
+}
+
+@media (max-width: 620px) {
+  .detail-info-grid,
+  .uc-view-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-columns {
+    grid-template-columns: 1fr;
+  }
+}

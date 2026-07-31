@@ -1,0 +1,44 @@
+/* ============================================================
+   HUB — Design tokens
+   Variaveis de cor, raio de borda e fontes. Fonte de verdade unica
+   pro resto do design system -- nenhum outro arquivo CSS deve
+   declarar cor "solta", sempre via var(--...) daqui.
+   ============================================================ */
+
+:root {
+  --bg: #0b0f19;
+  --panel: #121826;
+  --panel-soft: #161d2d;
+  --panel-hover: #1b2334;
+  --border: #2a3650;
+  --border-soft: rgba(42, 54, 80, 0.6);
+  --text: #f1f5f9;
+  --text-dim: #94a3b8;
+  --text-faint: #64748b;
+
+  --accent: #f0713a;
+  --accent-hover: #e0611f;
+  --accent-bg: rgba(240, 113, 58, 0.1);
+  --accent-border: rgba(240, 113, 58, 0.25);
+
+  --success: #34d399;
+  --success-bg: rgba(52, 211, 153, 0.1);
+  --success-border: rgba(52, 211, 153, 0.2);
+
+  --warning: #fbbf24;
+  --warning-bg: rgba(251, 191, 36, 0.1);
+  --warning-border: rgba(251, 191, 36, 0.2);
+
+  --danger: #fb7185;
+  --danger-bg: rgba(251, 113, 133, 0.1);
+  --danger-border: rgba(251, 113, 133, 0.2);
+
+  --info: #818cf8;
+  --info-bg: rgba(129, 140, 248, 0.1);
+
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+}

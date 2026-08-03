@@ -167,6 +167,7 @@
   color: var(--text-faint);
 }
 
+.upload-dropzone .icon { width: 20px; height: 20px; }
 .upload-dropzone:hover:not(:disabled) {
   border-color: var(--accent);
   color: var(--accent);

@@ -1,14 +1,15 @@
 import { createElement } from '../dom';
 import { logout } from '../services/authService';
+import { createIcon, type IconName } from './Icon';
 
-const menuItems = [
-  { label: 'Documentos', path: '/documentos', icon: '📁' },
-  { label: 'Clientes', path: '/clientes', icon: '👥' },
-  { label: 'UCs', path: '/ucs', icon: '🔌' },
-  { label: 'Usinas', path: '/usinas', icon: '⚡' },
-  { label: 'Pendencias', path: '/pendencias', icon: '🕒' },
-  { label: 'Agenda', path: '/agenda', icon: '📅' },
-  { label: 'Configuracoes', path: '/configuracoes', icon: '⚙️' }
+const menuItems: Array<{ label: string; path: string; icon: IconName }> = [
+  { label: 'Documentos', path: '/documentos', icon: 'documents' },
+  { label: 'Clientes', path: '/clientes', icon: 'clients' },
+  { label: 'UCs', path: '/ucs', icon: 'ucs' },
+  { label: 'Usinas', path: '/usinas', icon: 'plants' },
+  { label: 'Pendencias', path: '/pendencias', icon: 'pending' },
+  { label: 'Agenda', path: '/agenda', icon: 'agenda' },
+  { label: 'Configuracoes', path: '/configuracoes', icon: 'settings' }
 ];
 
 export function createSidebar(): HTMLElement {
@@ -30,7 +31,7 @@ export function createSidebar(): HTMLElement {
     const link = createElement('a', {
       className: isActive ? 'sidebar-link active' : 'sidebar-link'
     });
-    const icon = createElement('span', { className: 'sidebar-icon', textContent: item.icon });
+    const icon = createIcon(item.icon, 'sidebar-icon');
     const label = createElement('span', { textContent: item.label });
 
     link.href = item.path;

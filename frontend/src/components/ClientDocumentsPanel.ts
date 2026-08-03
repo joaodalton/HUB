@@ -1,4 +1,5 @@
 import { createElement } from '../dom';
+import { createIcon } from './Icon';
 import { useToast } from '../hooks/useToast';
 import {
   deleteDocument,
@@ -31,7 +32,7 @@ export function createClientDocumentsPanel(clientId: number | undefined): HTMLEl
   const fileInput = createElement('input');
   const dropButton = createElement('button', { className: 'upload-dropzone', type: 'button' });
 
-  dropButton.innerHTML = uploadIconSvg();
+  dropButton.appendChild(createIcon('upload'));
   dropButton.setAttribute('aria-label', 'Adicionar documento');
   fileInput.type = 'file';
   fileInput.hidden = true;
@@ -86,7 +87,9 @@ export function createClientDocumentsPanel(clientId: number | undefined): HTMLEl
       const row = createElement('div', { className: 'client-document-row' });
       const name = createElement('input');
       const downloadButton = createElement('button', { className: 'secondary-button', textContent: 'Baixar', type: 'button' });
-      const deleteButton = createElement('button', { className: 'icon-button', textContent: 'x', type: 'button' });
+      const deleteButton = createElement('button', { className: 'icon-button', type: 'button' });
+
+      deleteButton.appendChild(createIcon('x'));
 
       name.value = doc.nome;
       name.addEventListener('change', async () => {
@@ -130,12 +133,4 @@ export function createClientDocumentsPanel(clientId: number | undefined): HTMLEl
   }
 
   return panel;
-}
-
-function uploadIconSvg(): string {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="20" height="20">
-    <path d="M12 16V4"/>
-    <path d="M7 9l5-5 5 5"/>
-    <path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>
-  </svg>`;
 }

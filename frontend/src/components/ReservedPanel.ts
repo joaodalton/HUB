@@ -1,4 +1,5 @@
 import { createElement, emptyState } from '../dom';
+import { createIcon } from './Icon';
 import { documentType, isFolder } from '../services/documentRules';
 import type { DriveItem } from '../types';
 
@@ -57,7 +58,7 @@ export function createReservedPanel(options: ReservedPanelOptions): {
     linkButton.disabled = downloadableCount === 0;
     openAllButton.disabled = items.length === 0;
     clearButton.disabled = items.length === 0;
-    
+
     if (items.length === 0) {
       list.appendChild(emptyState('Nenhum arquivo reservado ainda.', true));
       return;
@@ -68,7 +69,9 @@ export function createReservedPanel(options: ReservedPanelOptions): {
       const info = createElement('div', { className: 'reserved-info' });
       const link = createElement('a', { textContent: item.name });
       const meta = createElement('span', { textContent: documentType(item) });
-      const remove = createElement('button', { className: 'icon-button', textContent: 'x', type: 'button' });
+      const remove = createElement('button', { className: 'icon-button', type: 'button' });
+
+      remove.appendChild(createIcon('x'));
 
       link.href = item.webViewLink;
       link.target = '_blank';

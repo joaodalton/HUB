@@ -100,10 +100,8 @@
 }
 
 .sidebar-link .sidebar-icon {
-  font-size: 15px;
   width: 18px;
-  text-align: center;
-  flex-shrink: 0;
+  height: 18px;
 }
 
 .sidebar-link:hover {

@@ -28,6 +28,22 @@
   padding: 40px 20px;
 }
 
+/* ---------- Icon (Icon.ts) ---------- */
+/* Wrapper generico do componente de icone SVG. Tamanho e definido pelo
+   contexto de uso (.sidebar-icon, .icon-button .icon, .upload-dropzone .icon
+   etc.) -- aqui so o essencial pra svg herdar cor e preencher o wrapper. */
+
+.icon {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
 /* ---------- Page action row ---------- */
 
 .page-actions {

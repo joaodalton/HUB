@@ -54,7 +54,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   color: var(--text-dim);
   font-size: 12px;
 }
-.icon-button:hover { border-color: var(--danger-border); color: var(--danger); }
+.icon-button .icon { width: 14px; height: 14px; }
 
 .secondary-link {
   background: none;

@@ -12,6 +12,15 @@ export type PlantRow = {
   marcaInversor: string | null;
   telefoneProprietario: string | null;
   emailProprietario: string | null;
+  // Campos do mockup da reforma da tela de Usinas que ainda nao tem
+  // contrapartida no backend (Plant model / plant_service.py). Ficam
+  // opcionais e undefined ate serem adicionados la -- a UI mostra "-"
+  // quando ausentes. Nao inventar valor nenhum aqui.
+  cidade?: string;
+  uf?: string;
+  endereco?: string;
+  dataAtivacao?: string;
+  responsavel?: string;
 };
 
 export type PlantPayload = {
@@ -65,23 +74,46 @@ export async function deletePlant(id: number): Promise<void> {
   await apiRequest<ApiResponse<null>>(`/plants/${id}`, { method: 'DELETE' });
 }
 
-export function getPlantMetrics(plants: PlantRow[]) {
-  return [
-    { label: 'Total de usinas', value: String(plants.length) },
-    { label: 'Usinas online', value: String(plants.filter((item) => item.status === 'Online').length), tone: 'success' as const },
-    { label: 'Media geracao', value: getAveragePeakPower(plants) },
-    { label: 'Uso total', value: `${getUsedPlantPercent(plants)}%` }
-  ];
+// Status "cru" vem do backend (Online/Implantacao/Manutencao/Inativa, ver
+// PlantCard.ts). Esses dois helpers so cuidam da apresentacao (rotulo PT-BR +
+// cor) -- nao mudam o valor gravado, pra nao quebrar o formulario de edicao
+// nem dado ja salvo.
+export type PlantStatusTone = 'success' | 'warning' | 'danger' | 'neutral';
+
+const STATUS_LABELS: Record<string, string> = {
+  Online: 'Ativa',
+  Implantacao: 'Em Implantação',
+  Manutencao: 'Manutenção',
+  Inativa: 'Inativa'
+};
+
+const STATUS_TONES: Record<string, PlantStatusTone> = {
+  Online: 'success',
+  Implantacao: 'warning',
+  Manutencao: 'danger',
+  Inativa: 'neutral'
+};
+
+export function plantStatusLabel(status: string): string {
+  return STATUS_LABELS[status] ?? status;
 }
 
-function getAveragePeakPower(plants: PlantRow[]): string {
-  if (plants.length === 0) return '0 kWp';
-  const total = plants.reduce((sum, plant) => sum + Number(String(plant.kwPico).replace(',', '.')), 0);
-  return `${Math.round(total / plants.length)} kWp`;
+export function plantStatusTone(status: string): PlantStatusTone {
+  return STATUS_TONES[status] ?? 'neutral';
 }
 
-function getUsedPlantPercent(plants: PlantRow[]): number {
-  if (plants.length === 0) return 0;
-  const available = plants.reduce((sum, plant) => sum + plant.percentualDisponivel, 0) / plants.length;
-  return Math.max(0, Math.round(100 - available));
+export type PlantStatusSummary = {
+  total: number;
+  ativas: number;
+  emImplantacao: number;
+  manutencao: number;
+};
+
+export function getPlantStatusSummary(plants: PlantRow[]): PlantStatusSummary {
+  return {
+    total: plants.length,
+    ativas: plants.filter((plant) => plant.status === 'Online').length,
+    emImplantacao: plants.filter((plant) => plant.status === 'Implantacao').length,
+    manutencao: plants.filter((plant) => plant.status === 'Manutencao').length
+  };
 }

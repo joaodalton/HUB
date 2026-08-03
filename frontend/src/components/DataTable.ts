@@ -1,9 +1,13 @@
 import { createElement, statusTone } from '../dom';
 
 export type TableColumn<T> = {
-  key: keyof T;
+  key: string;
   label: string;
   align?: 'left' | 'right';
+  // Opcional: quando presente, ignora item[key] e desenha a celula do jeito
+  // que a pagina quiser (ex.: id+nome numa celula so, botao de acao). key
+  // continua obrigatorio (serve so de identificador da coluna nesse caso).
+  render?: (row: T) => HTMLElement | string;
 };
 
 type DataTableOptions<T> = {
@@ -57,10 +61,19 @@ export function createDataTable<T extends Record<string, unknown>>({
       }
 
       columns.forEach((column) => {
-        const value = String(item[column.key] ?? '');
-        const cell = createElement('td', { textContent: value });
+        const cell = createElement('td');
         if (column.align === 'right') cell.classList.add('align-right');
-        if (column.key === 'status') cell.appendChild(createStatusMark(value));
+
+        if (column.render) {
+          const rendered = column.render(item);
+          if (typeof rendered === 'string') cell.textContent = rendered;
+          else cell.appendChild(rendered);
+        } else {
+          const value = String(item[column.key] ?? '');
+          cell.textContent = value;
+          if (column.key === 'status') cell.appendChild(createStatusMark(value));
+        }
+
         row.appendChild(cell);
       });
 

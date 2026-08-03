@@ -139,7 +139,9 @@ function createUcViewCard(uc: ClientUc): HTMLElement {
   return card;
 }
 
-function createInfoField(label: string, value: string): HTMLElement {
+// Exportado -- PlantsPage.ts reaproveita pro mesmo padrao label/valor no
+// painel de informacoes da Usina, em vez de duplicar essa funcao.
+export function createInfoField(label: string, value: string): HTMLElement {
   const field = createElement('div', { className: 'detail-info-field' });
   field.append(
     createElement('span', { className: 'detail-info-label', textContent: label }),

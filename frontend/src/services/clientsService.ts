@@ -9,11 +9,22 @@ export type PlantConnection = {
 export type ClientUc = {
   id: number | string;
   codigo: string;
+  codigoAneel: string | null;
   apelido: string;
+  documento: string | null;
+  endereco: string | null;
+  cep: string | null;
+  concessionaria: string | null;
+  geracaoPropria: boolean;
+  diaEmissaoFatura: number | null;
   consumo: string;
   baseTarifaria: string;
   desconto: string;
   tipoLigacao: 'Monofasico' | 'Bifasico' | 'Trifasico';
+  inicioContrato: string | null;
+  terminoContrato: string | null;
+  carenciaMeses: number | null;
+  percentualDescontoCarencia: string | null;
   conexoes: PlantConnection[];
 };
 
@@ -35,6 +46,7 @@ export type ClientPayload = {
   nome: string;
   cpf: string;
   email: string;
+  telefone: string;
   concessionaria: string;
   ucs: ClientUc[];
 };

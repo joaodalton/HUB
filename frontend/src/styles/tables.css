@@ -34,6 +34,47 @@
 
 .metric-warning strong { color: var(--warning); }
 .metric-success strong { color: var(--success); }
+.metric-danger strong { color: var(--danger); }
+
+/* ---------- Metric card com icone (opcional, ver DashboardCards.ts) ---------- */
+
+.metric-card-icon {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+}
+
+.metric-icon-chip {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  background: var(--panel-soft);
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+.metric-icon-chip .icon { width: 16px; height: 16px; }
+
+.metric-success .metric-icon-chip { background: var(--success-bg); color: var(--success); }
+.metric-warning .metric-icon-chip { background: var(--warning-bg); color: var(--warning); }
+.metric-danger .metric-icon-chip { background: var(--danger-bg); color: var(--danger); }
+
+.metric-text { display: grid; gap: 2px; }
+
+/* ---------- Metric card clicavel (opcional, funciona como filtro) ---------- */
+
+.metric-card-interactive {
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  width: 100%;
+}
+.metric-card-interactive:hover { border-color: var(--accent-border); background: var(--panel-hover); }
+.metric-card-interactive.active {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
 
 .data-panel-scroll {
   display: flex;
@@ -114,6 +155,8 @@
 }
 .status-dot.status-success { background: var(--success); }
 .status-dot.status-warning { background: var(--warning); }
+.status-dot.status-danger { background: var(--danger); }
+.status-dot.status-neutral { background: var(--text-faint); }
 
 /* Status badge (pill), usado no painel de detalhe */
 .status-badge {

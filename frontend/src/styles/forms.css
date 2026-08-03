@@ -45,6 +45,21 @@
   border-color: var(--accent-border);
 }
 
+.form-field-checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.form-field-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  background: none;
+  accent-color: var(--accent);
+  flex-shrink: 0;
+}
+
 .tariff-label {
   display: inline-flex;
   align-items: center;

@@ -3,21 +3,83 @@
 > vite --host 127.0.0.1 --port 5173
 
 
-  [32m[1mVITE[22m v5.4.21[39m  [2mready in [0m[1m517[22m[2m[0m ms[22m
+  [32m[1mVITE[22m v5.4.21[39m  [2mready in [0m[1m513[22m[2m[0m ms[22m
 
   [32m➜[39m  [1mLocal[22m:   [36mhttp://127.0.0.1:[1m5173[22m/[39m
 [2m[32m  ➜[39m[22m[2m  press [22m[1mh + enter[22m[2m to show help[22m
-[2m21:45:39[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/components/Sidebar.ts[22m
-[2m21:45:39[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/components/Sidebar.ts[22m
-[2m21:45:48[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/components/Sidebar.ts[22m
-[2m21:47:39[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/components/Sidebar.ts[22m
-[2m21:48:41[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/components/ReservedPanel.ts[22m
-[2m21:48:59[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/components/ReservedPanel.ts[22m
-[2m21:49:23[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/components/ClientDocumentsPanel.ts[22m
-[2m21:49:31[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/components/ClientDocumentsPanel.ts[22m
-[2m21:49:38[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/components/ClientDocumentsPanel.ts[22m
-[2m21:50:10[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/components/ClientDocumentsPanel.ts[22m
-[2m21:50:28[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/styles/app.css[22m
-[2m21:50:43[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/styles/app.css[22m
-[2m21:50:52[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/styles/app.css[22m
-[2m21:51:22[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/styles/app.css[22m
+[2m07:51:19[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mindex.html[22m
+[2m07:51:19[22m [36m[1m[vite][22m[39m [32mvite.config.ts changed, restarting server...[39m
+[2m07:51:19[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/dom.ts[22m
+[2m07:51:19[22m [36m[1m[vite][22m[39m changed tsconfig file detected: C:\Users\deadj\Desktop\Vscode\HUB\frontend\tsconfig.json - Clearing cache and forcing full-reload to ensure TypeScript is compiled with updated config values.
+[2m07:51:19[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/main.ts[22m
+[2m07:51:19[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/components/Toast.ts[22m
+[2m07:51:19[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/components/UcCard.ts[22m
+[2m07:51:19[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/components/SearchPanel.ts[22m
+[2m07:51:19[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/components/PlantConnectionsField.ts[22m
+[2m07:51:19[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/components/ErrorBoundary.ts[22m
+[2m07:51:19[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/components/ReservedPanel.ts[22m
+[2m07:51:19[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/components/Icon.ts[22m
+[2m07:51:19[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/components/DataTable.ts[22m
+[2m07:51:19[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/components/Sidebar.ts[22m
+[2m07:51:19[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/components/Loading.ts[22m
+Re-optimizing dependencies because lockfile has changed
+[2m07:51:19[22m [36m[1m[vite][22m[39m server restarted.
+[2m08:09:27[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/styles/app.css[22m
+[2m08:09:38[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/styles/app.css[22m
+[2m08:10:04[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/services/clientsService.ts[22m
+[2m08:10:13[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/services/clientsService.ts[22m
+[2m08:10:32[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/services/clientsService.ts[22m
+[2m08:10:57[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/services/ucsService.ts[22m
+[2m08:11:52[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/pages/ClientsPage.ts[22m
+[2m08:11:53[22m [31m[1m[vite][22m[39m Pre-transform error: Transform failed with 1 error:
+C:/Users/deadj/Desktop/Vscode/HUB/frontend/src/pages/ClientsPage.ts:199:1: ERROR: Expected "finally" but found ";"
+[2m08:11:53[22m [31m[1m[vite][22m[39m [31mInternal server error: Transform failed with 1 error:
+C:/Users/deadj/Desktop/Vscode/HUB/frontend/src/pages/ClientsPage.ts:199:1: ERROR: Expected "finally" but found ";"[39m
+  Plugin: [35mvite:esbuild[39m
+  File: [36mC:/Users/deadj/Desktop/Vscode/HUB/frontend/src/pages/ClientsPage.ts[39m:199:1
+[33m  
+  [33mExpected "finally" but found ";"[33m
+  197|          ucs: data.ucs
+  198|        };  
+  199|  };
+     |   ^
+  200|  
+  201|        if (selectedClient) {
+  [39m
+      at failureErrorWithLog (C:\Users\deadj\Desktop\Vscode\HUB\frontend\node_modules\esbuild\lib\main.js:1472:15)
+      at C:\Users\deadj\Desktop\Vscode\HUB\frontend\node_modules\esbuild\lib\main.js:755:50
+      at responseCallbacks.<computed> (C:\Users\deadj\Desktop\Vscode\HUB\frontend\node_modules\esbuild\lib\main.js:622:9)
+      at handleIncomingPacket (C:\Users\deadj\Desktop\Vscode\HUB\frontend\node_modules\esbuild\lib\main.js:677:12)
+      at Socket.readFromStdout (C:\Users\deadj\Desktop\Vscode\HUB\frontend\node_modules\esbuild\lib\main.js:600:7)
+      at Socket.emit (node:events:509:28)
+      at addChunk (node:internal/streams/readable:563:12)
+      at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+      at Readable.push (node:internal/streams/readable:394:5)
+      at Pipe.onStreamRead (node:internal/stream_base_commons:189:23)
+[2m08:11:54[22m [31m[1m[vite][22m[39m [31mInternal server error: Transform failed with 1 error:
+C:/Users/deadj/Desktop/Vscode/HUB/frontend/src/pages/ClientsPage.ts:199:1: ERROR: Expected "finally" but found ";"[39m
+  Plugin: [35mvite:esbuild[39m
+  File: [36mC:/Users/deadj/Desktop/Vscode/HUB/frontend/src/pages/ClientsPage.ts[39m:199:1
+[33m  
+  [33mExpected "finally" but found ";"[33m
+  197|          ucs: data.ucs
+  198|        };  
+  199|  };
+     |   ^
+  200|  
+  201|        if (selectedClient) {
+  [39m
+      at failureErrorWithLog (C:\Users\deadj\Desktop\Vscode\HUB\frontend\node_modules\esbuild\lib\main.js:1472:15)
+      at C:\Users\deadj\Desktop\Vscode\HUB\frontend\node_modules\esbuild\lib\main.js:755:50
+      at responseCallbacks.<computed> (C:\Users\deadj\Desktop\Vscode\HUB\frontend\node_modules\esbuild\lib\main.js:622:9)
+      at handleIncomingPacket (C:\Users\deadj\Desktop\Vscode\HUB\frontend\node_modules\esbuild\lib\main.js:677:12)
+      at Socket.readFromStdout (C:\Users\deadj\Desktop\Vscode\HUB\frontend\node_modules\esbuild\lib\main.js:600:7)
+      at Socket.emit (node:events:509:28)
+      at addChunk (node:internal/streams/readable:563:12)
+      at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+      at Readable.push (node:internal/streams/readable:394:5)
+      at Pipe.onStreamRead (node:internal/stream_base_commons:189:23)
+[2m08:12:04[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/pages/ClientsPage.ts[22m
+[2m08:15:56[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/components/ClientCard.ts[22m
+[2m08:16:12[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/components/UcCard.ts[22m
+[2m08:16:18[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/components/PlantCard.ts[22m

@@ -10,7 +10,5 @@
 @import './settings.css';
 @import './login.css';
 @import './agenda.css';
+@import './plants.css';
 @import './shared.css';
-
-/* _unused-drafts.css fica de fora do import de proposito -- nao pesa
-   no bundle. Ver o topo daquele arquivo pra saber o porque. */

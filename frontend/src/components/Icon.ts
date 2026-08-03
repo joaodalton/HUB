@@ -14,7 +14,11 @@ export type IconName =
   | 'agenda'
   | 'settings'
   | 'upload'
-  | 'x';
+  | 'x'
+  | 'more'
+  | 'edit'
+  | 'trash'
+  | 'plus';
 
 const paths: Record<IconName, string> = {
   documents: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>',
@@ -25,7 +29,11 @@ const paths: Record<IconName, string> = {
   agenda: '<rect x="3.5" y="4.5" width="17" height="16" rx="2"/><path d="M3.5 9.5h17M8 3v3M16 3v3"/>',
   settings: '<path d="M4 6h9M17 6h3"/><circle cx="14" cy="6" r="2"/><path d="M4 12h3M11 12h9"/><circle cx="8" cy="12" r="2"/><path d="M4 18h9M17 18h3"/><circle cx="14" cy="18" r="2"/>',
   upload: '<path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>',
-  x: '<path d="M6 6l12 12M18 6 6 18"/>'
+  x: '<path d="M6 6l12 12M18 6 6 18"/>',
+  more: '<circle cx="12" cy="5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="19" r="1.4"/>',
+  edit: '<path d="M4 20h4l10.5-10.5a2 2 0 0 0 0-2.8l-1.2-1.2a2 2 0 0 0-2.8 0L4 17v3z"/><path d="M13 5.5 18.5 11"/>',
+  trash: '<path d="M4 7h16"/><path d="M9 7V4.5A1.5 1.5 0 0 1 10.5 3h3A1.5 1.5 0 0 1 15 4.5V7"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/><path d="M10 11v6M14 11v6"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>'
 };
 
 function markup(name: IconName): string {

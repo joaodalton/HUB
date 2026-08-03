@@ -192,9 +192,11 @@ export function createClientsPage(): HTMLElement {
         nome: data.nome,
         cpf: data.cpf,
         email: data.email,
+        telefone: data.telefone,
         concessionaria: data.concessionaria,
         ucs: data.ucs
-      };
+      };  
+
 
       if (selectedClient) {
         await updateClient(selectedClient.id, payload);

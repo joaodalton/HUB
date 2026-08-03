@@ -58,7 +58,7 @@ export function createReservedPanel(options: ReservedPanelOptions): {
     linkButton.disabled = downloadableCount === 0;
     openAllButton.disabled = items.length === 0;
     clearButton.disabled = items.length === 0;
-
+    
     if (items.length === 0) {
       list.appendChild(emptyState('Nenhum arquivo reservado ainda.', true));
       return;

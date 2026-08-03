@@ -1,5 +1,6 @@
 import { createElement } from '../dom';
 import { createClientDocumentsPanel } from './ClientDocumentsPanel';
+import { createCheckboxField, createInput, createSelect } from './formFields';
 import { createPlantConnections, createTariffSelect } from './PlantConnectionsField';
 import { concessionarias, type ClientRow, type ClientUc } from '../services/clientsService';
 import type { PlantRow } from '../services/plantService';
@@ -8,6 +9,7 @@ export type ClientFormData = {
   nome: string;
   cpf: string;
   email: string;
+  telefone: string;
   concessionaria: string;
   ucs: ClientUc[];
 };
@@ -51,6 +53,7 @@ export function createClientCard({
   const fields = createElement('div', { className: 'form-grid' });
   const nome = createInput('Nome', 'text', client?.nome ?? '', true);
   const cpf = createInput('CPF', 'text', client?.cpf ?? '', true);
+  const telefone = createInput('Telefone', 'tel', client?.telefone ?? '', false);
   const email = createInput('Email', 'email', client?.email ?? '', true);
   const concessionaria = createSelect('Concessionaria', client?.concessionaria ?? concessionarias[0], concessionarias);
   const documentsPanel = createClientDocumentsPanel(client?.id);
@@ -60,7 +63,7 @@ export function createClientCard({
 
   titleText.append(eyebrow, heading);
   header.append(titleText, closeButton);
-  fields.append(nome.field, cpf.field, email.field, concessionaria.field);
+  fields.append(nome.field, cpf.field, telefone.field, email.field, concessionaria.field);
   actions.appendChild(saveButton);
 
   if (isEditing && onDelete) {
@@ -97,6 +100,7 @@ export function createClientCard({
       nome: nome.input.value.trim(),
       cpf: cpf.input.value.trim(),
       email: email.input.value.trim(),
+      telefone: telefone.input.value.trim(),
       concessionaria: concessionaria.select.value,
       ucs: currentUcs.filter((uc) => uc.codigo.trim())
     });
@@ -113,35 +117,6 @@ export function createClientCard({
 
   overlay.appendChild(panel);
   return overlay;
-}
-
-function createInput(label: string, type: string, value: string, required: boolean) {
-  const field = createElement('label', { className: 'form-field' });
-  const text = createElement('span', { textContent: label });
-  const input = createElement('input');
-
-  input.type = type;
-  input.value = value;
-  input.required = required;
-
-  field.append(text, input);
-  return { field, input };
-}
-
-function createSelect<T extends string>(label: string, value: T, options: T[]) {
-  const field = createElement('label', { className: 'form-field' });
-  const text = createElement('span', { textContent: label });
-  const select = createElement('select');
-
-  options.forEach((optionValue) => {
-    const option = createElement('option', { textContent: optionValue });
-    option.value = optionValue;
-    select.appendChild(option);
-  });
-
-  select.value = value;
-  field.append(text, select);
-  return { field, select };
 }
 
 function createUcPanel(ucs: ClientUc[], availablePlants: PlantRow[]): HTMLElement {
@@ -197,12 +172,25 @@ function createUcEditor(uc: ClientUc, availablePlants: PlantRow[], onRemove: () 
   const summaryMeta = createElement('span', { textContent: uc.apelido || 'Mais informacoes' });
   const body = createElement('div', { className: 'uc-editor-body' });
   const grid = createElement('div', { className: 'uc-editor-grid' });
+
   const codigo = createInput('UC', 'text', uc.codigo, false);
+  const codigoAneel = createInput('Codigo ANEEL', 'text', uc.codigoAneel ?? '', false);
   const apelido = createInput('Subnome', 'text', uc.apelido, false);
+  const documento = createInput('CPF/CNPJ da UC', 'text', uc.documento ?? '', false);
+  const endereco = createInput('Endereco', 'text', uc.endereco ?? '', false);
+  const cep = createInput('CEP', 'text', uc.cep ?? '', false);
+  const concessionariaUc = createInput('Concessionaria', 'text', uc.concessionaria ?? '', false);
   const consumo = createInput('Consumo', 'text', uc.consumo, false);
   const baseTarifaria = createTariffSelect(uc.baseTarifaria);
   const desconto = createInput('Desconto (%)', 'text', uc.desconto, false);
   const tipoLigacao = createSelect('Ligacao', uc.tipoLigacao, ['Monofasico', 'Bifasico', 'Trifasico']);
+  const geracaoPropria = createCheckboxField('Geracao propria', uc.geracaoPropria);
+  const diaEmissaoFatura = createInput('Dia de emissao da fatura', 'number', uc.diaEmissaoFatura != null ? String(uc.diaEmissaoFatura) : '', false);
+  const inicioContrato = createInput('Inicio do contrato', 'date', uc.inicioContrato ?? '', false);
+  const terminoContrato = createInput('Termino do contrato', 'date', uc.terminoContrato ?? '', false);
+  const carenciaMeses = createInput('Carencia (meses)', 'number', uc.carenciaMeses != null ? String(uc.carenciaMeses) : '', false);
+  const percentualDescontoCarencia = createInput('Desconto na carencia (%)', 'text', uc.percentualDescontoCarencia ?? '', false);
+
   const removeButton = createElement('button', {
     className: 'danger-button',
     textContent: 'Remover UC',
@@ -210,29 +198,63 @@ function createUcEditor(uc: ClientUc, availablePlants: PlantRow[], onRemove: () 
   });
   const plantArea = createPlantConnections(uc, availablePlants);
 
+  diaEmissaoFatura.input.min = '1';
+  diaEmissaoFatura.input.max = '31';
+  carenciaMeses.input.min = '0';
+
   codigo.input.addEventListener('input', () => {
     uc.codigo = codigo.input.value;
     summaryTitle.textContent = uc.codigo || 'Nova UC';
   });
+  codigoAneel.input.addEventListener('input', () => { uc.codigoAneel = codigoAneel.input.value || null; });
   apelido.input.addEventListener('input', () => {
     uc.apelido = apelido.input.value;
     summaryMeta.textContent = uc.apelido || 'Mais informacoes';
   });
+  documento.input.addEventListener('input', () => { uc.documento = documento.input.value || null; });
+  endereco.input.addEventListener('input', () => { uc.endereco = endereco.input.value || null; });
+  cep.input.addEventListener('input', () => { uc.cep = cep.input.value || null; });
+  concessionariaUc.input.addEventListener('input', () => { uc.concessionaria = concessionariaUc.input.value || null; });
   consumo.input.addEventListener('input', () => { uc.consumo = consumo.input.value; });
   baseTarifaria.select.addEventListener('change', () => { uc.baseTarifaria = baseTarifaria.select.value; });
   desconto.input.addEventListener('input', () => { uc.desconto = desconto.input.value; });
   tipoLigacao.select.addEventListener('change', () => {
     uc.tipoLigacao = tipoLigacao.select.value as ClientUc['tipoLigacao'];
   });
+  geracaoPropria.input.addEventListener('change', () => { uc.geracaoPropria = geracaoPropria.input.checked; });
+  diaEmissaoFatura.input.addEventListener('input', () => {
+    const raw = diaEmissaoFatura.input.value.trim();
+    uc.diaEmissaoFatura = raw ? Number(raw) : null;
+  });
+  inicioContrato.input.addEventListener('input', () => { uc.inicioContrato = inicioContrato.input.value || null; });
+  terminoContrato.input.addEventListener('input', () => { uc.terminoContrato = terminoContrato.input.value || null; });
+  carenciaMeses.input.addEventListener('input', () => {
+    const raw = carenciaMeses.input.value.trim();
+    uc.carenciaMeses = raw ? Number(raw) : null;
+  });
+  percentualDescontoCarencia.input.addEventListener('input', () => {
+    uc.percentualDescontoCarencia = percentualDescontoCarencia.input.value || null;
+  });
   removeButton.addEventListener('click', onRemove);
 
   grid.append(
     codigo.field,
+    codigoAneel.field,
     apelido.field,
+    documento.field,
+    endereco.field,
+    cep.field,
+    concessionariaUc.field,
     consumo.field,
     baseTarifaria.field,
     desconto.field,
-    tipoLigacao.field
+    tipoLigacao.field,
+    geracaoPropria.field,
+    diaEmissaoFatura.field,
+    inicioContrato.field,
+    terminoContrato.field,
+    carenciaMeses.field,
+    percentualDescontoCarencia.field
   );
   summary.append(summaryTitle, summaryMeta);
   body.append(grid, plantArea, removeButton);
@@ -245,11 +267,22 @@ function createEmptyUc(): ClientUc {
   return {
     id: crypto.randomUUID(),
     codigo: '',
+    codigoAneel: null,
     apelido: '',
+    documento: null,
+    endereco: null,
+    cep: null,
+    concessionaria: null,
+    geracaoPropria: false,
+    diaEmissaoFatura: null,
     consumo: '',
     baseTarifaria: 'B1',
     desconto: '',
     tipoLigacao: 'Monofasico',
+    inicioContrato: null,
+    terminoContrato: null,
+    carenciaMeses: null,
+    percentualDescontoCarencia: null,
     conexoes: []
   };
 }

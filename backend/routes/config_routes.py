@@ -11,7 +11,7 @@ from services.drive_service import invalidate_drive_cache
 from utils.api_response import error_response, success_response
 
 
-config_routes = Blueprint('config_routes', __name__, url_prefix='/config')
+config_routes = Blueprint('config_routes', __name__, url_prefix='/api/v1/config')
 
 
 @config_routes.route('/database')

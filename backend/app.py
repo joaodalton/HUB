@@ -52,9 +52,9 @@ def create_app() -> Flask:
 
     from utils.auth import register_auth_middleware
     register_auth_middleware(app, public_paths={
-        '/', '/auth/login', '/auth/bootstrap',
+        '/', '/api/v1/auth/login', '/api/v1/auth/bootstrap',
         # navegacao direta do navegador (redirect), nunca carrega o Bearer token do HUB
-        '/oauth/google/authorize', '/oauth/google/callback'
+        '/api/v1/oauth/google/authorize', '/api/v1/oauth/google/callback'
     })
 
     return app

@@ -12,15 +12,11 @@ export type PlantRow = {
   marcaInversor: string | null;
   telefoneProprietario: string | null;
   emailProprietario: string | null;
-  // Campos do mockup da reforma da tela de Usinas que ainda nao tem
-  // contrapartida no backend (Plant model / plant_service.py). Ficam
-  // opcionais e undefined ate serem adicionados la -- a UI mostra "-"
-  // quando ausentes. Nao inventar valor nenhum aqui.
-  cidade?: string;
-  uf?: string;
-  endereco?: string;
-  dataAtivacao?: string;
-  responsavel?: string;
+  cidade: string;
+  uf: string;
+  endereco: string;
+  dataAtivacao: string;
+  responsavel: string;
 };
 
 export type PlantPayload = {
@@ -29,13 +25,17 @@ export type PlantPayload = {
   kwPico: string;
   status: string;
   percentualDisponivel: number;
-  // Opcionais: PlantCard.ts ainda nao expoe esses campos no formulario
-  // (adiamento registrado no PROGRESS.md, junto da reforma geral do frontend).
-  // Backend ja aceita ausencia dessas chaves (mantem o valor atual no update,
-  // grava null na criacao), entao nao precisam ser obrigatorias aqui.
   marcaInversor?: string | null;
   telefoneProprietario?: string | null;
   emailProprietario?: string | null;
+  // Opcionais -- backend aceita ausencia (mantem valor atual no update,
+  // grava null na criacao). PlantCard.ts sempre manda string (mesmo vazia),
+  // mas o tipo fica opcional aqui pra nao quebrar quem ainda nao envia.
+  cidade?: string | null;
+  uf?: string | null;
+  endereco?: string | null;
+  dataAtivacao?: string | null;
+  responsavel?: string | null;
 };
 
 type ApiResponse<T> = {

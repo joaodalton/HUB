@@ -16,6 +16,11 @@ class Plant(db.Model):
     marca_inversor = db.Column(db.String(100), nullable=True)
     telefone_proprietario = db.Column(db.String(20), nullable=True)
     email_proprietario = db.Column(db.String(150), nullable=True)
+    cidade = db.Column(db.String(100), nullable=True)
+    uf = db.Column(db.String(2), nullable=True)
+    endereco = db.Column(db.String(255), nullable=True)
+    data_ativacao = db.Column(db.Date, nullable=True)
+    responsavel = db.Column(db.String(150), nullable=True)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -37,5 +42,10 @@ class Plant(db.Model):
             'percentualDisponivel': self.percentual_disponivel,
             'marcaInversor': self.marca_inversor,
             'telefoneProprietario': self.telefone_proprietario,
-            'emailProprietario': self.email_proprietario
+            'emailProprietario': self.email_proprietario,
+            'cidade': self.cidade,
+            'uf': self.uf,
+            'endereco': self.endereco,
+            'dataAtivacao': self.data_ativacao.isoformat() if self.data_ativacao else None,
+            'responsavel': self.responsavel
         }

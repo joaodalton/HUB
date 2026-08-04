@@ -131,16 +131,18 @@ Sem body. Cascade nas conexões. 404 se não existir.
   "id": 1, "nome": "", "uc": "", "kwPico": 0.0,
   "mediaGeracao": "0 kWp", "status": "Implantacao",
   "percentualDisponivel": 0, "marcaInversor": null,
-  "telefoneProprietario": null, "emailProprietario": null
+  "telefoneProprietario": null, "emailProprietario": null,
+  "cidade": null, "uf": null, "endereco": null,
+  "dataAtivacao": null, "responsavel": null
 }
 ```
+`dataAtivacao` em `YYYY-MM-DD`. `uf` é sigla (2 caracteres), sem validação contra lista de UFs por enquanto.
 `percentualDisponivel` é **manual** — não é recalculado a partir das conexões existentes (decisão registrada em `PROGRESS.md`, revisar só quando o rateio automático da V3.0 existir).
 
 ### `GET /plants/<id>` — `data` = `Plant`. 404 se não existir.
 
 ### `POST /plants`
-Body obrigatório: `nome`. Aceita todos os campos do objeto acima (`uc`, `kwPico`, `status`, `percentualDisponivel`, `marcaInversor`, `telefoneProprietario`, `emailProprietario`).
-Sucesso (201): `data` = `Plant`.
+Body obrigatório: `nome`. Aceita todos os campos do objeto acima (`uc`, `kwPico`, `status`, `percentualDisponivel`, `marcaInversor`, `telefoneProprietario`, `emailProprietario`, `cidade`, `uf`, `endereco`, `dataAtivacao`, `responsavel`).
 
 ### `PUT /plants/<id>` — mesmo body, todos opcionais. 404 se não existir.
 

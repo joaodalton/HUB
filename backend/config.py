@@ -24,7 +24,7 @@ class Config:
     # Client ID/Secret vem do Google Cloud Console -- ver README pra passo a passo.
     GOOGLE_OAUTH_CLIENT_ID = os.getenv('GOOGLE_OAUTH_CLIENT_ID', '')
     GOOGLE_OAUTH_CLIENT_SECRET = os.getenv('GOOGLE_OAUTH_CLIENT_SECRET', '')
-    GOOGLE_OAUTH_REDIRECT_URI = os.getenv('GOOGLE_OAUTH_REDIRECT_URI', 'http://localhost:8000/oauth/google/callback')
+    GOOGLE_OAUTH_REDIRECT_URI = os.getenv('GOOGLE_OAUTH_REDIRECT_URI', 'http://localhost:8000/api/v1/oauth/google/callback')
     # Pra onde redirecionar de volta depois do callback do Google (a SPA do frontend, nao o backend).
     FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
     SQL_DRIVER = os.getenv('SQL_DRIVER', '')

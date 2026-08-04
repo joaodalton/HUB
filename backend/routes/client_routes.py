@@ -10,7 +10,7 @@ from services.client_service import (
 from utils.api_response import error_response, success_response
 
 
-client_routes = Blueprint('client_routes', __name__, url_prefix='/clients')
+client_routes = Blueprint('client_routes', __name__, url_prefix='/api/v1/clients')
 
 
 @client_routes.route('', methods=['GET'])

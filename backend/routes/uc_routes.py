@@ -5,7 +5,7 @@ from services.uc_service import create_uc, delete_uc, get_uc, list_ucs, update_u
 from utils.api_response import error_response, success_response
 
 
-uc_routes = Blueprint('uc_routes', __name__, url_prefix='/ucs')
+uc_routes = Blueprint('uc_routes', __name__, url_prefix='/api/v1/ucs')
 
 
 @uc_routes.route('', methods=['GET'])

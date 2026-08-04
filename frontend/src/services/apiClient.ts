@@ -30,7 +30,7 @@ async function readErrorMessage(response: Response): Promise<string> {
 }
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const response = await fetch(`${config.apiBaseUrl}${path}`, {
+  const response = await fetch(`${config.apiBaseUrl}${config.apiPrefix}${path}`, {
     ...options,
     headers: buildHeaders(options.headers),
     body: options.body ? JSON.stringify(options.body) : undefined
@@ -48,7 +48,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 }
 
 export async function apiBlob(path: string, options: RequestOptions = {}): Promise<Blob> {
-  const response = await fetch(`${config.apiBaseUrl}${path}`, {
+  const response = await fetch(`${config.apiBaseUrl}${config.apiPrefix}${path}`, {
     ...options,
     headers: buildHeaders(options.headers),
     body: options.body ? JSON.stringify(options.body) : undefined
@@ -71,7 +71,7 @@ export async function apiBlob(path: string, options: RequestOptions = {}): Promi
 export async function apiUpload<T>(path: string, formData: FormData): Promise<T> {
   const token = getToken();
 
-  const response = await fetch(`${config.apiBaseUrl}${path}`, {
+  const response = await fetch(`${config.apiBaseUrl}${config.apiPrefix}${path}`, {
     method: 'POST',
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {})

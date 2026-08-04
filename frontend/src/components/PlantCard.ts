@@ -11,6 +11,11 @@ export type PlantFormData = {
   marcaInversor: string;
   telefoneProprietario: string;
   emailProprietario: string;
+  cidade: string;
+  uf: string;
+  endereco: string;
+  dataAtivacao: string;
+  responsavel: string;
 };
 
 type PlantCardOptions = {
@@ -49,12 +54,18 @@ export function createPlantCard({ plant, onSave, onCancel, onDelete }: PlantCard
   const marcaInversor = createInput('Marca do inversor', 'text', plant?.marcaInversor ?? '', false);
   const telefoneProprietario = createInput('Telefone do proprietario', 'tel', plant?.telefoneProprietario ?? '', false);
   const emailProprietario = createInput('Email do proprietario', 'email', plant?.emailProprietario ?? '', false);
+  const cidade = createInput('Cidade', 'text', plant?.cidade ?? '', false);
+  const uf = createInput('UF', 'text', plant?.uf ?? '', false);
+  const endereco = createInput('Endereco', 'text', plant?.endereco ?? '', false);
+  const dataAtivacao = createInput('Data de ativacao', 'date', plant?.dataAtivacao ?? '', false);
+  const responsavel = createInput('Responsavel', 'text', plant?.responsavel ?? '', false);
   const actions = createElement('div', { className: 'form-actions' });
   const saveButton = createElement('button', { textContent: 'Salvar usina', type: 'submit' });
 
   kwPico.input.min = '0';
   percentualDisponivel.input.min = '0';
   percentualDisponivel.input.max = '100';
+  uf.input.maxLength = 2;
 
   titleText.append(eyebrow, heading);
   header.append(titleText, closeButton);
@@ -66,7 +77,12 @@ export function createPlantCard({ plant, onSave, onCancel, onDelete }: PlantCard
     percentualDisponivel.field,
     marcaInversor.field,
     telefoneProprietario.field,
-    emailProprietario.field
+    emailProprietario.field,
+    cidade.field,
+    uf.field,
+    endereco.field,
+    dataAtivacao.field,
+    responsavel.field
   );
   actions.appendChild(saveButton);
 
@@ -103,7 +119,12 @@ export function createPlantCard({ plant, onSave, onCancel, onDelete }: PlantCard
       percentualDisponivel: clampPercent(Number(percentualDisponivel.input.value)),
       marcaInversor: marcaInversor.input.value.trim(),
       telefoneProprietario: telefoneProprietario.input.value.trim(),
-      emailProprietario: emailProprietario.input.value.trim()
+      emailProprietario: emailProprietario.input.value.trim(),
+      cidade: cidade.input.value.trim(),
+      uf: uf.input.value.trim().toUpperCase(),
+      endereco: endereco.input.value.trim(),
+      dataAtivacao: dataAtivacao.input.value,
+      responsavel: responsavel.input.value.trim()
     });
   });
 

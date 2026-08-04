@@ -5,7 +5,7 @@ from services.log_service import LogService
 from utils.api_response import success_response
 
 
-log_routes = Blueprint('log_routes', __name__, url_prefix='/logs')
+log_routes = Blueprint('log_routes', __name__, url_prefix='/api/v1/logs')
 
 
 # GET /logs?limit=50&nivel=warning -- lista os logs mais recentes (mais novo primeiro).

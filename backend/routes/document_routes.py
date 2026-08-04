@@ -13,10 +13,10 @@ from services.document_service import (
 from utils.api_response import error_response, success_response
 
 
-document_routes = Blueprint('document_routes', __name__, url_prefix='/documents')
+document_routes = Blueprint('document_routes', __name__, url_prefix='/api/v1/documents')
 
 
-# GET /documents?clienteId=1&ucId=2 -- lista documentos, filtro opcional por cliente/UC
+# GET /api/v1/documents?clienteId=1&ucId=2 -- lista documentos, filtro opcional por cliente/UC
 @document_routes.route('', methods=['GET'])
 def index():
     client_id = request.args.get('clienteId', type=int)
@@ -34,7 +34,7 @@ def show(document_id: int):
     return success_response(document.to_dict())
 
 
-# POST /documents -- multipart/form-data. Campos: arquivo (file), nome, clienteId, ucId, categoriaId
+# POST /api/v1/documents -- multipart/form-data. Campos: arquivo (file), nome, clienteId, ucId, categoriaId
 @document_routes.route('', methods=['POST'])
 def store():
     if 'arquivo' not in request.files or not request.files['arquivo'].filename:
@@ -55,7 +55,7 @@ def store():
     return success_response(document, 'Documento enviado.', 201)
 
 
-# POST /documents/drive-link -- Body JSON: {nome, driveFileId, categoriaId, clienteId?, ucId?, mimeType?}
+# POST /api/v1/documents/drive-link -- Body JSON: {nome, driveFileId, categoriaId, clienteId?, ucId?, mimeType?}
 # Vincula um arquivo que ja esta no Google Drive a um cliente/UC sem copiar/mover
 # o arquivo -- so cria o registro em Document apontando pro fileId do Drive.
 @document_routes.route('/drive-link', methods=['POST'])
@@ -75,10 +75,10 @@ def link_from_drive():
     return success_response(document, 'Documento vinculado.', 201)
 
 
-# PUT /documents/<id> -- Body: {nome}. So renomeia, nao troca o arquivo.
+# PUT /api/v1/documents/<id> -- Body: {nome}. So renomeia, nao troca o arquivo.
 
 
-# PUT /documents/<id> -- Body: {nome}. So renomeia, nao troca o arquivo.
+# PUT /api/v1/documents/<id> -- Body: {nome}. So renomeia, nao troca o arquivo.
 @document_routes.route('/<int:document_id>', methods=['PUT'])
 def rename(document_id: int):
     data = request.get_json(silent=True) or {}

@@ -41,54 +41,21 @@
   align-items: center;
 }
 
-/* ---------- Menu de acao (3 pontinhos) nas linhas da tabela ---------- */
+/* ---------- Acoes da linha (ver / editar / excluir) ---------- */
 
-.table-action-menu {
-  position: relative;
+.table-row-actions {
   display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
-.table-action-trigger {
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  display: grid;
-  place-items: center;
-  background: transparent;
-  border: 1px solid transparent;
-  color: var(--text-dim);
+/* Ver/editar nao sao destrutivos -- .icon-button sozinho fica vermelho no
+   hover (pensado pra excluir), aqui sobrescreve pra um hover neutro. */
+.icon-button.neutral:hover {
+  border-color: var(--border);
+  color: var(--text);
+  background: var(--panel-hover);
 }
-.table-action-trigger:hover { background: var(--panel-hover); border-color: var(--border); }
-.table-action-trigger .icon { width: 16px; height: 16px; }
-
-.table-action-dropdown {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  z-index: 20;
-  min-width: 130px;
-  padding: 5px;
-  display: grid;
-  gap: 2px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
-}
-
-.table-action-dropdown button {
-  background: none;
-  border: none;
-  color: var(--text-dim);
-  text-align: left;
-  padding: 7px 9px;
-  font-size: 12px;
-  font-weight: 500;
-  border-radius: 4px;
-}
-.table-action-dropdown button:hover { background: var(--panel-hover); color: var(--text); }
-.table-action-dropdown button.danger { color: var(--danger); }
-.table-action-dropdown button.danger:hover { background: var(--danger-bg); }
 
 /* ---------- Painel "Resumo" (detalhe da usina) ---------- */
 

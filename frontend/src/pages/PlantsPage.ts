@@ -221,7 +221,7 @@ export function createPlantsPage(): HTMLElement {
             render: (plant) => createStatusDotLabel(plantStatusLabel(plant.status), plantStatusTone(plant.status))
           },
           { key: 'cidadeUf', label: 'Cidade/UF', render: (plant) => plantLocationLabel(plant) },
-          { key: 'acao', label: 'Ação', align: 'right', render: (plant) => createRowActionMenu(plant) }
+          { key: 'acao', label: 'Ação', align: 'right', render: (plant) => createRowActionButtons(plant) }
         ]
       });
     }
@@ -231,49 +231,38 @@ export function createPlantsPage(): HTMLElement {
     return fragment;
   }
 
-  function createRowActionMenu(plant: PlantRow): HTMLElement {
-    const wrap = createElement('div', { className: 'table-action-menu' });
-    const trigger = createElement('button', { className: 'table-action-trigger', type: 'button' });
-    trigger.appendChild(createIcon('more'));
-    trigger.setAttribute('aria-label', `Ações para ${plant.nome}`);
+  function createRowActionButtons(plant: PlantRow): HTMLElement {
+    const wrap = createElement('div', { className: 'table-row-actions' });
 
-    const dropdown = createElement('div', { className: 'table-action-dropdown' });
-    dropdown.hidden = true;
-
-    const editItem = createElement('button', { textContent: 'Editar', type: 'button' });
-    const deleteItem = createElement('button', { className: 'danger', textContent: 'Excluir', type: 'button' });
-
-    function closeDropdown(): void {
-      dropdown.hidden = true;
-      document.removeEventListener('click', handleOutsideClick);
-    }
-
-    function handleOutsideClick(event: MouseEvent): void {
-      if (!wrap.contains(event.target as Node)) closeDropdown();
-    }
-
-    trigger.addEventListener('click', (event) => {
+    const viewButton = createElement('button', { className: 'icon-button neutral', type: 'button' });
+    viewButton.appendChild(createIcon('eye'));
+    viewButton.title = 'Ver detalhes';
+    viewButton.setAttribute('aria-label', `Ver detalhes de ${plant.nome}`);
+    viewButton.addEventListener('click', (event) => {
       event.stopPropagation();
-      const willOpen = dropdown.hidden;
-      dropdown.hidden = !willOpen;
-      if (willOpen) document.addEventListener('click', handleOutsideClick);
-      else document.removeEventListener('click', handleOutsideClick);
+      selectedPlantId = plant.id;
+      renderContent();
     });
 
-    editItem.addEventListener('click', (event) => {
+    const editButton = createElement('button', { className: 'icon-button neutral', type: 'button' });
+    editButton.appendChild(createIcon('edit'));
+    editButton.title = 'Editar';
+    editButton.setAttribute('aria-label', `Editar ${plant.nome}`);
+    editButton.addEventListener('click', (event) => {
       event.stopPropagation();
-      closeDropdown();
       openPlantEditor(plant);
     });
 
-    deleteItem.addEventListener('click', (event) => {
+    const deleteButton = createElement('button', { className: 'icon-button', type: 'button' });
+    deleteButton.appendChild(createIcon('trash'));
+    deleteButton.title = 'Excluir';
+    deleteButton.setAttribute('aria-label', `Excluir ${plant.nome}`);
+    deleteButton.addEventListener('click', (event) => {
       event.stopPropagation();
-      closeDropdown();
       confirmDeletePlant(plant);
     });
 
-    dropdown.append(editItem, deleteItem);
-    wrap.append(trigger, dropdown);
+    wrap.append(viewButton, editButton, deleteButton);
     return wrap;
   }
 

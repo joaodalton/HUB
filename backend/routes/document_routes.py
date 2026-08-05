@@ -51,6 +51,11 @@ def store():
         document = create_document(data, request.files['arquivo'])
     except ValueError as exc:
         return error_response(str(exc), 409)
+    except Exception as exc:
+        # Mesmo padrao do drive_routes.py: credentials.json ausente, conta OAuth
+        # sem token valido, escopo insuficiente etc. -- nunca um 500 cru, sempre
+        # um erro claro de "servico indisponivel", nao "voce fez algo errado".
+        return error_response(f'Google Drive nao configurado ou indisponivel: {exc}', 503)
 
     return success_response(document, 'Documento enviado.', 201)
 

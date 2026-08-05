@@ -5,7 +5,7 @@ from google.auth.transport.requests import Request as GoogleAuthRequest
 from google.oauth2 import service_account
 from google.oauth2.credentials import Credentials as OAuthCredentials
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseDownload
+from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
 
 from config import Config
 from utils.files import safe_filename, unique_filename
@@ -78,6 +78,51 @@ class GoogleDriveService:
 
         zip_buffer.seek(0)
         return zip_buffer
+
+    def find_duplicate(self, name: str, md5: str, parent_folder_id: str | None) -> str | None:
+        """Procura, dentro da pasta configurada, um arquivo com o MESMO nome E o
+        MESMO conteudo (md5Checksum) do que esta prestes a ser enviado. So o nome
+        bater nao e suficiente pra considerar duplicata -- dois arquivos diferentes
+        podem ter o mesmo nome por coincidencia; o md5 e quem garante que e
+        realmente o mesmo arquivo. Retorna o fileId existente, ou None se nao achar."""
+        escaped_name = name.replace("'", "\\'")
+        query = f"name = '{escaped_name}' and trashed=false"
+        if parent_folder_id:
+            query += f" and '{parent_folder_id}' in parents"
+
+        results = self.client.files().list(
+            q=query,
+            fields="files(id, name, md5Checksum)",
+            pageSize=10
+        ).execute()
+
+        for candidate in results.get('files', []):
+            if candidate.get('md5Checksum') == md5:
+                return candidate['id']
+
+        return None
+
+    def upload_file(self, file_bytes: bytes, name: str, mime_type: str | None, parent_folder_id: str | None) -> str:
+        """Envia o arquivo de verdade pro Drive (nao e link, e copia real). Usada
+        pelo upload de Documento -- substitui o disco local, que some a cada
+        deploy no Render (filesystem efemero)."""
+        metadata: dict = {'name': name}
+        if parent_folder_id:
+            metadata['parents'] = [parent_folder_id]
+
+        media = MediaIoBaseUpload(
+            io.BytesIO(file_bytes),
+            mimetype=mime_type or 'application/octet-stream',
+            resumable=False
+        )
+
+        created = self.client.files().create(
+            body=metadata,
+            media_body=media,
+            fields='id'
+        ).execute()
+
+        return created['id']
 
 
 _drive_service_cache: GoogleDriveService | None = None

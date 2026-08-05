@@ -22,7 +22,11 @@ def create_app() -> Flask:
     from models.log_entry import LogEntry
     from models.user import User
 
-    CORS(app)
+    # Restrito ao FRONTEND_URL (mesma variavel ja usada pro redirect do OAuth --
+    # ambas representam "a origem do frontend", nao faz sentido duplicar). Antes
+    # disso, CORS(app) sem argumento liberava qualquer origem -- ok em dev solo,
+    # perigoso assim que o backend for exposto na rede (Etapa 7).
+    CORS(app, origins=[Config.FRONTEND_URL])
 
     from routes.auth_routes import auth_routes
     from routes.config_routes import config_routes

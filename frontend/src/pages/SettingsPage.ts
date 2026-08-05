@@ -2,6 +2,7 @@ import { createElement } from '../dom';
 import { createDataTable } from '../components/DataTable';
 import { useToast } from '../hooks/useToast';
 import { createBaseLayout } from '../layouts/BaseLayout';
+import { refreshSidebarBrand } from '../components/Sidebar';
 import {
   getDatabaseConfig,
   saveDatabaseProvider,
@@ -759,6 +760,7 @@ function createAppearancePanel(
         accentColor: accentColor.input.value
       });
       notify('Aparência salva.');
+      refreshSidebarBrand();
     } catch {
       notifyError('Nao foi possivel salvar a aparencia no backend.');
       applyAppearanceSettings();

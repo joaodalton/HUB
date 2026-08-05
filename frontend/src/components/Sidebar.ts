@@ -1,6 +1,8 @@
 import { createElement } from '../dom';
 import { getCurrentUser, logout } from '../services/authService';
 import { createIcon, type IconName } from './Icon';
+import { getSettings } from '../services/settingsService';
+
 
 type SidebarLink = {
   label: string;
@@ -19,7 +21,7 @@ type SidebarSection = {
 // HUB ainda esta em V0.x (nucleo funcional incompleto, ver PROGRESS.md) --
 // nao copiar numero de versao do mockup (v1.5.0), isso mentiria sobre o
 // estado real do projeto pra quem olhar a tela.
-const HUB_VERSION = 'V0.x';
+const HUB_VERSION = 'V1.x';
 
 const sections: SidebarSection[] = [
   {
@@ -65,14 +67,19 @@ const sections: SidebarSection[] = [
   }
 ];
 
+let brandTextElement: HTMLElement | null = null;
+
+export function refreshSidebarBrand(): void { if (brandTextElement)
+   {brandTextElement.textContent = getSettings().companyName || 'HUB';}}
+
 export function createSidebar(): HTMLElement {
   const sidebar = createElement('aside', { className: 'sidebar' });
   const brand = createElement('div', { className: 'sidebar-brand' });
   const brandMark = createElement('span', { className: 'sidebar-mark', textContent: 'H' });
-  const brandText = createElement('span', { textContent: 'APP HUB' });
+  brandTextElement = createElement('span', { textContent: getSettings().companyName || 'HUB' });
   const nav = createElement('nav', { className: 'sidebar-nav' });
 
-  brand.append(brandMark, brandText);
+  brand.append(brandMark, brandTextElement);
 
   sections.forEach((section) => {
     const sectionElement = createElement('div', { className: 'sidebar-section' });

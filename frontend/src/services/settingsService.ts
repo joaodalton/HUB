@@ -85,7 +85,8 @@ export function applyThemeVariables(theme: ThemeColors): void {
 
 export function applyAppearanceSettings(): void {
   applyThemeVariables(cachedSettings);
-  document.title = cachedSettings.companyName ? `${cachedSettings.companyName} · HUB` : 'APP HUB';
+  //Nessa parte que faz a mudança do nome, tanto oq aparece do lado da logo quanto o que aparece na aba do navegador.
+  document.title = cachedSettings.companyName ? `${cachedSettings.companyName} · HUB` : 'HUB';
 }
 
 function mergeWithDefaults(stored: Record<string, string>): AppSettings {

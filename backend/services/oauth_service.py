@@ -5,11 +5,14 @@ Fluxo OAuth 2.0 pra conectar conta(s) Google reais de usuario -- complementa
 Drive. Nao inicializa nada em tempo de import, so quando authorize()/callback()
 sao chamados (mesmo espirito lazy do drive_service.py).
 
-Guarda em memoria o 'state' pendente entre /authorize e /callback como
-protecao CSRF basica. Isso assume processo unico (waitress/dev server nao
-multi-processo) -- se um dia o backend rodar com varios workers, precisa
-mover pra algo compartilhado (Setting no banco, por exemplo).
+O 'state' pendente entre /authorize e /callback (protecao CSRF basica do PKCE)
+fica guardado na tabela Setting, nao em memoria -- com Gunicorn rodando mais de
+um worker (processos separados, cada um com sua propria memoria), guardar em
+dict em memoria fazia o state "sumir" sempre que /authorize e /callback caiam
+em processos diferentes (bug real, ja aconteceu em producao). Setting resolve
+isso porque todo worker le do mesmo Postgres.
 """
+import datetime
 import os
 import secrets
 
@@ -20,6 +23,7 @@ from google_auth_oauthlib.flow import Flow
 from config import Config
 from extensions import db
 from models.google_account import GoogleAccount
+from models.setting import Setting
 from services.log_service import LogService
 
 # oauthlib recusa qualquer OAuth fora de HTTPS por padrao. Nosso redirect_uri e
@@ -27,17 +31,55 @@ from services.log_service import LogService
 # abaixa seguranca de verdade, a troca do code pelo token com o Google continua
 # sempre HTTPS por baixo. Flag oficial da propria lib pra esse cenario (apps locais/instalados).
 os.environ.setdefault('OAUTHLIB_INSECURE_TRANSPORT', '1')
+# oauthlib e rigido demais nessa checagem por padrao: se o Google devolver o
+# escopo com qualquer diferenca textual do que foi pedido -- inclusive quando
+# devolve MAIS escopo que o pedido, por causa do include_granted_scopes=true
+# la embaixo, que a gente usa de proposito -- ele trata como erro ("Scope has
+# changed from X to Y"), mesmo sendo um comportamento normal e documentado do
+# OAuth. Flag oficial da propria lib pra relaxar essa comparacao.
+os.environ.setdefault('OAUTHLIB_RELAX_TOKEN_SCOPE', '1')
 
 # Sempre pede o mesmo escopo de Drive que a service account usa (fonte unica
 # de verdade em Config.GOOGLE_DRIVE_SCOPES), mais 'email' so pra identificar
 # qual conta Google foi conectada -- HUB nunca le nome/foto, so o email.
 _IDENTITY_SCOPES = ['openid', 'https://www.googleapis.com/auth/userinfo.email']
 
-_pending_states: dict[str, str] = {}  # state -> code_verifier (PKCE)
+# Prefixo pra distinguir essas chaves das de aparencia (themeColor, logoDataUrl)
+# que ja vivem na mesma tabela Setting -- sem colisao de namespace.
+_STATE_KEY_PREFIX = 'oauth_pending_state:'
+_STATE_TTL_MINUTES = 15  # state abandonado (usuario fechou a aba no meio) expira sozinho
 
 
 def _scopes() -> list[str]:
     return [*Config.GOOGLE_DRIVE_SCOPES, *_IDENTITY_SCOPES]
+
+
+def _store_pending_state(state: str, code_verifier: str) -> None:
+    _cleanup_expired_states()
+    db.session.add(Setting(chave=f'{_STATE_KEY_PREFIX}{state}', valor=code_verifier))
+    db.session.commit()
+
+
+def _pop_pending_state(state: str) -> str | None:
+    """Le e ja apaga -- state e de uso unico, senao um mesmo link de callback
+    poderia ser reaproveitado."""
+    setting = Setting.query.filter_by(chave=f'{_STATE_KEY_PREFIX}{state}').first()
+    if not setting:
+        return None
+
+    code_verifier = setting.valor
+    db.session.delete(setting)
+    db.session.commit()
+    return code_verifier
+
+
+def _cleanup_expired_states() -> None:
+    cutoff = datetime.datetime.utcnow() - datetime.timedelta(minutes=_STATE_TTL_MINUTES)
+    Setting.query.filter(
+        Setting.chave.like(f'{_STATE_KEY_PREFIX}%'),
+        Setting.created_at < cutoff
+    ).delete(synchronize_session=False)
+    db.session.commit()
 
 
 def _client_config() -> dict:
@@ -81,17 +123,17 @@ def build_authorize_url() -> str:
     # google-auth-oauthlib >=1.2 gera PKCE (code_verifier/code_challenge) sozinho.
     # Precisa guardar o code_verifier junto do state, senao o Flow novo do callback
     # nao tem como reproduzir o code_challenge e a troca do code por token falha.
-    _pending_states[state] = flow.code_verifier
+    _store_pending_state(state, flow.code_verifier)
     return auth_url
 
 
 def handle_callback(request_url: str, state: str) -> dict:
     """Troca o 'code' que o Google devolveu por credenciais, descobre o email
     da conta e cria/atualiza o GoogleAccount correspondente."""
-    if state not in _pending_states:
-        raise ValueError('Link de autorizacao invalido ou expirado. Conecte a conta de novo.')
+    code_verifier = _pop_pending_state(state)
 
-    code_verifier = _pending_states.pop(state)
+    if code_verifier is None:
+        raise ValueError('Link de autorizacao invalido ou expirado. Conecte a conta de novo.')
 
     flow = _build_flow()
     flow.code_verifier = code_verifier  # mesmo verifier do authorize -- exigido pelo PKCE

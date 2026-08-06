@@ -63,6 +63,7 @@ export function createPlantConnections<T extends HasConnections>(
     checkbox.checked = Boolean(existingConnection);
     percent.type = 'number';
     percent.min = '0';
+    percent.step = '0.01';
     percent.max = String(plant.percentualDisponivel);
     percent.placeholder = '%';
     percent.value = existingConnection?.percentual ?? '';

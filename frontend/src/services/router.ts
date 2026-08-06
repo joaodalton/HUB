@@ -2,7 +2,7 @@ import { createClientsPage } from '../pages/ClientsPage';
 import { createAgendaPage } from '../pages/AgendaPage';
 import { createDocumentsPage } from '../pages/DocumentsPage';
 import { createLoginPage } from '../pages/LoginPage';
-import { createPlaceholderPage } from '../pages/PlaceholderPage';
+import { createPendenciasPage } from '../pages/PendenciasPage';
 import { createPlantsPage } from '../pages/PlantsPage';
 import { createSettingsPage } from '../pages/SettingsPage';
 import { createUcsPage } from '../pages/UcsPage';
@@ -21,18 +21,8 @@ export function createRouter(root: HTMLElement) {
     { path: '/clientes', render: createClientsPage },
     { path: '/ucs', render: createUcsPage },
     { path: '/usinas', render: createPlantsPage },
-    {
-      path: '/pendencias',
-      render: () => createPlaceholderPage({
-        eyebrow: 'Pendencias',
-        title: 'Pendencias operacionais',
-        message: 'A listagem de pendencias sera adicionada quando os fluxos de cliente e rateio estiverem definidos.'
-      })
-    },
-    {
-      path: '/agenda',
-      render: createAgendaPage
-    },
+    { path: '/pendencias', render: createPendenciasPage },
+    { path: '/agenda', render: createAgendaPage },
     { path: '/configuracoes', render: createSettingsPage }
   ];
 

@@ -5,7 +5,7 @@ from google.auth.transport.requests import Request as GoogleAuthRequest
 from google.oauth2 import service_account
 from google.oauth2.credentials import Credentials as OAuthCredentials
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseDownload
+from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
 
 from config import Config
 from utils.files import safe_filename, unique_filename
@@ -15,10 +15,22 @@ class GoogleDriveService:
     def __init__(self, credentials) -> None:
         self.client = build('drive', 'v3', credentials=credentials)
 
+    # Lista fechada de proposito -- ainda e um whitelist, so mais largo que so PDF/pasta,
+    # pra alimentar o filtro dinamico de "Tipo de arquivo" no frontend com algo real.
+    _SEARCHABLE_MIME_TYPES = [
+        'application/pdf',
+        'application/vnd.google-apps.folder',
+        'image/jpeg',
+        'image/png',
+        'application/vnd.google-apps.document',
+        'application/vnd.google-apps.spreadsheet'
+    ]
+
     def search_files(self, query_text: str) -> list[dict]:
+        mime_filter = ' or '.join(f"mimeType='{mime}'" for mime in self._SEARCHABLE_MIME_TYPES)
         query = (
             f"name contains '{query_text}' "
-            f"and (mimeType='application/pdf' or mimeType='application/vnd.google-apps.folder') "
+            f"and ({mime_filter}) "
             f"and trashed=false"
         )
 
@@ -67,6 +79,51 @@ class GoogleDriveService:
         zip_buffer.seek(0)
         return zip_buffer
 
+    def find_duplicate(self, name: str, md5: str, parent_folder_id: str | None) -> str | None:
+        """Procura, dentro da pasta configurada, um arquivo com o MESMO nome E o
+        MESMO conteudo (md5Checksum) do que esta prestes a ser enviado. So o nome
+        bater nao e suficiente pra considerar duplicata -- dois arquivos diferentes
+        podem ter o mesmo nome por coincidencia; o md5 e quem garante que e
+        realmente o mesmo arquivo. Retorna o fileId existente, ou None se nao achar."""
+        escaped_name = name.replace("'", "\\'")
+        query = f"name = '{escaped_name}' and trashed=false"
+        if parent_folder_id:
+            query += f" and '{parent_folder_id}' in parents"
+
+        results = self.client.files().list(
+            q=query,
+            fields="files(id, name, md5Checksum)",
+            pageSize=10
+        ).execute()
+
+        for candidate in results.get('files', []):
+            if candidate.get('md5Checksum') == md5:
+                return candidate['id']
+
+        return None
+
+    def upload_file(self, file_bytes: bytes, name: str, mime_type: str | None, parent_folder_id: str | None) -> str:
+        """Envia o arquivo de verdade pro Drive (nao e link, e copia real). Usada
+        pelo upload de Documento -- substitui o disco local, que some a cada
+        deploy no Render (filesystem efemero)."""
+        metadata: dict = {'name': name}
+        if parent_folder_id:
+            metadata['parents'] = [parent_folder_id]
+
+        media = MediaIoBaseUpload(
+            io.BytesIO(file_bytes),
+            mimetype=mime_type or 'application/octet-stream',
+            resumable=False
+        )
+
+        created = self.client.files().create(
+            body=metadata,
+            media_body=media,
+            fields='id'
+        ).execute()
+
+        return created['id']
+
 
 _drive_service_cache: GoogleDriveService | None = None
 
@@ -111,8 +168,11 @@ def _build_oauth_credentials():
 
 
 def _build_service_account_credentials():
+    # Le o caminho do credentials.json direto do .env a cada chamada (nao de Config, que so foi lido uma vez quando o processo subiu) -- assim uma credencial trocada pela tela de Configuracoes vale na hora, sem reiniciar.
+    from services.database_config_service import resolve_google_credentials_path  # import tardio: evita ciclo
+
     return service_account.Credentials.from_service_account_file(
-        Config.GOOGLE_SERVICE_ACCOUNT_FILE,
+        str(resolve_google_credentials_path()),
         scopes=Config.GOOGLE_DRIVE_SCOPES
     )
 

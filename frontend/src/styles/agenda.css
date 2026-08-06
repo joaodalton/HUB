@@ -1,0 +1,18 @@
+/* ============================================================
+   HUB — Agenda
+   ============================================================ */
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.calendar-day {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 8px;
+  min-height: 70px;
+  background: var(--panel-soft);
+  font-size: 12px;
+}

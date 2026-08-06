@@ -1,0 +1,176 @@
+/* ============================================================
+   HUB — Rascunhos nao usados
+   Nenhuma classe aqui e referenciada em nenhum .ts hoje. Fora do
+   @import de app.css de proposito -- nao pesa no bundle. Guardado
+   caso seja planejamento futuro (ex.: tela de Usinas). Decisao de
+   apagar ou aproveitar fica com o Joao.
+   ============================================================ */
+
+.split-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .split-layout { grid-template-columns: 1fr; }
+}
+
+.detail-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px 22px;
+  display: grid;
+  gap: 18px;
+  position: sticky;
+  top: 20px;
+}
+
+.detail-view {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px 28px;
+  display: grid;
+  gap: 20px;
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  padding: 0;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+.back-link:hover { background: none; color: var(--text); }
+
+.occupancy-bar-track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.occupancy-bar-fill {
+  height: 100%;
+  background: var(--accent);
+}
+
+.detail-empty {
+  display: grid;
+  place-items: center;
+  min-height: 300px;
+  color: var(--text-faint);
+  text-align: center;
+  gap: 8px;
+}
+
+.detail-header-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.detail-back {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  padding: 0;
+  font-size: 13px;
+  margin-bottom: 2px;
+}
+.detail-back:hover { background: none; color: var(--text); }
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 20px;
+  padding: 14px 16px;
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.info-grid .info-item {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.info-grid .info-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+}
+
+.info-grid .info-value {
+  font-size: 13px;
+  color: var(--text);
+  overflow-wrap: break-word;
+}
+
+.detail-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.detail-section-title h3 {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+}
+
+.uc-summary-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  background: var(--panel-soft);
+  display: grid;
+  gap: 10px;
+}
+
+.uc-summary-card + .uc-summary-card { margin-top: 8px; }
+
+.uc-summary-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.uc-summary-head strong { font-size: 13px; }
+
+.uc-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 16px;
+  font-size: 12px;
+}
+
+.uc-summary-grid .info-label { font-size: 10px; color: var(--text-faint); text-transform: uppercase; }
+.uc-summary-grid .info-value { color: var(--text-dim); }
+
+.uc-connection-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  margin: 2px 6px 0 0;
+}

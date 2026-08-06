@@ -10,7 +10,7 @@ class Document(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     client_id = db.Column(db.Integer, db.ForeignKey('clients.id'), nullable=True)
     consumer_unit_id = db.Column(db.Integer, db.ForeignKey('consumer_units.id'), nullable=True)
-    category_id = db.Column(db.Integer, db.ForeignKey('categories.id'), nullable=False)
+    category_id = db.Column(db.Integer, db.ForeignKey('categories.id'), nullable=True)
 
     nome = db.Column(db.String(255), nullable=False)
     # 'local' (arquivo salvo pelo backend) ou 'google_drive' (referencia a um file id do Drive).

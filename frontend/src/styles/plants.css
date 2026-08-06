@@ -1,0 +1,101 @@
+/* ============================================================
+   HUB — Usinas
+   Celula id+nome (lista de usinas e UCs conectadas), menu de acao
+   (3 pontinhos), painel de resumo com barra de ocupacao. Layout
+   geral (header/colunas/abas) reaproveita .detail-* de clients.css
+   de proposito -- nao duplicar aqui.
+   ============================================================ */
+
+/* ---------- Celula "#id + nome" (tabela de usinas / UCs conectadas) ---------- */
+
+.cell-id-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cell-id-tag {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+}
+
+.detail-title-row .cell-id-tag {
+  font-size: 12px;
+  padding: 3px 9px;
+}
+
+/* ---------- Status: bolinha antes do texto (ordem certa, diferente do ---------- */
+/* .status-dot solto do DataTable, que hoje aparece depois do texto)     */
+
+.status-dot-label {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* ---------- Acoes da linha (ver / editar / excluir) ---------- */
+
+.table-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Ver/editar nao sao destrutivos -- .icon-button sozinho fica vermelho no
+   hover (pensado pra excluir), aqui sobrescreve pra um hover neutro. */
+.icon-button.neutral:hover {
+  border-color: var(--border);
+  color: var(--text);
+  background: var(--panel-hover);
+}
+
+/* ---------- Painel "Resumo" (detalhe da usina) ---------- */
+
+.plant-summary-rows {
+  display: grid;
+  gap: 10px;
+}
+
+.plant-summary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.plant-summary-row span { color: var(--text-dim); }
+.plant-summary-row strong { color: var(--text); font-size: 14px; }
+
+.plant-summary-occupancy {
+  display: grid;
+  gap: 8px;
+  padding-top: 12px;
+  margin-top: 2px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.occupancy-bar-track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.occupancy-bar-fill {
+  height: 100%;
+  background: var(--accent);
+}
+
+@media (max-width: 620px) {
+  .cell-id-name { flex-wrap: wrap; }
+}

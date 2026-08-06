@@ -1,4 +1,5 @@
 import { createElement } from '../dom';
+import { createInput, createSelect } from './formFields';
 import type { PlantRow } from '../services/plantService';
 
 export type PlantFormData = {
@@ -7,6 +8,14 @@ export type PlantFormData = {
   kwPico: string;
   status: string;
   percentualDisponivel: number;
+  marcaInversor: string;
+  telefoneProprietario: string;
+  emailProprietario: string;
+  cidade: string;
+  uf: string;
+  endereco: string;
+  dataAtivacao: string;
+  responsavel: string;
 };
 
 type PlantCardOptions = {
@@ -42,16 +51,39 @@ export function createPlantCard({ plant, onSave, onCancel, onDelete }: PlantCard
     String(plant?.percentualDisponivel ?? 0),
     true
   );
+  const marcaInversor = createInput('Marca do inversor', 'text', plant?.marcaInversor ?? '', false);
+  const telefoneProprietario = createInput('Telefone do proprietario', 'tel', plant?.telefoneProprietario ?? '', false);
+  const emailProprietario = createInput('Email do proprietario', 'email', plant?.emailProprietario ?? '', false);
+  const cidade = createInput('Cidade', 'text', plant?.cidade ?? '', false);
+  const uf = createInput('UF', 'text', plant?.uf ?? '', false);
+  const endereco = createInput('Endereco', 'text', plant?.endereco ?? '', false);
+  const dataAtivacao = createInput('Data de ativacao', 'date', plant?.dataAtivacao ?? '', false);
+  const responsavel = createInput('Responsavel', 'text', plant?.responsavel ?? '', false);
   const actions = createElement('div', { className: 'form-actions' });
   const saveButton = createElement('button', { textContent: 'Salvar usina', type: 'submit' });
 
   kwPico.input.min = '0';
   percentualDisponivel.input.min = '0';
   percentualDisponivel.input.max = '100';
+  uf.input.maxLength = 2;
 
   titleText.append(eyebrow, heading);
   header.append(titleText, closeButton);
-  fields.append(nome.field, uc.field, kwPico.field, status.field, percentualDisponivel.field);
+  fields.append(
+    nome.field,
+    uc.field,
+    kwPico.field,
+    status.field,
+    percentualDisponivel.field,
+    marcaInversor.field,
+    telefoneProprietario.field,
+    emailProprietario.field,
+    cidade.field,
+    uf.field,
+    endereco.field,
+    dataAtivacao.field,
+    responsavel.field
+  );
   actions.appendChild(saveButton);
 
   if (plant && onDelete) {
@@ -84,7 +116,15 @@ export function createPlantCard({ plant, onSave, onCancel, onDelete }: PlantCard
       uc: uc.input.value.trim(),
       kwPico: kwPico.input.value.trim(),
       status: status.select.value,
-      percentualDisponivel: clampPercent(Number(percentualDisponivel.input.value))
+      percentualDisponivel: clampPercent(Number(percentualDisponivel.input.value)),
+      marcaInversor: marcaInversor.input.value.trim(),
+      telefoneProprietario: telefoneProprietario.input.value.trim(),
+      emailProprietario: emailProprietario.input.value.trim(),
+      cidade: cidade.input.value.trim(),
+      uf: uf.input.value.trim().toUpperCase(),
+      endereco: endereco.input.value.trim(),
+      dataAtivacao: dataAtivacao.input.value,
+      responsavel: responsavel.input.value.trim()
     });
   });
 
@@ -93,36 +133,6 @@ export function createPlantCard({ plant, onSave, onCancel, onDelete }: PlantCard
   overlay.appendChild(panel);
 
   return overlay;
-}
-
-function createInput(label: string, type: string, value: string, required: boolean) {
-  const field = createElement('label', { className: 'form-field' });
-  const text = createElement('span', { textContent: label });
-  const input = createElement('input');
-
-  input.type = type;
-  input.value = value;
-  input.required = required;
-
-  field.append(text, input);
-  return { field, input };
-}
-
-function createSelect(label: string, value: string, options: string[]) {
-  const field = createElement('label', { className: 'form-field' });
-  const text = createElement('span', { textContent: label });
-  const select = createElement('select');
-
-  options.forEach((optionValue) => {
-    const option = createElement('option', { textContent: optionValue });
-    option.value = optionValue;
-    select.appendChild(option);
-  });
-
-  select.value = value;
-  field.append(text, select);
-
-  return { field, select };
 }
 
 function clampPercent(value: number): number {

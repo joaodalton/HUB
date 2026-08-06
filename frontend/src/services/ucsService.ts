@@ -29,11 +29,22 @@ export type UcRow = {
 export type UcPayload = {
   clienteId: number;
   codigo: string;
+  codigoAneel: string | null;
   apelido: string;
+  documento: string | null;
+  endereco: string | null;
+  cep: string | null;
+  concessionaria: string | null;
+  geracaoPropria: boolean;
+  diaEmissaoFatura: number | null;
   consumo: string;
   baseTarifaria: string;
   desconto: string;
   tipoLigacao: string;
+  inicioContrato: string | null;
+  terminoContrato: string | null;
+  carenciaMeses: number | null;
+  percentualDescontoCarencia: string | null;
   conexoes: Array<{ plantId: number; percentual: string }>;
 };
 

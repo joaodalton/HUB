@@ -1,0 +1,128 @@
+/* ============================================================
+   HUB — Modals
+   Overlay + card do modal (Cliente/UC/Usina), painel lateral de
+   UCs dentro do modal de cliente, accordion de UC (uc-editor-*).
+   ============================================================ */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 7, 13, 0.7);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  z-index: 100;
+}
+
+.client-card, .plant-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  max-width: 620px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.client-card-split {
+  max-width: 980px;
+  display: grid;
+}
+
+.client-card-split .detail-columns {
+  grid-template-columns: 1fr;
+}
+
+@media (max-width: 800px) {
+  .client-card-split { grid-template-columns: 1fr; }
+}
+
+.client-form { padding: 22px 24px; display: grid; gap: 16px; }
+
+.client-uc-panel {
+  border-radius: 0;
+  border-left: 1px solid var(--border);
+  border-top: none;
+  border-right: none;
+  border-bottom: none;
+  background: var(--panel-soft);
+  padding: 22px 20px;
+}
+
+.client-card-split .client-uc-panel {
+  border: none;
+  border-radius: 0;
+  border-left: 1px solid var(--border);
+  background: var(--panel-soft);
+}
+
+.uc-editor-list { display: grid; gap: 10px; }
+
+.uc-editor-card {
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--border);
+  border-left: 3px solid transparent;
+  border-radius: 6px;
+  background: var(--panel-soft);
+  overflow: hidden;
+}
+
+.uc-editor-card[open] {
+  border-left-color: var(--accent);
+}
+
+.uc-summary {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 13px 34px 13px 14px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.uc-summary::-webkit-details-marker {
+  display: none;
+}
+
+.uc-summary::after {
+  content: '';
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--text-faint);
+  border-bottom: 2px solid var(--text-faint);
+  transform: translateY(-70%) rotate(45deg);
+  transition: transform 0.15s ease;
+}
+
+details[open] > .uc-summary::after {
+  transform: translateY(-30%) rotate(-135deg);
+}
+
+.uc-summary-title {
+  display: grid;
+  gap: 2px;
+}
+
+.uc-summary strong { font-size: 13px; }
+.uc-summary span { font-size: 11px; color: var(--text-faint); }
+
+.uc-editor-body {
+  display: grid;
+  gap: 12px;
+  padding: 0 12px 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.uc-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}

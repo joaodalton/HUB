@@ -1,20 +1,18 @@
 import { createElement } from '../dom';
+import { createIcon } from './Icon';
 import { useToast } from '../hooks/useToast';
 import {
-  createCategory,
   deleteDocument,
   downloadDocumentFile,
-  getCategories,
   getDocuments,
   renameDocument,
   uploadDocument,
-  type CategoryRow,
   type DocumentRow
 } from '../services/documentsService';
 
-// Documentos sao acao imediata (upload/renomear/excluir acontecem na hora, via API),
-// nao dependem do botao "Salvar cliente" -- diferente do que o formulario fazia antes
-// (lia o arquivo como base64 e so jogava fora ao salvar, sem persistir nada de verdade).
+// Categoria de documento saiu da interface (decisao 2026-07-30) -- atrapalhava mais
+// do que ajudava no fluxo. O campo continua existindo no banco (agora opcional),
+// so nao aparece mais aqui nem em nenhum outro lugar de upload.
 export function createClientDocumentsPanel(clientId: number | undefined): HTMLElement {
   const toast = useToast();
   const panel = createElement('div', { className: 'client-documents-panel' });
@@ -31,95 +29,40 @@ export function createClientDocumentsPanel(clientId: number | undefined): HTMLEl
   }
 
   const list = createElement('div', { className: 'document-list' });
-  const uploadRow = createElement('div', { className: 'document-upload-row' });
-  const categorySelect = createElement('select');
-  const newCategoryButton = createElement('button', {
-    className: 'secondary-button',
-    textContent: '+ categoria',
-    type: 'button'
-  });
   const fileInput = createElement('input');
-  const uploadButton = createElement('button', { textContent: 'Enviar', type: 'button' });
+  const dropButton = createElement('button', { className: 'upload-dropzone', type: 'button' });
 
+  dropButton.appendChild(createIcon('upload'));
+  dropButton.setAttribute('aria-label', 'Adicionar documento');
   fileInput.type = 'file';
+  fileInput.hidden = true;
 
   let documents: DocumentRow[] = [];
-  let categories: CategoryRow[] = [];
 
-  uploadRow.append(categorySelect, newCategoryButton, fileInput, uploadButton);
-  panel.append(list, uploadRow);
-
-  loadCategories();
+  panel.append(list, dropButton, fileInput);
   loadDocuments();
 
-  uploadButton.addEventListener('click', async () => {
+  dropButton.addEventListener('click', () => fileInput.click());
+
+  fileInput.addEventListener('change', async () => {
     const file = fileInput.files?.[0];
+    if (!file) return;
 
-    if (!file) {
-      toast.error('Escolha um arquivo antes de enviar.');
-      return;
-    }
-    if (!categorySelect.value) {
-      toast.error('Escolha (ou crie) uma categoria antes de enviar.');
-      return;
-    }
-
-    uploadButton.disabled = true;
-    uploadButton.textContent = 'Enviando...';
+    dropButton.disabled = true;
+    dropButton.classList.add('loading');
 
     try {
-      await uploadDocument({ clienteId: clientId, categoriaId: Number(categorySelect.value) }, file);
+      await uploadDocument({ clienteId: clientId }, file);
       toast.success('Documento enviado.');
-      fileInput.value = '';
       await loadDocuments();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Nao foi possivel enviar o documento.');
     } finally {
-      uploadButton.disabled = false;
-      uploadButton.textContent = 'Enviar';
+      dropButton.disabled = false;
+      dropButton.classList.remove('loading');
+      fileInput.value = '';
     }
   });
-
-  newCategoryButton.addEventListener('click', async () => {
-    const nome = window.prompt('Nome da categoria (ex: Termo de adesao, Fatura, Contrato):');
-    if (!nome || !nome.trim()) return;
-
-    try {
-      const category = await createCategory(nome.trim());
-      categories = [...categories, category];
-      renderCategoryOptions();
-      categorySelect.value = String(category.id);
-      toast.success('Categoria criada.');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Nao foi possivel criar a categoria.');
-    }
-  });
-
-  async function loadCategories(): Promise<void> {
-    try {
-      categories = await getCategories();
-    } catch {
-      categories = [];
-    } finally {
-      renderCategoryOptions();
-    }
-  }
-
-  function renderCategoryOptions(): void {
-    categorySelect.replaceChildren();
-
-    const placeholder = createElement('option', {
-      textContent: categories.length === 0 ? 'Nenhuma categoria ainda' : 'Categoria...'
-    });
-    placeholder.value = '';
-    categorySelect.appendChild(placeholder);
-
-    categories.forEach((category) => {
-      const option = createElement('option', { textContent: category.nome });
-      option.value = String(category.id);
-      categorySelect.appendChild(option);
-    });
-  }
 
   async function loadDocuments(): Promise<void> {
     list.replaceChildren(createElement('small', { textContent: 'Carregando documentos...' }));
@@ -143,13 +86,10 @@ export function createClientDocumentsPanel(clientId: number | undefined): HTMLEl
     documents.forEach((doc) => {
       const row = createElement('div', { className: 'client-document-row' });
       const name = createElement('input');
-      const meta = createElement('span', { className: 'result-meta', textContent: doc.categoria ?? '' });
-      const downloadButton = createElement('button', {
-        className: 'secondary-button',
-        textContent: 'Baixar',
-        type: 'button'
-      });
-      const deleteButton = createElement('button', { className: 'icon-button', textContent: 'x', type: 'button' });
+      const downloadButton = createElement('button', { className: 'secondary-button', textContent: 'Baixar', type: 'button' });
+      const deleteButton = createElement('button', { className: 'icon-button', type: 'button' });
+
+      deleteButton.appendChild(createIcon('x'));
 
       name.value = doc.nome;
       name.addEventListener('change', async () => {
@@ -187,7 +127,7 @@ export function createClientDocumentsPanel(clientId: number | undefined): HTMLEl
         }
       });
 
-      row.append(name, meta, downloadButton, deleteButton);
+      row.append(name, downloadButton, deleteButton);
       list.appendChild(row);
     });
   }

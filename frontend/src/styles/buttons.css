@@ -1,0 +1,83 @@
+/* ============================================================
+   HUB — Buttons
+   Botao base + variantes (secondary, danger, small, icon, link).
+   ============================================================ */
+
+button {
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  border: none;
+  padding: 9px 16px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  transition: background-color 0.15s ease;
+}
+
+button:hover { background: var(--accent-hover); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.secondary-button {
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-weight: 500;
+}
+.secondary-button:hover { background: var(--panel-hover); }
+
+.danger-button {
+  background: transparent;
+  border: 1px solid var(--danger-border);
+  color: var(--danger);
+  font-weight: 500;
+}
+.danger-button:hover { background: var(--danger-bg); }
+
+.small-button {
+  padding: 6px 12px;
+  font-size: 12px;
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-weight: 500;
+}
+.small-button:hover { background: var(--panel-hover); }
+
+.icon-button {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 12px;
+}
+.icon-button:hover { border-color: var(--danger-border); color: var(--danger); }
+.icon-button .icon { width: 14px; height: 14px; }
+
+/* ---------- Botao com icone + texto (ex.: Editar, Excluir, + Nova Usina) ---------- */
+
+.button-with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.button-with-icon .icon { width: 14px; height: 14px; }
+
+.secondary-link {
+  background: none;
+  border: none;
+  color: var(--accent);
+  padding: 0;
+  font-weight: 600;
+  font-size: 12px;
+}
+.secondary-link:hover { color: var(--accent-hover); background: none; }
+
+.remove-button {
+  background: transparent;
+  border: 1px solid var(--danger-border);
+  color: var(--danger);
+}

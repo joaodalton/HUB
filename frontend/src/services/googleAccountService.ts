@@ -33,5 +33,5 @@ export async function disconnectGoogleAccount(id: number): Promise<void> {
 
 // Navegacao direta (nao fetch) -- o backend redireciona pra tela de consentimento do Google.
 export function getGoogleAuthorizeUrl(): string {
-  return `${config.apiBaseUrl}/oauth/google/authorize`;
+  return `${config.apiBaseUrl}${config.apiPrefix}/oauth/google/authorize`;
 }

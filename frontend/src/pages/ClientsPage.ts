@@ -1,4 +1,5 @@
 import { createClientCard, type ClientFormData } from '../components/ClientCard';
+import { createClientDetailView } from '../components/ClientDetailView';
 import { createDashboardCards } from '../components/DashboardCards';
 import { createDataTable } from '../components/DataTable';
 import { createElement } from '../dom';
@@ -21,8 +22,10 @@ export function createClientsPage(): HTMLElement {
   const loading = useGlobalLoading();
   let clients: ClientRow[] = [];
   let availablePlants: PlantRow[] = [];
-  let selectedClient: ClientRow | null = null;
+ let selectedClient: ClientRow | null = null;
+  let viewingClient: ClientRow | null = null;
   let isCreating = false;
+  let isEditModalOpen = false;
   let loadError = false;
 
   const layout = createBaseLayout({
@@ -49,7 +52,12 @@ export function createClientsPage(): HTMLElement {
     }
   }
 
-  function renderContent(): void {
+ function renderContent(): void {
+    if (viewingClient) {
+      renderDetailView();
+      return;
+    }
+
     const pageActions = createElement('div', { className: 'page-actions' });
     const newClientButton = createElement('button', { textContent: 'Novo cliente', type: 'button' });
     const table = createDataTable<ClientRow>({
@@ -58,8 +66,7 @@ export function createClientsPage(): HTMLElement {
       rows: clients,
       emptyMessage: loadError ? 'Nao foi possivel carregar clientes.' : 'Nenhum cliente cadastrado ainda.',
       onRowClick: (client) => {
-        selectedClient = client;
-        isCreating = false;
+        viewingClient = client;
         renderContent();
       },
       columns: [
@@ -89,19 +96,31 @@ export function createClientsPage(): HTMLElement {
   }
 
   function createClientEditor(): HTMLElement {
+    const editingClientId = selectedClient?.id;
+
     return createClientCard({
       client: selectedClient ?? undefined,
       availablePlants,
       onCancel: () => {
         selectedClient = null;
         isCreating = false;
+        isEditModalOpen = false;
         renderContent();
       },
       onSave: async (data) => {
         await saveClient(data);
         selectedClient = null;
         isCreating = false;
+        isEditModalOpen = false;
         await loadClients();
+
+        // Se estava editando o cliente que a pagina de detalhes esta mostrando,
+        // atualiza a visualizacao com o dado novo em vez de voltar pra lista.
+        if (editingClientId) {
+          viewingClient = clients.find((client) => client.id === editingClientId) ?? null;
+        }
+
+        renderContent();
       },
       onDelete: selectedClient ? async () => {
         const confirmed = window.confirm(`Excluir o cliente ${selectedClient?.nome}? Essa acao nao pode ser desfeita.`);
@@ -123,6 +142,49 @@ export function createClientsPage(): HTMLElement {
     });
   }
 
+  function renderDetailView(): void {
+    if (!viewingClient) return;
+
+    const blocks: HTMLElement[] = [
+      createClientDetailView({
+        client: viewingClient,
+        onBack: () => {
+          viewingClient = null;
+          renderContent();
+        },
+        onEdit: () => {
+          selectedClient = viewingClient;
+          isEditModalOpen = true;
+          renderContent();
+        },
+        onDelete: () => handleDeleteFromDetail(viewingClient!)
+      })
+    ];
+
+    if (isEditModalOpen) {
+      blocks.push(createClientEditor());
+    }
+
+    content.replaceChildren(...blocks);
+  }
+
+  async function handleDeleteFromDetail(client: ClientRow): Promise<void> {
+    const confirmed = window.confirm(`Excluir o cliente ${client.nome}? Essa acao nao pode ser desfeita.`);
+    if (!confirmed) return;
+
+    loading.show();
+    try {
+      await deleteClient(client.id);
+      toast.success('Cliente excluido.');
+      viewingClient = null;
+      await loadClients();
+    } catch {
+      toast.error('Nao foi possivel excluir o cliente.');
+    } finally {
+      loading.hide();
+    }
+  }
+
   async function saveClient(data: ClientFormData): Promise<void> {
     loading.show();
     try {
@@ -130,9 +192,11 @@ export function createClientsPage(): HTMLElement {
         nome: data.nome,
         cpf: data.cpf,
         email: data.email,
+        telefone: data.telefone,
         concessionaria: data.concessionaria,
         ucs: data.ucs
-      };
+      };  
+
 
       if (selectedClient) {
         await updateClient(selectedClient.id, payload);

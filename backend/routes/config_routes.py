@@ -7,10 +7,11 @@ from services.database_config_service import (
     save_sql_config,
     test_database_config
 )
+from services.drive_service import invalidate_drive_cache
 from utils.api_response import error_response, success_response
 
 
-config_routes = Blueprint('config_routes', __name__, url_prefix='/config')
+config_routes = Blueprint('config_routes', __name__, url_prefix='/api/v1/config')
 
 
 @config_routes.route('/database')
@@ -33,7 +34,9 @@ def update_provider():
 @config_routes.route('/database/google-drive', methods=['POST'])
 def update_google_drive():
     data = request.get_json(silent=True) or {}
-    return success_response(save_google_drive_config(data), 'Google Drive configurado.')
+    config = save_google_drive_config(data)
+    invalidate_drive_cache()
+    return success_response(config, 'Google Drive configurado.')
 
 
 @config_routes.route('/database/sql', methods=['POST'])

@@ -1,7 +1,8 @@
 # backend/services/plant_service.py
+from datetime import date, datetime
+
 from extensions import db
 from models.plant import Plant
-
 
 def list_plants() -> list[dict]:
     plants = Plant.query.order_by(Plant.created_at.desc()).all()
@@ -22,7 +23,12 @@ def create_plant(data: dict) -> dict:
         percentual_disponivel=int(data.get('percentualDisponivel', 0)),
         marca_inversor=data.get('marcaInversor'),
         telefone_proprietario=data.get('telefoneProprietario'),
-        email_proprietario=data.get('emailProprietario')
+        email_proprietario=data.get('emailProprietario'),
+        cidade=data.get('cidade'),
+        uf=data.get('uf'),
+        endereco=data.get('endereco'),
+        data_ativacao=_parse_date(data.get('dataAtivacao')),
+        responsavel=data.get('responsavel')
     )
     db.session.add(plant)
     db.session.commit()
@@ -42,6 +48,11 @@ def update_plant(plant_id: int, data: dict) -> dict | None:
     plant.marca_inversor = data.get('marcaInversor', plant.marca_inversor)
     plant.telefone_proprietario = data.get('telefoneProprietario', plant.telefone_proprietario)
     plant.email_proprietario = data.get('emailProprietario', plant.email_proprietario)
+    plant.cidade = data.get('cidade', plant.cidade)
+    plant.uf = data.get('uf', plant.uf)
+    plant.endereco = data.get('endereco', plant.endereco)
+    plant.data_ativacao = _parse_date(data.get('dataAtivacao')) if 'dataAtivacao' in data else plant.data_ativacao
+    plant.responsavel = data.get('responsavel', plant.responsavel)
 
     db.session.commit()
     return plant.to_dict()
@@ -55,3 +66,8 @@ def delete_plant(plant_id: int) -> bool:
     db.session.delete(plant)
     db.session.commit()
     return True
+
+def _parse_date(value: str | None) -> date | None:
+    if not value:
+        return None
+    return datetime.strptime(value, '%Y-%m-%d').date()

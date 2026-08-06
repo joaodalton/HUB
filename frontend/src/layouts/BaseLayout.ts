@@ -17,17 +17,7 @@ export function createBaseLayout({ content, eyebrow, title }: BaseLayoutOptions)
 
   main.append(createHeader({ eyebrow, title }), content);
   body.append(createSidebar(), main);
-  shell.append(createCorners(), body, createLoading(), createToastContainer());
+  shell.append(body, createLoading(), createToastContainer());
 
   return shell;
-}
-
-function createCorners(): DocumentFragment {
-  const fragment = document.createDocumentFragment();
-
-  ['tl', 'tr', 'bl', 'br'].forEach((position) => {
-    fragment.appendChild(createElement('div', { className: `corner corner-${position}` }));
-  });
-
-  return fragment;
 }

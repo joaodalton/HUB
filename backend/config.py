@@ -11,7 +11,10 @@ load_dotenv(BASE_DIR / ".env")
 
 class Config:
     API_PORT = int(os.getenv('API_PORT', '8000'))
-    DEBUG = os.getenv('FLASK_DEBUG', 'true').lower() == 'true'
+    # Default seguro: se a variavel nao existir (ex.: esquecida no painel do Render),
+    # cai em DEBUG=False, nao True. Falhar "fechado" -- local continua com debug
+    # porque backend/.env ja seta FLASK_DEBUG=true explicitamente (.env.example).
+    DEBUG = os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
     DATA_PROVIDER = os.getenv('DATA_PROVIDER', 'google_drive')
     GOOGLE_SERVICE_ACCOUNT_FILE = os.getenv("GOOGLE_SERVICE_ACCOUNT_FILE", str(BASE_DIR / "credentials.json"))
     GOOGLE_DRIVE_ROOT_FOLDER_ID = os.getenv('GOOGLE_DRIVE_ROOT_FOLDER_ID', '')
@@ -24,7 +27,7 @@ class Config:
     # Client ID/Secret vem do Google Cloud Console -- ver README pra passo a passo.
     GOOGLE_OAUTH_CLIENT_ID = os.getenv('GOOGLE_OAUTH_CLIENT_ID', '')
     GOOGLE_OAUTH_CLIENT_SECRET = os.getenv('GOOGLE_OAUTH_CLIENT_SECRET', '')
-    GOOGLE_OAUTH_REDIRECT_URI = os.getenv('GOOGLE_OAUTH_REDIRECT_URI', 'http://localhost:8000/oauth/google/callback')
+    GOOGLE_OAUTH_REDIRECT_URI = os.getenv('GOOGLE_OAUTH_REDIRECT_URI', 'http://localhost:8000/api/v1/oauth/google/callback')
     # Pra onde redirecionar de volta depois do callback do Google (a SPA do frontend, nao o backend).
     FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
     SQL_DRIVER = os.getenv('SQL_DRIVER', '')
@@ -45,3 +48,13 @@ class Config:
     f"sqlite:///{(BASE_DIR / 'database' / 'hub.db').as_posix()}" 
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    # Neon (e Postgres gerenciado em geral) derruba conexao ociosa por conta propria
+    # (Neon free suspende o compute depois de alguns minutos parado). Sem isso, a
+    # proxima query reusa uma conexao morta do pool e cai com "SSL connection has
+    # been closed unexpectedly". pool_pre_ping testa a conexao (SELECT 1 leve) antes
+    # de cada uso e troca por uma nova se estiver morta -- transparente pra aplicacao.
+    # pool_recycle forca renovacao antes mesmo de morrer (280s, abaixo do timeout do Neon).
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_pre_ping': True,
+        'pool_recycle': 280
+    }

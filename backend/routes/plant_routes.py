@@ -11,7 +11,7 @@ from services.plant_service import (
 from utils.api_response import error_response, success_response
 
 
-plant_routes = Blueprint('plant_routes', __name__, url_prefix='/plants')
+plant_routes = Blueprint('plant_routes', __name__, url_prefix='/api/v1/plants')
 
 
 @plant_routes.route('', methods=['GET'])

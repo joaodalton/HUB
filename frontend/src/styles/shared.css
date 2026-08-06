@@ -1,0 +1,118 @@
+/* ============================================================
+   HUB — Shared
+   Pecas usadas por praticamente todo dominio: o "look" generico
+   de painel/card (fundo+borda+padding), barra de acoes de pagina,
+   toast, loading global, estados vazios/carregando.
+   ============================================================ */
+
+.data-panel, 
+.results-panel, 
+.reserved-panel, 
+.search-panel, 
+.settings-panel,
+.placeholder-panel, 
+.client-uc-panel, 
+.client-documents-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 20px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.placeholder-panel {
+  text-align: center;
+  color: var(--text-faint);
+  padding: 40px 20px;
+}
+
+/* ---------- Icon (Icon.ts) ---------- */
+/* Wrapper generico do componente de icone SVG. Tamanho e definido pelo
+   contexto de uso (.sidebar-icon, .icon-button .icon, .upload-dropzone .icon
+   etc.) -- aqui so o essencial pra svg herdar cor e preencher o wrapper. */
+
+.icon {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ---------- Page action row ---------- */
+
+.page-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.page-actions input[type="text"],
+.page-actions input[type="search"] {
+  flex: 1;
+  min-width: 220px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 9px 12px;
+}
+
+/* ---------- Toast / loading ---------- */
+
+.toast-container {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  display: grid;
+  gap: 8px;
+  z-index: 200;
+}
+
+.toast {
+  padding: 11px 16px;
+  border-radius: var(--radius);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  font-size: 13px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  animation: toast-in 0.15s ease;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.toast-success { border-color: var(--success-border); color: var(--success); }
+.toast-error { border-color: var(--danger-border); color: var(--danger); }
+
+.global-loading {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 14px;
+  font-size: 12px;
+  color: var(--text-dim);
+  z-index: 150;
+}
+
+/* ---------- Empty states ---------- */
+
+.empty-state {
+  color: var(--text-faint);
+  font-size: 13px;
+  padding: 20px 0;
+  text-align: center;
+}
+.empty-state.small { font-size: 12px; padding: 10px 0; }
+
+.loading-state { color: var(--text-faint); font-size: 13px; }

@@ -36,17 +36,34 @@ export async function getDocuments(clienteId?: number, ucId?: number): Promise<D
 }
 
 export async function uploadDocument(
-  data: { clienteId?: number; ucId?: number; categoriaId: number; nome?: string },
+  data: { clienteId?: number; ucId?: number; categoriaId?: number; nome?: string },
   file: File
 ): Promise<DocumentRow> {
   const formData = new FormData();
   formData.append('arquivo', file);
-  formData.append('categoriaId', String(data.categoriaId));
+  if (data.categoriaId) formData.append('categoriaId', String(data.categoriaId));
   if (data.clienteId) formData.append('clienteId', String(data.clienteId));
   if (data.ucId) formData.append('ucId', String(data.ucId));
   if (data.nome) formData.append('nome', data.nome);
 
   const response = await apiUpload<ApiResponse<DocumentRow>>('/documents', formData);
+  return response.data;
+}
+
+// Vincula um arquivo que ja esta no Google Drive a um cliente/UC sem fazer upload --
+// so cria o registro em Document apontando pro fileId do Drive (storageProvider='google_drive').
+export async function linkDriveDocument(data: {
+  clienteId: number;
+  categoriaId: number;
+  nome: string;
+  driveFileId: string;
+  ucId?: number;
+  mimeType?: string;
+}): Promise<DocumentRow> {
+  const response = await apiRequest<ApiResponse<DocumentRow>>('/documents/drive-link', {
+    method: 'POST',
+    body: data
+  });
   return response.data;
 }
 

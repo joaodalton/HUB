@@ -9,7 +9,10 @@ from services.log_service import LogService
 
 
 def list_ucs() -> list[dict]:
-    ucs = ConsumerUnit.query.order_by(ConsumerUnit.created_at.desc()).all()
+    # Por updated_at, nao created_at -- assim uma UC editada agora aparece no
+    # topo, mesmo se foi criada ha meses. updated_at ja e mantido sozinho pelo
+    # SQLAlchemy (onupdate=datetime.utcnow no model) a cada save.
+    ucs = ConsumerUnit.query.order_by(ConsumerUnit.updated_at.desc()).all()
     return [uc.to_dict() for uc in ucs]
 
 

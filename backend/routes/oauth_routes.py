@@ -12,10 +12,10 @@ from services.oauth_service import (
 )
 from utils.api_response import error_response, success_response
 
-oauth_routes = Blueprint('oauth_routes', __name__, url_prefix='/oauth/google')
+oauth_routes = Blueprint('oauth_routes', __name__, url_prefix='/api/v1/oauth/google')
 
 
-# GET /oauth/google/authorize -- redireciona o navegador pra tela de consentimento do Google.
+# GET /api/v1/oauth/google/authorize -- redireciona o navegador pra tela de consentimento do Google.
 # Publica (sem Bearer token) de proposito: e navegacao direta do navegador (<a href>), nao fetch com header.
 @oauth_routes.route('/authorize')
 def authorize():
@@ -25,7 +25,7 @@ def authorize():
         return error_response(str(exc), 503)
 
 
-# GET /oauth/google/callback -- o Google chama essa URL de volta com ?code=...&state=...
+# GET /api/v1/oauth/google/callback -- o Google chama essa URL de volta com ?code=...&state=...
 # Tambem publica pelo mesmo motivo da rota acima. Sempre volta pro frontend (nunca fica presa no backend).
 @oauth_routes.route('/callback')
 def callback():
@@ -47,13 +47,13 @@ def callback():
     return redirect(f'{Config.FRONTEND_URL}/configuracoes?google_oauth=sucesso')
 
 
-# GET /oauth/google/accounts -- lista contas Google conectadas. Rota autenticada normal (fetch do front).
+# GET /api/v1/oauth/google/accounts -- lista contas Google conectadas. Rota autenticada normal (fetch do front).
 @oauth_routes.route('/accounts')
 def accounts():
     return success_response(list_accounts())
 
 
-# POST /oauth/google/accounts/<id>/activate -- troca qual conta e a ativa (so uma por vez).
+# POST /api/v1/oauth/google/accounts/<id>/activate -- troca qual conta e a ativa (so uma por vez).
 @oauth_routes.route('/accounts/<int:account_id>/activate', methods=['POST'])
 def activate(account_id: int):
     account = set_active_account(account_id)
@@ -62,7 +62,7 @@ def activate(account_id: int):
     return success_response(account, 'Conta ativada.')
 
 
-# DELETE /oauth/google/accounts/<id> -- desconecta e apaga a conta salva (nao revoga no lado do Google).
+# DELETE /api/v1/oauth/google/accounts/<id> -- desconecta e apaga a conta salva (nao revoga no lado do Google).
 @oauth_routes.route('/accounts/<int:account_id>', methods=['DELETE'])
 def destroy(account_id: int):
     if not disconnect_account(account_id):

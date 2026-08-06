@@ -6,7 +6,7 @@ from models.category import Category
 from utils.api_response import error_response, success_response
 
 
-category_routes = Blueprint('category_routes', __name__, url_prefix='/categories')
+category_routes = Blueprint('category_routes', __name__, url_prefix='/api/v1/categories')
 
 
 @category_routes.route('', methods=['GET'])

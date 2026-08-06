@@ -20,10 +20,11 @@ def create_app() -> Flask:
     from models.setting import Setting
     from models.google_account import GoogleAccount
     from models.log_entry import LogEntry
+    from models.pendencia import Pendencia, PendenciaComentario
     from models.user import User
 
     # Restrito ao FRONTEND_URL (mesma variavel ja usada pro redirect do OAuth --
-    # ambas representam "a origem do frontend", nao faz sentido duplicar). Antes
+    # ambas representam "a origem do frontend", from models.log_entry import LogEntry faz sentido duplicar). Antes
     # disso, CORS(app) sem argumento liberava qualquer origem -- ok em dev solo,
     # perigoso assim que o backend for exposto na rede (Etapa 7).
     CORS(app, origins=[Config.FRONTEND_URL])
@@ -40,6 +41,7 @@ def create_app() -> Flask:
     from routes.settings_routes import settings_routes
     from routes.oauth_routes import oauth_routes
     from routes.log_routes import log_routes
+    from routes.pendencia_routes import pendencia_routes
 
     app.register_blueprint(health_routes)
     app.register_blueprint(auth_routes)
@@ -53,6 +55,7 @@ def create_app() -> Flask:
     app.register_blueprint(settings_routes)
     app.register_blueprint(oauth_routes)
     app.register_blueprint(log_routes)
+    app.register_blueprint(pendencia_routes)
 
     from utils.auth import register_auth_middleware
     register_auth_middleware(app, public_paths={

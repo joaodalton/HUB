@@ -5,7 +5,7 @@ from services.log_service import LogService
 from utils.api_response import success_response
 
 
-log_routes = Blueprint('log_routes', __name__, url_prefix='/logs')
+log_routes = Blueprint('log_routes', __name__, url_prefix='/api/v1/logs')
 
 
 @log_routes.route('', methods=['GET'])

@@ -16,8 +16,7 @@ from services.pendencia_service import (
 from utils.api_response import error_response, success_response
 
 
-pendencia_routes = Blueprint('pendencia_routes', __name__, url_prefix='/pendencias')
-
+pendencia_routes = Blueprint('pendencia_routes', __name__, url_prefix='/api/v1/pendencias')
 
 @pendencia_routes.route('', methods=['GET'])
 def index():

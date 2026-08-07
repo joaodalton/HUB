@@ -1,5 +1,4 @@
 import { apiRequest } from './apiClient';
-import { clearToken, getToken, setToken } from './tokenStorage';
 
 export type AuthUser = {
   id: number;
@@ -8,47 +7,55 @@ export type AuthUser = {
   ativo: boolean;
 };
 
-type LoginEnvelope = {
+type ApiResponse<T> = {
   success: boolean;
   message: string;
-  data: {
-    token: string;
-    user: AuthUser;
-  };
+  data: T;
 };
 
-const USER_KEY = 'hub.auth.user';
+let cachedUser: AuthUser | null = null;
+let sessionChecked = false;
 
 export function isAuthenticated(): boolean {
-  return Boolean(getToken());
+  return cachedUser !== null;
 }
 
-// Cache leve do usuario logado (sessionStorage, mesmo padrao do tokenStorage.ts)
-// -- so pra tela poder mostrar quem esta logado (ex.: cartao no rodape da
-// sidebar) sem precisar de uma rota GET /auth/me, que ainda nao existe.
 export function getCurrentUser(): AuthUser | null {
-  const raw = window.sessionStorage.getItem(USER_KEY);
-  if (!raw) return null;
+  return cachedUser;
+}
 
+export async function ensureSession(): Promise<AuthUser | null> {
+  if (sessionChecked) return cachedUser;
   try {
-    return JSON.parse(raw) as AuthUser;
+    const response = await apiRequest<ApiResponse<AuthUser>>('/auth/me');
+    cachedUser = response.data;
   } catch {
-    return null;
+    cachedUser = null;
   }
+  sessionChecked = true;
+  return cachedUser;
+}
+
+export function clearSession(): void {
+  cachedUser = null;
+  sessionChecked = true;
 }
 
 export async function login(email: string, senha: string): Promise<AuthUser> {
-  const response = await apiRequest<LoginEnvelope>('/auth/login', {
+  const response = await apiRequest<ApiResponse<AuthUser>>('/auth/login', {
     method: 'POST',
     body: { email, senha }
   });
-
-  setToken(response.data.token);
-  window.sessionStorage.setItem(USER_KEY, JSON.stringify(response.data.user));
-  return response.data.user;
+  cachedUser = response.data;
+  sessionChecked = true;
+  return response.data;
 }
 
-export function logout(): void {
-  clearToken();
-  window.sessionStorage.removeItem(USER_KEY);
+export async function logout(): Promise<void> {
+  try {
+    await apiRequest('/auth/logout', { method: 'POST' });
+  } catch {
+    // ignora -- limpa local mesmo assim
+  }
+  clearSession();
 }

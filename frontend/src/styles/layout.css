@@ -8,19 +8,43 @@
 
 .app-body {
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
+  grid-template-columns: 180px minmax(0, 1fr);
   min-height: 100vh;
 }
 
 .app-main {
-  padding: 28px 32px 48px;
+  padding: var(--space-4) var(--space-5) var(--space-5);
   min-width: 0;
 }
 
 .content-stack {
   display: grid;
-  gap: 20px;
-  margin-top: 24px;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+
+/* ---------- Ajuste por resolucao ---------- */
+/* So mexe em largura de coluna e padding -- a estrutura de grid (sidebar +
+   main) continua a mesma em qualquer tamanho, nao vira layout novo. */
+@media (max-width: 1366px) {
+  .app-body { grid-template-columns: 160px minmax(0, 1fr); }
+  .app-main { padding: var(--space-3) var(--space-4) var(--space-4); }
+}
+
+@media (max-width: 1024px) {
+  .app-body { grid-template-columns: 148px minmax(0, 1fr); }
+  .app-main { padding: var(--space-2) var(--space-3) var(--space-4); }
+  .sidebar { padding: 14px 8px; }
+}
+
+@media (max-width: 780px) {
+  .app-body { grid-template-columns: 1fr; }
+  .sidebar {
+    position: relative;
+    height: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
 }
 
 /* ---------- Cantinhos decorativos ---------- */
@@ -51,7 +75,7 @@
   height: 100vh;
   display: flex;
   flex-direction: column;
-  padding: 19px 12px;
+  padding: 16px 10px;
   background: var(--panel);
   border-right: 1px solid var(--border);
 }
@@ -71,13 +95,13 @@
 .sidebar-mark {
   display: grid;
   place-items: center;
-  width: 27px;
-  height: 27px;
-  border-radius: var(--radius-sm);
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-input);
   background: var(--accent);
   color: #fff;
   font-weight: 700;
-  font-size: 13px;
+  font-size: 12px;
   flex-shrink: 0;
 }
 

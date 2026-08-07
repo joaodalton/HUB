@@ -39,6 +39,31 @@
   --radius-sm: 6px;
   --radius: 10px;
   --radius-lg: 14px;
+
+  /* Radius por papel do elemento -- os de cima continuam existindo (usados
+     em pontos que nao sao input/botao/card/modal), estes aqui sao pra bater
+     com o guia de polimento visual. */
+  --radius-input: 10px;
+  --radius-button: 12px;
+  --radius-card: 16px;
+  --radius-modal: 20px;
+
+  /* Sombra unica por camada de UI -- nao inventar box-shadow solto em outro arquivo */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25), 0 1px 1px rgba(0, 0, 0, 0.18);
+  --shadow-md: 0 8px 20px rgba(0, 0, 0, 0.514);
+  --shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.425);
+
+  /* Escala de espacamento -- 4/8/16/24/32 */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 16px;
+  --space-4: 24px;
+  --space-5: 32px;
+
+  /* Altura padrao de controle (botao/input) e tamanho unico de icone inline */
+  --control-height: 40px;
+  --icon-size: 18px;
+
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
 }

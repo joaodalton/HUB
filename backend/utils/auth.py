@@ -4,6 +4,8 @@ Autenticacao simples por token assinado (nao-JWT, usa itsdangerous que ja
 vem junto com o Flask -- sem dependencia nova). Um usuario so por enquanto,
 sem checagem de papel/permissao: token valido = pode usar a API.
 """
+import secrets
+
 from flask import g, request
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -11,7 +13,11 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from config import Config
 from utils.api_response import error_response
 
-TOKEN_MAX_AGE_SECONDS = 60 * 60 * 24 * 7  # token expira em 7 dias, precisa logar de novo depois
+TOKEN_MAX_AGE_SECONDS = 60 * 60 * 24 * 7
+
+COOKIE_NAME = 'hub_token'
+CSRF_COOKIE_NAME = 'hub_csrf'
+_SAFE_METHODS = {'GET', 'HEAD', 'OPTIONS'}
 
 
 def hash_password(raw_password: str) -> str:
@@ -43,34 +49,58 @@ def decode_token(token: str) -> int | None:
         return None
 
 
-def register_auth_middleware(app, public_paths: set[str]) -> None:
-    """Bloqueia toda rota da API que nao estiver em public_paths sem token valido.
-    Registrar em create_app() depois que os blueprints existirem."""
+def set_auth_cookies(response, token: str) -> None:
+    is_prod = not Config.DEBUG
 
+    response.set_cookie(
+        COOKIE_NAME, token, httponly=True, secure=is_prod,
+        samesite='Lax', max_age=TOKEN_MAX_AGE_SECONDS, path='/'
+    )
+    response.set_cookie(
+        CSRF_COOKIE_NAME, secrets.token_urlsafe(32), httponly=False, secure=is_prod,
+        samesite='Lax', max_age=TOKEN_MAX_AGE_SECONDS, path='/'
+    )
+
+
+def clear_auth_cookies(response) -> None:
+    is_prod = not Config.DEBUG
+    response.delete_cookie(COOKIE_NAME, path='/', samesite='Lax', secure=is_prod)
+    response.delete_cookie(CSRF_COOKIE_NAME, path='/', samesite='Lax', secure=is_prod)
+
+
+def register_auth_middleware(app, public_paths: set[str]) -> None:
     @app.before_request
     def _require_auth():
         if request.method == 'OPTIONS':
             return None
-
         if request.path in public_paths:
             return None
 
-        auth_header = request.headers.get('Authorization', '')
+        token_from_cookie = request.cookies.get(COOKIE_NAME)
+        token = token_from_cookie
 
-        if not auth_header.startswith('Bearer '):
+        if not token:
+            auth_header = request.headers.get('Authorization', '')
+            if auth_header.startswith('Bearer '):
+                token = auth_header[len('Bearer '):]
+
+        if not token:
             return error_response('Token de autenticacao ausente.', 401)
 
-        token = auth_header[len('Bearer '):]
         user_id = decode_token(token)
-
         if not user_id:
             return error_response('Token invalido ou expirado.', 401)
 
         from models.user import User
         user = User.query.get(user_id)
-
         if not user or not user.ativo:
             return error_response('Usuario invalido ou inativo.', 401)
+
+        if token_from_cookie and request.method not in _SAFE_METHODS:
+            csrf_cookie = request.cookies.get(CSRF_COOKIE_NAME)
+            csrf_header = request.headers.get('X-CSRF-Token')
+            if not csrf_cookie or not csrf_header or csrf_cookie != csrf_header:
+                return error_response('Token CSRF ausente ou invalido.', 403)
 
         g.current_user = user
         return None

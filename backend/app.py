@@ -2,7 +2,7 @@ from flask import Flask
 from flask_cors import CORS
 
 from config import Config
-from extensions import db, migrate
+from extensions import db, migrate, limiter
 
 
 def create_app() -> Flask:
@@ -11,6 +11,7 @@ def create_app() -> Flask:
 
     db.init_app(app)
     migrate.init_app(app, db)
+    limiter.init_app(app)
 
     from models.client import Client
     from models.plant import Plant
@@ -23,11 +24,7 @@ def create_app() -> Flask:
     from models.pendencia import Pendencia, PendenciaComentario
     from models.user import User
 
-    # Restrito ao FRONTEND_URL (mesma variavel ja usada pro redirect do OAuth --
-    # ambas representam "a origem do frontend", nao faz sentido duplicar). Antes
-    # disso, CORS(app) sem argumento liberava qualquer origem -- ok em dev solo,
-    # perigoso assim que o backend for exposto na rede (Etapa 7).
-    CORS(app, origins=[Config.FRONTEND_URL])
+    CORS(app, origins=[Config.FRONTEND_URL], supports_credentials=True)
 
     from routes.auth_routes import auth_routes
     from routes.config_routes import config_routes
@@ -59,10 +56,18 @@ def create_app() -> Flask:
 
     from utils.auth import register_auth_middleware
     register_auth_middleware(app, public_paths={
-        '/', '/api/v1/auth/login', '/api/v1/auth/bootstrap',
-        # navegacao direta do navegador (redirect), nunca carrega o Bearer token do HUB
+        '/', '/api/v1/auth/login', '/api/v1/auth/bootstrap', '/api/v1/auth/logout',
         '/api/v1/oauth/google/authorize', '/api/v1/oauth/google/callback'
     })
+
+    @app.after_request
+    def _set_security_headers(response):
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-Frame-Options'] = 'DENY'
+        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        if not Config.DEBUG:
+            response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+        return response
 
     return app
 

@@ -159,9 +159,10 @@ function createLogoutButton(): HTMLElement {
   });
 
   logoutButton.addEventListener('click', () => {
-    logout();
-    window.history.pushState({}, '', '/login');
-    window.dispatchEvent(new PopStateEvent('popstate'));
+    logout().finally(() => {
+      window.history.pushState({}, '', '/login');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
   });
 
   return logoutButton;

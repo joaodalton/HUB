@@ -194,6 +194,68 @@ Erros: 400 (sem arquivo / sem categoria), 409 (cliente, UC ou categoria informad
 
 ---
 
+## Pendências (`/pendencias`)
+
+Fila única com `tipo` discriminando `pendencia` (tarefa manual), `alerta` (aviso automático) e `erro` (falha técnica) — decisão registrada no `PROGRESS.md`: começa numa tabela só, mas o código já é organizado por tipo (`CATEGORIAS_POR_TIPO`, `criar_pendencia_manual`/`criar_alerta`/`criar_erro` separados) pra facilitar separar em 3 tabelas no futuro, se precisar.
+
+**Categorias válidas** (mesma lista pros 3 tipos hoje): `Financeiro`, `Documentos`, `UCs`, `Usinas`, `Sistema`, `Mensagens`.
+**Prioridades**: `baixa`, `media`, `alta`, `critica`. **Status**: `aberta`, `resolvida`, `cancelada`.
+
+### `GET /pendencias?tipo=&categoria=&origem=&status=&prioridade=&responsavelId=&clienteId=`
+Todos os filtros opcionais e combináveis. `data` = array de `Pendencia`:
+```json
+{
+  "id": 1, "tipo": "pendencia", "categoria": "Financeiro", "origem": "Manual",
+  "titulo": "", "descricao": null,
+  "clienteId": null, "clienteNome": null,
+  "ucId": null, "ucCodigo": null,
+  "usinaId": null, "usinaNome": null,
+  "documentoId": null, "documentoNome": null,
+  "prazo": null, "prioridade": "media",
+  "responsavelId": 1, "responsavelNome": "admin@hub.com",
+  "status": "aberta", "metadados": null,
+  "criadoEm": "...", "atualizadoEm": "...", "resolvidoEm": null,
+  "comentarios": [{ "id": 1, "pendenciaId": 1, "autorId": 1, "autorNome": "admin@hub.com", "texto": "", "criadoEm": "..." }]
+}
+```
+`responsavelNome`/`autorNome` usam o **email** do usuário — `User` não tem campo "nome" hoje.
+
+### `GET /pendencias/resumo`
+`data` = `{ "pendencias": 5, "alertas": 2, "erros": 1 }` — contagem por tipo, **só status `aberta`**. Alimenta os cards do topo da tela.
+
+### `GET /pendencias/<id>` — `data` = `Pendencia`. 404 se não existir.
+
+### `POST /pendencias`
+Body obrigatório: `titulo`, `categoria` (precisa estar em `CATEGORIAS_POR_TIPO['pendencia']`). Opcionais: `descricao`, `clienteId`, `ucId`, `usinaId`, `documentoId`, `prazo` (ISO ou `YYYY-MM-DD`), `prioridade` (default `media`), `responsavelId` (default: usuário logado).
+**Sempre cria tipo `pendencia`** — não existe jeito de criar `alerta`/`erro` por essa rota (são gerados só pelo sistema, via `criar_alerta`/`criar_erro` internos, ainda sem regra automática chamando-os — ver `PROGRESS.md`, Pendências Sprint 2).
+Sucesso (201): `data` = `Pendencia`. Erros: 400 (`titulo`/`categoria` faltando ou inválidos).
+
+### `PUT /pendencias/<id>` — mesmo formato, todos os campos opcionais. 404 se não existir.
+
+### `DELETE /pendencias/<id>` — sem body. 404 se não existir.
+
+### `POST /pendencias/<id>/resolver` — sem body. Seta `status='resolvida'` e `resolvidoEm`. `data` = `Pendencia`.
+
+### `POST /pendencias/<id>/cancelar` — sem body. Seta `status='cancelada'`. `data` = `Pendencia`.
+
+### `POST /pendencias/<id>/reabrir` — sem body. Volta `status='aberta'`, limpa `resolvidoEm`. `data` = `Pendencia`.
+
+### `POST /pendencias/<id>/comentarios`
+Body: `{ "texto": string }`. Autor é sempre o usuário logado (`g.current_user`). Sucesso (201): `data` = `Pendencia` (já com o comentário novo em `comentarios`).
+
+---
+
+## Logs (`/logs`)
+
+### `GET /logs?limit=50&nivel=&entidade=&entidadeId=`
+Todos os filtros opcionais. `limit` tem teto de 200. `entidade`/`entidadeId` combinados servem pra timeline de um registro específico (ex.: histórico de uma Pendência: `entidade=Pendencia&entidadeId=3`).
+`data` = array de `LogEntry`, mais recente primeiro:
+```json
+{ "id": 1, "nivel": "info", "acao": "create", "entidade": "Pendencia", "entidadeId": 3, "mensagem": "", "metadados": null, "criadoEm": "..." }
+```
+
+---
+
 ## Configurações — aparência (`/settings`)
 
 Armazenamento livre chave/valor. Hoje só usado pela tela de Aparência (`themeColor`, `logoDataUrl`).

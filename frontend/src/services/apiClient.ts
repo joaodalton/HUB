@@ -1,23 +1,31 @@
 import { config } from './config';
-import { clearToken, getToken } from './tokenStorage';
+import { clearSession } from './authService';
 
 type RequestOptions = Omit<RequestInit, 'body'> & {
   body?: unknown;
 };
 
-function buildHeaders(extra?: HeadersInit): HeadersInit {
-  const token = getToken();
+const CSRF_COOKIE_NAME = 'hub_csrf';
+const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
-  return {
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...extra
-  };
+function readCsrfCookie(): string | null {
+  const match = document.cookie.match(new RegExp(`(?:^|; )${CSRF_COOKIE_NAME}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+function buildCsrfHeader(method: string | undefined): HeadersInit {
+  const normalizedMethod = (method ?? 'GET').toUpperCase();
+  if (!MUTATING_METHODS.has(normalizedMethod)) return {};
+  const csrfToken = readCsrfCookie();
+  return csrfToken ? { 'X-CSRF-Token': csrfToken } : {};
+}
+
+function buildJsonHeaders(method: string | undefined, extra?: HeadersInit): HeadersInit {
+  return { 'Content-Type': 'application/json', ...buildCsrfHeader(method), ...extra };
 }
 
 function redirectToLogin(): void {
-  clearToken();
-
+  clearSession();
   if (window.location.pathname !== '/login') {
     window.history.pushState({}, '', '/login');
     window.dispatchEvent(new PopStateEvent('popstate'));
@@ -32,60 +40,38 @@ async function readErrorMessage(response: Response): Promise<string> {
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const response = await fetch(`${config.apiBaseUrl}${config.apiPrefix}${path}`, {
     ...options,
-    headers: buildHeaders(options.headers),
+    credentials: 'include',
+    headers: buildJsonHeaders(options.method, options.headers),
     body: options.body ? JSON.stringify(options.body) : undefined
   });
 
-  if (response.status === 401) {
-    redirectToLogin();
-  }
-
-  if (!response.ok) {
-    throw new Error(await readErrorMessage(response));
-  }
-
+  if (response.status === 401) redirectToLogin();
+  if (!response.ok) throw new Error(await readErrorMessage(response));
   return response.json() as Promise<T>;
 }
 
 export async function apiBlob(path: string, options: RequestOptions = {}): Promise<Blob> {
   const response = await fetch(`${config.apiBaseUrl}${config.apiPrefix}${path}`, {
     ...options,
-    headers: buildHeaders(options.headers),
+    credentials: 'include',
+    headers: buildJsonHeaders(options.method, options.headers),
     body: options.body ? JSON.stringify(options.body) : undefined
   });
 
-  if (response.status === 401) {
-    redirectToLogin();
-  }
-
-  if (!response.ok) {
-    throw new Error(await readErrorMessage(response));
-  }
-
+  if (response.status === 401) redirectToLogin();
+  if (!response.ok) throw new Error(await readErrorMessage(response));
   return response.blob();
 }
 
-// Upload multipart (FormData) -- nao usa buildHeaders() de proposito: definir
-// 'Content-Type' aqui quebraria o boundary que o browser gera sozinho pro
-// multipart/form-data. So token de auth, sem Content-Type manual.
 export async function apiUpload<T>(path: string, formData: FormData): Promise<T> {
-  const token = getToken();
-
   const response = await fetch(`${config.apiBaseUrl}${config.apiPrefix}${path}`, {
     method: 'POST',
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    },
+    credentials: 'include',
+    headers: buildCsrfHeader('POST'),
     body: formData
   });
 
-  if (response.status === 401) {
-    redirectToLogin();
-  }
-
-  if (!response.ok) {
-    throw new Error(await readErrorMessage(response));
-  }
-
+  if (response.status === 401) redirectToLogin();
+  if (!response.ok) throw new Error(await readErrorMessage(response));
   return response.json() as Promise<T>;
 }

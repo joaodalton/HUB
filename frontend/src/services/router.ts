@@ -6,7 +6,7 @@ import { createPendenciasPage } from '../pages/PendenciasPage';
 import { createPlantsPage } from '../pages/PlantsPage';
 import { createSettingsPage } from '../pages/SettingsPage';
 import { createUcsPage } from '../pages/UcsPage';
-import { isAuthenticated } from './authService';
+import { ensureSession, isAuthenticated } from './authService';
 import { loadSettings } from './settingsService';
 
 type Route = {
@@ -76,7 +76,7 @@ export function createRouter(root: HTMLElement) {
   return {
     start() {
       window.addEventListener('popstate', render);
-      render();
+      ensureSession().finally(render);
     }
   };
 }

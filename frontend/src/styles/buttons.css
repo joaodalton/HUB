@@ -5,13 +5,19 @@
 
 button {
   cursor: pointer;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-button);
   border: none;
-  padding: 9px 16px;
+  height: var(--control-height);
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   background: var(--accent);
-  color: #fff;
+  color: #b99696;
   font-weight: 600;
-  transition: background-color 0.15s ease;
+  box-shadow: var(--shadow-sm);
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 button:hover { background: var(--accent-hover); }
@@ -22,6 +28,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   border: 1px solid var(--border);
   color: var(--text);
   font-weight: 500;
+  box-shadow: none;
 }
 .secondary-button:hover { background: var(--panel-hover); }
 
@@ -30,32 +37,38 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   border: 1px solid var(--danger-border);
   color: var(--danger);
   font-weight: 500;
+  box-shadow: none;
 }
 .danger-button:hover { background: var(--danger-bg); }
 
 .small-button {
-  padding: 6px 12px;
+  height: 32px;
+  padding: 0 12px;
   font-size: 12px;
+  border-radius: var(--radius-input);
   background: var(--panel-soft);
   border: 1px solid var(--border);
   color: var(--text);
   font-weight: 500;
+  box-shadow: none;
 }
 .small-button:hover { background: var(--panel-hover); }
 
 .icon-button {
-  width: 26px;
-  height: 26px;
+  width: 32px;
+  height: 32px;
   padding: 0;
+  border-radius: var(--radius-input);
   display: grid;
   place-items: center;
   background: transparent;
   border: 1px solid var(--border);
   color: var(--text-dim);
   font-size: 12px;
+  box-shadow: none;
 }
 .icon-button:hover { border-color: var(--danger-border); color: var(--danger); }
-.icon-button .icon { width: 14px; height: 14px; }
+.icon-button .icon { width: var(--icon-size); height: var(--icon-size); }
 
 /* ---------- Botao com icone + texto (ex.: Editar, Excluir, + Nova Usina) ---------- */
 
@@ -64,7 +77,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   align-items: center;
   gap: 6px;
 }
-.button-with-icon .icon { width: 14px; height: 14px; }
+.button-with-icon .icon { width: var(--icon-size); height: var(--icon-size); }
 
 .secondary-link {
   background: none;

@@ -102,5 +102,12 @@ def register_auth_middleware(app, public_paths: set[str]) -> None:
             if not csrf_cookie or not csrf_header or csrf_cookie != csrf_header:
                 return error_response('Token CSRF ausente ou invalido.', 403)
 
+        # Viewer so le -- qualquer metodo que muda dado (POST/PUT/DELETE/PATCH)
+        # e barrado aqui, de forma global, pra qualquer rota da API. Nao existe
+        # excecao por modulo de proposito (decisao registrada: "nao criar
+        # permissoes complexas por modulo ainda").
+        if user.papel == 'viewer' and request.method not in _SAFE_METHODS:
+            return error_response('Sua conta tem acesso somente leitura.', 403)
+
         g.current_user = user
         return None

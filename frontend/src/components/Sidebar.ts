@@ -175,5 +175,6 @@ function initialsFor(email: string): string {
 
 function roleLabel(papel?: string): string {
   if (papel === 'admin') return 'Administrador';
+  if (papel === 'viewer') return 'Visualizador';
   return papel || 'Usuário';
 }

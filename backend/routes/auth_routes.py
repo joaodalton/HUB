@@ -1,9 +1,11 @@
 # backend/routes/auth_routes.py
-from flask import Blueprint, request
+from flask import Blueprint, g, jsonify, request
 
+from extensions import limiter
 from models.user import User
 from services.auth_service import authenticate, create_first_admin
 from utils.api_response import error_response, success_response
+from utils.auth import clear_auth_cookies, set_auth_cookies
 
 
 auth_routes = Blueprint('auth_routes', __name__, url_prefix='/api/v1/auth')
@@ -31,6 +33,7 @@ def bootstrap():
 
 
 @auth_routes.route('/login', methods=['POST'])
+@limiter.limit('5 per minute')  # freia forca bruta -- 5 tentativas por IP por minuto
 def login():
     data = request.get_json(silent=True) or {}
     email = data.get('email', '').strip()
@@ -44,4 +47,28 @@ def login():
     if not result:
         return error_response('Email ou senha invalidos.', 401)
 
-    return success_response(result, 'Login realizado.')
+    # Construido na mao (nao com success_response) porque precisamos do objeto
+    # Response de verdade pra anexar os cookies antes de devolver. O token NAO
+    # vai mais no corpo da resposta -- so no cookie HttpOnly, que o JavaScript
+    # nunca consegue ler (nem com um XSS ativo). O front so recebe o usuario.
+    response = jsonify({'success': True, 'message': 'Login realizado.', 'data': result['user']})
+    set_auth_cookies(response, result['token'])
+    return response
+
+
+@auth_routes.route('/logout', methods=['POST'])
+def logout():
+    # Publica de proposito -- mesmo com cookie expirado/invalido, o usuario
+    # ainda precisa conseguir "limpar" o navegador dele.
+    response = jsonify({'success': True, 'message': 'Logout realizado.', 'data': None})
+    clear_auth_cookies(response)
+    return response
+
+
+@auth_routes.route('/me', methods=['GET'])
+def me():
+    # Rota protegida normal (passa pelo middleware) -- e como o frontend
+    # descobre se o cookie que o navegador tem ainda e valido, ja que ele
+    # nao consegue mais ler o token sozinho (proposital, e o cookie sendo
+    # HttpOnly).
+    return success_response(g.current_user.to_dict())

@@ -30,6 +30,7 @@ import {
   type GoogleAccountRow
 } from '../services/googleAccountService';
 import { formattedLogDate, getRecentLogs, type LogRow } from '../services/logsService';
+import { createUser, getUsers, setUserActive, type UserRow } from '../services/userService';
 
 type SettingsCategory = 'home' | 'geral' | 'database' | 'apis' | 'users' | 'automations' | 'logs' | 'appearance';
 
@@ -47,7 +48,7 @@ const CATEGORIES: CategoryDefinition[] = [
   { key: 'geral', label: 'Geral', ready: false },
   { key: 'database', label: 'Banco de Dados', ready: true },
   { key: 'apis', label: 'APIs e Integrações', ready: false },
-  { key: 'users', label: 'Usuários', ready: false },
+  { key: 'users', label: 'Usuários', ready: true },
   { key: 'automations', label: 'Automações', ready: false },
   { key: 'logs', label: 'Logs', ready: true },
   { key: 'appearance', label: 'Aparência', ready: true }
@@ -62,12 +63,15 @@ export function createSettingsPage(): HTMLElement {
   let appearanceLoaded = false;
   let recentLogs: LogRow[] = [];
   let logsLoaded = false;
+  let users: UserRow[] = [];
+  let usersLoaded = false;
 
   renderContent();
   loadDatabaseConfig();
   loadGoogleAccounts();
   refreshAppearance();
   loadRecentLogs();
+  loadUsers();
 
   const layout = createBaseLayout({
     content,
@@ -144,6 +148,41 @@ export function createSettingsPage(): HTMLElement {
     }
   }
 
+  // Falha silenciosa de proposito quando quem esta logado e viewer -- o backend
+  // devolve 403 pra essa rota (e' admin-only), e a aba simplesmente mostra
+  // "nenhum usuario" em vez de um toast de erro (ver createUsersPanel abaixo,
+  // ele detecta esse caso e explica em vez de reclamar).
+  async function loadUsers(): Promise<void> {
+    try {
+      users = await getUsers();
+    } catch {
+      users = [];
+    } finally {
+      usersLoaded = true;
+      renderContent();
+    }
+  }
+
+  async function handleCreateUser(data: { email: string; senha: string; papel: 'admin' | 'viewer' }): Promise<void> {
+    try {
+      await createUser(data);
+      toast.success('Usuário criado.');
+      await loadUsers();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível criar o usuário.');
+    }
+  }
+
+  async function handleToggleUserActive(user: UserRow): Promise<void> {
+    try {
+      await setUserActive(user.id, !user.ativo);
+      toast.success(user.ativo ? 'Usuário desativado.' : 'Usuário ativado.');
+      await loadUsers();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar o usuário.');
+    }
+  }
+
   function changeCategory(category: SettingsCategory): void {
     // Sai da aba Aparencia sem salvar -> descarta a pre-visualizacao de cor
     // pra nao deixar o tema "vazando" preview nao salvo pelo resto do app.
@@ -181,6 +220,9 @@ export function createSettingsPage(): HTMLElement {
 
       case 'logs':
         return createLogsPanel(recentLogs, logsLoaded);
+
+      case 'users':
+        return createUsersPanel(users, usersLoaded, handleCreateUser, handleToggleUserActive);
 
       case 'appearance':
         return createAppearancePanel(getSettings(), appearanceLoaded, toast.success, toast.error);
@@ -334,6 +376,111 @@ function createLogsPanel(logs: LogRow[], loaded: boolean): HTMLElement {
       { key: 'mensagem', label: 'Mensagem' }
     ]
   });
+}
+
+// ---------- Usuários ----------
+// So visivel de verdade pra quem loga como admin -- o backend bloqueia
+// GET /users pra viewer (403), entao a lista vem vazia e o painel mostra um
+// aviso em vez de fingir que a tela existe pra todo mundo.
+
+function createUsersPanel(
+  users: UserRow[],
+  loaded: boolean,
+  onCreate: (data: { email: string; senha: string; papel: 'admin' | 'viewer' }) => Promise<void>,
+  onToggleActive: (user: UserRow) => Promise<void>
+): HTMLElement {
+  const panel = createElement('section', { className: 'settings-panel' });
+  panel.appendChild(createPanelHeader('Usuários', 'Quem tem acesso ao HUB e com que papel'));
+
+  if (!loaded) {
+    panel.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Carregando...' }));
+    return panel;
+  }
+
+  if (users.length === 0) {
+    panel.appendChild(createElement('p', {
+      className: 'settings-hint',
+      textContent: 'Nenhum usuário encontrado, ou sua conta não tem permissão pra ver essa lista (só administrador gerencia usuários).'
+    }));
+    return panel;
+  }
+
+  const list = createElement('dl', { className: 'settings-list compact' });
+
+  users.forEach((user) => {
+    const label = createElement('dt', { textContent: user.email });
+    const valueRow = createElement('dd', { className: 'account-row' });
+    const roleBadge = createElement('span', {
+      className: user.papel === 'admin' ? 'provider-badge success' : 'provider-badge',
+      textContent: user.papel === 'admin' ? 'Administrador' : 'Visualizador'
+    });
+    const statusBadge = createElement('span', {
+      className: user.ativo ? 'provider-badge success' : 'provider-badge warning',
+      textContent: user.ativo ? 'Ativo' : 'Inativo'
+    });
+    const toggleButton = createElement('button', {
+      className: user.ativo ? 'danger-button' : 'secondary-button',
+      textContent: user.ativo ? 'Desativar' : 'Ativar',
+      type: 'button'
+    });
+
+    toggleButton.addEventListener('click', () => onToggleActive(user));
+
+    valueRow.append(roleBadge, statusBadge, toggleButton);
+    list.append(label, valueRow);
+  });
+
+  panel.appendChild(list);
+  panel.appendChild(createNewUserForm(onCreate));
+
+  return panel;
+}
+
+function createNewUserForm(
+  onCreate: (data: { email: string; senha: string; papel: 'admin' | 'viewer' }) => Promise<void>
+): HTMLElement {
+  const form = createElement('form', { className: 'settings-form' });
+  form.appendChild(createElement('span', { className: 'settings-subheading', textContent: 'Novo usuário' }));
+
+  const email = createInput('Email', 'email', '');
+  const senha = createInput('Senha provisória', 'password', '');
+  const papel = createSelectField('Papel', 'viewer', [
+    { value: 'viewer', label: 'Visualizador (só leitura)' },
+    { value: 'admin', label: 'Administrador (acesso total)' }
+  ]);
+
+  const actions = createElement('div', { className: 'form-actions' });
+  const submitButton = createElement('button', { textContent: 'Criar usuário', type: 'submit' });
+  actions.appendChild(submitButton);
+
+  form.append(email.field, senha.field, papel.field, actions);
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+
+    if (!email.input.value.trim() || !senha.input.value.trim()) {
+      email.input.reportValidity();
+      senha.input.reportValidity();
+      return;
+    }
+
+    submitButton.disabled = true;
+    submitButton.textContent = 'Criando...';
+
+    await onCreate({
+      email: email.input.value.trim(),
+      senha: senha.input.value,
+      papel: papel.select.value as 'admin' | 'viewer'
+    });
+
+    email.input.value = '';
+    senha.input.value = '';
+    papel.select.value = 'viewer';
+    submitButton.disabled = false;
+    submitButton.textContent = 'Criar usuário';
+  });
+
+  return form;
 }
 
 // ---------- Banco de dados (sem mudanca de comportamento, so mudou de lugar) ----------

@@ -17,10 +17,11 @@
 
 .search-row input {
   flex: 1;
+  height: var(--control-height);
   background: var(--panel-soft);
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 10px 12px;
+  border-radius: var(--radius-input);
+  padding: 0 12px;
 }
 
 .filter-row {

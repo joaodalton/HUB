@@ -280,12 +280,43 @@ export function createPendenciasPage(): HTMLElement {
       header,
       description,
       infoGrid,
+      createDetailsSection(pendencia),
       createDetailActions(pendencia),
       createCommentsSection(pendencia),
       createTimelineSection(pendencia)
     );
 
     return panel;
+  }
+
+  // Le pendencia.metadados (JSON livre, ja existe no model/banco -- ver
+  // Pendencia.metadados em backend/models/pendencia.py) e mostra qualquer
+  // chave que vier ali, sem hardcode. Quando a Sprint 2 (alerta/erro
+  // automatico) comecar a popular esse campo (ex.: tentativas,
+  // ultimaTentativa, erroRetornado), essa secao ja funciona sem precisar
+  // tocar no frontend de novo -- so o backend passa a mandar o JSON.
+  function createDetailsSection(pendencia: PendenciaRow): HTMLElement {
+    const section = createElement('div', { className: 'pendencia-detail-section' });
+    const title = createElement('span', { className: 'pendencia-detail-section-title', textContent: 'Detalhes' });
+    section.appendChild(title);
+
+    const entries = pendencia.metadados ? Object.entries(pendencia.metadados) : [];
+
+    if (entries.length === 0) {
+      section.appendChild(createElement('p', {
+        className: 'empty-state small',
+        textContent: 'Nenhum detalhe adicional registrado ainda.'
+      }));
+      return section;
+    }
+
+    const grid = createElement('div', { className: 'detail-info-grid' });
+    entries.forEach(([key, value]) => {
+      grid.appendChild(createInfoField(detailsLabel(key), formatDetailsValue(value)));
+    });
+    section.appendChild(grid);
+
+    return section;
   }
 
   function createDetailActions(pendencia: PendenciaRow): HTMLElement {
@@ -606,4 +637,18 @@ function normalize(value: string): string {
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '');
+}
+
+// "erroRetornado" -> "Erro retornado". Generico de proposito -- nao sabemos
+// hoje quais chaves o backend vai mandar em metadados quando a Sprint 2
+// (alertas/erros automaticos) for implementada.
+function detailsLabel(key: string): string {
+  const spaced = key.replace(/([a-z])([A-Z])/g, '$1 $2');
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
+function formatDetailsValue(value: unknown): string {
+  if (value === null || value === undefined) return '-';
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
 }

@@ -13,8 +13,13 @@
   align-items: start;
 }
 
-@media (max-width: 980px) {
+/* So empilha em telas realmente estreitas (tablet/celular) -- a tabela ja
+   rola horizontalmente sozinha (.table-wrap), entao o painel pode continuar
+   fixo a direita ate uma largura bem menor do que antes (era 980px, cortava
+   cedo demais em notebook com zoom ou janela nao maximizada). */
+@media (max-width: 720px) {
   .pendencias-layout { grid-template-columns: 1fr; }
+  .pendencia-detail-panel { position: static; }
 }
 
 .pendencia-detail-panel {
@@ -24,7 +29,11 @@
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  max-height: calc(100vh - 48px);
+  /* Fixo (sticky) a direita -- ao rolar a lista, o painel de detalhe fica
+     parado no lugar, exatamente como o painel "Resumo geral" do mockup. */
+  position: sticky;
+  top: 20px;
+  max-height: calc(100vh - 40px);
   overflow-y: auto;
 }
 

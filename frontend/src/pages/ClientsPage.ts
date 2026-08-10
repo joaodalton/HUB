@@ -193,6 +193,7 @@ export function createClientsPage(): HTMLElement {
         cpf: data.cpf,
         email: data.email,
         telefone: data.telefone,
+        dataNascimento: data.dataNascimento || null,
         concessionaria: data.concessionaria,
         ucs: data.ucs
       };  

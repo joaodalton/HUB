@@ -34,6 +34,7 @@ export type ClientRow = {
   cpf: string;
   email: string;
   telefone: string | null;
+  dataNascimento: string | null;
   uc: string;
   usina: string;
   consumo: string;
@@ -47,6 +48,7 @@ export type ClientPayload = {
   cpf: string;
   email: string;
   telefone: string;
+  dataNascimento: string | null;
   concessionaria: string;
   ucs: ClientUc[];
 };

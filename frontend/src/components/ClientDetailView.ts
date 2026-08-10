@@ -66,7 +66,7 @@ function createInfoPanel(client: ClientRow): HTMLElement {
     createInfoField('Telefone', client.telefone || 'Não informado'),
     createInfoField('Email', client.email),
     createInfoField('Concessionária', client.concessionaria),
-    createInfoField('Data de nascimento', 'Não configurado')
+    createInfoField('Data de nascimento', formatBirthDate(client.dataNascimento))
   );
 
   panel.append(eyebrow, grid);
@@ -137,6 +137,15 @@ function createUcViewCard(uc: ClientUc): HTMLElement {
   card.append(summary, body);
 
   return card;
+}
+
+// Formata sem passar por Date() de proposito -- Date('YYYY-MM-DD') e
+// interpretado como UTC meia-noite, e toLocaleDateString com timezone
+// atras de UTC pode mostrar o dia anterior. So um split/reorder de string.
+function formatBirthDate(value: string | null): string {
+  if (!value) return 'Não informado';
+  const [year, month, day] = value.split('-');
+  return `${day}/${month}/${year}`;
 }
 
 // Exportado -- PlantsPage.ts reaproveita pro mesmo padrao label/valor no

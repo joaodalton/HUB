@@ -2,7 +2,7 @@ from extensions import db
 from sqlalchemy.exc import IntegrityError
 from models.client import Client
 from models.consumer_unit import ConsumerUnit
-from services.uc_service import apply_uc_fields, sync_connections
+from services.uc_service import apply_uc_fields, sync_connections, _parse_date
 
 
 def list_clients() -> list[dict]:
@@ -22,7 +22,8 @@ def create_client(data: dict) -> dict:
         email=data.get('email', '').strip(),
         telefone=data.get('telefone', ''),
         concessionaria=data.get('concessionaria', 'Copel'),
-        status=_resolve_status(data.get('ucs', []))
+        status=_resolve_status(data.get('ucs', [])),
+        data_nascimento=_parse_date(data.get('dataNascimento'))
     )
     db.session.add(client)
 
@@ -49,6 +50,7 @@ def update_client(client_id: int, data: dict) -> dict | None:
     client.telefone = data.get('telefone', client.telefone)
     client.concessionaria = data.get('concessionaria', client.concessionaria)
     client.status = _resolve_status(data.get('ucs', []))
+    client.data_nascimento = _parse_date(data['dataNascimento']) if 'dataNascimento' in data else client.data_nascimento
 
     _sync_ucs(client, data.get('ucs', []))
 

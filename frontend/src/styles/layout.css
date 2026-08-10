@@ -110,6 +110,19 @@
   gap: 15px;
   flex: 1;
   min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* Barra de rolagem fina em vez da padrao do navegador, pra nao destoar
+     do resto do visual (Firefox + navegadores baseados em Chromium). */
+  scrollbar-width: thin;
+}
+
+.sidebar-nav::-webkit-scrollbar {
+  width: 5px;
+}
+.sidebar-nav::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
 }
 
 .sidebar-section {

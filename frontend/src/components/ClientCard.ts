@@ -10,6 +10,7 @@ export type ClientFormData = {
   cpf: string;
   email: string;
   telefone: string;
+  dataNascimento: string;
   concessionaria: string;
   ucs: ClientUc[];
 };
@@ -55,6 +56,7 @@ export function createClientCard({
   const cpf = createInput('CPF', 'text', client?.cpf ?? '', true);
   const telefone = createInput('Telefone', 'tel', client?.telefone ?? '', false);
   const email = createInput('Email', 'email', client?.email ?? '', true);
+  const dataNascimento = createInput('Data de nascimento', 'date', client?.dataNascimento ?? '', false);
   const concessionaria = createSelect('Concessionaria', client?.concessionaria ?? concessionarias[0], concessionarias);
   const documentsPanel = createClientDocumentsPanel(client?.id);
   const actions = createElement('div', { className: 'form-actions' });
@@ -63,7 +65,7 @@ export function createClientCard({
 
   titleText.append(eyebrow, heading);
   header.append(titleText, closeButton);
-  fields.append(nome.field, cpf.field, telefone.field, email.field, concessionaria.field);
+  fields.append(nome.field, cpf.field, telefone.field, email.field, dataNascimento.field, concessionaria.field);
   actions.appendChild(saveButton);
 
   if (isEditing && onDelete) {
@@ -101,6 +103,7 @@ export function createClientCard({
       cpf: cpf.input.value.trim(),
       email: email.input.value.trim(),
       telefone: telefone.input.value.trim(),
+      dataNascimento: dataNascimento.input.value,
       concessionaria: concessionaria.select.value,
       ucs: currentUcs.filter((uc) => uc.codigo.trim())
     });

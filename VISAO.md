@@ -25,6 +25,24 @@ Não é um site. Não é um dashboard interno de uso ocasional. É pra ser o **p
 
 **Regra prática pro Codex:** continuar construindo a API REST normalmente (é isso que já vinha sendo feito). Autenticação (mesmo que simples, sem tela de permissões ainda) entra **antes** de qualquer deploy em rede compartilhada — não depois. Não implementar Docker, múltiplos usuários reais ou PostgreSQL de forma especulativa antes disso ser necessário de verdade.
 
+### 2.1 Pergunta em aberto: multi-tenant vs. instalação isolada (registrado 2026-08-09, NÃO decidido)
+
+A decisão original desta seção (instalação separada por cliente, banco e servidor próprios) segue valendo — **não foi revertida**. Mas durante uma conversa sobre auto-cadastro de usuário, surgiu a dúvida se um dia faria mais sentido multi-tenant de verdade (todo cliente no mesmo banco, dado separado por linha/campo, tipo `empresa_id` em cada tabela). Registrando os dois lados pra quando essa decisão precisar ser tomada de verdade — perto do primeiro cliente pagante de fora, não antes:
+
+**Instalação isolada (o que já estava decidido):**
+- Cada cliente = projeto Neon próprio + serviços Render próprios, apontando pro mesmo repositório/branch `main`.
+- Zero risco de vazamento de dado entre clientes (nem é fisicamente possível, são bancos diferentes).
+- Custo escala por cliente (cada um paga/exige seu próprio Render + Neon pagos — free tier não é viável pra cliente de verdade, o "acordar" de 30s não é aceitável profissionalmente). Precisa entrar no preço cobrado.
+- Atualização de **código** é automática (Render já faz isso, grátis, hoje). Atualização de **schema do banco** (migration) é manual, por cliente, toda vez — cresce em trabalho conforme o número de clientes aumenta. Vale revisitar automação disso (ex.: script que aplica migration em todos os bancos de uma vez) se/quando o número de clientes justificar.
+
+**Multi-tenant (a ideia nova, ainda não avaliada a fundo):**
+- Um banco só, campo `empresa_id` (ou similar) em praticamente toda tabela.
+- Custo de infra não cresce por cliente (mesma instância pra todos).
+- Risco real e conhecido: qualquer query esquecida de filtrar por empresa vaza dado de um cliente pro outro — é o tipo de bug clássico desse modelo, difícil de garantir 100% sem testes/revisão séria em cada rota nova daqui pra frente.
+- Exigiria reescrever queries e modelos já existentes (Cliente, UC, Usina, Documento, Pendência, tudo) — não é aditivo, é retrofit em cima do que já existe.
+
+**Não decidir agora.** Só documentar que a pergunta existe, pra não escolher um caminho por omissão sem perceber.
+
 ## 3. Regras não-negociáveis
 
 - Nunca remover funcionalidade existente sem necessidade clara.

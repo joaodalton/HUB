@@ -1,4 +1,7 @@
 # backend/services/user_service.py
+import secrets
+
+from config import Config
 from extensions import db
 from models.user import User
 from services.log_service import LogService
@@ -39,6 +42,20 @@ def create_user(data: dict) -> dict:
         metadados={'userId': user.id}
     )
     return user.to_dict()
+
+
+def register_with_code(data: dict, provided_code: str) -> dict:
+    """Auto-cadastro publico (tela de login) -- so funciona se SIGNUP_CODE
+    estiver configurado E o codigo mandado bater. SEMPRE cria 'viewer', nunca
+    'admin' -- forcado aqui, independente do que vier em data['papel']. Um
+    auto-cadastro nao deve conseguir se dar poder de admin sozinho."""
+    if not Config.SIGNUP_CODE:
+        raise ValueError('Cadastro publico desativado.')
+
+    if not provided_code or not secrets.compare_digest(provided_code, Config.SIGNUP_CODE):
+        raise ValueError('Codigo de acesso invalido.')
+
+    return create_user({**data, 'papel': 'viewer'})
 
 
 def set_user_active(user_id: int, ativo: bool) -> dict | None:

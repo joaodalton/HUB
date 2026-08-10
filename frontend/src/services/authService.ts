@@ -51,6 +51,16 @@ export async function login(email: string, senha: string): Promise<AuthUser> {
   return response.data;
 }
 
+// Auto-cadastro (tela de login) -- so funciona se o backend tiver SIGNUP_CODE
+// configurado e o codigo bater. NAO loga sozinho -- devolve so a confirmacao,
+// quem chamou decide se quer logar em seguida (ver LoginPage.ts).
+export async function register(email: string, senha: string, codigo: string): Promise<void> {
+  await apiRequest('/auth/register', {
+    method: 'POST',
+    body: { email, senha, codigo }
+  });
+}
+
 export async function logout(): Promise<void> {
   try {
     await apiRequest('/auth/logout', { method: 'POST' });

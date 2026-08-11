@@ -29,7 +29,10 @@ export type IconName =
   | 'mensagens'
   | 'integracoes'
   | 'permissoes'
-  | 'check';
+  | 'check'
+  | 'user'
+  | 'lock'
+  | 'login';
 
 const paths: Record<IconName, string> = {
   documents: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>',
@@ -55,7 +58,10 @@ const paths: Record<IconName, string> = {
   mensagens: '<path d="M4 5.5h16a1 1 0 0 1 1 1V15a1 IconName 0 0 1-1 1H9l-4.5 4V16H4a1 1 0 0 1-1-1V6.5a1 1 0 0 1 1-1z"/>',
   integracoes: '<path d="M9 15 15 9"/><path d="M7 12.5 5.5 14a3 3 0 0 0 4.2 4.2L11 17"/><path d="M17 11.5 18.5 10a3 3 0 0 0-4.2-4.2L13 7"/>',
   permissoes: '<path d="M12 3.5 19 6v6c0 4.5-3 7.5-7 8.5-4-1-7-4-7-8.5V6z"/><path d="M9.5 12l1.8 1.8L14.5 10"/>',
-  check: '<path d="M5 12.5 9.5 17 19 7.5"/>'
+  check: '<path d="M5 12.5 9.5 17 19 7.5"/>',
+  user: '<circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.9 3.1-7 7-7s7 3.1 7 7"/>',
+  lock: '<rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
+  login: '<path d="M13 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="M3 12h13"/><path d="M12 7l5 5-5 5"/>'
 };
 
 function markup(name: IconName): string {

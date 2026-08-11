@@ -41,10 +41,10 @@ export function clearSession(): void {
   sessionChecked = true;
 }
 
-export async function login(email: string, senha: string): Promise<AuthUser> {
+export async function login(email: string, senha: string, lembrar = false): Promise<AuthUser> {
   const response = await apiRequest<ApiResponse<AuthUser>>('/auth/login', {
     method: 'POST',
-    body: { email, senha }
+    body: { email, senha, lembrar }
   });
   cachedUser = response.data;
   sessionChecked = true;

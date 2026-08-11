@@ -58,8 +58,10 @@ def login():
     if not result:
         return error_response('Email ou senha invalidos.', 401)
 
+    lembrar = bool(data.get('lembrar', False))
+
     response = jsonify({'success': True, 'message': 'Login realizado.', 'data': result['user']})
-    set_auth_cookies(response, result['token'])
+    set_auth_cookies(response, result['token'], remember=lembrar)
     return response
 
 

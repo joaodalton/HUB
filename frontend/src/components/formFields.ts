@@ -47,3 +47,27 @@ export function createCheckboxField(label: string, checked: boolean) {
   field.append(input, text);
   return { field, input };
 }
+
+// Par valor/rotulo (ex.: mostrar "Visualizador (so leitura)" mas gravar
+// "viewer") -- createSelect acima serve quando rotulo e valor sao iguais;
+// use este quando precisar dissociar os dois. Movido de SettingsPage.ts
+// (era cópia local, agora reaproveitado tambem por UsersPage.ts).
+export function createSelectField(
+  label: string,
+  value: string,
+  options: Array<{ value: string; label: string }>
+) {
+  const field = createElement('label', { className: 'form-field' });
+  const text = createElement('span', { textContent: label });
+  const select = createElement('select');
+
+  options.forEach((option) => {
+    const optionElement = createElement('option', { textContent: option.label });
+    optionElement.value = option.value;
+    select.appendChild(optionElement);
+  });
+
+  select.value = value;
+  field.append(text, select);
+  return { field, select };
+}

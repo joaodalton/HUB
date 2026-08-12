@@ -60,7 +60,7 @@ const sections: SidebarSection[] = [
     title: 'Configurações',
     items: [
       { label: 'Integrações', path: '/integracoes', icon: 'integracoes', enabled: false },
-      { label: 'Usuários', path: '/usuarios', icon: 'clients', enabled: false },
+      { label: 'Usuários', path: '/usuarios', icon: 'clients', enabled: true },
       { label: 'Permissões', path: '/permissoes', icon: 'permissoes', enabled: false },
       { label: 'Configurações', path: '/configuracoes', icon: 'settings', enabled: true }
     ]

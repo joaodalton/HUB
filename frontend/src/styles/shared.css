@@ -118,3 +118,18 @@
 .empty-state.small { font-size: 12px; padding: 10px 0; }
 
 .loading-state { color: var(--text-faint); font-size: 13px; }
+
+/* ---------- Select + botao inline (ex.: "+ categoria") ---------- */
+/* Generico de proposito -- reaproveitar aqui em vez de criar de novo se
+   outro lugar do app precisar do mesmo padrao select+acao. */
+
+.select-with-button {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.select-with-button select {
+  flex: 1;
+  min-width: 0;
+}

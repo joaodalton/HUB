@@ -88,7 +88,7 @@ def apply_uc_fields(uc: ConsumerUnit, data: dict) -> None:
     uc.concessionaria = data.get('concessionaria', uc.concessionaria)
     uc.geracao_propria = bool(data.get('geracaoPropria', uc.geracao_propria))
     uc.dia_emissao_fatura = data.get('diaEmissaoFatura', uc.dia_emissao_fatura)
-    uc.consumo = data.get('consumo', uc.consumo)
+    uc.consumo = _parse_consumo(data['consumo']) if 'consumo' in data else uc.consumo
     uc.base_tarifaria = data.get('baseTarifaria', uc.base_tarifaria or 'B1')
     uc.desconto = data.get('desconto', uc.desconto)
     uc.tipo_ligacao = data.get('tipoLigacao', uc.tipo_ligacao or 'Monofasico')
@@ -102,6 +102,12 @@ def _parse_date(value: str | None) -> date | None:
     if not value:
         return None
     return datetime.strptime(value, '%Y-%m-%d').date()
+
+
+def _parse_consumo(value) -> float | None:
+    if value is None or value == '':
+        return None
+    return float(value)
 
 
 def sync_connections(uc: ConsumerUnit, conexoes_data: list[dict]) -> None:

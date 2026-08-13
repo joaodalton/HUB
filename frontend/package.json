@@ -8,6 +8,9 @@
     "build": "tsc && vite build",
     "preview": "vite preview --host 127.0.0.1 --port 4173"
   },
+  "dependencies": {
+    "@sentry/browser": "^8.55.2"
+  },
   "devDependencies": {
     "typescript": "^5.5.4",
     "vite": "^5.4.0"

@@ -19,7 +19,7 @@ class ConsumerUnit(db.Model):
     concessionaria = db.Column(db.String(50), nullable=True)
     geracao_propria = db.Column(db.Boolean, nullable=False, default=False)
     dia_emissao_fatura = db.Column(db.Integer, nullable=True)  # dia do mes (1-31)
-    consumo = db.Column(db.String(30), nullable=True, default='')
+    consumo = db.Column(db.Numeric(10, 2), nullable=True)
     base_tarifaria = db.Column(db.String(10), nullable=False, default='B1')
     desconto = db.Column(db.String(20), nullable=True, default='')
     tipo_ligacao = db.Column(db.String(20), nullable=False, default='Monofasico')
@@ -52,7 +52,7 @@ class ConsumerUnit(db.Model):
             'concessionaria': self.concessionaria,
             'geracaoPropria': self.geracao_propria,
             'diaEmissaoFatura': self.dia_emissao_fatura,
-            'consumo': self.consumo,
+            'consumo': float(self.consumo) if self.consumo is not None else None,
             'baseTarifaria': self.base_tarifaria,
             'desconto': self.desconto,
             'tipoLigacao': self.tipo_ligacao,
@@ -70,15 +70,17 @@ class PlantConnection(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     consumer_unit_id = db.Column(db.Integer, db.ForeignKey('consumer_units.id'), nullable=False)
     plant_id = db.Column(db.Integer, db.ForeignKey('plants.id'), nullable=False)
-    percentual = db.Column(db.String(10), nullable=False, default='')
+    percentual = db.Column(db.Numeric(5, 2), nullable=False, default=0)
+    percentual_manual = db.Column(db.Boolean, nullable=False, default=False)
 
     consumer_unit = db.relationship('ConsumerUnit', back_populates='conexoes')
     plant = db.relationship('Plant', back_populates='connections')
 
     def to_dict(self) -> dict:
         return {
-        "id": self.id,
-        "plantId": self.plant_id,
-        "usina": self.plant.nome if self.plant else "",
-        "percentual": self.percentual,
-    }
+            "id": self.id,
+            "plantId": self.plant_id,
+            "usina": self.plant.nome if self.plant else "",
+            "percentual": float(self.percentual or 0),
+            "percentualManual": self.percentual_manual,
+        }

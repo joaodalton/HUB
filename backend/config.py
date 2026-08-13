@@ -69,6 +69,10 @@ class Config:
     # de proposito -- nunca reaproveitar a mesma chave pra dois usos criptograficos distintos.
     # Gerar com: python -c "import secrets; print(secrets.token_hex(32))"
     SECRET_KEY = os.getenv('SECRET_KEY', '')
+    # DSN do projeto backend no Sentry (sentry.io) -- vazio desliga o rastreamento
+    # de erro por completo, sem quebrar nada (sentry_sdk.init com dsn=None e no-op).
+    SENTRY_DSN = os.getenv('SENTRY_DSN', '')
+    SENTRY_ENVIRONMENT = os.getenv('SENTRY_ENVIRONMENT', 'development')
 
     SQLALCHEMY_DATABASE_URI = os.getenv(
     'DATABASE_URL',
@@ -76,7 +80,7 @@ class Config:
     )
 
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    
+
     # Neon (e Postgres gerenciado em geral) derruba conexao ociosa por conta propria
     # (Neon free suspende o compute depois de alguns minutos parado). Sem isso, a
     # proxima query reusa uma conexao morta do pool e cai com "SSL connection has

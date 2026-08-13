@@ -15,7 +15,7 @@ export type UcRow = {
   concessionaria: string | null;
   geracaoPropria: boolean;
   diaEmissaoFatura: number | null;
-  consumo: string;
+  consumo: number | null;
   baseTarifaria: string;
   desconto: string;
   tipoLigacao: 'Monofasico' | 'Bifasico' | 'Trifasico';

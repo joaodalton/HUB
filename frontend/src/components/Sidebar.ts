@@ -21,7 +21,7 @@ type SidebarSection = {
 // HUB ainda esta em V0.x (nucleo funcional incompleto, ver PROGRESS.md) --
 // nao copiar numero de versao do mockup (v1.5.0), isso mentiria sobre o
 // estado real do projeto pra quem olhar a tela.
-const HUB_VERSION = 'V1.x';
+export const HUB_VERSION = 'V1.x';
 
 const sections: SidebarSection[] = [
   {
@@ -60,7 +60,7 @@ const sections: SidebarSection[] = [
     title: 'Configurações',
     items: [
       { label: 'Integrações', path: '/integracoes', icon: 'integracoes', enabled: false },
-      { label: 'Usuários', path: '/usuarios', icon: 'clients', enabled: false },
+      { label: 'Usuários', path: '/usuarios', icon: 'clients', enabled: true },
       { label: 'Permissões', path: '/permissoes', icon: 'permissoes', enabled: false },
       { label: 'Configurações', path: '/configuracoes', icon: 'settings', enabled: true }
     ]

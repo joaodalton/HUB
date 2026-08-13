@@ -6,6 +6,7 @@ import { createPendenciasPage } from '../pages/PendenciasPage';
 import { createPlantsPage } from '../pages/PlantsPage';
 import { createSettingsPage } from '../pages/SettingsPage';
 import { createUcsPage } from '../pages/UcsPage';
+import { createUsersPage } from '../pages/UsersPage';
 import { ensureSession, isAuthenticated } from './authService';
 import { loadSettings } from './settingsService';
 
@@ -23,6 +24,7 @@ export function createRouter(root: HTMLElement) {
     { path: '/usinas', render: createPlantsPage },
     { path: '/pendencias', render: createPendenciasPage },
     { path: '/agenda', render: createAgendaPage },
+    { path: '/usuarios', render: createUsersPage },
     { path: '/configuracoes', render: createSettingsPage }
   ];
 

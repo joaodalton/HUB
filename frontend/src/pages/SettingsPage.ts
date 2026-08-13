@@ -1,17 +1,9 @@
 import { createElement } from '../dom';
+import { createInput, createSelectField } from '../components/formFields';
 import { createDataTable } from '../components/DataTable';
 import { useToast } from '../hooks/useToast';
 import { createBaseLayout } from '../layouts/BaseLayout';
 import { refreshSidebarBrand } from '../components/Sidebar';
-import {
-  getDatabaseConfig,
-  saveDatabaseProvider,
-  saveGoogleDriveConfig,
-  saveSqlConfig,
-  testDatabaseConnection,
-  type DatabaseConfig,
-  type DatabaseProvider
-} from '../services/databaseConfigService';
 import {
   applyAppearanceSettings,
   applyThemeVariables,
@@ -30,16 +22,14 @@ import {
   type GoogleAccountRow
 } from '../services/googleAccountService';
 import { formattedLogDate, getRecentLogs, type LogRow } from '../services/logsService';
-import { createUser, getUsers, setUserActive, type UserRow } from '../services/userService';
 
-type SettingsCategory = 'home' | 'geral' | 'database' | 'apis' | 'users' | 'automations' | 'logs' | 'appearance';
+type SettingsCategory = 'home' | 'geral' | 'database' | 'apis' | 'automations' | 'logs' | 'appearance';
 
 type CategoryDefinition = {
   key: SettingsCategory;
   label: string;
   // false = categoria so existe na navegacao, ainda sem backend por tras.
-  // Mostra um aviso "em breve" em vez de fingir que a funcionalidade existe
-  // (mesmo padrao ja usado em /pendencias, ver PlaceholderPage.ts).
+  // Mostra um aviso "em breve" em vez de fingir que a funcionalidade existe.
   ready: boolean;
 };
 
@@ -48,7 +38,6 @@ const CATEGORIES: CategoryDefinition[] = [
   { key: 'geral', label: 'Geral', ready: false },
   { key: 'database', label: 'Banco de Dados', ready: true },
   { key: 'apis', label: 'APIs e Integrações', ready: false },
-  { key: 'users', label: 'Usuários', ready: true },
   { key: 'automations', label: 'Automações', ready: false },
   { key: 'logs', label: 'Logs', ready: true },
   { key: 'appearance', label: 'Aparência', ready: true }
@@ -58,20 +47,15 @@ export function createSettingsPage(): HTMLElement {
   const content = createElement('section', { className: 'content-stack' });
   const toast = useToast();
   let activeCategory: SettingsCategory = 'home';
-  let databaseConfig: DatabaseConfig | null = null;
   let googleAccounts: GoogleAccountRow[] = [];
   let appearanceLoaded = false;
   let recentLogs: LogRow[] = [];
   let logsLoaded = false;
-  let users: UserRow[] = [];
-  let usersLoaded = false;
 
   renderContent();
-  loadDatabaseConfig();
   loadGoogleAccounts();
   refreshAppearance();
   loadRecentLogs();
-  loadUsers();
 
   const layout = createBaseLayout({
     content,
@@ -84,15 +68,6 @@ export function createSettingsPage(): HTMLElement {
   handleGoogleOAuthRedirect(toast, () => changeCategory('database'));
 
   return layout;
-
-  async function loadDatabaseConfig(): Promise<void> {
-    try {
-      databaseConfig = await getDatabaseConfig();
-      renderContent();
-    } catch {
-      toast.error('Nao foi possivel carregar configuracoes do backend.');
-    }
-  }
 
   async function loadGoogleAccounts(): Promise<void> {
     try {
@@ -148,41 +123,6 @@ export function createSettingsPage(): HTMLElement {
     }
   }
 
-  // Falha silenciosa de proposito quando quem esta logado e viewer -- o backend
-  // devolve 403 pra essa rota (e' admin-only), e a aba simplesmente mostra
-  // "nenhum usuario" em vez de um toast de erro (ver createUsersPanel abaixo,
-  // ele detecta esse caso e explica em vez de reclamar).
-  async function loadUsers(): Promise<void> {
-    try {
-      users = await getUsers();
-    } catch {
-      users = [];
-    } finally {
-      usersLoaded = true;
-      renderContent();
-    }
-  }
-
-  async function handleCreateUser(data: { email: string; senha: string; papel: 'admin' | 'viewer' }): Promise<void> {
-    try {
-      await createUser(data);
-      toast.success('Usuário criado.');
-      await loadUsers();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível criar o usuário.');
-    }
-  }
-
-  async function handleToggleUserActive(user: UserRow): Promise<void> {
-    try {
-      await setUserActive(user.id, !user.ativo);
-      toast.success(user.ativo ? 'Usuário desativado.' : 'Usuário ativado.');
-      await loadUsers();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar o usuário.');
-    }
-  }
-
   function changeCategory(category: SettingsCategory): void {
     // Sai da aba Aparencia sem salvar -> descarta a pre-visualizacao de cor
     // pra nao deixar o tema "vazando" preview nao salvo pelo resto do app.
@@ -206,13 +146,10 @@ export function createSettingsPage(): HTMLElement {
   function renderCategoryPanel(): HTMLElement {
     switch (activeCategory) {
       case 'home':
-        return createHomePanel(databaseConfig, recentLogs, logsLoaded, () => changeCategory('logs'));
+        return createHomePanel(recentLogs, logsLoaded, () => changeCategory('logs'));
 
       case 'database':
-        return createDatabasePanel(databaseConfig, toast.success, toast.error, async () => {
-          databaseConfig = await getDatabaseConfig();
-          renderContent();
-        }, {
+        return createDatabasePanel({
           items: googleAccounts,
           onActivate: handleActivateAccount,
           onDisconnect: handleDisconnectAccount
@@ -220,9 +157,6 @@ export function createSettingsPage(): HTMLElement {
 
       case 'logs':
         return createLogsPanel(recentLogs, logsLoaded);
-
-      case 'users':
-        return createUsersPanel(users, usersLoaded, handleCreateUser, handleToggleUserActive);
 
       case 'appearance':
         return createAppearancePanel(getSettings(), appearanceLoaded, toast.success, toast.error);
@@ -287,8 +221,6 @@ function categoryMessage(category: SettingsCategory): string {
       return 'Em construção — fuso horário, concessionária padrão e outras preferências gerais chegam numa próxima etapa.';
     case 'apis':
       return 'Em construção — integrações externas (Asaas, WhatsApp, concessionárias, inversores) entram a partir da V2.0, quando cada uma for conectada de verdade.';
-    case 'users':
-      return 'Em construção — gestão de usuários e permissões por papel chega numa fase futura.';
     case 'automations':
       return 'Em construção — automações dependem das integrações de APIs acima, ainda não implementadas.';
     default:
@@ -305,33 +237,10 @@ function createComingSoonPanel(message: string): HTMLElement {
 // ---------- Home ----------
 
 function createHomePanel(
-  config: DatabaseConfig | null,
   logs: LogRow[],
   logsLoaded: boolean,
   onSeeAllLogs: () => void
 ): HTMLElement {
-  const wrapper = createElement('div', { className: 'settings-home-grid' });
-
-  const driveCard = createElement('section', { className: 'settings-panel' });
-  driveCard.appendChild(createPanelHeader('Google Drive', 'Status da conexão'));
-
-  if (!config) {
-    driveCard.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Carregando...' }));
-  } else {
-    const list = createElement('dl', { className: 'settings-list compact' });
-    list.append(
-      createElement('dt', { textContent: 'Status' }),
-      createElement('dd', {
-        textContent: config.provider === 'google_drive' ? 'Ativo como banco de dados' : 'Configurado, mas não ativo'
-      }),
-      createElement('dt', { textContent: 'Credenciais' }),
-      createElement('dd', { textContent: config.googleDrive.credentialsFound ? 'Arquivo encontrado' : 'Arquivo não encontrado' }),
-      createElement('dt', { textContent: 'Pasta raiz' }),
-      createElement('dd', { textContent: config.googleDrive.rootFolderId || 'Não configurada' })
-    );
-    driveCard.appendChild(list);
-  }
-
   const logsCard = createElement('section', { className: 'settings-panel' });
   const seeAllButton = createElement('button', { className: 'secondary-link', textContent: 'Ver todos', type: 'button' });
   seeAllButton.addEventListener('click', onSeeAllLogs);
@@ -347,8 +256,7 @@ function createHomePanel(
     logsCard.appendChild(list);
   }
 
-  wrapper.append(driveCard, logsCard);
-  return wrapper;
+  return logsCard;
 }
 
 function createLogRow(log: LogRow): HTMLElement {
@@ -378,179 +286,25 @@ function createLogsPanel(logs: LogRow[], loaded: boolean): HTMLElement {
   });
 }
 
-// ---------- Usuários ----------
-// So visivel de verdade pra quem loga como admin -- o backend bloqueia
-// GET /users pra viewer (403), entao a lista vem vazia e o painel mostra um
-// aviso em vez de fingir que a tela existe pra todo mundo.
+// ---------- Banco de dados ----------
+// So mostra contas Google conectadas via OAuth -- troca de provedor (Google
+// Drive vs SQL) saiu da interface porque ja esta configurada e estavel no
+// backend (.env), nao precisa mais de tela pra trocar isso. Os services
+// continuam existindo (databaseConfigService.ts no front,
+// database_config_service.py + config_routes.py no back) -- so a UI parou
+// de expor, se um dia precisar trocar de provedor de novo e so reativar.
 
-function createUsersPanel(
-  users: UserRow[],
-  loaded: boolean,
-  onCreate: (data: { email: string; senha: string; papel: 'admin' | 'viewer' }) => Promise<void>,
-  onToggleActive: (user: UserRow) => Promise<void>
-): HTMLElement {
-  const panel = createElement('section', { className: 'settings-panel' });
-  panel.appendChild(createPanelHeader('Usuários', 'Quem tem acesso ao HUB e com que papel'));
-
-  if (!loaded) {
-    panel.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Carregando...' }));
-    return panel;
-  }
-
-  if (users.length === 0) {
-    panel.appendChild(createElement('p', {
-      className: 'settings-hint',
-      textContent: 'Nenhum usuário encontrado, ou sua conta não tem permissão pra ver essa lista (só administrador gerencia usuários).'
-    }));
-    return panel;
-  }
-
-  const list = createElement('dl', { className: 'settings-list compact' });
-
-  users.forEach((user) => {
-    const label = createElement('dt', { textContent: user.email });
-    const valueRow = createElement('dd', { className: 'account-row' });
-    const roleBadge = createElement('span', {
-      className: user.papel === 'admin' ? 'provider-badge success' : 'provider-badge',
-      textContent: user.papel === 'admin' ? 'Administrador' : 'Visualizador'
-    });
-    const statusBadge = createElement('span', {
-      className: user.ativo ? 'provider-badge success' : 'provider-badge warning',
-      textContent: user.ativo ? 'Ativo' : 'Inativo'
-    });
-    const toggleButton = createElement('button', {
-      className: user.ativo ? 'danger-button' : 'secondary-button',
-      textContent: user.ativo ? 'Desativar' : 'Ativar',
-      type: 'button'
-    });
-
-    toggleButton.addEventListener('click', () => onToggleActive(user));
-
-    valueRow.append(roleBadge, statusBadge, toggleButton);
-    list.append(label, valueRow);
-  });
-
-  panel.appendChild(list);
-  panel.appendChild(createNewUserForm(onCreate));
-
-  return panel;
-}
-
-function createNewUserForm(
-  onCreate: (data: { email: string; senha: string; papel: 'admin' | 'viewer' }) => Promise<void>
-): HTMLElement {
-  const form = createElement('form', { className: 'settings-form' });
-  form.appendChild(createElement('span', { className: 'settings-subheading', textContent: 'Novo usuário' }));
-
-  const email = createInput('Email', 'email', '');
-  const senha = createInput('Senha provisória', 'password', '');
-  const papel = createSelectField('Papel', 'viewer', [
-    { value: 'viewer', label: 'Visualizador (só leitura)' },
-    { value: 'admin', label: 'Administrador (acesso total)' }
-  ]);
-
-  const actions = createElement('div', { className: 'form-actions' });
-  const submitButton = createElement('button', { textContent: 'Criar usuário', type: 'submit' });
-  actions.appendChild(submitButton);
-
-  form.append(email.field, senha.field, papel.field, actions);
-
-  form.addEventListener('submit', async (event) => {
-    event.preventDefault();
-
-    if (!email.input.value.trim() || !senha.input.value.trim()) {
-      email.input.reportValidity();
-      senha.input.reportValidity();
-      return;
-    }
-
-    submitButton.disabled = true;
-    submitButton.textContent = 'Criando...';
-
-    await onCreate({
-      email: email.input.value.trim(),
-      senha: senha.input.value,
-      papel: papel.select.value as 'admin' | 'viewer'
-    });
-
-    email.input.value = '';
-    senha.input.value = '';
-    papel.select.value = 'viewer';
-    submitButton.disabled = false;
-    submitButton.textContent = 'Criar usuário';
-  });
-
-  return form;
-}
-
-// ---------- Banco de dados (sem mudanca de comportamento, so mudou de lugar) ----------
-
-function createDatabasePanel(
-  config: DatabaseConfig | null,
-  notify: (message: string) => void,
-  notifyError: (message: string) => void,
-  onRefresh: () => Promise<void>,
-  googleAccounts: {
-    items: GoogleAccountRow[];
-    onActivate: (id: number) => void;
-    onDisconnect: (id: number) => void;
-  }
-): HTMLElement {
+function createDatabasePanel(googleAccounts: {
+  items: GoogleAccountRow[];
+  onActivate: (id: number) => void;
+  onDisconnect: (id: number) => void;
+}): HTMLElement {
   const wrapper = createElement('section', { className: 'database-provider-stack' });
-
-  if (!config) {
-    wrapper.appendChild(createElement('section', {
-      className: 'settings-panel placeholder-panel',
-      textContent: 'Carregando configuracoes do backend...'
-    }));
-    return wrapper;
-  }
-
-  wrapper.append(
-    createProviderCard({
-      title: 'Google Drive',
-      eyebrow: 'Banco atual',
-      active: config.provider === 'google_drive',
-      configured: config.googleDrive.configured,
-      lines: [
-        ['Credenciais', config.googleDrive.credentialsFound ? 'Arquivo encontrado' : 'Arquivo nao encontrado'],
-        ['Pasta raiz', config.googleDrive.rootFolderId || 'Nao configurada'],
-        ['Arquivo de dados', config.googleDrive.dataFile]
-      ],
-      onConfigure: () => document.body.appendChild(createGoogleDriveModal(config, notify, notifyError, onRefresh)),
-      onUse: async () => {
-        await saveDatabaseProvider('google_drive');
-        notify('Google Drive definido como banco ativo.');
-        await onRefresh();
-      },
-      onTest: () => testProvider('google_drive', notify, notifyError)
-    }),
-    createGoogleAccountsSection(googleAccounts.items, googleAccounts.onActivate, googleAccounts.onDisconnect),
-    createProviderCard({
-      title: 'SQL',
-      eyebrow: 'Banco futuro',
-      active: config.provider === 'sql',
-      configured: config.sql.configured,
-      lines: [
-        ['Driver', config.sql.driver || 'Nao configurado'],
-        ['Servidor', config.sql.host || 'Nao configurado'],
-        ['Banco', config.sql.database || 'Nao configurado']
-      ],
-      onConfigure: () => document.body.appendChild(createSqlModal(config, notify, notifyError, onRefresh)),
-      onUse: async () => {
-        await saveDatabaseProvider('sql');
-        notify('SQL definido como banco ativo.');
-        await onRefresh();
-      },
-      onTest: () => testProvider('sql', notify, notifyError)
-    })
-  );
-
+  wrapper.appendChild(createGoogleAccountsSection(googleAccounts.items, googleAccounts.onActivate, googleAccounts.onDisconnect));
   return wrapper;
 }
 
-// Contas Google conectadas via OAuth real (multiplas, com refresh token no banco) --
-// complementa o credentials.json de service account acima, nao substitui ainda.
+// Contas Google conectadas via OAuth real (multiplas, com refresh token no banco).
 function createGoogleAccountsSection(
   accounts: GoogleAccountRow[],
   onActivate: (id: number) => void,
@@ -611,183 +365,6 @@ function createGoogleAccountsSection(
   return section;
 }
 
-function createProviderCard({
-  title,
-  eyebrow,
-  active,
-  configured,
-  lines,
-  onConfigure,
-  onUse,
-  onTest
-}: {
-  title: string;
-  eyebrow: string;
-  active: boolean;
-  configured: boolean;
-  lines: Array<[string, string]>;
-  onConfigure: () => void;
-  onUse: () => void;
-  onTest: () => void;
-}): HTMLElement {
-  const card = createElement('section', { className: active ? 'database-provider-card active' : 'database-provider-card' });
-  const header = createElement('div', { className: 'provider-header' });
-  const text = createElement('div');
-  const eyebrowElement = createElement('span', { className: 'eyebrow', textContent: eyebrow });
-  const heading = createElement('h2', { textContent: title });
-  const badge = createElement('span', {
-    className: configured ? 'provider-badge success' : 'provider-badge warning',
-    textContent: active ? 'Ativo' : configured ? 'Configurado' : 'Pendente'
-  });
-  const list = createElement('dl', { className: 'settings-list compact' });
-  const actions = createElement('div', { className: 'provider-actions' });
-  const configureButton = createElement('button', { textContent: 'Configurar', type: 'button' });
-  const useButton = createElement('button', { className: 'secondary-button', textContent: 'Usar este banco', type: 'button' });
-  const testButton = createElement('button', { className: 'secondary-button', textContent: 'Testar conexao', type: 'button' });
-
-  lines.forEach(([label, value]) => {
-    list.append(createElement('dt', { textContent: label }), createElement('dd', { textContent: value }));
-  });
-
-  configureButton.addEventListener('click', onConfigure);
-  useButton.addEventListener('click', onUse);
-  testButton.addEventListener('click', onTest);
-  useButton.disabled = active;
-
-  text.append(eyebrowElement, heading);
-  header.append(text, badge);
-  actions.append(configureButton, useButton, testButton);
-  card.append(header, list, actions);
-
-  return card;
-}
-
-function createGoogleDriveModal(
-  config: DatabaseConfig,
-  notify: (message: string) => void,
-  notifyError: (message: string) => void,
-  onRefresh: () => Promise<void>
-): HTMLElement {
-  const credentialsFile = createInput('Arquivo de credenciais no backend', 'text', config.googleDrive.credentialsFile);
-  const rootFolderId = createInput('ID da pasta raiz no Drive', 'text', config.googleDrive.rootFolderId);
-  const dataFile = createInput('Arquivo de dados', 'text', config.googleDrive.dataFile);
-
-  return createConfigModal({
-    title: 'Configurar Google Drive',
-    fields: [credentialsFile.field, rootFolderId.field, dataFile.field],
-    hint: 'O JSON da service account deve ficar no backend. Nao cole segredo no navegador.',
-    onSave: async () => {
-      try {
-        await saveGoogleDriveConfig({
-          credentialsFile: credentialsFile.input.value.trim(),
-          rootFolderId: rootFolderId.input.value.trim(),
-          dataFile: dataFile.input.value.trim()
-        });
-        notify('Google Drive salvo no backend.');
-        await onRefresh();
-        return true;
-      } catch {
-        notifyError('Nao foi possivel salvar Google Drive.');
-        return false;
-      }
-    }
-  });
-}
-
-function createSqlModal(
-  config: DatabaseConfig,
-  notify: (message: string) => void,
-  notifyError: (message: string) => void,
-  onRefresh: () => Promise<void>
-): HTMLElement {
-  const driver = createInput('Driver', 'text', config.sql.driver);
-  const host = createInput('Host', 'text', config.sql.host);
-  const port = createInput('Porta', 'text', config.sql.port);
-  const database = createInput('Banco', 'text', config.sql.database);
-  const user = createInput('Usuario', 'text', config.sql.user);
-  const password = createInput('Senha', 'password', '');
-
-  return createConfigModal({
-    title: 'Configurar SQL',
-    fields: [driver.field, host.field, port.field, database.field, user.field, password.field],
-    hint: config.sql.passwordConfigured ? 'Senha ja configurada. Preencha novamente apenas se quiser trocar.' : 'A senha sera enviada ao backend para gravacao local.',
-    onSave: async () => {
-      try {
-        await saveSqlConfig({
-          driver: driver.input.value.trim(),
-          host: host.input.value.trim(),
-          port: port.input.value.trim(),
-          database: database.input.value.trim(),
-          user: user.input.value.trim(),
-          password: password.input.value
-        });
-        notify('SQL salvo no backend.');
-        await onRefresh();
-        return true;
-      } catch {
-        notifyError('Nao foi possivel salvar SQL.');
-        return false;
-      }
-    }
-  });
-}
-
-function createConfigModal({
-  title,
-  fields,
-  hint,
-  onSave
-}: {
-  title: string;
-  fields: HTMLElement[];
-  hint: string;
-  onSave: () => Promise<boolean>;
-}): HTMLElement {
-  const overlay = createElement('section', { className: 'modal-overlay' });
-  const panel = createElement('article', { className: 'plant-card' });
-  const form = createElement('form', { className: 'client-form' });
-  const header = createElement('div', { className: 'form-header' });
-  const heading = createElement('h2', { textContent: title });
-  const closeButton = createElement('button', { className: 'secondary-button', textContent: 'Fechar', type: 'button' });
-  const body = createElement('div', { className: 'settings-form' });
-  const hintText = createElement('p', { className: 'settings-hint', textContent: hint });
-  const actions = createElement('div', { className: 'form-actions' });
-  const saveButton = createElement('button', { textContent: 'Salvar configuracao', type: 'submit' });
-
-  closeButton.addEventListener('click', () => overlay.remove());
-  overlay.addEventListener('click', (event) => {
-    if (event.target === overlay) overlay.remove();
-  });
-  form.addEventListener('submit', async (event) => {
-    event.preventDefault();
-
-    if (await onSave()) {
-      overlay.remove();
-    }
-  });
-
-  header.append(heading, closeButton);
-  body.append(...fields, hintText);
-  actions.appendChild(saveButton);
-  form.append(header, body, actions);
-  panel.appendChild(form);
-  overlay.appendChild(panel);
-
-  return overlay;
-}
-
-async function testProvider(
-  provider: DatabaseProvider,
-  notify: (message: string) => void,
-  notifyError: (message: string) => void
-): Promise<void> {
-  try {
-    notify(await testDatabaseConnection(provider));
-  } catch (error) {
-    notifyError(error instanceof Error ? error.message : 'Teste falhou. Verifique a configuracao no backend.');
-  }
-}
-
 // ---------- Aparencia ----------
 
 function createAppearancePanel(
@@ -809,7 +386,6 @@ function createAppearancePanel(
 
   const body = createElement('div', { className: 'settings-form' });
 
-  // Logo -- um botao so, salva sozinho assim que um arquivo e escolhido.
   const logoField = createElement('label', { className: 'form-field' });
   const logoLabel = createElement('span', { textContent: 'Logotipo' });
   const logoRow = createElement('div', { className: 'logo-row' });
@@ -847,7 +423,6 @@ function createAppearancePanel(
   logoRow.append(preview, logoButton, logoInput);
   logoField.append(logoLabel, logoRow);
 
-  // Idioma -- por enquanto so guarda a preferencia (ver aviso abaixo).
   const language = createSelectField('Idioma', settings.language, [
     { value: 'pt-BR', label: 'Português (Brasil)' },
     { value: 'en-US', label: 'English' }
@@ -859,9 +434,6 @@ function createAppearancePanel(
 
   const companyName = createInput('Nome da empresa', 'text', settings.companyName);
 
-  // Cores do tema -- so as 4 bases; hover/fundo translucido/etc sao derivados
-  // (ver applyThemeVariables em settingsService.ts) pra nao virar uma tela
-  // cheia de color-picker solto.
   const colorsTitle = createElement('span', { className: 'settings-subheading', textContent: 'Cores do tema' });
   const colorGrid = createElement('div', { className: 'color-field-grid' });
   const backgroundColor = createColorField('Fundo', settings.backgroundColor);
@@ -955,27 +527,6 @@ function createColorField(label: string, value: string): { field: HTMLElement; i
   return { field, input };
 }
 
-function createSelectField(
-  label: string,
-  value: string,
-  options: Array<{ value: string; label: string }>
-): { field: HTMLElement; select: HTMLSelectElement } {
-  const field = createElement('label', { className: 'form-field' });
-  const text = createElement('span', { textContent: label });
-  const select = createElement('select');
-
-  options.forEach((option) => {
-    const optionElement = createElement('option', { textContent: option.label });
-    optionElement.value = option.value;
-    select.appendChild(optionElement);
-  });
-
-  select.value = value;
-  field.append(text, select);
-
-  return { field, select };
-}
-
 function renderLogoPreview(container: HTMLElement, logoDataUrl: string): void {
   container.replaceChildren();
 
@@ -1014,16 +565,4 @@ function createPanelHeader(eyebrowText: string, title: string, action?: HTMLElem
   if (action) header.appendChild(action);
 
   return header;
-}
-
-function createInput(label: string, type: string, value: string): { field: HTMLElement; input: HTMLInputElement } {
-  const field = createElement('label', { className: 'form-field' });
-  const text = createElement('span', { textContent: label });
-  const input = createElement('input');
-
-  input.type = type;
-  input.value = value;
-
-  field.append(text, input);
-  return { field, input };
 }

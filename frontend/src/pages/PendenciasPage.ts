@@ -34,6 +34,7 @@ import {
   type PendenciaStatus,
   type PendenciaTipo
 } from '../services/pendenciasService';
+import { addExtraCategoria, getExtraCategorias } from '../services/pendenciaCategoriasService';
 import { getPlants, type PlantRow } from '../services/plantService';
 import { getUcs, type UcRow } from '../services/ucsService';
 
@@ -47,6 +48,7 @@ export function createPendenciasPage(): HTMLElement {
   let clients: ClientRow[] = [];
   let ucs: UcRow[] = [];
   let plants: PlantRow[] = [];
+  let categoriaExtras: string[] = [];
   let loadError = false;
 
   let selectedId: number | null = null;
@@ -67,18 +69,20 @@ export function createPendenciasPage(): HTMLElement {
   async function loadAll(): Promise<void> {
     loading.show();
     try {
-      const [pendenciasData, resumoData, clientsData, ucsData, plantsData] = await Promise.all([
+      const [pendenciasData, resumoData, clientsData, ucsData, plantsData, categoriaExtrasData] = await Promise.all([
         getPendencias(),
         getPendenciaResumo(),
         getClients(),
         getUcs(),
-        getPlants()
+        getPlants(),
+        getExtraCategorias()
       ]);
       pendencias = pendenciasData;
       resumo = resumoData;
       clients = clientsData;
       ucs = ucsData;
       plants = plantsData;
+      categoriaExtras = categoriaExtrasData;
       loadError = false;
     } catch {
       loadError = true;
@@ -280,12 +284,43 @@ export function createPendenciasPage(): HTMLElement {
       header,
       description,
       infoGrid,
+      createDetailsSection(pendencia),
       createDetailActions(pendencia),
       createCommentsSection(pendencia),
       createTimelineSection(pendencia)
     );
 
     return panel;
+  }
+
+  // Le pendencia.metadados (JSON livre, ja existe no model/banco -- ver
+  // Pendencia.metadados em backend/models/pendencia.py) e mostra qualquer
+  // chave que vier ali, sem hardcode. Quando a Sprint 2 (alerta/erro
+  // automatico) comecar a popular esse campo (ex.: tentativas,
+  // ultimaTentativa, erroRetornado), essa secao ja funciona sem precisar
+  // tocar no frontend de novo -- so o backend passa a mandar o JSON.
+  function createDetailsSection(pendencia: PendenciaRow): HTMLElement {
+    const section = createElement('div', { className: 'pendencia-detail-section' });
+    const title = createElement('span', { className: 'pendencia-detail-section-title', textContent: 'Detalhes' });
+    section.appendChild(title);
+
+    const entries = pendencia.metadados ? Object.entries(pendencia.metadados) : [];
+
+    if (entries.length === 0) {
+      section.appendChild(createElement('p', {
+        className: 'empty-state small',
+        textContent: 'Nenhum detalhe adicional registrado ainda.'
+      }));
+      return section;
+    }
+
+    const grid = createElement('div', { className: 'detail-info-grid' });
+    entries.forEach(([key, value]) => {
+      grid.appendChild(createInfoField(detailsLabel(key), formatDetailsValue(value)));
+    });
+    section.appendChild(grid);
+
+    return section;
   }
 
   function createDetailActions(pendencia: PendenciaRow): HTMLElement {
@@ -445,6 +480,50 @@ export function createPendenciasPage(): HTMLElement {
     });
   }
 
+  // Select de categoria + botao "+ categoria" -- mesmo espirito do
+  // CategoryPicker.ts (usado em Documentos), mas Pendencia nao tem model de
+  // categoria proprio: as extras ficam em Setting (ver
+  // pendenciaCategoriasService.ts). Nao fecha o modal, so atualiza a lista
+  // na hora -- a categoria recem-criada ja fica selecionada.
+  function createCategoriaField(selected: string): { field: HTMLElement; select: HTMLSelectElement } {
+    const field = createElement('label', { className: 'form-field' });
+    const text = createElement('span', { textContent: 'Categoria' });
+    const row = createElement('div', { className: 'select-with-button' });
+    const select = createElement('select');
+    const addButton = createElement('button', { className: 'secondary-button', textContent: '+ categoria', type: 'button' });
+
+    function renderOptions(value: string): void {
+      const todas = [...CATEGORIAS_POR_TIPO.pendencia, ...categoriaExtras.filter((item) => !CATEGORIAS_POR_TIPO.pendencia.includes(item))];
+      select.replaceChildren();
+      todas.forEach((nome) => {
+        const option = createElement('option', { textContent: nome });
+        option.value = nome;
+        select.appendChild(option);
+      });
+      select.value = todas.includes(value) ? value : todas[0];
+    }
+
+    addButton.addEventListener('click', async () => {
+      const nome = window.prompt('Nome da nova categoria de pendência (ex: Idade, Contrato...):');
+      if (!nome || !nome.trim()) return;
+
+      addButton.disabled = true;
+      try {
+        categoriaExtras = await addExtraCategoria(nome.trim(), categoriaExtras);
+        renderOptions(nome.trim());
+      } catch {
+        toast.error('Não foi possível salvar a nova categoria.');
+      } finally {
+        addButton.disabled = false;
+      }
+    });
+
+    renderOptions(selected);
+    row.append(select, addButton);
+    field.append(text, row);
+    return { field, select };
+  }
+
   function openPendenciaEditor(pendencia: PendenciaRow | null): void {
     const overlay = createElement('section', { className: 'modal-overlay' });
     const panel = createElement('article', { className: 'plant-card' });
@@ -457,7 +536,7 @@ export function createPendenciasPage(): HTMLElement {
     const fields = createElement('div', { className: 'form-grid' });
 
     const titulo = createInput('Título', 'text', pendencia?.titulo ?? '', true);
-    const categoria = createSelect('Categoria', pendencia?.categoria ?? CATEGORIAS_POR_TIPO.pendencia[0], CATEGORIAS_POR_TIPO.pendencia);
+    const categoria = createCategoriaField(pendencia?.categoria ?? CATEGORIAS_POR_TIPO.pendencia[0]);
     const prioridade = createSelect('Prioridade', pendencia?.prioridade ?? 'media', PRIORIDADES);
     const prazo = createInput('Prazo', 'datetime-local', pendencia?.prazo ? pendencia.prazo.slice(0, 16) : '', false);
 
@@ -606,4 +685,18 @@ function normalize(value: string): string {
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '');
+}
+
+// "erroRetornado" -> "Erro retornado". Generico de proposito -- nao sabemos
+// hoje quais chaves o backend vai mandar em metadados quando a Sprint 2
+// (alertas/erros automaticos) for implementada.
+function detailsLabel(key: string): string {
+  const spaced = key.replace(/([a-z])([A-Z])/g, '$1 $2');
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
+function formatDetailsValue(value: unknown): string {
+  if (value === null || value === undefined) return '-';
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
 }

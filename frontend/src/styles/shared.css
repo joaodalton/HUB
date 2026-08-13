@@ -118,3 +118,62 @@
 .empty-state.small { font-size: 12px; padding: 10px 0; }
 
 .loading-state { color: var(--text-faint); font-size: 13px; }
+
+/* ---------- Select + botao inline (ex.: "+ categoria") ---------- */
+/* Generico de proposito -- reaproveitar aqui em vez de criar de novo se
+   outro lugar do app precisar do mesmo padrao select+acao. */
+
+.select-with-button {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.select-with-button select {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---------- Lista + painel de detalhe lateral (generico) ---------- */
+/* Mesma ideia do .pendencias-layout (lista + painel fixo a direita), so que
+   generico pra qualquer tela reaproveitar (hoje: UCs). .detail-info-panel ja
+   existe (clients.css) -- .sticky aqui e so um modificador aditivo, nao
+   afeta os outros lugares que ja usam .detail-info-panel sem essa classe. */
+
+.list-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 500px;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 1800px) {
+  .list-detail-grid { grid-template-columns: minmax(0, 1fr) 380px; }
+}
+
+@media (max-width: 720px) {
+  .list-detail-grid { grid-template-columns: 1fr; }
+  .list-detail-grid .detail-info-panel.sticky { position: static; }
+}
+
+.detail-info-panel.sticky {
+  position: sticky;
+  top: 20px;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+}
+
+/* So esse painel (UcsPage.ts) usa .sticky hoje -- ClientDetailView.ts e
+   PlantsPage.ts usam .detail-info-grid sem essa classe, entao 2 colunas
+   aqui nao afeta as outras telas. Painel mais largo (500px, +~30% dos
+   380px anteriores) comporta 2 colunas de campo sem espremer. */
+.detail-info-panel.sticky .detail-info-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px 15px;
+}
+
+@media (max-width: 1800px) {
+  .detail-info-panel.sticky .detail-info-grid {
+    grid-template-columns: 1fr;
+  }
+}

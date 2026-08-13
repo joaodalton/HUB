@@ -49,16 +49,23 @@ def decode_token(token: str) -> int | None:
         return None
 
 
-def set_auth_cookies(response, token: str) -> None:
+def set_auth_cookies(response, token: str, remember: bool = False) -> None:
     is_prod = not Config.DEBUG
+
+    # remember=False -> nao manda max_age nenhum -- vira "session cookie" de
+    # verdade (o navegador apaga sozinho ao fechar), sem precisar de
+    # localStorage/sessionStorage no frontend pra controlar isso. remember=True
+    # usa o mesmo TTL que o proprio token ja tem (7 dias, TOKEN_MAX_AGE_SECONDS)
+    # -- nao faz sentido o cookie durar mais que o token seria valido de qualquer jeito.
+    cookie_max_age = TOKEN_MAX_AGE_SECONDS if remember else None
 
     response.set_cookie(
         COOKIE_NAME, token, httponly=True, secure=is_prod,
-        samesite='Lax', max_age=TOKEN_MAX_AGE_SECONDS, path='/'
+        samesite='Lax', max_age=cookie_max_age, path='/'
     )
     response.set_cookie(
         CSRF_COOKIE_NAME, secrets.token_urlsafe(32), httponly=False, secure=is_prod,
-        samesite='Lax', max_age=TOKEN_MAX_AGE_SECONDS, path='/'
+        samesite='Lax', max_age=cookie_max_age, path='/'
     )
 
 

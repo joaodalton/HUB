@@ -2,7 +2,7 @@
 from datetime import datetime
 
 from extensions import db
-from models.pendencia import CATEGORIAS_POR_TIPO, Pendencia, PendenciaComentario, PRIORIDADES
+from models.pendencia import Pendencia, PendenciaComentario, PRIORIDADES
 from services.log_service import LogService
 
 
@@ -55,11 +55,16 @@ def criar_erro(data: dict) -> dict:
 
 
 def _criar(tipo: str, origem: str, data: dict) -> dict:
-    categoria = data.get('categoria')
-    categorias_validas = CATEGORIAS_POR_TIPO.get(tipo, ())
+    # Antes so aceitava categoria de uma lista fixa (CATEGORIAS_POR_TIPO) --
+    # agora qualquer string nao-vazia e aceita, pra permitir categoria nova
+    # criada na hora pelo usuario (ver frontend: pendenciaCategoriasService.ts,
+    # que guarda as extras na tabela Setting generica). CATEGORIAS_PADRAO em
+    # models/pendencia.py continua existindo, so deixou de ser uma trava --
+    # vira sugestao inicial no dropdown do frontend.
+    categoria = (data.get('categoria') or '').strip()
 
-    if categoria not in categorias_validas:
-        raise ValueError(f'Categoria invalida para o tipo "{tipo}". Use uma de: {", ".join(categorias_validas)}.')
+    if not categoria:
+        raise ValueError('Categoria e obrigatoria.')
 
     prioridade = data.get('prioridade', 'media')
     if prioridade not in PRIORIDADES:
@@ -93,10 +98,10 @@ def update_pendencia(pendencia_id: int, data: dict) -> dict | None:
         return None
 
     if 'categoria' in data:
-        categorias_validas = CATEGORIAS_POR_TIPO.get(pendencia.tipo, ())
-        if data['categoria'] not in categorias_validas:
-            raise ValueError(f'Categoria invalida para o tipo "{pendencia.tipo}".')
-        pendencia.categoria = data['categoria']
+        categoria = (data['categoria'] or '').strip()
+        if not categoria:
+            raise ValueError('Categoria e obrigatoria.')
+        pendencia.categoria = categoria
 
     if 'prioridade' in data:
         if data['prioridade'] not in PRIORIDADES:

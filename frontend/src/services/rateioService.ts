@@ -13,7 +13,7 @@ export type RateioUcResultado = {
   producaoConsiderada: number;
   percentualCalculado: number;
   elegivel: boolean;
-  motivoElegibilidade: string;
+  motivoQualificado: string;
 };
 
 export type RateioPreview = {
@@ -47,5 +47,27 @@ export async function aplicarRateio(competencia: string, plantId: number): Promi
     method: 'POST',
     body: { competencia, plantId }
   });
+  return response.data;
+}
+
+export type RateioQualificadoUc = {
+  ucId: number;
+  ucCodigo: string;
+  clienteNome: string | null;
+  consumo: number | null;
+  percentualSugerido: number;
+  qualificado: boolean;
+  motivo: string;
+};
+
+export type RateioQualificado = {
+  plantId: number;
+  totalClientes: number;
+  qualificados: number;
+  ucs: RateioQualificadoUc[];
+};
+
+export async function getQualificado(plantId: number): Promise<RateioQualificado> {
+  const response = await apiRequest<ApiResponse<RateioQualificado>>(`/rateio/Qualificado?plantId=${plantId}`);
   return response.data;
 }

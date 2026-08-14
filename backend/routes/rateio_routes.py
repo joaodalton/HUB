@@ -1,7 +1,7 @@
 # backend/routes/rateio_routes.py
 from flask import Blueprint, request
 
-from services.rateio_service import aplicar_rateio, elegibilidade_funil, list_historico, preview_rateio
+from services.rateio_service import aplicar_rateio, Qualificado_funil, list_historico, preview_rateio
 from utils.api_response import error_response, success_response
 
 
@@ -31,15 +31,15 @@ def aplicar():
     return success_response(resultado, 'Rateio aplicado.')
 
 
-@rateio_routes.route('/elegibilidade', methods=['GET'])
-def elegibilidade():
+@rateio_routes.route('/Qualificado', methods=['GET'])
+def Qualificado():
     plant_id = request.args.get('plantId', type=int)
 
     if not plant_id:
         return error_response('plantId e obrigatorio.', 400)
 
     try:
-        return success_response(elegibilidade_funil(plant_id))
+        return success_response(Qualificado_funil(plant_id))
     except ValueError as exc:
         return error_response(str(exc), 404)
 

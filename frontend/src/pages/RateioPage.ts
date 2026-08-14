@@ -1,6 +1,6 @@
 // frontend/src/pages/RateioPage.ts
 // Tela 1 do wizard de Rateio: seleção de usina. Etapas 2-4 (Produção,
-// Elegibilidade, Distribuição) ainda não existem -- "Continuar" leva pra um
+// Qualificado, Distribuição) ainda não existem -- "Continuar" leva pra um
 // painel "em construção" só pra manter a sequência visível, como combinado
 // com o João. Quando a Tela 2 for construída, troca renderEmConstrucao()
 // pela etapa de verdade, sem mexer no resto do arquivo.
@@ -11,9 +11,9 @@ import { useToast } from '../hooks/useToast';
 import { createBaseLayout } from '../layouts/BaseLayout';
 import { getPlants, plantStatusLabel, plantStatusTone, updatePlantRateioConfig, type PlantRow, type PlantStatusTone } from '../services/plantService';
 import { getUcs, type UcRow } from '../services/ucsService';
-import { previewRateio, type RateioPreview } from '../services/rateioService';
+import { getQualificado, previewRateio, type RateioQualificado, type RateioPreview } from '../services/rateioService';
 
-type Stage = 'selecionar' | 'producao' | 'em-construcao';
+type Stage = 'selecionar' | 'producao' | 'Qualificado' | 'em-construcao';
 
 const RESERVA_PRESETS = [0, 5, 10, 15];
 
@@ -31,6 +31,10 @@ export function createRateioPage(): HTMLElement {
   let preview: RateioPreview | null = null;
   let previewLoading = false;
   let reservaCustomMode = false;
+  let Qualificado: RateioQualificado | null = null;
+  let QualificadoLoading = false;
+  let mostrandoQualificados = false;
+  const selectedUcIds = new Set<number>();
 
   const layout = createBaseLayout({
     content,
@@ -76,6 +80,16 @@ export function createRateioPage(): HTMLElement {
       }
     }
 
+    if (stage === 'Qualificado') {
+      const plant = plants.find((item) => item.id === selectedPlantId);
+      if (!plant) {
+        stage = 'selecionar';
+      } else {
+        content.replaceChildren(renderStepHeader(3, 'Qualificado'), renderQualificadoStage(plant));
+        return;
+      }
+    }
+
     const selectedPlant = plants.find((plant) => plant.id === selectedPlantId) ?? null;
 
     content.replaceChildren(
@@ -95,6 +109,21 @@ export function createRateioPage(): HTMLElement {
       toast.error('Não foi possível calcular a produção. Verifique se o backend está rodando.');
     } finally {
       previewLoading = false;
+      renderContent();
+    }
+  }
+
+  async function loadQualificado(plantId: number): Promise<void> {
+    QualificadoLoading = true;
+    renderContent();
+
+    try {
+      Qualificado = await getQualificado(plantId);
+    } catch {
+      Qualificado = null;
+      toast.error('Não foi possível calcular a Qualificado. Verifique se o backend está rodando.');
+    } finally {
+      QualificadoLoading = false;
       renderContent();
     }
   }
@@ -274,8 +303,9 @@ export function createRateioPage(): HTMLElement {
       renderContent();
     });
     continuarButton.addEventListener('click', () => {
-      stage = 'em-construcao';
+      stage = 'Qualificado';
       renderContent();
+      loadQualificado(plant.id);
     });
 
     actions.append(voltarButton, continuarButton);
@@ -366,6 +396,130 @@ export function createRateioPage(): HTMLElement {
     return box;
   }
 
+  function renderQualificadoStage(plant: PlantRow): HTMLElement {
+    const wrapper = createElement('section', { className: 'content-stack' });
+    const panel = createElement('section', { className: 'data-panel rateio-Qualificado' });
+
+    const title = createElement('div', { className: 'panel-title' });
+    const titleText = createElement('div');
+    titleText.append(
+      createElement('span', { className: 'eyebrow', textContent: plant.nome }),
+      createElement('h2', { textContent: 'Funil dos Qualificados' })
+    );
+    title.appendChild(titleText);
+    panel.appendChild(title);
+
+    if (QualificadoLoading || !Qualificado) {
+      panel.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Calculando...' }));
+    } else {
+      const funilGrid = createElement('div', { className: 'rateio-funil-grid' });
+      funilGrid.append(
+        createFunilStat('Total de clientes', Qualificado.totalClientes),
+        createFunilStat('Qualificados', Qualificado.qualificados)
+      );
+      panel.appendChild(funilGrid);
+
+      const regras = createElement('div', { className: 'rateio-regras' });
+      regras.appendChild(createElement('span', { className: 'settings-subheading', textContent: 'Regras aplicadas' }));
+      const regrasList = createElement('ul', { className: 'rateio-regras-list' });
+      ['Contrato dentro de 90 dias', 'Leitura posterior à usina'].forEach((regra) => {
+        regrasList.appendChild(createElement('li', { textContent: regra }));
+      });
+      regras.appendChild(regrasList);
+      panel.appendChild(regras);
+
+      const verButton = createElement('button', {
+        className: mostrandoQualificados ? 'secondary-button' : 'small-button',
+        textContent: mostrandoQualificados ? 'Ocultar qualificados' : `Ver qualificados (${Qualificado.qualificados})`,
+        type: 'button'
+      });
+      verButton.addEventListener('click', () => {
+        mostrandoQualificados = !mostrandoQualificados;
+        renderContent();
+      });
+      panel.appendChild(verButton);
+
+      if (mostrandoQualificados) {
+        panel.appendChild(renderQualificadosList(Qualificado));
+      }
+    }
+
+    const actions = createElement('div', { className: 'form-actions' });
+    const voltarButton = createElement('button', { className: 'secondary-button', textContent: '← Voltar', type: 'button' });
+    const continuarButton = createElement('button', { textContent: 'Continuar →', type: 'button' });
+
+    voltarButton.addEventListener('click', () => {
+      stage = 'producao';
+      renderContent();
+    });
+    continuarButton.addEventListener('click', () => {
+      if (selectedUcIds.size === 0) {
+        toast.error('Selecione pelo menos um cliente qualificado antes de continuar.');
+        return;
+      }
+      stage = 'em-construcao';
+      renderContent();
+    });
+
+    actions.append(voltarButton, continuarButton);
+    wrapper.append(panel, actions);
+    return wrapper;
+  }
+
+  function createFunilStat(label: string, value: number): HTMLElement {
+    const card = createElement('article', { className: 'rateio-funil-stat' });
+    card.append(
+      createElement('span', { className: 'rateio-funil-stat-label', textContent: label }),
+      createElement('strong', { className: 'rateio-funil-stat-value', textContent: String(value) })
+    );
+    return card;
+  }
+
+  function renderQualificadosList(data: RateioQualificado): HTMLElement {
+    const list = createElement('div', { className: 'rateio-qualificados-list' });
+    const qualificadas = data.ucs.filter((uc) => uc.qualificado);
+
+    if (qualificadas.length === 0) {
+      list.appendChild(createElement('p', { className: 'empty-state small', textContent: 'Nenhum cliente qualificado para esta usina no momento.' }));
+      return list;
+    }
+
+    const header = createElement('div', { className: 'rateio-qualificado-row rateio-qualificado-header' });
+    header.append(
+      createElement('span', { textContent: 'Cliente' }),
+      createElement('span', { textContent: 'Consumo' }),
+      createElement('span', { textContent: '% sugerido' }),
+      createElement('span', { textContent: '' })
+    );
+    list.appendChild(header);
+
+    qualificadas.forEach((uc) => {
+      const row = createElement('div', { className: 'rateio-qualificado-row' });
+      const nomeInfo = createElement('div', { className: 'rateio-qualificado-nome' });
+      nomeInfo.append(
+        createElement('strong', { textContent: uc.clienteNome ?? uc.ucCodigo }),
+        createElement('span', { textContent: uc.ucCodigo })
+      );
+
+      const consumo = createElement('span', { textContent: uc.consumo != null ? `${formatNumber(uc.consumo)} kWh` : '-' });
+      const percentual = createElement('span', { textContent: `${formatNumber(uc.percentualSugerido)}%` });
+
+      const checkbox = createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = selectedUcIds.has(uc.ucId);
+      checkbox.addEventListener('change', () => {
+        if (checkbox.checked) selectedUcIds.add(uc.ucId);
+        else selectedUcIds.delete(uc.ucId);
+        renderContent();
+      });
+
+      row.append(nomeInfo, consumo, percentual, checkbox);
+      list.appendChild(row);
+    });
+
+    return list;
+  }
+
   function renderEmConstrucao(): HTMLElement {
     const wrapper = createElement('section', { className: 'content-stack' });
     const plant = plants.find((item) => item.id === selectedPlantId);
@@ -373,13 +527,14 @@ export function createRateioPage(): HTMLElement {
     const panel = createElement('section', { className: 'placeholder-panel' });
     panel.append(
       createElement('p', { textContent: plant ? `Usina selecionada: ${plant.nome}` : 'Nenhuma usina selecionada.' }),
-      createElement('p', { textContent: 'As proximas etapas (Producao, Elegibilidade, Distribuicao) chegam nas proximas sessoes.' })
+      createElement('p', { textContent: `${selectedUcIds.size} cliente(s) qualificado(s) selecionado(s) para a distribuição.` }),
+      createElement('p', { textContent: 'A etapa de Distribuição chega na próxima sessão.' })
     );
 
     const actions = createElement('div', { className: 'form-actions' });
     const voltarButton = createElement('button', { className: 'secondary-button', textContent: '← Voltar', type: 'button' });
     voltarButton.addEventListener('click', () => {
-      stage = 'selecionar';
+      stage = 'Qualificado';
       renderContent();
     });
     actions.appendChild(voltarButton);

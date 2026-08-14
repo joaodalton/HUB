@@ -1,23 +1,27 @@
 # backend/services/rateio_service.py
 """
-Motor de cálculo do rateio -- Sprint 1: só porcentagem (sem modelo de
+Motor de cálculo do rateio -- Sprint 1-4: só porcentagem (sem modelo de
 prioridade), sem geração de formulário/documento (isso vem depois).
 
 Fluxo:
-  preview_rateio()  -> calcula tudo, NÃO grava nada (usado por uma tela de
-                        conferência antes de aplicar, quando ela existir).
-  aplicar_rateio()   -> calcula, atualiza PlantConnection.percentual
-                        (respeitando percentual_manual) e grava uma linha
-                        em RateioHistorico por UC x Usina.
+  preview_rateio()      -> calcula tudo, NÃO grava nada.
+  Qualificado_funil()  -> lista candidatas (UCs ainda não conectadas a
+                             esta usina) com o percentual que CONSUMIRIAM se
+                             fossem conectadas -- usado pela Tela 3.
+  aplicar_rateio()       -> calcula, atualiza PlantConnection.percentual
+                             (respeitando percentual_manual) e grava uma
+                             linha em RateioHistorico por UC x Usina.
 
-Regra de divisão quando uma UC está em mais de uma usina: Sprint 1 divide o
-consumo IGUALMENTE entre as usinas conectadas (ex.: UC em 2 usinas = 50% do
-consumo considerado em cada uma). Isso é uma simplificação deliberada --
-João confirmou que hoje quase nenhuma UC tem mais de uma usina; quando a
-tela de Rateio for desenhada, provavelmente vai dar pra escolher a divisão
-manualmente por conexão em vez dessa divisão igual automática.
+Regra de divisão quando uma UC está em mais de uma usina: consumo dividido
+IGUALMENTE entre as usinas conectadas (simplificação deliberada -- João
+confirmou que hoje quase nenhuma UC tem mais de uma usina).
+
+Qualificado (Sprint 4, simplificada a pedido do João): só considera a
+janela de leitura (dia de emissão da UC vs. da usina). Documentação e
+pendência financeira continuam existindo como campos no cadastro da UC, mas
+NÃO bloqueiam mais o funil -- não tem automação real por trás delas ainda.
 """
-from datetime import datetime, date
+from datetime import datetime
 
 from extensions import db
 from models.plant import Plant
@@ -33,43 +37,52 @@ def preview_rateio(plant_id: int | None = None) -> list[dict]:
     return [_calcular_usina(plant) for plant in plants]
 
 
-def elegibilidade_funil(plant_id: int) -> dict:
-    """Funil pra Tela 3 (Elegibilidade). Candidatas = todas as UCs que ainda
-    NÃO estão conectadas a esta usina (não faz sentido re-filtrar quem já
-    está dentro). Cada etapa é um AND acumulado com a anterior -- se a regra
-    mudar (você avisou que ainda vai mexer bastante aqui), é só editar essa
-    função, o resto do motor não depende dela."""
+def Qualificado_funil(plant_id: int) -> dict:
+    """Funil da Tela 3. Candidatas = UCs ainda NÃO conectadas a esta usina.
+    'Qualificado' = passou na checagem de janela de leitura. Cada UC também
+    já vem com o percentual que ela CONSUMIRIA se fosse conectada agora,
+    pra montar a lista de seleção sem precisar de uma segunda chamada."""
     plant = Plant.query.get(plant_id)
     if not plant:
         raise ValueError('Usina nao encontrada.')
 
+    _, _, producao_disponivel = _producao_disponivel_usina(plant)
+    buffer_global_habilitado, buffer_global_percentual = _global_buffer_config()
+
     ja_conectadas_ids = {c.consumer_unit_id for c in PlantConnection.query.filter_by(plant_id=plant.id).all()}
     candidatas = [uc for uc in ConsumerUnit.query.all() if uc.id not in ja_conectadas_ids]
 
-    janela_valida = [uc for uc in candidatas if _checar_elegibilidade(plant, uc)[0]]
-    documentacao_ok = [uc for uc in janela_valida if uc.documentacao_completa and uc.sem_pendencia_financeira]
-    elegiveis = documentacao_ok  # ponto único de ajuste quando a regra final mudar
+    ucs_resultado = []
+    qualificados = 0
+
+    for uc in candidatas:
+        qualificado, motivo = _checar_Qualificado(plant, uc)
+
+        # n_usinas_extra=1 -- essa UC ainda não tem conexão com ESTA usina,
+        # então o cálculo simula "e se ela entrasse aqui também", somando 1
+        # às conexões que ela já tem com outras usinas (se houver).
+        _, _, percentual_sugerido = _percentual_sugerido_uc(
+            uc, producao_disponivel, buffer_global_habilitado, buffer_global_percentual, n_usinas_extra=1
+        )
+
+        if qualificado:
+            qualificados += 1
+
+        ucs_resultado.append({
+            'ucId': uc.id,
+            'ucCodigo': uc.codigo,
+            'clienteNome': uc.client.nome if uc.client else None,
+            'consumo': float(uc.consumo) if uc.consumo is not None else None,
+            'percentualSugerido': percentual_sugerido if percentual_sugerido is not None else 0.0,
+            'qualificado': qualificado,
+            'motivo': motivo
+        })
 
     return {
         'plantId': plant.id,
         'totalClientes': len(candidatas),
-        'janelaValida': len(janela_valida),
-        'documentacaoOk': len(documentacao_ok),
-        'elegiveis': len(elegiveis),
-        'ucs': [
-            {
-                'ucId': uc.id,
-                'ucCodigo': uc.codigo,
-                'clienteNome': uc.client.nome if uc.client else None,
-                'janelaValida': uc in janela_valida,
-                'documentacaoCompleta': uc.documentacao_completa,
-                'semPendenciaFinanceira': uc.sem_pendencia_financeira,
-                'clienteEstrategico': uc.cliente_estrategico,
-                'elegivel': uc in elegiveis,
-                'motivo': _checar_elegibilidade(plant, uc)[1]
-            }
-            for uc in candidatas
-        ]
+        'qualificados': qualificados,
+        'ucs': ucs_resultado
     }
 
 
@@ -140,13 +153,9 @@ def list_historico(competencia: str | None = None, plant_id: int | None = None, 
 def _calcular_usina(plant: Plant) -> dict:
     warnings: list[str] = []
 
-    producao_media = plant.producao_media()
-    if producao_media is None:
+    producao_media, reserva, producao_disponivel = _producao_disponivel_usina(plant)
+    if plant.producao_media() is None:
         warnings.append('Usina sem produção cadastrada (nem manual, nem mensal) -- preencha ao menos a produção média antes de calcular.')
-        producao_media = 0.0
-
-    reserva = float(plant.reserva_percentual or 0)
-    producao_disponivel = round(producao_media * (1 - reserva / 100), 2)
 
     buffer_global_habilitado, buffer_global_percentual = _global_buffer_config()
 
@@ -160,49 +169,32 @@ def _calcular_usina(plant: Plant) -> dict:
         if not uc:
             continue
 
-        consumo_total = float(uc.consumo) if uc.consumo is not None else None
+        # n_usinas_extra=0 -- a conexão JÁ existe (é essa mesma que estamos
+        # percorrendo), então já está contada na query de dentro da função.
+        consumo_considerado, consumo_ajustado, percentual_calculado = _percentual_sugerido_uc(
+            uc, producao_disponivel, buffer_global_habilitado, buffer_global_percentual, n_usinas_extra=0
+        )
 
-        if consumo_total is None:
+        if consumo_considerado is None:
             warnings.append(f'UC {uc.codigo} sem consumo cadastrado -- ignorada no cálculo.')
             continue
 
-        # Consumo dividido entre as usinas ÀS QUAIS ESTA UC está conectada
-        # (não tem relação com as outras UCs da usina) -- só entra em cena
-        # quando a mesma UC atende de mais de uma usina ao mesmo tempo.
-        n_usinas_da_uc = PlantConnection.query.filter_by(consumer_unit_id=uc.id).count() or 1
-        consumo_considerado = round(consumo_total / n_usinas_da_uc, 2)
-
-        # Buffer: override da UC ganha do valor global, se preenchido.
-        # Sem override, só aplica se o toggle global estiver ligado.
-        if uc.buffer_percentual is not None:
-            buffer_percentual = float(uc.buffer_percentual)
-        elif buffer_global_habilitado:
-            buffer_percentual = buffer_global_percentual
-        else:
-            buffer_percentual = 0.0
-
-        consumo_ajustado = round(consumo_considerado * (1 + buffer_percentual / 100), 2)
-
-        if producao_disponivel <= 0:
-            percentual_calculado = 0.0
-        else:
-            percentual_calculado = round((consumo_ajustado / producao_disponivel) * 100, 2)
-
-        elegivel, motivo_elegibilidade = _checar_elegibilidade(plant, uc)
+        elegivel, motivo_Qualificado = _checar_Qualificado(plant, uc)
+        buffer_percentual_aplicado = _buffer_percentual_uc(uc, buffer_global_habilitado, buffer_global_percentual)
 
         resultado_ucs.append({
             'ucId': uc.id,
             'ucCodigo': uc.codigo,
             'clienteNome': uc.client.nome if uc.client else None,
             'clienteCpfCnpj': uc.documento or (uc.client.cpf if uc.client else None),
-            'consumoTotal': consumo_total,
+            'consumoTotal': float(uc.consumo),
             'consumoConsiderado': consumo_considerado,
-            'bufferPercentualAplicado': buffer_percentual,
+            'bufferPercentualAplicado': buffer_percentual_aplicado,
             'consumoAjustado': consumo_ajustado,
             'producaoConsiderada': consumo_ajustado,
             'percentualCalculado': percentual_calculado,
             'elegivel': elegivel,
-            'motivoElegibilidade': motivo_elegibilidade
+            'motivoQualificado': motivo_Qualificado
         })
         percentual_total_alocado += percentual_calculado
 
@@ -226,11 +218,79 @@ def _calcular_usina(plant: Plant) -> dict:
     }
 
 
+def _producao_disponivel_usina(plant: Plant) -> tuple[float, float, float]:
+    """Retorna (producao_media, reserva_percentual, producao_disponivel).
+    producao_media() já resolve sozinho manual vs. média dos 12 meses
+    (ver models/plant.py)."""
+    producao_media = plant.producao_media()
+    if producao_media is None:
+        producao_media = 0.0
+
+    reserva = float(plant.reserva_percentual or 0)
+    producao_disponivel = round(producao_media * (1 - reserva / 100), 2)
+    return producao_media, reserva, producao_disponivel
+
+
+def _buffer_percentual_uc(uc: ConsumerUnit, buffer_global_habilitado: bool, buffer_global_percentual: float) -> float:
+    """Override da UC ganha do valor global, se preenchido. Sem override,
+    só aplica se o toggle global (Configurações > Geral) estiver ligado."""
+    if uc.buffer_percentual is not None:
+        return float(uc.buffer_percentual)
+    if buffer_global_habilitado:
+        return buffer_global_percentual
+    return 0.0
+
+
+def _percentual_sugerido_uc(
+    uc: ConsumerUnit,
+    producao_disponivel: float,
+    buffer_global_habilitado: bool,
+    buffer_global_percentual: float,
+    n_usinas_extra: int = 0
+) -> tuple[float | None, float | None, float | None]:
+    """Conta central do motor: consumo -> ajustado pelo buffer -> percentual
+    da produção disponível. Reutilizada tanto pro cálculo final (UC já
+    conectada) quanto pra pré-visualização de Qualificado (UC candidata,
+    ainda não conectada -- por isso o n_usinas_extra).
+    Retorna (consumoConsiderado, consumoAjustado, percentual), todos None se
+    a UC não tiver consumo cadastrado."""
+    consumo_total = float(uc.consumo) if uc.consumo is not None else None
+    if consumo_total is None:
+        return None, None, None
+
+    n_usinas_da_uc = (PlantConnection.query.filter_by(consumer_unit_id=uc.id).count() + n_usinas_extra) or 1
+    consumo_considerado = round(consumo_total / n_usinas_da_uc, 2)
+
+    buffer_percentual = _buffer_percentual_uc(uc, buffer_global_habilitado, buffer_global_percentual)
+    consumo_ajustado = round(consumo_considerado * (1 + buffer_percentual / 100), 2)
+
+    if producao_disponivel <= 0:
+        percentual = 0.0
+    else:
+        percentual = round((consumo_ajustado / producao_disponivel) * 100, 2)
+
+    return consumo_considerado, consumo_ajustado, percentual
+
+
+def _checar_Qualificado(plant: Plant, uc: ConsumerUnit) -> tuple[bool, str]:
+    """Único critério ativo hoje: dia de emissão da usina precisa ser igual
+    ou anterior ao dia de emissão da UC (senão a UC entraria tarde demais
+    no ciclo de leitura). Sem dado suficiente, não bloqueia -- fica como
+    'qualificado, mas sem dado pra confirmar'."""
+    if not plant.dia_emissao_usina or not uc.dia_emissao_fatura:
+        return True, 'Sem dado de dia de emissão suficiente para avaliar -- considerado qualificado.'
+
+    if plant.dia_emissao_usina <= uc.dia_emissao_fatura:
+        return True, 'Dia de emissão da usina é igual ou anterior ao da UC.'
+
+    return False, 'Dia de emissão da UC é anterior ao da usina -- não qualificada para esta competência.'
+
+
 def _global_buffer_config() -> tuple[bool, float]:
     """Valor padrão do buffer de consumo, configurado em Configurações >
     Geral (Setting key/value, mesma tabela usada por Aparência). Cada UC
     pode ter um valor próprio (ConsumerUnit.buffer_percentual) que ignora
-    este padrão -- ver uso em _calcular_usina."""
+    este padrão -- ver _buffer_percentual_uc."""
     settings = get_all_settings()
     habilitado = settings.get('rateioBufferHabilitado') == 'true'
 
@@ -240,19 +300,6 @@ def _global_buffer_config() -> tuple[bool, float]:
         percentual = 15.0
 
     return habilitado, percentual
-
-
-def _checar_elegibilidade(plant: Plant, uc: ConsumerUnit) -> tuple[bool, str]:
-    """Sugestão, não trava o cálculo -- é orientação pra quem for montar o
-    rateio manualmente, o documento do João descreve isso como 'forte
-    candidato' vs 'não recomendada', não como regra dura."""
-    if not plant.dia_emissao_usina or not uc.dia_emissao_fatura:
-        return True, 'Sem dado de dia de emissão suficiente para avaliar.'
-
-    if plant.dia_emissao_usina <= uc.dia_emissao_fatura:
-        return True, 'Dia de emissão da usina é igual ou anterior ao da UC -- forte candidata.'
-
-    return False, 'Dia de emissão da UC é anterior ao da usina -- não recomendada para esta competência.'
 
 
 def _validar_competencia(competencia: str) -> None:

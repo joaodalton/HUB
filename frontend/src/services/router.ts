@@ -4,6 +4,7 @@ import { createDocumentsPage } from '../pages/DocumentsPage';
 import { createLoginPage } from '../pages/LoginPage';
 import { createPendenciasPage } from '../pages/PendenciasPage';
 import { createPlantsPage } from '../pages/PlantsPage';
+import { createRateioPage } from '../pages/RateioPage';
 import { createSettingsPage } from '../pages/SettingsPage';
 import { createUcsPage } from '../pages/UcsPage';
 import { createUsersPage } from '../pages/UsersPage';
@@ -22,6 +23,7 @@ export function createRouter(root: HTMLElement) {
     { path: '/clientes', render: createClientsPage },
     { path: '/ucs', render: createUcsPage },
     { path: '/usinas', render: createPlantsPage },
+    { path: '/rateio', render: createRateioPage },
     { path: '/pendencias', render: createPendenciasPage },
     { path: '/agenda', render: createAgendaPage },
     { path: '/usuarios', render: createUsersPage },

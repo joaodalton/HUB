@@ -16,6 +16,8 @@ export type PlantFormData = {
   endereco: string;
   dataAtivacao: string;
   responsavel: string;
+  numModulos: number | null;
+  producaoMediaManual: number | null;
 };
 
 type PlantCardOptions = {
@@ -59,6 +61,13 @@ export function createPlantCard({ plant, onSave, onCancel, onDelete }: PlantCard
   const endereco = createInput('Endereco', 'text', plant?.endereco ?? '', false);
   const dataAtivacao = createInput('Data de ativacao', 'date', plant?.dataAtivacao ?? '', false);
   const responsavel = createInput('Responsavel', 'text', plant?.responsavel ?? '', false);
+  const numModulos = createInput('Número de módulos', 'number', plant?.numModulos != null ? String(plant.numModulos) : '', false);
+  const producaoMediaManual = createInput(
+    'Produção média (kWh)',
+    'number',
+    plant?.producaoMediaManual != null ? String(plant.producaoMediaManual) : '',
+    false
+  );
   const actions = createElement('div', { className: 'form-actions' });
   const saveButton = createElement('button', { textContent: 'Salvar usina', type: 'submit' });
 
@@ -66,6 +75,10 @@ export function createPlantCard({ plant, onSave, onCancel, onDelete }: PlantCard
   percentualDisponivel.input.min = '0';
   percentualDisponivel.input.max = '100';
   uf.input.maxLength = 2;
+  numModulos.input.min = '0';
+  producaoMediaManual.input.min = '0';
+  producaoMediaManual.input.step = '0.01';
+  producaoMediaManual.input.placeholder = 'Deixe em branco pra calcular pela produção mensal cadastrada';
 
   titleText.append(eyebrow, heading);
   header.append(titleText, closeButton);
@@ -82,7 +95,9 @@ export function createPlantCard({ plant, onSave, onCancel, onDelete }: PlantCard
     uf.field,
     endereco.field,
     dataAtivacao.field,
-    responsavel.field
+    responsavel.field,
+    numModulos.field,
+    producaoMediaManual.field
   );
   actions.appendChild(saveButton);
 
@@ -124,7 +139,9 @@ export function createPlantCard({ plant, onSave, onCancel, onDelete }: PlantCard
       uf: uf.input.value.trim().toUpperCase(),
       endereco: endereco.input.value.trim(),
       dataAtivacao: dataAtivacao.input.value,
-      responsavel: responsavel.input.value.trim()
+      responsavel: responsavel.input.value.trim(),
+      numModulos: numModulos.input.value.trim() ? Number(numModulos.input.value) : null,
+      producaoMediaManual: producaoMediaManual.input.value.trim() ? Number(producaoMediaManual.input.value) : null
     });
   });
 

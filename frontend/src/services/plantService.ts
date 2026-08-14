@@ -17,6 +17,11 @@ export type PlantRow = {
   endereco: string;
   dataAtivacao: string;
   responsavel: string;
+  concessionaria: string | null;
+  numModulos: number | null;
+  producaoMedia: number | null;
+  producaoMediaManual: number | null;
+  reservaPercentual: number;
 };
 
 export type PlantPayload = {
@@ -36,6 +41,9 @@ export type PlantPayload = {
   endereco?: string | null;
   dataAtivacao?: string | null;
   responsavel?: string | null;
+  concessionaria?: string | null;
+  numModulos?: number | null;
+  producaoMediaManual?: number | null;
 };
 
 type ApiResponse<T> = {
@@ -72,6 +80,23 @@ export async function updatePlant(id: number, data: PlantPayload): Promise<Plant
 
 export async function deletePlant(id: number): Promise<void> {
   await apiRequest<ApiResponse<null>>(`/plants/${id}`, { method: 'DELETE' });
+}
+
+// Update parcial -- só os campos do motor de rateio (reserva e produção média
+// manual). O backend já aceita update parcial (mantém o resto como está),
+// mas PlantPayload normal exige nome/uc/kwPico/status preenchidos -- esse
+// tipo aqui é só pra tela de Rateio, que edita só esses 2 campos.
+export type PlantRateioConfigPayload = {
+  reservaPercentual?: number;
+  producaoMediaManual?: number | null;
+};
+
+export async function updatePlantRateioConfig(id: number, data: PlantRateioConfigPayload): Promise<PlantRow> {
+  const response = await apiRequest<ApiResponse<PlantRow>>(`/plants/${id}`, {
+    method: 'PUT',
+    body: data
+  });
+  return response.data;
 }
 
 // Status "cru" vem do backend (Online/Implantacao/Manutencao/Inativa, ver

@@ -46,8 +46,10 @@ class Plant(db.Model):
     producao_dez = db.Column(db.Numeric(10, 2), nullable=False, default=0)
 
     reserva_percentual = db.Column(db.Numeric(5, 2), nullable=False, default=0)
+    producao_media_manual = db.Column(db.Numeric(10, 2), nullable=True)
     dia_emissao_usina = db.Column(db.Integer, nullable=True)
     is_coringa = db.Column(db.Boolean, nullable=False, default=False)
+    concessionaria = db.Column(db.String(50), nullable=True)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -65,8 +67,13 @@ class Plant(db.Model):
         return any(getattr(self, f'producao_{mes}') for mes in MESES)
 
     def producao_media(self) -> float | None:
-        """Média dos meses PREENCHIDOS (>0), não soma/12 -- assim cadastro
-        parcial (só 3 meses, por exemplo) não fica artificialmente baixo."""
+        """Se producao_media_manual estiver preenchida, ela manda (caixinha
+        única editável). Senão, cai pra média dos meses PREENCHIDOS (>0) --
+        não soma/12, assim cadastro parcial (só 3 meses) não fica
+        artificialmente baixo."""
+        if self.producao_media_manual is not None:
+            return float(self.producao_media_manual)
+
         valores = [float(getattr(self, f'producao_{mes}')) for mes in MESES if getattr(self, f'producao_{mes}')]
         if not valores:
             return None
@@ -108,7 +115,10 @@ class Plant(db.Model):
             'potenciaModuloW': float(self.potencia_modulo_w) if self.potencia_modulo_w is not None else None,
             'producaoMensal': self.producao_mensal(),
             'producaoMedia': self.producao_media(),
+            'producaoMediaManual': float(self.producao_media_manual) if self.producao_media_manual is not None else None,
+        
             'reservaPercentual': float(self.reserva_percentual or 0),
             'diaEmissaoUsina': self.dia_emissao_usina,
-            'isCoringa': self.is_coringa
+            'isCoringa': self.is_coringa,
+            'concessionaria': self.concessionaria
         }

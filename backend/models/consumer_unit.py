@@ -28,6 +28,16 @@ class ConsumerUnit(db.Model):
     carencia_meses = db.Column(db.Integer, nullable=True)
     percentual_desconto_carencia = db.Column(db.String(10), nullable=True)
 
+    # Checklist manual de elegibilidade pro rateio -- marcado à mão, sem
+    # automação por trás ainda (ver rateio_service.py::_checar_elegibilidade).
+    documentacao_completa = db.Column(db.Boolean, nullable=False, default=False)
+    sem_pendencia_financeira = db.Column(db.Boolean, nullable=False, default=False)
+    cliente_estrategico = db.Column(db.Boolean, nullable=False, default=False)
+
+    # Override do buffer de consumo (%) só desta UC -- se preenchido, ganha
+    # do valor global de Configurações > Geral (ver rateio_service.py).
+    buffer_percentual = db.Column(db.Numeric(5, 2), nullable=True)
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -60,6 +70,10 @@ class ConsumerUnit(db.Model):
             'terminoContrato': self.termino_contrato.isoformat() if self.termino_contrato else None,
             'carenciaMeses': self.carencia_meses,
             'percentualDescontoCarencia': self.percentual_desconto_carencia,
+            'documentacaoCompleta': self.documentacao_completa,
+            'semPendenciaFinanceira': self.sem_pendencia_financeira,
+            'clienteEstrategico': self.cliente_estrategico,
+            'bufferPercentual': float(self.buffer_percentual) if self.buffer_percentual is not None else None,
             'conexoes': [conexao.to_dict() for conexao in self.conexoes]
         }
 

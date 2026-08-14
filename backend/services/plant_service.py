@@ -35,8 +35,10 @@ def create_plant(data: dict) -> dict:
         num_modulos=data.get('numModulos'),
         potencia_modulo_w=data.get('potenciaModuloW'),
         reserva_percentual=data.get('reservaPercentual', 0),
+        producao_media_manual=data.get('producaoMediaManual'),
         dia_emissao_usina=data.get('diaEmissaoUsina'),
         is_coringa=bool(data.get('isCoringa', False)),
+        concessionaria=data.get('concessionaria'),
         **_producao_mensal_fields(data)
     )
     db.session.add(plant)
@@ -68,8 +70,11 @@ def update_plant(plant_id: int, data: dict) -> dict | None:
     plant.num_modulos = data.get('numModulos', plant.num_modulos)
     plant.potencia_modulo_w = data.get('potenciaModuloW', plant.potencia_modulo_w)
     plant.reserva_percentual = data.get('reservaPercentual', plant.reserva_percentual)
+    if 'producaoMediaManual' in data:
+        plant.producao_media_manual = data['producaoMediaManual']
     plant.dia_emissao_usina = data.get('diaEmissaoUsina', plant.dia_emissao_usina)
     plant.is_coringa = bool(data.get('isCoringa', plant.is_coringa))
+    plant.concessionaria = data.get('concessionaria', plant.concessionaria)
 
     for mes, valor in _producao_mensal_fields(data, only_present=True).items():
         setattr(plant, mes, valor)

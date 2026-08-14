@@ -35,7 +35,7 @@ const sections: SidebarSection[] = [
       { label: 'Clientes', path: '/clientes', icon: 'clients', enabled: true },
       { label: 'Usinas', path: '/usinas', icon: 'plants', enabled: true },
       { label: 'UCs', path: '/ucs', icon: 'ucs', enabled: true },
-      { label: 'Rateio', path: '/rateio', icon: 'rateio', enabled: false },
+      { label: 'Rateio', path: '/rateio', icon: 'rateio', enabled: true },
       { label: 'Documentos', path: '/documentos', icon: 'documents', enabled: true }
     ]
   },

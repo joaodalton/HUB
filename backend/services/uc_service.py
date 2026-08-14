@@ -96,6 +96,11 @@ def apply_uc_fields(uc: ConsumerUnit, data: dict) -> None:
     uc.termino_contrato = _parse_date(data.get('terminoContrato')) if 'terminoContrato' in data else uc.termino_contrato
     uc.carencia_meses = data.get('carenciaMeses', uc.carencia_meses)
     uc.percentual_desconto_carencia = data.get('percentualDescontoCarencia', uc.percentual_desconto_carencia)
+    uc.documentacao_completa = bool(data.get('documentacaoCompleta', uc.documentacao_completa))
+    uc.sem_pendencia_financeira = bool(data.get('semPendenciaFinanceira', uc.sem_pendencia_financeira))
+    uc.cliente_estrategico = bool(data.get('clienteEstrategico', uc.cliente_estrategico))
+    if 'bufferPercentual' in data:
+        uc.buffer_percentual = data['bufferPercentual']
 
 
 def _parse_date(value: str | None) -> date | None:

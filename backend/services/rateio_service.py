@@ -4,8 +4,8 @@ Motor de cálculo do rateio -- Sprint 1-4: só porcentagem (sem modelo de
 prioridade), sem geração de formulário/documento (isso vem depois).
 
 Fluxo:
-  preview_rateio()      -> calcula tudo, NÃO grava nada.
-  Qualificado_funil()  -> lista candidatas (UCs ainda não conectadas a
+  preview_rateio()       -> calcula tudo, NÃO grava nada.
+  funil_qualificacao()   -> lista candidatas (UCs ainda não conectadas a
                              esta usina) com o percentual que CONSUMIRIAM se
                              fossem conectadas -- usado pela Tela 3.
   aplicar_rateio()       -> calcula, atualiza PlantConnection.percentual
@@ -16,7 +16,7 @@ Regra de divisão quando uma UC está em mais de uma usina: consumo dividido
 IGUALMENTE entre as usinas conectadas (simplificação deliberada -- João
 confirmou que hoje quase nenhuma UC tem mais de uma usina).
 
-Qualificado (Sprint 4, simplificada a pedido do João): só considera a
+Qualificação (Sprint 4, simplificada a pedido do João): só considera a
 janela de leitura (dia de emissão da UC vs. da usina). Documentação e
 pendência financeira continuam existindo como campos no cadastro da UC, mas
 NÃO bloqueiam mais o funil -- não tem automação real por trás delas ainda.
@@ -37,7 +37,7 @@ def preview_rateio(plant_id: int | None = None) -> list[dict]:
     return [_calcular_usina(plant) for plant in plants]
 
 
-def Qualificado_funil(plant_id: int) -> dict:
+def funil_qualificacao(plant_id: int) -> dict:
     """Funil da Tela 3. Candidatas = UCs ainda NÃO conectadas a esta usina.
     'Qualificado' = passou na checagem de janela de leitura. Cada UC também
     já vem com o percentual que ela CONSUMIRIA se fosse conectada agora,
@@ -56,7 +56,7 @@ def Qualificado_funil(plant_id: int) -> dict:
     qualificados = 0
 
     for uc in candidatas:
-        qualificado, motivo = _checar_Qualificado(plant, uc)
+        qualificado, motivo = _checar_qualificacao(plant, uc)
 
         # n_usinas_extra=1 -- essa UC ainda não tem conexão com ESTA usina,
         # então o cálculo simula "e se ela entrasse aqui também", somando 1
@@ -179,7 +179,7 @@ def _calcular_usina(plant: Plant) -> dict:
             warnings.append(f'UC {uc.codigo} sem consumo cadastrado -- ignorada no cálculo.')
             continue
 
-        elegivel, motivo_Qualificado = _checar_Qualificado(plant, uc)
+        qualificado, motivo_qualificacao = _checar_qualificacao(plant, uc)
         buffer_percentual_aplicado = _buffer_percentual_uc(uc, buffer_global_habilitado, buffer_global_percentual)
 
         resultado_ucs.append({
@@ -193,8 +193,8 @@ def _calcular_usina(plant: Plant) -> dict:
             'consumoAjustado': consumo_ajustado,
             'producaoConsiderada': consumo_ajustado,
             'percentualCalculado': percentual_calculado,
-            'elegivel': elegivel,
-            'motivoQualificado': motivo_Qualificado
+            'qualificado': qualificado,
+            'motivoQualificacao': motivo_qualificacao
         })
         percentual_total_alocado += percentual_calculado
 
@@ -250,7 +250,7 @@ def _percentual_sugerido_uc(
 ) -> tuple[float | None, float | None, float | None]:
     """Conta central do motor: consumo -> ajustado pelo buffer -> percentual
     da produção disponível. Reutilizada tanto pro cálculo final (UC já
-    conectada) quanto pra pré-visualização de Qualificado (UC candidata,
+    conectada) quanto pra pré-visualização de qualificação (UC candidata,
     ainda não conectada -- por isso o n_usinas_extra).
     Retorna (consumoConsiderado, consumoAjustado, percentual), todos None se
     a UC não tiver consumo cadastrado."""
@@ -272,7 +272,7 @@ def _percentual_sugerido_uc(
     return consumo_considerado, consumo_ajustado, percentual
 
 
-def _checar_Qualificado(plant: Plant, uc: ConsumerUnit) -> tuple[bool, str]:
+def _checar_qualificacao(plant: Plant, uc: ConsumerUnit) -> tuple[bool, str]:
     """Único critério ativo hoje: dia de emissão da usina precisa ser igual
     ou anterior ao dia de emissão da UC (senão a UC entraria tarde demais
     no ciclo de leitura). Sem dado suficiente, não bloqueia -- fica como

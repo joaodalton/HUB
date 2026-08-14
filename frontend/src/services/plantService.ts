@@ -22,6 +22,7 @@ export type PlantRow = {
   producaoMedia: number | null;
   producaoMediaManual: number | null;
   reservaPercentual: number;
+  diaEmissaoUsina: number | null;
 };
 
 export type PlantPayload = {
@@ -44,6 +45,7 @@ export type PlantPayload = {
   concessionaria?: string | null;
   numModulos?: number | null;
   producaoMediaManual?: number | null;
+  diaEmissaoUsina?: number | null;
 };
 
 type ApiResponse<T> = {

@@ -18,6 +18,7 @@ export type PlantFormData = {
   responsavel: string;
   numModulos: number | null;
   producaoMediaManual: number | null;
+  diaEmissaoUsina: number | null;
 };
 
 type PlantCardOptions = {
@@ -68,6 +69,12 @@ export function createPlantCard({ plant, onSave, onCancel, onDelete }: PlantCard
     plant?.producaoMediaManual != null ? String(plant.producaoMediaManual) : '',
     false
   );
+  const diaEmissaoUsina = createInput(
+    'Dia de emissão/leitura',
+    'number',
+    plant?.diaEmissaoUsina != null ? String(plant.diaEmissaoUsina) : '',
+    false
+  );
   const actions = createElement('div', { className: 'form-actions' });
   const saveButton = createElement('button', { textContent: 'Salvar usina', type: 'submit' });
 
@@ -79,6 +86,9 @@ export function createPlantCard({ plant, onSave, onCancel, onDelete }: PlantCard
   producaoMediaManual.input.min = '0';
   producaoMediaManual.input.step = '0.01';
   producaoMediaManual.input.placeholder = 'Deixe em branco pra calcular pela produção mensal cadastrada';
+  diaEmissaoUsina.input.min = '1';
+  diaEmissaoUsina.input.max = '31';
+  diaEmissaoUsina.input.placeholder = 'Dia do mês (1-31)';
 
   titleText.append(eyebrow, heading);
   header.append(titleText, closeButton);
@@ -97,7 +107,8 @@ export function createPlantCard({ plant, onSave, onCancel, onDelete }: PlantCard
     dataAtivacao.field,
     responsavel.field,
     numModulos.field,
-    producaoMediaManual.field
+    producaoMediaManual.field,
+    diaEmissaoUsina.field
   );
   actions.appendChild(saveButton);
 
@@ -141,7 +152,8 @@ export function createPlantCard({ plant, onSave, onCancel, onDelete }: PlantCard
       dataAtivacao: dataAtivacao.input.value,
       responsavel: responsavel.input.value.trim(),
       numModulos: numModulos.input.value.trim() ? Number(numModulos.input.value) : null,
-      producaoMediaManual: producaoMediaManual.input.value.trim() ? Number(producaoMediaManual.input.value) : null
+      producaoMediaManual: producaoMediaManual.input.value.trim() ? Number(producaoMediaManual.input.value) : null,
+      diaEmissaoUsina: diaEmissaoUsina.input.value.trim() ? Number(diaEmissaoUsina.input.value) : null
     });
   });
 

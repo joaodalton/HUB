@@ -46,6 +46,7 @@
   text-align: left;
 }
 .rateio-plant-row:hover { background: var(--panel-hover); border-color: var(--accent-border); }
+.rateio-plant-row.active { border-color: var(--accent); background: var(--accent-bg); }
 
 .rateio-plant-icon {
   display: grid;
@@ -293,3 +294,17 @@
   padding: 0 8px;
   font-size: 12.5px;
 }
+
+.rateio-distribuicao-row input[type="number"] {
+  width: 100%;
+  height: 30px;
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0 8px;
+  font-size: 12.5px;
+}
+
+/* ---------- Modal "Editar distribuição" (PlantDistribuicaoModal.ts) ---------- */
+
+.settings-hint.rateio-total-excede { color: var(--danger); font-weight: 600; }

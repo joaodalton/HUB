@@ -104,12 +104,7 @@ export function createRateioPage(): HTMLElement {
       }
     }
 
-    const selectedPlant = plants.find((plant) => plant.id === selectedPlantId) ?? null;
-
-    content.replaceChildren(
-      renderStepHeader(1, 'Usina selecionada'),
-      selectedPlant ? renderSelectedSummary(selectedPlant) : renderPicker()
-    );
+    content.replaceChildren(renderStepHeader(1, 'Selecionar usina'), renderPicker());
   }
 
   async function loadPreview(plantId: number): Promise<void> {
@@ -192,7 +187,8 @@ export function createRateioPage(): HTMLElement {
     }
 
     function createPlantPickRow(plant: PlantRow): HTMLElement {
-      const row = createElement('button', { className: 'rateio-plant-row', type: 'button' });
+      const isActive = plant.id === selectedPlantId;
+      const row = createElement('button', { className: isActive ? 'rateio-plant-row active' : 'rateio-plant-row', type: 'button' });
       const iconChip = createElement('span', { className: 'rateio-plant-icon' });
       iconChip.appendChild(createIcon('plants'));
 
@@ -205,7 +201,10 @@ export function createRateioPage(): HTMLElement {
       row.append(iconChip, info, createStatusBadge(plant.status));
       row.addEventListener('click', () => {
         selectedPlantId = plant.id;
+        stage = 'producao';
+        reservaCustomMode = !RESERVA_PRESETS.includes(plant.reservaPercentual);
         renderContent();
+        loadPreview(plant.id);
       });
 
       return row;
@@ -219,56 +218,6 @@ export function createRateioPage(): HTMLElement {
     refreshList();
     panel.append(title, searchWrap, listHolder);
     return panel;
-  }
-
-  function renderSelectedSummary(plant: PlantRow): HTMLElement {
-    const card = createElement('section', { className: 'data-panel rateio-summary-card' });
-
-    const head = createElement('div', { className: 'rateio-summary-head' });
-    const iconChip = createElement('span', { className: 'rateio-plant-icon large' });
-    iconChip.appendChild(createIcon('plants'));
-
-    const headText = createElement('div', { className: 'rateio-summary-head-text' });
-    const nameRow = createElement('div', { className: 'rateio-summary-name-row' });
-    nameRow.append(createElement('strong', { textContent: plant.nome }), createStatusBadge(plant.status));
-
-    const sublineParts = [
-      `${plant.kwPico} kWp`,
-      plant.numModulos ? `${plant.numModulos} modulos` : null,
-      plant.concessionaria
-    ].filter((part): part is string => Boolean(part));
-
-    const subline = createElement('span', { className: 'rateio-summary-subline', textContent: sublineParts.join(' · ') });
-
-    headText.append(nameRow, subline);
-    head.append(iconChip, headText);
-
-    const stats = createElement('div', { className: 'rateio-summary-stats' });
-    stats.append(
-      createStatRow('Produção média (12m)', plant.producaoMedia != null ? `${plant.producaoMedia.toFixed(1)} kWh` : 'Não cadastrada'),
-      createStatRow('UCs conectadas', String(connectedUcsCount(plant.id))),
-      createStatRow('Reserva atual', `${plant.reservaPercentual}%`)
-    );
-
-    const actions = createElement('div', { className: 'form-actions' });
-    const trocarButton = createElement('button', { className: 'secondary-button', textContent: 'Trocar usina', type: 'button' });
-    const continuarButton = createElement('button', { textContent: 'Continuar →', type: 'button' });
-
-    trocarButton.addEventListener('click', () => {
-      selectedPlantId = null;
-      renderContent();
-    });
-
-    continuarButton.addEventListener('click', () => {
-      stage = 'producao';
-      reservaCustomMode = !RESERVA_PRESETS.includes(plant.reservaPercentual);
-      renderContent();
-      loadPreview(plant.id);
-    });
-
-    actions.append(trocarButton, continuarButton);
-    card.append(head, stats, actions);
-    return card;
   }
 
   function renderProducaoStage(plant: PlantRow): HTMLElement {
@@ -721,12 +670,6 @@ export function createRateioPage(): HTMLElement {
       textContent: plantStatusLabel(status)
     });
   }
-}
-
-function createStatRow(label: string, value: string): HTMLElement {
-  const row = createElement('div', { className: 'rateio-stat-row' });
-  row.append(createElement('span', { textContent: label }), createElement('strong', { textContent: value }));
-  return row;
 }
 
 function formatNumber(value: number): string {

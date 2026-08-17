@@ -15,6 +15,7 @@ import {
   getPlants,
   plantStatusLabel,
   plantStatusTone,
+  removePlantConnection,
   type PlantRow,
   type PlantStatusTone,
   updatePlant
@@ -23,6 +24,7 @@ import { getUcs, type UcRow } from '../services/ucsService';
 
 type ConnectedUcRow = {
   id: number;
+  connectionId: number;
   codigo: string;
   apelido: string;
   cliente: string;
@@ -79,6 +81,7 @@ export function createPlantsPage(): HTMLElement {
         .forEach((conexao) => {
           rows.push({
             id: uc.id,
+            connectionId: conexao.id,
             codigo: uc.codigo || 'Sem codigo',
             apelido: uc.apelido || uc.clienteNome || 'Sem apelido',
             cliente: uc.clienteNome ?? '-',
@@ -385,9 +388,35 @@ export function createPlantsPage(): HTMLElement {
         { key: 'uc', label: 'UC', render: (row) => createIdNameCell(row.codigo, row.apelido) },
         { key: 'cliente', label: 'Cliente' },
         { key: 'percentual', label: '% Rateio', align: 'right' },
-        { key: 'status', label: 'Status', render: (row) => createStatusDotLabel(row.status, 'success') }
+        { key: 'status', label: 'Status', render: (row) => createStatusDotLabel(row.status, 'success') },
+        { key: 'acao', label: '', align: 'right', render: (row) => createRemoveConnectionButton(plant, row) }
       ]
     });
+  }
+
+  function createRemoveConnectionButton(plant: PlantRow, row: ConnectedUcRow): HTMLElement {
+    const button = createElement('button', { className: 'icon-button', type: 'button' });
+    button.appendChild(createIcon('x'));
+    button.title = 'Desconectar da usina';
+    button.setAttribute('aria-label', `Desconectar ${row.codigo} da usina`);
+    button.addEventListener('click', () => confirmRemoveConnection(plant, row));
+    return button;
+  }
+
+  async function confirmRemoveConnection(plant: PlantRow, row: ConnectedUcRow): Promise<void> {
+    const confirmed = window.confirm(`Desconectar a UC ${row.codigo} desta usina? O percentual de rateio dela sera perdido.`);
+    if (!confirmed) return;
+
+    loading.show();
+    try {
+      await removePlantConnection(plant.id, row.connectionId);
+      toast.success('UC desconectada.');
+      await loadPlants();
+    } catch {
+      toast.error('Nao foi possivel desconectar a UC.');
+    } finally {
+      loading.hide();
+    }
   }
 
   function openPlantEditor(plant: PlantRow | null): void {

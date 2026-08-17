@@ -8,6 +8,7 @@ from services.plant_service import (
     list_plants,
     update_plant
 )
+from services.uc_service import remove_connection
 from utils.api_response import error_response, success_response
 
 
@@ -49,3 +50,10 @@ def destroy(plant_id: int):
     if not delete_plant(plant_id):
         return error_response('Usina nao encontrada.', 404)
     return success_response(None, 'Usina excluida.')
+
+
+@plant_routes.route('/<int:plant_id>/connections/<int:connection_id>', methods=['DELETE'])
+def destroy_connection(plant_id: int, connection_id: int):
+    if not remove_connection(plant_id, connection_id):
+        return error_response('Conexao nao encontrada.', 404)
+    return success_response(None, 'UC desconectada da usina.')

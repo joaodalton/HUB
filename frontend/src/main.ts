@@ -14,14 +14,10 @@ if (config.sentryDsn) {
     dsn: config.sentryDsn,
     environment: config.sentryEnvironment,
     tracesSampleRate: 0.1,
-    // Mesma decisao de nunca mandar dado pessoal de cliente pro Sentry sem
-    // revisar antes -- userInfo/httpBodies e a forma atual dessa opcao no
-    // SDK (sendDefaultPii e o nome antigo, ainda funciona, mas o dashboard
-    // do Sentry agora sugere esse formato).
-    dataCollection: {
-      userInfo: false,
-      httpBodies: []
-    }
+    // Nunca mandar dado pessoal de cliente pro Sentry sem revisar antes --
+    // sendDefaultPii e a opcao de verdade do SDK v8 (@sentry/browser); nao
+    // existe "dataCollection" nessa versao, foi engano de outra sessao.
+    sendDefaultPii: false
   });
 }
 

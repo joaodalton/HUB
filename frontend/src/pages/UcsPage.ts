@@ -149,7 +149,7 @@ export function createUcsPage(): HTMLElement {
       createInfoField('Endereço', uc.endereco || 'Não informado'),
       createInfoField('CEP', uc.cep || 'Não informado'),
       createInfoField('Concessionária', uc.concessionaria || 'Não informado'),
-      createInfoField('Consumo', uc.consumo || '-'),
+      createInfoField('Consumo', uc.consumo != null ? String(uc.consumo) : '-'),
       createInfoField('Base tarifária', uc.baseTarifaria),
       createInfoField('Desconto', uc.desconto || '-'),
       createInfoField('Ligação', uc.tipoLigacao),

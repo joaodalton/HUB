@@ -85,8 +85,15 @@ def funil_qualificacao(plant_id: int) -> dict:
         'ucs': ucs_resultado
     }
 
-
 def aplicar_rateio(competencia: str, plant_id: int | None = None) -> list[dict]:
+    """Recalcula e GRAVA o rateio de conexoes que JA EXISTEM (diferente de
+    confirmar_selecao, que cria conexao nova a partir da selecao do wizard).
+    Usado pra "rodar de novo" o calculo numa competencia nova sem passar
+    pelo wizard inteiro -- ex.: mes seguinte, produção/consumo mudaram,
+    quer atualizar os percentuais das UCs que ja estao conectadas.
+    Respeita percentual_manual: conexao marcada como manual (lapis, ou
+    confirmada pelo wizard) NUNCA e sobrescrita aqui -- so grava historico
+    do valor que ja estava."""
     _validar_competencia(competencia)
     resultados = preview_rateio(plant_id)
 
@@ -100,17 +107,8 @@ def aplicar_rateio(competencia: str, plant_id: int | None = None) -> list[dict]:
             ).first()
 
             if not connection:
-                connection = PlantConnection(
-                    plant_id=plant.id,
-                    consumer_unit_id=uc_resultado['ucId'],
-                    percentual=0
-                )
-                db.session.add(connection)
-                db.session.flush()
+                continue  # aplicar_rateio nao cria conexao nova -- isso e papel do confirmar_selecao
 
-            # Conexão marcada como manual (lápis) -- motor não mexe no
-            # percentual dela, mas ainda registra no histórico pra manter o
-            # panorama completo daquela competência.
             if not connection.percentual_manual:
                 connection.percentual = uc_resultado['percentualCalculado']
 
@@ -128,13 +126,124 @@ def aplicar_rateio(competencia: str, plant_id: int | None = None) -> list[dict]:
 
     LogService.info(
         acao='aplicar_rateio',
-        mensagem=f'Rateio aplicado para competencia {competencia}' + (f' (usina {plant_id})' if plant_id else ' (todas as usinas)'),
+        mensagem=f'Rateio recalculado para competencia {competencia}' + (f' (usina {plant_id})' if plant_id else ' (todas as usinas)'),
         entidade='RateioHistorico',
         metadados={'competencia': competencia, 'plantId': plant_id}
     )
 
     return resultados
 
+
+def confirmar_selecao(plant_id: int, competencia: str, selecoes: list[dict]) -> dict:
+    """Passo que faltava no wizard (Tela 3 → Tela 4 → 'Aprovar proposta').
+    Recebe as UCs escolhidas + o % REAL definido/ajustado na Tela 4 e:
+      1) cria a PlantConnection (se ainda não existir) com percentual_manual=True
+         -- decisão humana explícita, aplicar_rateio() nunca sobrescreve sozinho;
+      2) atualiza o percentual se a UC já tinha conexão com esta usina (não duplica);
+      3) valida que a soma de TODAS as conexões da usina (as que já existiam fora
+         da seleção + as que estão sendo confirmadas agora) não passa de 100% --
+         se passar, nada é gravado (tudo ou nada);
+      4) registra uma linha em RateioHistorico por UC, na competência informada,
+         pro painel de histórico já mostrar a decisão tomada agora.
+    """
+    _validar_competencia(competencia)
+
+    plant = Plant.query.get(plant_id)
+    if not plant:
+        raise ValueError('Usina nao encontrada.')
+
+    if not selecoes:
+        raise ValueError('Nenhum cliente selecionado.')
+
+    selecoes_por_uc: dict[int, float] = {}
+    for selecao in selecoes:
+        uc_id = selecao.get('ucId')
+        percentual = selecao.get('percentual')
+        if uc_id and percentual is not None:
+            try:
+                selecoes_por_uc[int(uc_id)] = round(float(percentual), 2)
+            except (TypeError, ValueError):
+                raise ValueError(f'Percentual invalido para a UC id={uc_id}.')
+
+    if not selecoes_por_uc:
+        raise ValueError('Nenhuma UC valida na selecao.')
+
+    conexoes_existentes = PlantConnection.query.filter_by(plant_id=plant.id).all()
+    conexoes_por_uc_id = {c.consumer_unit_id: c for c in conexoes_existentes}
+
+    soma_outras_conexoes = sum(
+        float(c.percentual) for c in conexoes_existentes if c.consumer_unit_id not in selecoes_por_uc
+    )
+    soma_total = round(soma_outras_conexoes + sum(selecoes_por_uc.values()), 2)
+
+    if soma_total > 100.0:
+        raise ValueError(f'Soma dos percentuais desta usina ficaria em {soma_total}% -- excede 100%. Ajuste antes de confirmar.')
+
+    _, _, producao_disponivel = _producao_disponivel_usina(plant)
+
+    criadas = 0
+    atualizadas = 0
+    resultado_ucs = []
+
+    for uc_id, percentual in selecoes_por_uc.items():
+        uc = ConsumerUnit.query.get(uc_id)
+
+        if not uc:
+            raise ValueError(f'UC id={uc_id} nao encontrada.')
+
+        connection = conexoes_por_uc_id.get(uc_id)
+
+        if connection:
+            connection.percentual = percentual
+            connection.percentual_manual = True
+            atualizadas += 1
+        else:
+            connection = PlantConnection(
+                plant_id=plant.id,
+                consumer_unit_id=uc.id,
+                percentual=percentual,
+                percentual_manual=True
+            )
+            db.session.add(connection)
+            criadas += 1
+
+        db.session.flush()
+
+        producao_considerada = round((percentual / 100) * producao_disponivel, 2) if producao_disponivel else 0.0
+
+        db.session.add(RateioHistorico(
+            competencia=competencia,
+            plant_id=plant.id,
+            consumer_unit_id=uc.id,
+            percentual=percentual,
+            consumo_considerado=float(uc.consumo) if uc.consumo is not None else None,
+            producao_considerada=producao_considerada,
+            manual=True
+        ))
+
+        resultado_ucs.append({
+            'ucId': uc.id,
+            'ucCodigo': uc.codigo,
+            'clienteNome': uc.client.nome if uc.client else None,
+            'percentual': percentual
+        })
+
+    db.session.commit()
+
+    LogService.info(
+        acao='confirmar_rateio',
+        mensagem=f'Selecao de rateio confirmada para "{plant.nome}" ({competencia}): {criadas} nova(s), {atualizadas} atualizada(s)',
+        entidade='PlantConnection',
+        metadados={'plantId': plant.id, 'competencia': competencia}
+    )
+
+    return {
+        'plantId': plant.id,
+        'competencia': competencia,
+        'conexoesCriadas': criadas,
+        'conexoesAtualizadas': atualizadas,
+        'ucs': resultado_ucs
+    }
 
 def list_historico(competencia: str | None = None, plant_id: int | None = None, uc_id: int | None = None) -> list[dict]:
     query = RateioHistorico.query

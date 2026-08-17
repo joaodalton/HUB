@@ -50,6 +50,26 @@ export async function aplicarRateio(competencia: string, plantId: number): Promi
   return response.data;
 }
 
+export type RateioConfirmacaoResultado = {
+  plantId: number;
+  competencia: string;
+  conexoesCriadas: number;
+  conexoesAtualizadas: number;
+  ucs: Array<{ ucId: number; ucCodigo: string; clienteNome: string | null; percentual: number }>;
+};
+
+export async function confirmarSelecaoRateio(
+  plantId: number,
+  competencia: string,
+  selecoes: Array<{ ucId: number; percentual: number }>
+): Promise<RateioConfirmacaoResultado> {
+  const response = await apiRequest<ApiResponse<RateioConfirmacaoResultado>>('/rateio/confirmar', {
+    method: 'POST',
+    body: { plantId, competencia, selecoes }
+  });
+  return response.data;
+}
+
 export type RateioQualificacaoUc = {
   ucId: number;
   ucCodigo: string;
@@ -71,3 +91,4 @@ export async function getQualificacao(plantId: number): Promise<RateioQualificac
   const response = await apiRequest<ApiResponse<RateioQualificacao>>(`/rateio/qualificacao?plantId=${plantId}`);
   return response.data;
 }
+

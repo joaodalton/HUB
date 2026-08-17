@@ -1,6 +1,7 @@
 import { apiRequest } from './apiClient';
 
 export type PlantConnection = {
+  id: number;
   plantId: number;
   usina: string;
   percentual: string;

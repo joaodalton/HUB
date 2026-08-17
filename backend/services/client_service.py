@@ -102,7 +102,8 @@ def _sync_ucs(client: Client, ucs_data: list[dict]) -> None:
         apply_uc_fields(uc, uc_data)
 
         db.session.flush()
-        sync_connections(uc, uc_data.get('conexoes', []))
+        if 'conexoes' in uc_data:
+            sync_connections(uc, uc_data.get('conexoes', []))
 
 
 def _is_persisted_id(value) -> bool:

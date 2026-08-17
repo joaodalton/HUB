@@ -1,9 +1,9 @@
 // frontend/src/pages/RateioPage.ts
 // Wizard de Rateio: Tela 1 (seleção de usina) → Tela 2 (produção) →
-// Tela 3 (qualificação) → Tela 4 (distribuição) → placeholder final.
-// "Aprovar proposta" ainda não grava nada de verdade -- falta um endpoint
-// no backend que crie as conexões novas com o % escolhido na Tela 4 antes
-// de rodar aplicar_rateio(). Ver renderEmConstrucao() no fim do arquivo.
+// Tela 3 (qualificação) → Tela 4 (distribuição) → confirmação.
+// "Aprovar proposta" chama POST /rateio/confirmar (rateioService.ts), que
+// cria as PlantConnection novas com o % escolhido -- ver renderConcluido()
+// no fim do arquivo.
 import { createElement } from '../dom';
 import { createIcon } from '../components/Icon';
 import { useGlobalLoading } from '../hooks/useGlobalLoading';
@@ -11,9 +11,9 @@ import { useToast } from '../hooks/useToast';
 import { createBaseLayout } from '../layouts/BaseLayout';
 import { getPlants, plantStatusLabel, plantStatusTone, updatePlantRateioConfig, type PlantRow, type PlantStatusTone } from '../services/plantService';
 import { getUcs, type UcRow } from '../services/ucsService';
-import { getQualificacao, previewRateio, type RateioQualificacao, type RateioPreview } from '../services/rateioService';
+import { confirmarSelecaoRateio, getQualificacao, previewRateio, type RateioQualificacao, type RateioPreview } from '../services/rateioService';
 
-type Stage = 'selecionar' | 'producao' | 'qualificacao' | 'distribuicao' | 'em-construcao';
+type Stage = 'selecionar' | 'producao' | 'qualificacao' | 'distribuicao' | 'concluido';
 
 const RESERVA_PRESETS = [0, 5, 10, 15];
 
@@ -34,6 +34,9 @@ export function createRateioPage(): HTMLElement {
   let qualificacao: RateioQualificacao | null = null;
   let qualificacaoLoading = false;
   let mostrandoQualificados = false;
+  let competencia = defaultCompetencia();
+  let confirmando = false;
+  let resultadoConfirmacao: { conexoesCriadas: number; conexoesAtualizadas: number } | null = null;
   const selectedUcIds = new Set<number>();
   const percentualRealOverrides = new Map<number, number>();
 
@@ -66,8 +69,8 @@ export function createRateioPage(): HTMLElement {
   }
 
   function renderContent(): void {
-    if (stage === 'em-construcao') {
-      content.replaceChildren(renderEmConstrucao());
+    if (stage === 'concluido') {
+      content.replaceChildren(renderConcluido());
       return;
     }
 
@@ -516,7 +519,7 @@ export function createRateioPage(): HTMLElement {
     );
     list.appendChild(header);
 
-    const inputs: Array<{ input: HTMLInputElement }> = [];
+    const inputs: Array<{ ucId: number; input: HTMLInputElement }> = [];
 
     selecionados.forEach((uc) => {
       const row = createElement('div', { className: 'rateio-distribuicao-row' });
@@ -544,7 +547,7 @@ export function createRateioPage(): HTMLElement {
         recalcSummary();
       });
 
-      inputs.push({ input: realInput });
+      inputs.push({ ucId: uc.ucId, input: realInput });
 
       row.append(nomeInfo, consumo, sugerida, realInput);
       list.appendChild(row);
@@ -565,6 +568,15 @@ export function createRateioPage(): HTMLElement {
 
     recalcSummary();
 
+    const competenciaField = createElement('label', { className: 'form-field' });
+    const competenciaLabel = createElement('span', { textContent: 'Competência (mês de referência)' });
+    const competenciaInput = createElement('input');
+    competenciaInput.type = 'month';
+    competenciaInput.value = competencia;
+    competenciaInput.addEventListener('input', () => { competencia = competenciaInput.value; });
+    competenciaField.append(competenciaLabel, competenciaInput);
+    panel.appendChild(competenciaField);
+
     const actions = createElement('div', { className: 'form-actions' });
     const voltarButton = createElement('button', { className: 'secondary-button', textContent: '← Voltar', type: 'button' });
     const aprovarButton = createElement('button', { textContent: 'Aprovar proposta', type: 'button' });
@@ -573,9 +585,44 @@ export function createRateioPage(): HTMLElement {
       stage = 'qualificacao';
       renderContent();
     });
-    aprovarButton.addEventListener('click', () => {
-      stage = 'em-construcao';
-      renderContent();
+    aprovarButton.addEventListener('click', async () => {
+      if (!competencia) {
+        toast.error('Escolha a competência (mês) antes de aprovar.');
+        return;
+      }
+      if (confirmando) return;
+
+      confirmando = true;
+      aprovarButton.disabled = true;
+      aprovarButton.textContent = 'Salvando...';
+      loading.show();
+
+      try {
+        const selecoes = inputs.map(({ ucId, input }) => ({ ucId, percentual: Number(input.value) || 0 }));
+        const resultado = await confirmarSelecaoRateio(plant.id, competencia, selecoes);
+
+        resultadoConfirmacao = {
+          conexoesCriadas: resultado.conexoesCriadas,
+          conexoesAtualizadas: resultado.conexoesAtualizadas
+        };
+
+        // Recarrega UCs pra "UCs conectadas" (Tela 1/resumo) já refletir as
+        // conexões novas -- sem isso o número ficaria desatualizado até um F5.
+        ucs = await getUcs();
+        selectedUcIds.clear();
+        percentualRealOverrides.clear();
+
+        toast.success('Rateio confirmado com sucesso.');
+        stage = 'concluido';
+        renderContent();
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Não foi possível confirmar o rateio.');
+      } finally {
+        confirmando = false;
+        aprovarButton.disabled = false;
+        aprovarButton.textContent = 'Aprovar proposta';
+        loading.hide();
+      }
     });
 
     actions.append(voltarButton, aprovarButton);
@@ -637,24 +684,31 @@ export function createRateioPage(): HTMLElement {
     return list;
   }
 
-  function renderEmConstrucao(): HTMLElement {
+  function renderConcluido(): HTMLElement {
     const wrapper = createElement('section', { className: 'content-stack' });
     const plant = plants.find((item) => item.id === selectedPlantId);
 
     const panel = createElement('section', { className: 'placeholder-panel' });
     panel.append(
-      createElement('p', { textContent: plant ? `Usina selecionada: ${plant.nome}` : 'Nenhuma usina selecionada.' }),
-      createElement('p', { textContent: `${selectedUcIds.size} cliente(s) selecionado(s) com percentual definido.` }),
-      createElement('p', { textContent: 'Aplicar a proposta de verdade (gravar as conexões e aparecer no histórico) depende de um ajuste no backend que ainda vamos construir -- por enquanto essa tela só confirma o que foi decidido.' })
+      createElement('p', { textContent: plant ? `Usina: ${plant.nome}` : 'Usina não encontrada.' }),
+      createElement('p', {
+        textContent: resultadoConfirmacao
+          ? `${resultadoConfirmacao.conexoesCriadas} conexão(ões) nova(s) e ${resultadoConfirmacao.conexoesAtualizadas} atualizada(s). Os clientes já aparecem em "UCs conectadas" nessa usina.`
+          : 'Rateio confirmado.'
+      })
     );
 
     const actions = createElement('div', { className: 'form-actions' });
-    const voltarButton = createElement('button', { className: 'secondary-button', textContent: '← Voltar', type: 'button' });
-    voltarButton.addEventListener('click', () => {
-      stage = 'distribuicao';
+    const novoButton = createElement('button', { textContent: 'Fazer novo rateio', type: 'button' });
+    novoButton.addEventListener('click', () => {
+      selectedPlantId = null;
+      preview = null;
+      qualificacao = null;
+      resultadoConfirmacao = null;
+      stage = 'selecionar';
       renderContent();
     });
-    actions.appendChild(voltarButton);
+    actions.appendChild(novoButton);
 
     wrapper.append(panel, actions);
     return wrapper;
@@ -688,4 +742,10 @@ function normalize(value: string): string {
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '');
+}
+
+function defaultCompetencia(): string {
+  const now = new Date();
+  const mes = String(now.getMonth() + 1).padStart(2, '0');
+  return `${now.getFullYear()}-${mes}`;
 }

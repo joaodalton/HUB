@@ -84,6 +84,10 @@ export async function deletePlant(id: number): Promise<void> {
   await apiRequest<ApiResponse<null>>(`/plants/${id}`, { method: 'DELETE' });
 }
 
+export async function removePlantConnection(plantId: number, connectionId: number): Promise<void> {
+  await apiRequest<ApiResponse<null>>(`/plants/${plantId}/connections/${connectionId}`, { method: 'DELETE' });
+}
+
 // Update parcial -- só os campos do motor de rateio (reserva e produção média
 // manual). O backend já aceita update parcial (mantém o resto como está),
 // mas PlantPayload normal exige nome/uc/kwPico/status preenchidos -- esse

@@ -1,16 +1,23 @@
 import { apiRequest } from './apiClient';
 
+export type UserRole = 'owner' | 'admin' | 'operator' | 'financial' | 'viewer';
+
 export type UserRow = {
   id: number;
+  empresaId: number;
+  nome: string;
   email: string;
-  papel: 'admin' | 'viewer';
-  ativo: boolean;
+  role: UserRole;
+  status: 'ativo' | 'inativo';
+  emailVerified: boolean;
+  mustChangePassword: boolean;
 };
 
 export type UserPayload = {
+  nome: string;
   email: string;
   senha: string;
-  papel: 'admin' | 'viewer';
+  role: Exclude<UserRole, 'owner'>;
 };
 
 type ApiResponse<T> = {

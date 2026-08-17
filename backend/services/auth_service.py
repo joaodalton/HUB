@@ -8,7 +8,7 @@ from utils.auth import generate_token, hash_password, verify_password
 def authenticate(email: str, senha: str) -> dict | None:
     user = User.query.filter(db.func.lower(User.email) == email.strip().lower()).first()
 
-    if not user or not user.ativo or not verify_password(senha, user.password_hash):
+    if not user or user.status != 'ativo' or not verify_password(senha, user.password_hash):
         LogService.warning(acao='login_failed', mensagem=f'Tentativa de login falhou para {email}', entidade='User')
         return None
 

@@ -28,6 +28,7 @@ def create_app() -> Flask:
     migrate.init_app(app, db)
     limiter.init_app(app)
 
+    from models.empresa import Empresa
     from models.client import Client
     from models.plant import Plant
     from models.consumer_unit import ConsumerUnit, PlantConnection
@@ -38,6 +39,7 @@ def create_app() -> Flask:
     from models.log_entry import LogEntry
     from models.pendencia import Pendencia, PendenciaComentario
     from models.user import User
+    from models.invitation import Invitation
     from models.rateio_historico import RateioHistorico
 
     CORS(app, origins=[Config.FRONTEND_URL], supports_credentials=True)
@@ -56,6 +58,7 @@ def create_app() -> Flask:
     from routes.log_routes import log_routes
     from routes.pendencia_routes import pendencia_routes
     from routes.user_routes import user_routes
+    from routes.invitation_routes import invitation_routes
     from routes.rateio_routes import rateio_routes
 
     app.register_blueprint(health_routes)
@@ -72,12 +75,14 @@ def create_app() -> Flask:
     app.register_blueprint(log_routes)
     app.register_blueprint(pendencia_routes)
     app.register_blueprint(user_routes)
+    app.register_blueprint(invitation_routes)
     app.register_blueprint(rateio_routes)
 
     from utils.auth import register_auth_middleware
     register_auth_middleware(app, public_paths={
         '/', '/api/v1/auth/login', '/api/v1/auth/bootstrap', '/api/v1/auth/logout',
-        '/api/v1/auth/register',
+        '/api/v1/auth/register', '/api/v1/auth/aceitar-convite',
+        '/api/v1/convites/verificar',
         '/api/v1/oauth/google/authorize', '/api/v1/oauth/google/callback'
     })
 

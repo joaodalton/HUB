@@ -25,23 +25,30 @@ Não é um site. Não é um dashboard interno de uso ocasional. É pra ser o **p
 
 **Regra prática pro Codex:** continuar construindo a API REST normalmente (é isso que já vinha sendo feito). Autenticação (mesmo que simples, sem tela de permissões ainda) entra **antes** de qualquer deploy em rede compartilhada — não depois. Não implementar Docker, múltiplos usuários reais ou PostgreSQL de forma especulativa antes disso ser necessário de verdade.
 
-### 2.1 Pergunta em aberto: multi-tenant vs. instalação isolada (registrado 2026-08-09, NÃO decidido)
+### 2.1 Multi-tenant (decisão tomada em 2026-08-17 — substitui a pergunta em aberto anterior)
 
-A decisão original desta seção (instalação separada por cliente, banco e servidor próprios) segue valendo — **não foi revertida**. Mas durante uma conversa sobre auto-cadastro de usuário, surgiu a dúvida se um dia faria mais sentido multi-tenant de verdade (todo cliente no mesmo banco, dado separado por linha/campo, tipo `empresa_id` em cada tabela). Registrando os dois lados pra quando essa decisão precisar ser tomada de verdade — perto do primeiro cliente pagante de fora, não antes:
+**Decisão:** o HUB vai virar multi-tenant de verdade — um banco só, `empresa_id` em praticamente toda tabela — em vez de instalação isolada por cliente. Motivo: o objetivo do produto mudou de "ferramenta interna da Select" pra "produto vendável pra outras empresas de energia solar", e instalação isolada não escala em custo/operação pra esse modelo (cada cliente novo exigiria Render + Neon pagos próprios, migration manual por banco). Isso substitui a decisão anterior desta seção (instalação separada), que fica só como registro histórico abaixo.
 
-**Instalação isolada (o que já estava decidido):**
-- Cada cliente = projeto Neon próprio + serviços Render próprios, apontando pro mesmo repositório/branch `main`.
-- Zero risco de vazamento de dado entre clientes (nem é fisicamente possível, são bancos diferentes).
-- Custo escala por cliente (cada um paga/exige seu próprio Render + Neon pagos — free tier não é viável pra cliente de verdade, o "acordar" de 30s não é aceitável profissionalmente). Precisa entrar no preço cobrado.
-- Atualização de **código** é automática (Render já faz isso, grátis, hoje). Atualização de **schema do banco** (migration) é manual, por cliente, toda vez — cresce em trabalho conforme o número de clientes aumenta. Vale revisitar automação disso (ex.: script que aplica migration em todos os bancos de uma vez) se/quando o número de clientes justificar.
+**Como o risco principal (vazamento de dado entre empresas) é mitigado:** em vez de depender de cada rota lembrar de filtrar por `empresa_id` manualmente, o filtro é estrutural — um listener do SQLAlchemy (`do_orm_execute` em `extensions.py`) injeta `WHERE empresa_id = <empresa da sessão atual>` automaticamente em toda query feita contra qualquer model que herde de `TenantMixin`. Não é uma convenção que alguém pode esquecer de seguir, é o comportamento padrão.
 
-**Multi-tenant (a ideia nova, ainda não avaliada a fundo):**
-- Um banco só, campo `empresa_id` (ou similar) em praticamente toda tabela.
-- Custo de infra não cresce por cliente (mesma instância pra todos).
-- Risco real e conhecido: qualquer query esquecida de filtrar por empresa vaza dado de um cliente pro outro — é o tipo de bug clássico desse modelo, difícil de garantir 100% sem testes/revisão séria em cada rota nova daqui pra frente.
-- Exigiria reescrever queries e modelos já existentes (Cliente, UC, Usina, Documento, Pendência, tudo) — não é aditivo, é retrofit em cima do que já existe.
+**Cadastro de empresa nova:** manual por enquanto (João roda um script no servidor pra cada cliente fechado — ver `backend/scripts/criar_empresa.py`). Self-signup público fica pra quando (e se) fizer sentido meter uma tela pública — não é a prioridade agora.
 
-**Não decidir agora.** Só documentar que a pergunta existe, pra não escolher um caminho por omissão sem perceber.
+**Dados atuais:** os dados que já existem (Select Energia Solar) viram a Empresa #1 via migration — nada é perdido, só ganha um `empresa_id` novo.
+
+**Migração incremental por sprint** (ver `PROGRESS.md` pra status atual de cada um):
+1. Fundação: model `Empresa`, `TenantMixin`, filtro automático, `User.empresa_id`, script de criação manual.
+2. Núcleo do domínio: `Client`, `ConsumerUnit`, `Plant`.
+3. Periféricos: `Document`, `Category`, `Pendencia`, `RateioHistorico`, `Setting`, `LogEntry`, `GoogleAccount`.
+4. Auditoria final: revisão de toda rota que hoje faz `Model.query...` direto sem passar pela sessão padrão, garantindo que nenhuma ficou de fora do `TenantMixin`.
+
+<details>
+<summary>Registro histórico — decisão anterior (instalação isolada, válida até 2026-08-17)</summary>
+
+Cada cliente = projeto Neon próprio + serviços Render próprios, apontando pro mesmo repositório/branch `main`. Zero risco de vazamento de dado entre clientes (bancos fisicamente diferentes), mas custo escala por cliente e migration de schema é manual por banco. Essa era a decisão original da seção 2 (formato final e modo de uso) — revertida porque não se sustenta economicamente pro modelo de venda que o projeto passou a mirar.
+
+</details>
+
+
 
 ## 3. Regras não-negociáveis
 

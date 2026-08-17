@@ -4,7 +4,7 @@ import { createInput, createSelectField } from '../components/formFields';
 import { useGlobalLoading } from '../hooks/useGlobalLoading';
 import { useToast } from '../hooks/useToast';
 import { createBaseLayout } from '../layouts/BaseLayout';
-import { createUser, getUsers, setUserActive, type UserPayload, type UserRow } from '../services/userService';
+import { createUser, getUsers, setUserActive, type UserPayload, type UserRole, type UserRow } from '../services/userService';
 
 export function createUsersPage(): HTMLElement {
   const content = createElement('section', { className: 'content-stack' });
@@ -48,9 +48,11 @@ export function createUsersPage(): HTMLElement {
   }
 
   async function handleToggleActive(user: UserRow): Promise<void> {
+    const willActivate = user.status !== 'ativo';
+
     try {
-      await setUserActive(user.id, !user.ativo);
-      toast.success(user.ativo ? 'Usuário desativado.' : 'Usuário ativado.');
+      await setUserActive(user.id, willActivate);
+      toast.success(willActivate ? 'Usuário ativado.' : 'Usuário desativado.');
       await loadUsers();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar o usuário.');
@@ -96,23 +98,29 @@ function createUsersList(users: UserRow[], onToggleActive: (user: UserRow) => vo
   users.forEach((user) => {
     const label = createElement('dt', { textContent: user.email });
     const valueRow = createElement('dd', { className: 'account-row' });
+    const ativo = user.status === 'ativo';
     const roleBadge = createElement('span', {
-      className: user.papel === 'admin' ? 'provider-badge success' : 'provider-badge',
-      textContent: user.papel === 'admin' ? 'Administrador' : 'Visualizador'
+      className: user.role === 'owner' || user.role === 'admin' ? 'provider-badge success' : 'provider-badge',
+      textContent: roleLabel(user.role)
     });
     const statusBadge = createElement('span', {
-      className: user.ativo ? 'provider-badge success' : 'provider-badge warning',
-      textContent: user.ativo ? 'Ativo' : 'Inativo'
+      className: ativo ? 'provider-badge success' : 'provider-badge warning',
+      textContent: ativo ? 'Ativo' : 'Inativo'
     });
     const toggleButton = createElement('button', {
-      className: user.ativo ? 'danger-button' : 'secondary-button',
-      textContent: user.ativo ? 'Desativar' : 'Ativar',
+      className: ativo ? 'danger-button' : 'secondary-button',
+      textContent: ativo ? 'Desativar' : 'Ativar',
       type: 'button'
     });
 
+    // Owner nao pode ser desativado (regra do backend tambem, ver
+    // user_service.py::set_user_active) -- some o botao pra nao confundir.
+    if (user.role === 'owner') toggleButton.remove();
+
     toggleButton.addEventListener('click', () => onToggleActive(user));
 
-    valueRow.append(roleBadge, statusBadge, toggleButton);
+    valueRow.append(roleBadge, statusBadge);
+    if (user.role !== 'owner') valueRow.appendChild(toggleButton);
     list.append(label, valueRow);
   });
 
@@ -132,11 +140,14 @@ function createUserModal(onCreate: (data: UserPayload) => Promise<void>): HTMLEl
   const closeButton = createElement('button', { className: 'secondary-button', textContent: 'Fechar', type: 'button' });
   const fields = createElement('div', { className: 'form-grid' });
 
+  const nome = createInput('Nome', 'text', '', true);
   const email = createInput('Email', 'email', '', true);
   const senha = createInput('Senha provisória', 'password', '', true);
-  const papel = createSelectField('Papel', 'viewer', [
-    { value: 'viewer', label: 'Visualizador (só leitura)' },
-    { value: 'admin', label: 'Administrador (acesso total)' }
+  const role = createSelectField('Papel', 'viewer', [
+    { value: 'viewer', label: 'Visualizador' },
+    { value: 'operator', label: 'Operacional' },
+    { value: 'financial', label: 'Financeiro' },
+    { value: 'admin', label: 'Administrador' }
   ]);
 
   const actions = createElement('div', { className: 'form-actions' });
@@ -145,7 +156,7 @@ function createUserModal(onCreate: (data: UserPayload) => Promise<void>): HTMLEl
 
   titleText.append(eyebrow, heading);
   header.append(titleText, closeButton);
-  fields.append(email.field, senha.field, papel.field);
+  fields.append(nome.field, email.field, senha.field, role.field);
   form.append(header, fields, actions);
   panel.appendChild(form);
   overlay.appendChild(panel);
@@ -158,7 +169,8 @@ function createUserModal(onCreate: (data: UserPayload) => Promise<void>): HTMLEl
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
 
-    if (!email.input.value.trim() || !senha.input.value.trim()) {
+    if (!nome.input.value.trim() || !email.input.value.trim() || !senha.input.value.trim()) {
+      nome.input.reportValidity();
       email.input.reportValidity();
       senha.input.reportValidity();
       return;
@@ -171,13 +183,25 @@ function createUserModal(onCreate: (data: UserPayload) => Promise<void>): HTMLEl
     // erro (toast) e nao relança -- o modal fecha ao final independente do
     // resultado, consistente com o resto do app, nao e comportamento novo.
     await onCreate({
+      nome: nome.input.value.trim(),
       email: email.input.value.trim(),
       senha: senha.input.value,
-      papel: papel.select.value as 'admin' | 'viewer'
+      role: role.select.value as UserPayload['role']
     });
 
     overlay.remove();
   });
 
   return overlay;
+}
+
+function roleLabel(role: UserRole): string {
+  const labels: Record<UserRole, string> = {
+    owner: 'Proprietário',
+    admin: 'Administrador',
+    operator: 'Operacional',
+    financial: 'Financeiro',
+    viewer: 'Visualizador'
+  };
+  return labels[role];
 }

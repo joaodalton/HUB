@@ -74,6 +74,29 @@ def clear_auth_cookies(response) -> None:
     response.delete_cookie(COOKIE_NAME, path='/', samesite='Lax', secure=is_prod)
     response.delete_cookie(CSRF_COOKIE_NAME, path='/', samesite='Lax', secure=is_prod)
 
+def resolve_current_user_optional():
+    """Mesma checagem de token de _require_auth, mas sem forçar 401 se não
+    autenticado -- usada pelas rotas PÚBLICAS de OAuth (/authorize,
+    /callback), que ficam de fora do middleware (o /callback é chamado
+    pelo próprio Google, não dá pra exigir token nele) mas ainda assim
+    precisam saber a empresa de quem iniciou o fluxo, quando disponível."""
+    token = request.cookies.get(COOKIE_NAME)
+
+    if not token:
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            token = auth_header[len('Bearer '):]
+
+    if not token:
+        return None
+
+    user_id = decode_token(token)
+    if not user_id:
+        return None
+
+    from models.user import User
+    user = User.query.get(user_id)
+    return user if user and user.ativo else None
 
 def register_auth_middleware(app, public_paths: set[str]) -> None:
     @app.before_request
@@ -100,8 +123,13 @@ def register_auth_middleware(app, public_paths: set[str]) -> None:
 
         from models.user import User
         user = User.query.get(user_id)
-        if not user or not user.ativo:
+        if not user or user.status != 'ativo':
             return error_response('Usuario invalido ou inativo.', 401)
+
+        # A partir daqui, toda query contra um model com TenantMixin
+        # (Client, ConsumerUnit, Plant etc.) já vem filtrada por essa
+        # empresa automaticamente -- ver extensions.py.
+        g.current_empresa_id = user.empresa_id
 
         if token_from_cookie and request.method not in _SAFE_METHODS:
             csrf_cookie = request.cookies.get(CSRF_COOKIE_NAME)
@@ -109,12 +137,13 @@ def register_auth_middleware(app, public_paths: set[str]) -> None:
             if not csrf_cookie or not csrf_header or csrf_cookie != csrf_header:
                 return error_response('Token CSRF ausente ou invalido.', 403)
 
-        # Viewer so le -- qualquer metodo que muda dado (POST/PUT/DELETE/PATCH)
-        # e barrado aqui, de forma global, pra qualquer rota da API. Nao existe
-        # excecao por modulo de proposito (decisao registrada: "nao criar
-        # permissoes complexas por modulo ainda").
-        if user.papel == 'viewer' and request.method not in _SAFE_METHODS:
-            return error_response('Sua conta tem acesso somente leitura.', 403)
+        # Placeholder ATE a camada de RBAC granular (Sprint 01, secao 5) --
+        # por enquanto so owner/admin escrevem, operator/financial/viewer sao
+        # somente-leitura globalmente. Quando o modulo de permissoes entrar,
+        # troca por checagem fina por acao (empresa.update, users.create etc.),
+        # nao por essa comparacao solta.
+        if user.role not in ('owner', 'admin') and request.method not in _SAFE_METHODS:
+            return error_response('Sua conta nao tem permissao de escrita.', 403)
 
         g.current_user = user
         return None

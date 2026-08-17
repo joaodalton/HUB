@@ -2,9 +2,11 @@ import { apiRequest } from './apiClient';
 
 export type AuthUser = {
   id: number;
+  empresaId: number;
+  nome: string;
   email: string;
-  papel: string;
-  ativo: boolean;
+  role: string;
+  status: string;
 };
 
 type ApiResponse<T> = {

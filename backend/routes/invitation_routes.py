@@ -3,6 +3,7 @@ from flask import Blueprint, g, request
 
 from config import Config
 from services.invitation_service import criar_convite, listar_convites, verificar_convite
+from services.permission_service import require_permission
 from utils.api_response import error_response, success_response
 
 
@@ -11,18 +12,15 @@ invitation_routes = Blueprint('invitation_routes', __name__, url_prefix='/api/v1
 
 # GET /api/v1/convites -- lista os convites da empresa do usuario logado (autenticada).
 @invitation_routes.route('', methods=['GET'])
+@require_permission('invitations.read')
 def index():
-    if g.current_user.role not in ('owner', 'admin'):
-        return error_response('So owner/administrador podem ver convites.', 403)
     return success_response(listar_convites(g.current_user.empresa_id))
 
 
 # POST /api/v1/convites -- cria um convite novo (autenticada, so owner/admin).
 @invitation_routes.route('', methods=['POST'])
+@require_permission('invitations.create')
 def store():
-    if g.current_user.role not in ('owner', 'admin'):
-        return error_response('So owner/administrador podem enviar convites.', 403)
-
     data = request.get_json(silent=True) or {}
     email = data.get('email', '')
     role = data.get('role', '')

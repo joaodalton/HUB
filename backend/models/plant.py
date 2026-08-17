@@ -2,12 +2,13 @@
 from datetime import datetime
 from decimal import Decimal
 
-from extensions import db
+from extensions import db, TenantMixin
+
 
 MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
 
 
-class Plant(db.Model):
+class Plant(TenantMixin, db.Model):
     __tablename__ = 'plants'
 
     id = db.Column(db.Integer, primary_key=True)

@@ -122,6 +122,8 @@ def register_auth_middleware(app, public_paths: set[str]) -> None:
             return error_response('Token invalido ou expirado.', 401)
 
         from models.user import User
+        from models.empresa import Empresa
+
         user = User.query.get(user_id)
         if not user or user.status != 'ativo':
             return error_response('Usuario invalido ou inativo.', 401)
@@ -129,7 +131,10 @@ def register_auth_middleware(app, public_paths: set[str]) -> None:
         # A partir daqui, toda query contra um model com TenantMixin
         # (Client, ConsumerUnit, Plant etc.) já vem filtrada por essa
         # empresa automaticamente -- ver extensions.py.
+        g.current_user = user
         g.current_empresa_id = user.empresa_id
+        g.current_role = user.role
+        g.current_empresa = Empresa.query.get(user.empresa_id)
 
         if token_from_cookie and request.method not in _SAFE_METHODS:
             csrf_cookie = request.cookies.get(CSRF_COOKIE_NAME)
@@ -137,13 +142,4 @@ def register_auth_middleware(app, public_paths: set[str]) -> None:
             if not csrf_cookie or not csrf_header or csrf_cookie != csrf_header:
                 return error_response('Token CSRF ausente ou invalido.', 403)
 
-        # Placeholder ATE a camada de RBAC granular (Sprint 01, secao 5) --
-        # por enquanto so owner/admin escrevem, operator/financial/viewer sao
-        # somente-leitura globalmente. Quando o modulo de permissoes entrar,
-        # troca por checagem fina por acao (empresa.update, users.create etc.),
-        # nao por essa comparacao solta.
-        if user.role not in ('owner', 'admin') and request.method not in _SAFE_METHODS:
-            return error_response('Sua conta nao tem permissao de escrita.', 403)
-
-        g.current_user = user
         return None

@@ -143,6 +143,26 @@ export async function addComentario(id: number, texto: string): Promise<Pendenci
   return response.data;
 }
 
+export type VerificacaoResultado = {
+  ucs_sem_usina: number;
+  clientes_sem_uc: number;
+  campos_faltando: number;
+  documentos_faltando: number;
+};
+
+export type VerificacaoResponse = {
+  verificacoes: VerificacaoResultado;
+  resolvidas: number;
+  total_criadas: number;
+};
+
+export async function verificarPendencias(): Promise<VerificacaoResponse> {
+  const response = await apiRequest<ApiResponse<VerificacaoResponse>>('/pendencias/verificar', {
+    method: 'POST'
+  });
+  return response.data;
+}
+
 export function tipoLabel(tipo: PendenciaTipo): string {
   if (tipo === 'alerta') return 'Alerta';
   if (tipo === 'erro') return 'Erro';

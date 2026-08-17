@@ -1,12 +1,15 @@
 # backend/services/pendencia_service.py
 from datetime import datetime
 
+from flask import g
+
 from extensions import db
 from models.pendencia import Pendencia, PendenciaComentario, PRIORIDADES
 from services.log_service import LogService
 
 
 def list_pendencias(filtros: dict) -> list[dict]:
+    # Filtro automatico via TenantMixin (extensions.py)
     query = Pendencia.query
 
     if filtros.get('tipo'):
@@ -71,6 +74,7 @@ def _criar(tipo: str, origem: str, data: dict) -> dict:
         raise ValueError(f'Prioridade invalida. Use uma de: {", ".join(PRIORIDADES)}.')
 
     pendencia = Pendencia(
+        empresa_id=g.current_empresa_id,
         tipo=tipo,
         categoria=categoria,
         origem=origem,
@@ -167,7 +171,12 @@ def adicionar_comentario(pendencia_id: int, texto: str, autor_id: int | None) ->
     pendencia = Pendencia.query.get(pendencia_id)
     if not pendencia:
         return None
-    comentario = PendenciaComentario(pendencia_id=pendencia_id, autor_id=autor_id, texto=texto.strip())
+    comentario = PendenciaComentario(
+        empresa_id=g.current_empresa_id,
+        pendencia_id=pendencia_id,
+        autor_id=autor_id,
+        texto=texto.strip()
+    )
     db.session.add(comentario)
     db.session.commit()
     LogService.info(acao='comentario', mensagem='Comentario adicionado', entidade='Pendencia', entidade_id=pendencia.id)

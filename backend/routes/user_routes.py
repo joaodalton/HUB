@@ -1,6 +1,7 @@
 # backend/routes/user_routes.py
 from flask import Blueprint, g, request
 
+from services.permission_service import require_permission
 from services.user_service import create_user, list_users, set_user_active
 from utils.api_response import error_response, success_response
 
@@ -8,26 +9,15 @@ from utils.api_response import error_response, success_response
 user_routes = Blueprint('user_routes', __name__, url_prefix='/api/v1/users')
 
 
-def _require_owner_or_admin():
-    if g.current_user.role not in ('owner', 'admin'):
-        return error_response('So owner/administrador podem gerenciar usuarios.', 403)
-    return None
-
-
 @user_routes.route('', methods=['GET'])
+@require_permission('users.read')
 def index():
-    denied = _require_owner_or_admin()
-    if denied:
-        return denied
     return success_response(list_users(g.current_user.empresa_id))
 
 
 @user_routes.route('', methods=['POST'])
+@require_permission('users.create')
 def store():
-    denied = _require_owner_or_admin()
-    if denied:
-        return denied
-
     data = request.get_json(silent=True) or {}
 
     try:
@@ -39,11 +29,8 @@ def store():
 
 
 @user_routes.route('/<int:user_id>/ativo', methods=['PUT'])
+@require_permission('users.deactivate', 'users.reactivate')
 def update_active(user_id: int):
-    denied = _require_owner_or_admin()
-    if denied:
-        return denied
-
     data = request.get_json(silent=True) or {}
     ativo = bool(data.get('ativo', True))
 

@@ -59,7 +59,7 @@ def create_user(data: dict, empresa_id: int) -> dict:
     return user.to_dict()
 
 
-def register_with_code(data: dict, provided_code: str) -> dict:
+def register_with_code(data: dict, provided_code: str, empresa_id: int) -> dict:
     """Auto-cadastro publico (tela de login) -- so funciona se SIGNUP_CODE
     estiver configurado E o codigo mandado bater. SEMPRE cria 'viewer', nunca
     'admin' -- forcado aqui, independente do que vier em data['papel']. Um

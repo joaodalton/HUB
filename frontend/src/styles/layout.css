@@ -4,58 +4,259 @@
    cantinhos decorativos. Nada de tela especifica aqui.
    ============================================================ */
 
-.app-shell { min-height: 100vh; }
+/* ---------- App Shell ---------- */
+.app-shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
 
+/* ---------- App Body / Grid ---------- */
 .app-body {
   display: grid;
   grid-template-columns: 180px minmax(0, 1fr);
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
+/* ---------- Main Content Area ---------- */
 .app-main {
   padding: var(--space-4) var(--space-5) var(--space-5);
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
 }
 
+/* ---------- Content Stack ---------- */
 .content-stack {
   display: grid;
   gap: var(--space-4);
-  margin-top: var(--space-4);
 }
 
-/* ---------- Ajuste por resolucao ---------- */
-/* So mexe em largura de coluna e padding -- a estrutura de grid (sidebar +
-   main) continua a mesma em qualquer tamanho, nao vira layout novo. */
+/* ---------- Responsive Breakpoints ---------- */
+
+/* Large screens (1440px+) */
+@media (min-width: 1440px) {
+  .app-body {
+    grid-template-columns: 200px minmax(0, 1fr);
+  }
+  .app-main {
+    padding: var(--space-5) var(--space-5) var(--space-5);
+  }
+}
+
+/* Desktop - 1366px */
 @media (max-width: 1366px) {
   .app-body { grid-template-columns: 160px minmax(0, 1fr); }
   .app-main { padding: var(--space-3) var(--space-4) var(--space-4); }
 }
 
+/* Laptop - 1024px */
 @media (max-width: 1024px) {
-  .app-body { grid-template-columns: 148px minmax(0, 1fr); }
+  .app-body { grid-template-columns: 64px minmax(0, 1fr); }
   .app-main { padding: var(--space-2) var(--space-3) var(--space-4); }
-  .sidebar { padding: 14px 8px; }
-}
 
-@media (max-width: 780px) {
-  .app-body { grid-template-columns: 1fr; }
-  .sidebar {
-    position: relative;
-    height: auto;
-    border-right: none;
-    border-bottom: 1px solid var(--border);
+  /* Sidebar collapse - show only icons */
+  .sidebar-brand span:not(.sidebar-mark),
+  .sidebar-link span,
+  .sidebar-section-title,
+  .sidebar-user-text,
+  .sidebar-version,
+  .sidebar-logout span {
+    display: none;
+  }
+
+  .sidebar-brand {
+    justify-content: center;
+    padding: 0;
+  }
+
+  .sidebar-link {
+    justify-content: center;
+    padding: 12px;
+    border-left: none;
+    border-radius: var(--radius-input);
+  }
+
+  .sidebar-link.active {
+    border-left: none;
+    border-radius: var(--radius-input);
+  }
+
+  .sidebar-footer {
+    padding-top: var(--space-2);
+    gap: var(--space-1);
+  }
+
+  .sidebar-logout {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    padding: 10px;
+    border: none;
+    background: transparent;
+  }
+
+  .sidebar-user {
+    justify-content: center;
+    padding: 0;
+  }
+
+  .sidebar-user-avatar {
+    width: 36px;
+    height: 36px;
+    font-size: 12px;
   }
 }
 
-/* ---------- Cantinhos decorativos ---------- */
+/* Tablet - 768px */
+@media (max-width: 768px) {
+  .app-body {
+    grid-template-columns: 1fr;
+  }
 
+  /* Sidebar becomes mobile menu */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 280px;
+    height: 100vh;
+    height: 100dvh;
+    z-index: 200;
+    transform: translateX(-100%);
+    transition: transform var(--transition-normal);
+    padding: var(--space-3);
+    box-shadow: var(--shadow-xl);
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
+  }
+
+  /* Restore full sidebar on mobile */
+  .sidebar-brand span:not(.sidebar-mark),
+  .sidebar-link span,
+  .sidebar-section-title,
+  .sidebar-user-text,
+  .sidebar-version {
+    display: inline;
+  }
+
+  .sidebar-brand {
+    justify-content: flex-start;
+    padding: 0 7px;
+  }
+
+  .sidebar-link {
+    justify-content: flex-start;
+    padding: 10px 12px;
+    border-left: 2px solid transparent;
+    border-radius: var(--radius-sm);
+  }
+
+  .sidebar-link.active {
+    border-left-color: var(--accent);
+    border-radius: var(--radius-sm);
+  }
+
+  .sidebar-footer {
+    padding-top: var(--space-3);
+    gap: var(--space-2);
+  }
+
+  .sidebar-logout {
+    display: block;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+  }
+
+  .sidebar-user {
+    justify-content: flex-start;
+    padding: 0 7px;
+  }
+
+  .sidebar-user-avatar {
+    width: 32px;
+    height: 32px;
+    font-size: 10px;
+  }
+
+  /* Mobile menu toggle */
+  .mobile-menu-toggle {
+    display: flex;
+  }
+
+  .app-main {
+    padding: var(--space-2) var(--space-3) var(--space-4);
+  }
+
+  /* Overlay when sidebar is open */
+  .sidebar-overlay {
+    display: block;
+  }
+}
+
+/* Mobile - 480px and below */
+@media (max-width: 480px) {
+  .app-main {
+    padding: var(--space-2) var(--space-2) var(--space-3);
+    gap: var(--space-3);
+  }
+
+  .sidebar {
+    width: 85vw;
+    max-width: 300px;
+  }
+}
+
+/* ---------- Mobile Menu Toggle ---------- */
+.mobile-menu-toggle {
+  display: none;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-input);
+  color: var(--text);
+  place-items: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.mobile-menu-toggle:hover {
+  background: var(--panel-hover);
+}
+
+.mobile-menu-toggle .icon {
+  width: 20px;
+  height: 20px;
+}
+
+/* ---------- Sidebar Overlay ---------- */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 150;
+  backdrop-filter: blur(4px);
+}
+
+/* ---------- Cantinhos decorativos ---------- */
 .corner {
   position: fixed;
   width: 22px;
   height: 22px;
   border: 1px solid var(--accent-hover);
-  opacity: 0.5;
+  opacity: 0.4;
   z-index: 10;
+  transition: opacity var(--transition-normal);
+}
+
+.corner:hover {
+  opacity: 0.7;
 }
 
 .corner-tl { top: 20px; left: 20px; border-right: none; border-bottom: none; }
@@ -63,7 +264,7 @@
 .corner-bl { bottom: 20px; left: 20px; border-right: none; border-top: none; }
 .corner-br { bottom: 20px; right: 20px; border-left: none; border-top: none; }
 
-@media (max-width: 620px) {
+@media (max-width: 768px) {
   .corner { display: none; }
 }
 
@@ -73,21 +274,24 @@
   position: sticky;
   top: 0;
   height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   padding: 16px 10px;
   background: var(--panel);
   border-right: 1px solid var(--border);
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .sidebar-brand {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   margin-bottom: 20px;
-  padding: 0 7px;
+  padding: 0 8px;
   color: var(--text);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.02em;
 }
@@ -95,30 +299,29 @@
 .sidebar-mark {
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
-  border-radius: var(--radius-input);
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
   background: var(--accent);
   color: #fff;
   font-weight: 700;
-  font-size: 12px;
+  font-size: 13px;
   flex-shrink: 0;
 }
 
 .sidebar-nav {
-  display: grid;
-  gap: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  /* Barra de rolagem fina em vez da padrao do navegador, pra nao destoar
-     do resto do visual (Firefox + navegadores baseados em Chromium). */
   scrollbar-width: thin;
 }
 
 .sidebar-nav::-webkit-scrollbar {
-  width: 5px;
+  width: 4px;
 }
 .sidebar-nav::-webkit-scrollbar-thumb {
   background: var(--border);
@@ -126,14 +329,15 @@
 }
 
 .sidebar-section {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 2px;
 }
 
 .sidebar-section-title {
-  padding: 0 10px 2px;
+  padding: 0 12px 6px;
   color: var(--text-faint);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -142,19 +346,21 @@
 .sidebar-link {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  gap: 10px;
+  padding: 10px 12px;
   border-radius: var(--radius-sm);
   border-left: 2px solid transparent;
   color: var(--text-dim);
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 500;
   text-decoration: none;
+  transition: all var(--transition-fast);
 }
 
 .sidebar-link .sidebar-icon {
-  width: 15px;
-  height: 15px;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
 }
 
 .sidebar-link:hover {
@@ -171,36 +377,40 @@
 .sidebar-link.disabled {
   color: var(--text-faint);
   cursor: not-allowed;
-  opacity: 0.55;
+  opacity: 0.5;
 }
-.sidebar-link.disabled:hover { background: none; color: var(--text-faint); }
+.sidebar-link.disabled:hover {
+  background: transparent;
+  color: var(--text-faint);
+}
 
 .sidebar-footer {
   margin-top: auto;
-  padding-top: 12px;
+  padding-top: var(--space-3);
   border-top: 1px solid var(--border);
-  display: grid;
-  gap: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
   flex-shrink: 0;
 }
 
 .sidebar-user {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 7px;
+  gap: 10px;
+  padding: 0 8px;
   min-width: 0;
 }
 
 .sidebar-user-avatar {
   display: grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
+  width: 32px;
+  height: 32px;
   border-radius: 999px;
   background: var(--accent-bg);
   color: var(--accent);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   flex-shrink: 0;
 }
@@ -213,7 +423,7 @@
 
 .sidebar-user-name {
   color: var(--text);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -222,30 +432,36 @@
 
 .sidebar-user-role {
   color: var(--text-faint);
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .sidebar-version {
-  padding: 0 7px;
+  padding: 0 8px;
   color: var(--text-faint);
-  font-size: 9px;
+  font-size: 10px;
   font-family: var(--font-mono);
 }
 
 .sidebar-logout {
-  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-dim);
-  font-size: 11px;
+  font-size: 12px;
+  font-weight: 500;
   text-align: left;
   cursor: pointer;
+  transition: all var(--transition-fast);
 }
 
 .sidebar-logout:hover {
   border-color: var(--danger-border);
   color: var(--danger);
+  background: var(--danger-bg);
 }
 
 /* ---------- Header (masthead) ---------- */
@@ -253,7 +469,7 @@
 .masthead {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: var(--space-3);
 }
 
 .masthead-mark {
@@ -262,13 +478,14 @@
 
 .masthead-text .eyebrow {
   display: block;
-  margin-bottom: 2px;
+  margin-bottom: 4px;
 }
 
 .masthead-text h1 {
   font-size: 22px;
   font-weight: 700;
   color: var(--text);
+  line-height: 1.2;
 }
 
 .eyebrow {
@@ -277,4 +494,52 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-faint);
+}
+
+/* Mobile masthead adjustments */
+@media (max-width: 768px) {
+  .masthead-text h1 {
+    font-size: 18px;
+  }
+
+  .masthead-text .eyebrow {
+    font-size: 10px;
+  }
+}
+
+/* ---------- Global Scrollbar ---------- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--border-soft);
+}
+
+/* ---------- Selection ---------- */
+::selection {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+::-moz-selection {
+  background: var(--accent-bg);
+  color: var(--accent);
 }

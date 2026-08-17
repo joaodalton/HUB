@@ -4,29 +4,52 @@
    UCs dentro do modal de cliente, accordion de UC (uc-editor-*).
    ============================================================ */
 
+/* ---------- Modal Overlay ---------- */
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(4, 7, 13, 0.7);
+  background: rgba(4, 7, 13, 0.75);
   display: grid;
   place-items: center;
   padding: 24px;
   z-index: 100;
+  backdrop-filter: blur(4px);
+  animation: fade-in 0.15s ease;
 }
 
-.client-card, .plant-card {
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ---------- Modal Card ---------- */
+.client-card,
+.plant-card {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius-modal);
-  max-width: 620px;
+  max-width: 640px;
   width: 100%;
   max-height: 90vh;
+  max-height: 90dvh;
   overflow-y: auto;
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-xl);
+  animation: modal-in 0.2s ease;
+}
+
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
 .client-card-split {
-  max-width: 980px;
+  max-width: 1000px;
   display: grid;
 }
 
@@ -35,11 +58,30 @@
 }
 
 @media (max-width: 800px) {
-  .client-card-split { grid-template-columns: 1fr; }
+  .client-card-split {
+    grid-template-columns: 1fr;
+  }
+
+  .client-card,
+  .plant-card {
+    max-width: 100%;
+    margin: 0 8px;
+  }
+
+  .modal-overlay {
+    padding: 16px;
+    align-items: flex-end;
+  }
 }
 
-.client-form { padding: 22px 24px; display: grid; gap: 16px; }
+/* ---------- Client Form ---------- */
+.client-form {
+  padding: 24px 28px;
+  display: grid;
+  gap: 18px;
+}
 
+/* ---------- Client UC Panel ---------- */
 .client-uc-panel {
   border-radius: 0;
   border-left: 1px solid var(--border);
@@ -47,7 +89,7 @@
   border-right: none;
   border-bottom: none;
   background: var(--panel-soft);
-  padding: 22px 20px;
+  padding: 24px 22px;
 }
 
 .client-card-split .client-uc-panel {
@@ -57,31 +99,48 @@
   background: var(--panel-soft);
 }
 
-.uc-editor-list { display: grid; gap: 10px; }
+/* ---------- UC Editor List ---------- */
+.uc-editor-list {
+  display: grid;
+  gap: 12px;
+}
 
+/* ---------- UC Editor Card ---------- */
 .uc-editor-card {
   display: grid;
-  gap: 14px;
+  gap: 16px;
   border: 1px solid var(--border);
   border-left: 3px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--radius);
   background: var(--panel-soft);
   overflow: hidden;
+  transition: all var(--transition-normal);
 }
 
 .uc-editor-card[open] {
   border-left-color: var(--accent);
+  box-shadow: var(--shadow-sm);
 }
 
+.uc-editor-card:hover {
+  border-color: var(--border-soft);
+}
+
+/* ---------- UC Summary ---------- */
 .uc-summary {
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
+  gap: 14px;
   align-items: center;
-  padding: 13px 34px 13px 14px;
+  padding: 14px 40px 14px 16px;
   cursor: pointer;
   list-style: none;
+  transition: background var(--transition-fast);
+}
+
+.uc-summary:hover {
+  background: var(--panel-hover);
 }
 
 .uc-summary::-webkit-details-marker {
@@ -91,38 +150,115 @@
 .uc-summary::after {
   content: '';
   position: absolute;
-  right: 14px;
+  right: 16px;
   top: 50%;
   width: 8px;
   height: 8px;
   border-right: 2px solid var(--text-faint);
   border-bottom: 2px solid var(--text-faint);
   transform: translateY(-70%) rotate(45deg);
-  transition: transform 0.15s ease;
+  transition: transform 0.2s ease;
 }
 
 details[open] > .uc-summary::after {
   transform: translateY(-30%) rotate(-135deg);
 }
 
+/* ---------- UC Summary Title ---------- */
 .uc-summary-title {
   display: grid;
-  gap: 2px;
+  gap: 3px;
 }
 
-.uc-summary strong { font-size: 13px; }
-.uc-summary span { font-size: 11px; color: var(--text-faint); }
+.uc-summary strong {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
 
+.uc-summary span {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+/* ---------- UC Editor Body ---------- */
 .uc-editor-body {
   display: grid;
-  gap: 12px;
-  padding: 0 12px 12px;
+  gap: 14px;
+  padding: 0 16px 16px;
   border-top: 1px solid var(--border);
-  padding-top: 12px;
+  padding-top: 16px;
 }
 
+/* ---------- UC Editor Grid ---------- */
 .uc-editor-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 12px;
+}
+
+@media (max-width: 640px) {
+  .uc-editor-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- Modal Close Button ---------- */
+.modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  z-index: 1;
+}
+
+.modal-close:hover {
+  background: var(--panel-hover);
+  border-color: var(--danger-border);
+  color: var(--danger);
+}
+
+.modal-close .icon {
+  width: 16px;
+  height: 16px;
+}
+
+/* ---------- Modal Header ---------- */
+.modal-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-header h2 {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.modal-body {
+  padding: 24px 28px;
+}
+
+/* ---------- Responsive Modal ---------- */
+@media (max-width: 480px) {
+  .client-form {
+    padding: 20px;
+    gap: 16px;
+  }
+
+  .modal-body {
+    padding: 20px;
+  }
 }

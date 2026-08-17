@@ -2,7 +2,6 @@
 from flask import Blueprint, g, jsonify, request
 
 from extensions import limiter
-from models.user import User
 from services.auth_service import authenticate
 from services.invitation_service import aceitar_convite
 from services.user_service import register_with_code
@@ -31,11 +30,20 @@ def bootstrap():
 @auth_routes.route('/register', methods=['POST'])
 @limiter.limit('5 per minute')
 def register():
+    from models.empresa import Empresa
     data = request.get_json(silent=True) or {}
     codigo = (data.get('codigo') or '').strip()
 
+    # empresa_id pode vim no payload ou usa a primeira empresa do banco
+    empresa_id = data.get('empresa_id')
+    if not empresa_id:
+        empresa = Empresa.query.first()
+        if not empresa:
+            return error_response('Nenhuma empresa cadastrada no sistema.', 400)
+        empresa_id = empresa.id
+
     try:
-        user = register_with_code(data, codigo)
+        user = register_with_code(data, codigo, empresa_id)
     except ValueError as exc:
         return error_response(str(exc), 400)
 

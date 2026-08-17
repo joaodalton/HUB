@@ -6,176 +6,252 @@
    timeline).
    ============================================================ */
 
+/* ---------- Pendencias Layout ---------- */
 .pendencias-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 380px;
+  grid-template-columns: minmax(0, 1fr) 400px;
   gap: 20px;
   align-items: start;
 }
 
-/* So empilha em telas realmente estreitas (tablet/celular) -- a tabela ja
-   rola horizontalmente sozinha (.table-wrap), entao o painel pode continuar
-   fixo a direita ate uma largura bem menor do que antes (era 980px, cortava
-   cedo demais em notebook com zoom ou janela nao maximizada). */
-@media (max-width: 720px) {
-  .pendencias-layout { grid-template-columns: 1fr; }
-  .pendencia-detail-panel { position: static; }
+@media (max-width: 1200px) {
+  .pendencias-layout {
+    grid-template-columns: minmax(0, 1fr) 360px;
+  }
 }
 
+@media (max-width: 900px) {
+  .pendencias-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .pendencia-detail-panel {
+    position: static;
+  }
+}
+
+/* ---------- Pendencia Detail Panel ---------- */
 .pendencia-detail-panel {
   display: grid;
-  gap: 16px;
-  padding: 18px;
+  gap: 18px;
+  padding: 20px;
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  /* Fixo (sticky) a direita -- ao rolar a lista, o painel de detalhe fica
-     parado no lugar, exatamente como o painel "Resumo geral" do mockup. */
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-sm);
   position: sticky;
   top: 20px;
   max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
   overflow-y: auto;
+  transition: box-shadow var(--transition-normal);
 }
 
+.pendencia-detail-panel:hover {
+  box-shadow: var(--shadow-md);
+}
+
+/* ---------- Pendencia Detail Header ---------- */
 .pendencia-detail-header {
   display: grid;
-  gap: 8px;
+  gap: 10px;
 }
 
 .pendencia-detail-title-row {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 10px;
+  gap: var(--space-2);
 }
 
 .pendencia-detail-title-row h2 {
-  font-size: 15px;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.3;
 }
 
 .pendencia-detail-badges {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
 }
 
 .pendencia-detail-description {
   margin: 0;
   color: var(--text-dim);
-  font-size: 12.5px;
-  line-height: 1.5;
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 .pendencia-detail-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
+/* ---------- Pendencia Detail Section ---------- */
 .pendencia-detail-section {
   display: grid;
-  gap: 10px;
-  padding-top: 14px;
+  gap: 12px;
+  padding-top: 16px;
   border-top: 1px solid var(--border-soft);
 }
 
 .pendencia-detail-section-title {
   color: var(--text-faint);
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
-/* ---------- Comentarios ---------- */
-
+/* ---------- Pendencia Comments ---------- */
 .pendencia-comments-list {
   display: grid;
-  gap: 10px;
-  max-height: 220px;
+  gap: 12px;
+  max-height: 240px;
   overflow-y: auto;
 }
 
 .pendencia-comment-row {
   display: grid;
-  gap: 3px;
-  padding: 8px 10px;
+  gap: 4px;
+  padding: 12px;
   background: var(--panel-soft);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+
+.pendencia-comment-row:hover {
+  border-color: var(--border-soft);
 }
 
 .pendencia-comment-meta {
   display: flex;
   justify-content: space-between;
-  gap: 8px;
-  font-size: 10.5px;
+  gap: 10px;
+  font-size: 11px;
 }
-.pendencia-comment-meta strong { color: var(--text); }
-.pendencia-comment-meta span { color: var(--text-faint); }
+
+.pendencia-comment-meta strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.pendencia-comment-meta span {
+  color: var(--text-faint);
+}
 
 .pendencia-comment-row p {
   margin: 0;
   color: var(--text-dim);
-  font-size: 12px;
-  line-height: 1.4;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .pendencia-comment-form {
   display: grid;
-  gap: 8px;
+  gap: 10px;
 }
 
 .pendencia-comment-form textarea {
   width: 100%;
   resize: vertical;
+  min-height: 80px;
   background: var(--panel-soft);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 8px 10px;
+  padding: 12px;
   color: var(--text);
   font-family: inherit;
-  font-size: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  transition: all var(--transition-fast);
 }
-.pendencia-comment-form textarea:focus { outline: none; border-color: var(--accent-border); }
+
+.pendencia-comment-form textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-bg);
+}
+
+.pendencia-comment-form textarea::placeholder {
+  color: var(--text-faint);
+}
 
 .pendencia-comment-form button {
   justify-self: end;
 }
 
-/* ---------- Timeline ---------- */
-
+/* ---------- Pendencia Timeline ---------- */
 .pendencia-timeline {
   display: grid;
-  gap: 12px;
-  max-height: 220px;
+  gap: 14px;
+  max-height: 240px;
   overflow-y: auto;
 }
 
 .pendencia-timeline-row {
   display: grid;
-  grid-template-columns: 8px 1fr;
-  gap: 10px;
+  grid-template-columns: 10px 1fr;
+  gap: 12px;
+  position: relative;
+}
+
+/* Linha conectora vertical */
+.pendencia-timeline-row:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 14px;
+  bottom: -14px;
+  width: 2px;
+  background: var(--border);
 }
 
 .pendencia-timeline-dot {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   margin-top: 4px;
   border-radius: 999px;
   background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+  flex-shrink: 0;
 }
 
 .pendencia-timeline-row div {
   display: grid;
-  gap: 2px;
+  gap: 3px;
 }
-.pendencia-timeline-row span { color: var(--text-dim); font-size: 12px; }
-.pendencia-timeline-row small { color: var(--text-faint); font-size: 10.5px; }
 
-/* ---------- Toggle "abertas/todas" no toolbar ---------- */
+.pendencia-timeline-row span {
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.4;
+}
 
+.pendencia-timeline-row small {
+  color: var(--text-faint);
+  font-size: 11px;
+}
+
+/* ---------- Toggle Buttons ---------- */
 .secondary-button.active {
   border-color: var(--accent);
   color: var(--accent);
   background: var(--accent-bg);
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 480px) {
+  .pendencia-detail-panel {
+    padding: 16px;
+    gap: 14px;
+  }
+
+  .pendencia-detail-title-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }

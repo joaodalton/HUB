@@ -1,7 +1,7 @@
 # backend/models/pendencia.py
 from datetime import datetime
 
-from extensions import db
+from extensions import db, TenantMixin
 
 TIPOS = ('pendencia', 'alerta', 'erro')
 PRIORIDADES = ('baixa', 'media', 'alta', 'critica')
@@ -20,7 +20,7 @@ CATEGORIAS_POR_TIPO = {
 }
 
 
-class Pendencia(db.Model):
+class Pendencia(TenantMixin, db.Model):
     __tablename__ = 'pendencias'
 
     id = db.Column(db.Integer, primary_key=True)
@@ -87,7 +87,7 @@ class Pendencia(db.Model):
         }
 
 
-class PendenciaComentario(db.Model):
+class PendenciaComentario(TenantMixin, db.Model):
     __tablename__ = 'pendencia_comentarios'
 
     id = db.Column(db.Integer, primary_key=True)

@@ -20,6 +20,7 @@ export type IconName =
   | 'trash'
   | 'plus'
   | 'eye'
+  | 'refresh'
   | 'dashboard'
   | 'rateio'
   | 'faturas'
@@ -49,6 +50,7 @@ const paths: Record<IconName, string> = {
   trash: '<path d="M4 7h16"/><path d="M9 7V4.5A1.5 1.5 0 0 1 10.5 3h3A1.5 1.5 0 0 1 15 4.5V7"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/><path d="M10 11v6M14 11v6"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.6"/>',
+  refresh: '<path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.5 8.5A9 9 0 0 1 20.5 6"/><path d="M20.5 18a9 9 0 0 1-17 0"/>',
   dashboard: '<rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/>',
   rateio: '<circle cx="7" cy="7" r="2.2"/><circle cx="17" cy="17" r="2.2"/><path d="M18 6 6 18"/>',
   faturas: '<path d="M6 3h9l3 3v15l-2-1-2 1-2-1-2 1-2-1-2 1V3z"/><path d="M8 8h6M8 12h6M8 16h4"/>',

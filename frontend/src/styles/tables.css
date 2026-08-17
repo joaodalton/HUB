@@ -4,80 +4,137 @@
    a propria data-table, status dot/badge.
    ============================================================ */
 
+/* ---------- Metric Grid ---------- */
 .metric-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
 }
 
+@media (max-width: 640px) {
+  .metric-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .metric-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- Metric Card ---------- */
 .metric-card {
   display: grid;
   gap: var(--space-1);
-  min-height: 77px;
+  min-height: 85px;
   padding: var(--space-3);
   border: 1px solid var(--border);
   border-left: 3px solid var(--accent-hover);
   border-radius: var(--radius-card);
   background: var(--panel);
   box-shadow: var(--shadow-sm);
+  transition: all var(--transition-normal);
+}
+
+.metric-card:hover {
+  border-color: var(--border-soft);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
 }
 
 .metric-card strong {
-  font-size: 20px;
+  font-size: 24px;
   font-weight: 700;
   color: var(--text);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
 }
 
 .metric-card span {
   font-size: 12px;
   color: var(--text-dim);
+  line-height: 1.4;
 }
 
 .metric-warning strong { color: var(--warning); }
 .metric-success strong { color: var(--success); }
 .metric-danger strong { color: var(--danger); }
 
-/* ---------- Metric card com icone (opcional, ver DashboardCards.ts) ---------- */
-
+/* ---------- Metric Card com Icone ---------- */
 .metric-card-icon {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
 }
 
 .metric-icon-chip {
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
   border-radius: var(--radius-sm);
   background: var(--panel-soft);
   color: var(--text-dim);
   flex-shrink: 0;
+  transition: all var(--transition-normal);
 }
-.metric-icon-chip .icon { width: 16px; height: 16px; }
 
-.metric-success .metric-icon-chip { background: var(--success-bg); color: var(--success); }
-.metric-warning .metric-icon-chip { background: var(--warning-bg); color: var(--warning); }
-.metric-danger .metric-icon-chip { background: var(--danger-bg); color: var(--danger); }
+.metric-icon-chip .icon {
+  width: 18px;
+  height: 18px;
+}
 
-.metric-text { display: grid; gap: 2px; }
+.metric-card:hover .metric-icon-chip {
+  transform: scale(1.05);
+}
 
-/* ---------- Metric card clicavel (opcional, funciona como filtro) ---------- */
+.metric-success .metric-icon-chip {
+  background: var(--success-bg);
+  color: var(--success);
+}
+.metric-warning .metric-icon-chip {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+.metric-danger .metric-icon-chip {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
 
+.metric-text {
+  display: grid;
+  gap: 4px;
+}
+
+/* ---------- Metric Card Clicavel ---------- */
 .metric-card-interactive {
   cursor: pointer;
   text-align: left;
   font: inherit;
   width: 100%;
+  transition: all var(--transition-normal);
 }
-.metric-card-interactive:hover { border-color: var(--accent-border); background: var(--panel-hover); }
+
+.metric-card-interactive:hover {
+  border-color: var(--accent-border);
+  background: var(--panel-hover);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
 .metric-card-interactive.active {
   border-color: var(--accent);
   background: var(--accent-bg);
 }
 
+.metric-card-interactive:active {
+  transform: translateY(0);
+}
+
+/* ---------- Data Panel / Table ---------- */
 .data-panel-scroll {
   display: flex;
   flex-direction: column;
@@ -92,17 +149,30 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 14px;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+  flex-wrap: wrap;
 }
 
 .panel-title h2 {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
-  margin-top: 2px;
+  margin: 0;
 }
 
-.table-wrap { overflow-x: auto; }
+.panel-title-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
 
+.table-wrap {
+  overflow-x: auto;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+/* ---------- Data Table ---------- */
 .data-table {
   width: 100%;
   border-collapse: collapse;
@@ -111,68 +181,195 @@
 
 .data-table th {
   text-align: left;
-  padding: var(--space-2) var(--space-3);
+  padding: 12px 14px;
   color: var(--text-faint);
   font-weight: 600;
   font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   border-bottom: 1px solid var(--border);
+  background: var(--panel-soft);
   white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 .data-table td {
-  padding: var(--space-2) var(--space-3);
+  padding: 12px 14px;
   border-bottom: 1px solid var(--border-soft);
   color: var(--text-dim);
   white-space: nowrap;
+  transition: background-color var(--transition-fast);
 }
 
-.data-table tr:last-child td { border-bottom: none; }
+.data-table tbody tr:last-child td {
+  border-bottom: none;
+}
 
-.data-table td:first-child { color: var(--text); font-weight: 500; }
+.data-table td:first-child {
+  color: var(--text);
+  font-weight: 500;
+}
 
-.align-right { text-align: right; }
+.data-table tbody tr {
+  transition: background-color var(--transition-fast);
+}
 
-.clickable-row { cursor: pointer; }
-.clickable-row:hover td { background: var(--panel-hover); }
+.data-table tbody tr:hover td {
+  background: var(--panel-hover);
+}
+
+.align-right {
+  text-align: right;
+}
+
+/* ---------- Clickable Row ---------- */
+.clickable-row {
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.clickable-row:hover td {
+  background: var(--panel-hover);
+}
 
 .clickable-row.selected td {
   background: var(--accent-bg);
 }
 
+/* ---------- Empty State ---------- */
 .empty-table {
   text-align: center;
   color: var(--text-faint);
-  padding: var(--space-5) var(--space-3) !important;
+  padding: 48px 24px !important;
   font-size: 13px;
 }
 
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  color: var(--text-faint);
+  padding: var(--space-5) var(--space-3);
+  text-align: center;
+}
+
+.empty-state.small {
+  font-size: 12px;
+  padding: var(--space-3) 0;
+}
+
+.empty-state-icon {
+  width: 48px;
+  height: 48px;
+  color: var(--text-faint);
+  opacity: 0.5;
+}
+
+.loading-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  color: var(--text-faint);
+  font-size: 13px;
+  padding: var(--space-4);
+}
+
+.loading-state::before {
+  content: '';
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+/* ---------- Status Dot ---------- */
 .status-dot {
   display: inline-block;
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   border-radius: 999px;
-  margin-right: 6px;
+  margin-right: 8px;
   background: var(--text-faint);
+  flex-shrink: 0;
 }
-.status-dot.status-success { background: var(--success); }
-.status-dot.status-warning { background: var(--warning); }
-.status-dot.status-danger { background: var(--danger); }
+
+.status-dot.status-success { background: var(--success); box-shadow: 0 0 8px var(--success); }
+.status-dot.status-warning { background: var(--warning); box-shadow: 0 0 8px var(--warning); }
+.status-dot.status-danger { background: var(--danger); box-shadow: 0 0 8px var(--danger); }
 .status-dot.status-neutral { background: var(--text-faint); }
 
-/* Status badge (pill), usado no painel de detalhe */
+/* ---------- Status Badge (pill) ---------- */
 .status-badge {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 3px 10px;
+  gap: 6px;
+  padding: 4px 12px;
   border-radius: 999px;
   font-size: 11px;
   font-weight: 600;
   border: 1px solid var(--border);
   color: var(--text-dim);
   background: var(--panel-soft);
+  white-space: nowrap;
+  transition: all var(--transition-fast);
+}
+
+.status-badge:hover {
+  border-color: var(--border-soft);
+}
+
+.status-badge.tone-success {
+  color: var(--success);
+  background: var(--success-bg);
+  border-color: var(--success-border);
+}
+
+.status-badge.tone-warning {
+  color: var(--warning);
+  background: var(--warning-bg);
+  border-color: var(--warning-border);
+}
+
+.status-badge.tone-danger {
+  color: var(--danger);
+  background: var(--danger-bg);
+  border-color: var(--danger-border);
+}
+
+.status-badge.tone-info {
+  color: var(--info);
+  background: var(--info-bg);
+  border-color: transparent;
+}
+
+/* ---------- Table Actions ---------- */
+.table-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+/* ---------- Responsive Table ---------- */
+@media (max-width: 640px) {
+  .data-table {
+    font-size: 12px;
+  }
+
+  .data-table th,
+  .data-table td {
+    padding: 10px 12px;
+  }
+
+  .metric-card strong {
+    font-size: 20px;
+  }
 }
 .status-badge.tone-success { color: var(--success); background: var(--success-bg); border-color: var(--success-border); }
 .status-badge.tone-warning { color: var(--warning); background: var(--warning-bg); border-color: var(--warning-border); }

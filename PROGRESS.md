@@ -3,7 +3,7 @@
 > Leia `VISAO.md` primeiro. Este arquivo é o estado atual, atualizado a cada tarefa concluída.
 > Regra: pegue a primeira tarefa `[ ]` de cima pra baixo. Não pule.
 
-Última atualização: 2026-08-06 — sessão grande: sistema de ícones, reforma completa de Usinas (lista + detalhe), sidebar reorganizada em seções, campos de negócio expostos nos formulários de Cliente/UC/Usina, Pendências Sprint 1 (model + CRUD + tela), e migração do backend pra Postgres/Render.
+Última atualização: 2026-08-13 — Sprint 2 de Pendências (automação completa), polimento visual do frontend, tela de Usuários reformulada com tabela, edição e exclusão.
 
 ---
 
@@ -45,7 +45,7 @@
 - [x] **`GET /config/database` + `POST /config/database/{provider,google-drive,sql,test}`** — tela de "Banco de dados" em Configurações escolhe entre Google Drive (service account) e SQL (cadastro de credencial pronto, driver real ainda não plugado), persistido no `.env` via `dotenv`.
 - [x] **OAuth 2.0 do Google completo** (`oauth_routes.py` + `services/oauth_service.py`) — fluxo de autorização com PKCE, múltiplas contas (`GoogleAccount`, refresh token criptografado no banco), `GET/POST/DELETE /oauth/google/accounts...`. `drive_service.py` já prioriza a conta OAuth ativa e só cai pro `credentials.json` de service account se não houver conta conectada ou o refresh falhar — sem duplicidade entre os dois caminhos.
 - [x] `drive_routes.py` não derruba mais o backend se `credentials.json` não existir — erro controlado (503) em vez de crash.
-- [x] **`GET/POST/PUT/DELETE /pendencias`** + `GET /pendencias/resumo` + `POST /pendencias/<id>/{resolver,cancelar,reabrir}` + `POST /pendencias/<id>/comentarios` (`pendencia_routes.py` + `pendencia_service.py`). Criação manual (`POST /pendencias`) sempre força `tipo='pendencia'` — `alerta`/`erro` só nascem via `criar_alerta`/`criar_erro`, chamados por regra automática (ainda não implementada, ver V1.5 abaixo). Categorias fixas por tipo em `CATEGORIAS_POR_TIPO` (hoje os 3 tipos compartilham a mesma lista, de propósito — trocar por tipo é só mudar uma chave do dict).
+- [x] **`GET/POST/PUT/DELETE /pendencias`** + `GET /pendencias/resumo` + `POST /pendencias/<id>/{resolver,cancelar,reabrir}` + `POST /pendencias/<id>/comentarios` + `POST /pendencias/verificar` + `GET /pendencias/regras` (`pendencia_routes.py` + `pendencia_service.py` + `automacao_service.py`). Criação manual (`POST /pendencias`) sempre força `tipo='pendencia'` — `alerta`/`erro` só nascem via automação. Motor de automação implementa 4 regras: UC sem usina, cliente sem UC, campos obrigatórios faltando, documentos obrigatórios faltando — com resolução automática quando a situação é corrigida.
 - [x] `GET /logs` ganhou filtro opcional `entidade`/`entidadeId` (usado pra timeline de uma Pendência específica). `LogService` passou a gravar `entidade_id` de verdade (coluna existia desde sempre, nunca tinha sido preenchida).
 
 ### Frontend
@@ -62,15 +62,16 @@
 - [x] **Reforma de Usinas** (`PlantsPage.ts`) — lista com cards de status clicáveis (filtro), busca, tabela sem paginação (rolagem interna via `.data-panel-scroll`); detalhe com painel de informações + resumo (UCs ativas/ocupação) + abas (UCs conectadas ativa, Documentos/Financeiro/Histórico/Logs desabilitadas). `DetailHeader.ts` (órfão, sem CSS) e `_unused-drafts.css` removidos — a tela antiga estava com o detalhe invisível em produção.
 - [x] **Sidebar reorganizada em seções** (Gestão/Financeiro/Automações/Configurações), com itens do roadmap futuro visíveis-porém-desabilitados ("Em breve") e rodapé com usuário logado (email/papel, cache leve em `authService.ts`) + versão.
 - [x] **Tela de Pendências** (`PendenciasPage.ts`) — lista com cards-filtro por tipo (Pendência/Alerta/Erro), busca, painel de detalhe fixo lateral (não-modal) com badges, ações (resolver/cancelar/reabrir/editar/excluir), comentários e timeline (via `/logs`). Criação manual só gera tipo `pendencia`.
+- [x] **Tela de Usuários** (`UsersPage.ts`) — tabela com Nome/Email/Senha (toggle mostrar/ocultar)/Papel/Status/Ações. Modal para criar e editar usuário. Botões de editar e excluir funcionais. Backend com `updateUser` e `deleteUser` no `userService.ts`.
 
 ### Documentação viva
 - [x] **`API_CONTRACTS.md` criado** — todo endpoint ativo documentado.
-- [x] `API_CONTRACTS.md` atualizado com as rotas de `/pendencias` (CRUD, resolver/cancelar/reabrir/comentarios, resumo) e o filtro novo de `/logs`.
+- [x] `API_CONTRACTS.md` atualizado com as rotas de `/pendencias` (CRUD, resolver/cancelar/reabrir/comentarios, resumo, verificar, regras) e o filtro novo de `/logs`.
 
 ### Deploy
 - [x] **Backend rodando na nuvem (Render) com Postgres**, saindo do SQLite local. `config.py` normaliza `postgres://` → `postgresql://`. `psycopg2-binary` e `gunicorn` adicionados ao `requirements.txt`. Start Command: `gunicorn -w 2 -b 0.0.0.0:$PORT app:app`.
 - [ ] Start Command ainda não roda a migration sozinho a cada deploy (sugestão: `flask db upgrade && gunicorn ...`) — hoje precisa rodar `flask db upgrade` manualmente do PC local apontando `DATABASE_URL` pra URL externa do Postgres do Render.
-- [ ] Frontend ainda não confirmado onde/como está publicado — `VITE_API_BASE_URL` precisa apontar pro backend do Render em produção.
+- [x] Frontend confirmado publicado no Render. `VITE_API_BASE_URL` apontando pro backend do Render em produção.
 
 ---
 
@@ -89,7 +90,15 @@
 
 ## V1.5 — Refinamento operacional
 - [x] **Pendências — Sprint 1**: model (`tipo`/`categoria`/`origem`/`prioridade`/`status`, vínculo opcional a Cliente/UC/Usina/Documento), comentários, CRUD completo, tela com cards-filtro/busca/painel de detalhe/comentários/timeline. Criação manual só gera tipo `pendencia`.
-- [ ] **Pendências — Sprint 2**: regra automática "UC sem usina vinculada" — sem scheduler no projeto, a checagem roda sob demanda: ao abrir a tela de Pendências (sincroniza sozinha) e por um botão manual "Verificar agora". Cria `alerta` pra UC sem `PlantConnection`, sem duplicar se já existir uma aberta; resolve sozinha se a UC ganhar usina depois.
+- [x] **Pendências — Sprint 2**: motor de automação implementado (`automacao_service.py` + `GET /pendencias/verificar` + `GET /pendencias/regras`). Regras automáticas implementadas:
+  - UC sem usina vinculada há 7+ dias (cria alerta)
+  - Cliente sem UC cadastrada (cria pendência)
+  - Campos obrigatórios faltando no cliente (cria pendência)
+  - Documentos obrigatórios faltando (cria pendência)
+  - Resolução automática quando situação é corrigida
+  - Sem duplicação de pendências existentes
+  - Verificação automática ao abrir a tela de Pendências
+  - Botão "Verificar agora" na toolbar
 - [ ] Dashboard inteligente com métricas reais (hoje é item desabilitado "Em breve" na sidebar).
 - [ ] **Agenda operacional real** — hoje é grade estática com 3 itens de exemplo, sem backend.
 - [ ] Importação em massa de Cliente/UC/Usina via planilha Excel.
@@ -144,3 +153,13 @@
 - 2026-08-11: sessão de polimento visual e telas — **design tokens de padronização** adicionados (`--radius-input/button/card/modal`, `--shadow-sm/md/lg`, `--space-1..5`, `--control-height`, `--icon-size`), aplicados em botões, inputs, modais, cards/painéis, tabelas e sidebar (reduzida ~25%, com breakpoints de resolução em 1366/1024/780px e rolagem interna própria no menu — corrigido bug real de sobreposição do rodapé em telas mais baixas). Campo `data_nascimento` em Cliente confirmado e documentado (ver acima). **Bug real encontrado e corrigido:** `pendencias.css` nunca estava importado em `app.css` — o painel lateral de detalhe de Pendências (sticky, grid de 2 colunas) nunca tinha efeito nenhum, apesar do CSS já existir e estar correto; adicionado o `@import` faltante. Junto: painel de detalhe ganhou seção "Detalhes" lendo `Pendencia.metadados` (JSON livre) de forma genérica, pronta pra quando a Sprint 2 (alerta/erro automático) começar a preencher esse campo. **Tela de login redesenhada** (`LoginPage.ts`/`login.css`): split-screen com ilustração de rede conectada (usina/painel solar/prédio/casas em SVG de traço fino — não é a arte 3D isométrica do mockup original, isso é trabalho de design/render, não reproduzível via CSS/SVG à mão), campos com ícone, mostrar/ocultar senha, alternância entre login e cadastro por código de convite (mantido, não removido), rodapé com ping real no health check (`GET /`) e versão. Adicionado o checkbox **"Lembrar meu acesso"**: como a autenticação já usa cookie `HttpOnly` (não há mais `token` manipulável via JS), a decisão de persistência não pode ser feita no frontend — `POST /auth/login` ganhou o campo opcional `lembrar` (bool, default `false`) e `set_auth_cookies()` em `utils/auth.py` passou a aceitar `remember: bool`, omitindo `max_age` quando `False` (cookie de sessão nativo, some ao fechar o navegador) e usando `TOKEN_MAX_AGE_SECONDS` (7 dias) quando `True`.
 
 Pendente de teste/validação antes de marcar `[x]`: sprint desta mesma sessão simplificando Configurações → Banco de Dados (só OAuth) e movendo Usuários pra página própria na sidebar (ver instruções abaixo) — aplicar, testar e só então atualizar este arquivo, seguindo a regra de sempre (`VISAO.md` seção 6, item 5: não marcar concluído sem validar).
+
+- 2026-08-13: **Sprint 2 de Pendências — Automação Implementada**. Motor de automação completo (`automacao_service.py`) seguindo as regras de `PENDENCIAS.md`:
+  - **UC sem usina**: Verifica UC sem conexão há 7+ dias, cria alerta `tipo='alerta'` com metadados (dias sem usina, data de criação). Não duplica se já existir pendência aberta.
+  - **Cliente sem UC**: Cria pendência quando cliente não tem UC vinculada.
+  - **Campos obrigatórios**: Verifica nome, CPF, email, telefone, data de nascimento. Cria pendência listando campos faltando.
+  - **Documentos obrigatórios**: Verifica documento de identidade, fatura, termo de adesão. Cria pendência listando documentos faltando.
+  - **Resolução automática**: Quando UC ganha usina, campos são preenchidos ou UC é adicionada, as pendências correspondentes são resolvidas automaticamente.
+  - **Novas rotas**: `POST /pendencias/verificar` (executa todas as regras) e `GET /pendencias/regras` (lista de regras disponíveis).
+  - **Frontend**: Verificação automática ao abrir a tela de Pendências (em background), botão "Verificar agora" na toolbar com feedback visual. Ícone `refresh` adicionado ao sistema de ícones.
+  - **Polimento visual**: Reforma completa do frontend (tokens, botões, layout responsivo, tables, modais, login, agenda, pendências).

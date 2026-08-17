@@ -26,6 +26,7 @@ import {
   statusLabel,
   tipoLabel,
   updatePendencia,
+  verificarPendencias,
   vinculacaoLabel,
   type PendenciaPayload,
   type PendenciaPrioridade,
@@ -84,6 +85,22 @@ export function createPendenciasPage(): HTMLElement {
       plants = plantsData;
       categoriaExtras = categoriaExtrasData;
       loadError = false;
+
+      // Executa verificacao automatica em background (não bloqueia UI)
+      verificarPendencias()
+        .then((resultado) => {
+          if (resultado.total_criadas > 0) {
+            toast.success(`${resultado.total_criadas} nova(s) pendência(s) criada(s) automaticamente.`);
+            // Recarrega a lista se houver novas pendências
+            return loadAll();
+          } else if (resultado.resolvidas > 0) {
+            toast.success(`${resultado.resolvidas} pendência(s) resolvida(s) automaticamente.`);
+            return loadAll();
+          }
+        })
+        .catch(() => {
+          // Silencioso - não mostra erro na verificação automática
+        });
     } catch {
       loadError = true;
       toast.error('Não foi possível carregar pendências. Verifique se o backend está rodando.');
@@ -150,11 +167,40 @@ export function createPendenciasPage(): HTMLElement {
     spacer.style.flex = '1 0 auto';
     spacer.style.minWidth = '0';
 
+    // Botao de verificacao automatica
+    const verifyButton = createElement('button', {
+      className: 'secondary-button button-with-icon',
+      type: 'button',
+      title: 'Verificar agora'
+    });
+    verifyButton.append(createIcon('refresh'), document.createTextNode('Verificar agora'));
+    verifyButton.addEventListener('click', async () => {
+      verifyButton.disabled = true;
+      verifyButton.textContent = 'Verificando...';
+      try {
+        const resultado = await verificarPendencias();
+        if (resultado.total_criadas > 0) {
+          toast.success(`${resultado.total_criadas} nova(s) pendência(s) criada(s) automaticamente.`);
+        } else if (resultado.resolvidas > 0) {
+          toast.success(`${resultado.resolvidas} pendência(s) resolvida(s) automaticamente.`);
+        } else {
+          toast.success('Nenhuma nova pendência encontrada.');
+        }
+        await loadAll();
+      } catch {
+        toast.error('Erro ao executar verificação automática.');
+      } finally {
+        verifyButton.disabled = false;
+        verifyButton.innerHTML = '';
+        verifyButton.append(createIcon('refresh'), document.createTextNode('Verificar agora'));
+      }
+    });
+
     const newButton = createElement('button', { className: 'button-with-icon', type: 'button' });
     newButton.append(createIcon('plus'), document.createTextNode('Nova Pendência'));
     newButton.addEventListener('click', () => openPendenciaEditor(null));
 
-    toolbar.append(searchInput, toggleAllButton, spacer, newButton);
+    toolbar.append(searchInput, toggleAllButton, spacer, verifyButton, newButton);
 
     const statsHolder = createElement('div');
     const tableHolder = createElement('div');

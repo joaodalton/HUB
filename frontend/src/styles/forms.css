@@ -127,6 +127,18 @@
   padding: 6px 8px;
 }
 
+/* Painel virou somente-leitura (ver PlantConnectionsField.ts) -- 2 colunas
+   em vez de 3, sem checkbox nem input editável. */
+.plant-connection-row-readonly {
+  grid-template-columns: 1fr auto;
+}
+
+.plant-connection-percent {
+  color: var(--text-dim);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
 .color-field-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -22,6 +22,7 @@ import {
   type GoogleAccountRow
 } from '../services/googleAccountService';
 import { formattedLogDate, getRecentLogs, type LogRow } from '../services/logsService';
+import { DEFAULT_RATEIO_CONFIG, getRateioConfig, saveRateioConfig, type RateioConfig } from '../services/rateioConfigService';
 
 type SettingsCategory = 'home' | 'geral' | 'database' | 'apis' | 'automations' | 'logs' | 'appearance';
 
@@ -35,7 +36,7 @@ type CategoryDefinition = {
 
 const CATEGORIES: CategoryDefinition[] = [
   { key: 'home', label: 'Home', ready: true },
-  { key: 'geral', label: 'Geral', ready: false },
+  { key: 'geral', label: 'Geral', ready: true },
   { key: 'database', label: 'Banco de Dados', ready: true },
   { key: 'apis', label: 'APIs e Integrações', ready: false },
   { key: 'automations', label: 'Automações', ready: false },
@@ -51,11 +52,14 @@ export function createSettingsPage(): HTMLElement {
   let appearanceLoaded = false;
   let recentLogs: LogRow[] = [];
   let logsLoaded = false;
+  let rateioConfig: RateioConfig = DEFAULT_RATEIO_CONFIG;
+  let rateioConfigLoaded = false;
 
   renderContent();
   loadGoogleAccounts();
   refreshAppearance();
   loadRecentLogs();
+  loadRateioConfig();
 
   const layout = createBaseLayout({
     content,
@@ -123,6 +127,28 @@ export function createSettingsPage(): HTMLElement {
     }
   }
 
+  async function loadRateioConfig(): Promise<void> {
+    try {
+      rateioConfig = await getRateioConfig();
+    } catch {
+      rateioConfig = DEFAULT_RATEIO_CONFIG;
+    } finally {
+      rateioConfigLoaded = true;
+      renderContent();
+    }
+  }
+
+  async function handleSaveRateioConfig(novoConfig: RateioConfig): Promise<void> {
+    try {
+      rateioConfig = await saveRateioConfig(novoConfig);
+      toast.success('Configuração salva.');
+    } catch {
+      toast.error('Não foi possível salvar a configuração.');
+    } finally {
+      renderContent();
+    }
+  }
+
   function changeCategory(category: SettingsCategory): void {
     // Sai da aba Aparencia sem salvar -> descarta a pre-visualizacao de cor
     // pra nao deixar o tema "vazando" preview nao salvo pelo resto do app.
@@ -147,6 +173,9 @@ export function createSettingsPage(): HTMLElement {
     switch (activeCategory) {
       case 'home':
         return createHomePanel(recentLogs, logsLoaded, () => changeCategory('logs'));
+
+      case 'geral':
+        return createGeralPanel(rateioConfig, rateioConfigLoaded, handleSaveRateioConfig);
 
       case 'database':
         return createDatabasePanel({
@@ -217,8 +246,6 @@ function createCategoryNav(active: SettingsCategory, onChange: (category: Settin
 
 function categoryMessage(category: SettingsCategory): string {
   switch (category) {
-    case 'geral':
-      return 'Em construção — fuso horário, concessionária padrão e outras preferências gerais chegam numa próxima etapa.';
     case 'apis':
       return 'Em construção — integrações externas (Asaas, WhatsApp, concessionárias, inversores) entram a partir da V2.0, quando cada uma for conectada de verdade.';
     case 'automations':
@@ -226,6 +253,74 @@ function categoryMessage(category: SettingsCategory): string {
     default:
       return 'Em construção.';
   }
+}
+
+// ---------- Geral (buffer padrão do motor de rateio) ----------
+
+function createGeralPanel(
+  config: RateioConfig,
+  loaded: boolean,
+  onSave: (config: RateioConfig) => Promise<void>
+): HTMLElement {
+  const panel = createElement('section', { className: 'settings-panel' });
+  panel.appendChild(createPanelHeader('Geral', 'Regras padrão usadas pelo motor de rateio'));
+
+  if (!loaded) {
+    panel.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Carregando...' }));
+    return panel;
+  }
+
+  const body = createElement('div', { className: 'settings-form' });
+
+  const habilitado = createElement('label', { className: 'form-field form-field-checkbox' });
+  const habilitadoInput = createElement('input');
+  habilitadoInput.type = 'checkbox';
+  habilitadoInput.checked = config.bufferHabilitado;
+  habilitado.append(habilitadoInput, createElement('span', { textContent: 'Aplicar buffer de segurança no consumo por padrão' }));
+
+  const percentual = createElement('label', { className: 'form-field' });
+  const percentualLabel = createElement('span', { textContent: 'Percentual do buffer (%)' });
+  const percentualInput = createElement('input');
+  percentualInput.type = 'number';
+  percentualInput.min = '0';
+  percentualInput.max = '100';
+  percentualInput.step = '0.5';
+  percentualInput.value = String(config.bufferPercentual);
+  percentual.append(percentualLabel, percentualInput);
+
+  const hint = createElement('p', {
+    className: 'settings-hint',
+    textContent: 'Esse valor vale pra todas as UCs por padrão. Cada UC pode ter um percentual próprio (campo dentro do cadastro da UC), que sempre ganha desse valor global quando preenchido.'
+  });
+
+  const actions = createElement('div', { className: 'form-actions' });
+  const saveButton = createElement('button', { textContent: 'Salvar', type: 'button' });
+  const resetButton = createElement('button', { className: 'secondary-button', textContent: 'Restaurar padrão', type: 'button' });
+
+  saveButton.addEventListener('click', async () => {
+    saveButton.disabled = true;
+    saveButton.textContent = 'Salvando...';
+
+    await onSave({
+      bufferHabilitado: habilitadoInput.checked,
+      bufferPercentual: Number(percentualInput.value) || 0
+    });
+
+    saveButton.disabled = false;
+    saveButton.textContent = 'Salvar';
+  });
+
+  resetButton.addEventListener('click', async () => {
+    habilitadoInput.checked = DEFAULT_RATEIO_CONFIG.bufferHabilitado;
+    percentualInput.value = String(DEFAULT_RATEIO_CONFIG.bufferPercentual);
+    await onSave(DEFAULT_RATEIO_CONFIG);
+  });
+
+  body.append(habilitado, percentual, hint);
+  actions.append(saveButton, resetButton);
+  panel.append(body, actions);
+
+  return panel;
 }
 
 function createComingSoonPanel(message: string): HTMLElement {

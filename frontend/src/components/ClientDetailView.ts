@@ -126,7 +126,7 @@ function createUcViewCard(uc: ClientUc): HTMLElement {
   const grid = createElement('div', { className: 'uc-editor-grid' });
 
   grid.append(
-    createInfoField('Consumo', uc.consumo || '-'),
+    createInfoField('Consumo', uc.consumo != null ? String(uc.consumo) : '-'),
     createInfoField('Tarifa', uc.baseTarifaria),
     createInfoField('Desconto', uc.desconto || '-'),
     createInfoField('Ligação', uc.tipoLigacao),

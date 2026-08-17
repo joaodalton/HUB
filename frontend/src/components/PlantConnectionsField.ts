@@ -30,6 +30,13 @@ export function createTariffSelect(value: string) {
 // no ClientCard, ou o estado local da tela de UC avulsa) serve aqui.
 type HasConnections = { conexoes: PlantConnection[] };
 
+// SOMENTE LEITURA (corrigido 2026-08-15) -- antes esse painel tinha uma
+// caixinha que, ao marcar, já criava a PlantConnection na hora, direto pelo
+// formulário de UC/Cliente. Isso furava o funil de qualificação do Rateio:
+// a UC "sumia" da Tela 3 (candidatas) mesmo sem ninguém ter passado pelo
+// wizard e definido percentual de verdade. Conectar UC a usina agora só
+// acontece via RateioPage.ts -> POST /rateio/confirmar. Aqui só mostramos
+// o que já está conectado (nome da usina + % atual).
 export function createPlantConnections<T extends HasConnections>(
   target: T,
   availablePlants: PlantRow[]
@@ -37,71 +44,34 @@ export function createPlantConnections<T extends HasConnections>(
   const wrapper = createElement('div', { className: 'plant-connection-panel' });
   const title = createElement('span', {
     className: 'plant-connection-title',
-    textContent: 'Conectar usinas'
+    textContent: 'Usinas conectadas'
   });
 
   wrapper.appendChild(title);
 
-  if (availablePlants.length === 0) {
+  if (target.conexoes.length === 0) {
     wrapper.appendChild(createElement('p', {
       className: 'empty-state small',
-      textContent: 'Nenhuma usina com percentual disponivel.'
+      textContent: 'Nenhuma usina conectada ainda. Use a tela de Rateio para conectar.'
     }));
     return wrapper;
   }
 
-  availablePlants.forEach((plant) => {
-    const existingConnection = target.conexoes.find((connection) => connection.plantId === plant.id);
-    const row = createElement('label', { className: 'plant-connection-row' });
-    const checkbox = createElement('input');
-    const info = createElement('span', {
-      textContent: `${plant.nome} - ${plant.percentualDisponivel}% disponivel`
-    });
-    const percent = createElement('input');
-
-    checkbox.type = 'checkbox';
-    checkbox.checked = Boolean(existingConnection);
-    percent.type = 'number';
-    percent.min = '0';
-    percent.step = '0.01';
-    percent.max = String(plant.percentualDisponivel);
-    percent.placeholder = '%';
-    percent.value = existingConnection?.percentual ?? '';
-    percent.disabled = !checkbox.checked;
-
-    checkbox.addEventListener('change', () => {
-      percent.disabled = !checkbox.checked;
-      updateConnection(target, plant, checkbox.checked, percent.value);
-    });
-    percent.addEventListener('input', () => {
-      updateConnection(target, plant, checkbox.checked, percent.value);
+  target.conexoes.forEach((connection) => {
+    // availablePlants só traz usinas com percentual disponível > 0 -- uma
+    // usina já totalmente alocada não aparece aqui, então cai no fallback
+    // do nome salvo na própria conexão (connection.usina).
+    const plant = availablePlants.find((item) => item.id === connection.plantId);
+    const row = createElement('div', { className: 'plant-connection-row plant-connection-row-readonly' });
+    const info = createElement('span', { textContent: plant ? plant.nome : connection.usina });
+    const percent = createElement('span', {
+      className: 'plant-connection-percent',
+      textContent: `${connection.percentual}%`
     });
 
-    row.append(checkbox, info, percent);
+    row.append(info, percent);
     wrapper.appendChild(row);
   });
 
   return wrapper;
-}
-
-function updateConnection(
-  target: HasConnections,
-  plant: PlantRow,
-  enabled: boolean,
-  percentual: string
-): void {
-  const existingIndex = target.conexoes.findIndex((connection) => connection.plantId === plant.id);
-
-  if (!enabled) {
-    if (existingIndex >= 0) target.conexoes.splice(existingIndex, 1);
-    return;
-  }
-
-  const connection: PlantConnection = { plantId: plant.id, usina: plant.nome, percentual };
-
-  if (existingIndex >= 0) {
-    target.conexoes[existingIndex] = connection;
-  } else {
-    target.conexoes.push(connection);
-  }
 }

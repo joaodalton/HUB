@@ -1,0 +1,295 @@
+/* ============================================================
+   HUB — Rateio (wizard)
+   Cabeçalho de etapa numerada, lista de seleção de usina, card
+   de resumo da usina escolhida. Layout geral (painel, tabela,
+   botões) reaproveita as classes já existentes -- só o que é
+   específico do wizard fica aqui.
+   ============================================================ */
+
+.rateio-step-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.rateio-step-badge {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.rateio-step-header h2 {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.rateio-picker { display: grid; gap: 14px; }
+
+.rateio-plant-list { display: grid; gap: 8px; }
+
+.rateio-plant-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  text-align: left;
+}
+.rateio-plant-row:hover { background: var(--panel-hover); border-color: var(--accent-border); }
+
+.rateio-plant-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-bg);
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.rateio-plant-icon .icon { width: 18px; height: 18px; }
+.rateio-plant-icon.large { width: 46px; height: 46px; }
+.rateio-plant-icon.large .icon { width: 22px; height: 22px; }
+
+.rateio-plant-row-info {
+  display: grid;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.rateio-plant-row-info strong { font-size: 13px; }
+.rateio-plant-row-info span { font-size: 11.5px; color: var(--text-faint); }
+
+.rateio-summary-card { display: grid; gap: 18px; }
+
+.rateio-summary-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.rateio-summary-head-text { display: grid; gap: 4px; min-width: 0; }
+
+.rateio-summary-name-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.rateio-summary-name-row strong { font-size: 16px; }
+
+.rateio-summary-subline { font-size: 12px; color: var(--text-faint); }
+
+.rateio-summary-stats {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.rateio-stat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+}
+.rateio-stat-row span { color: var(--text-dim); }
+.rateio-stat-row strong { color: var(--text); font-size: 14px; }
+
+/* ---------- Tela 2: Produção ---------- */
+
+.rateio-producao { display: grid; gap: 18px; }
+
+.rateio-producao-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.rateio-producao-stat {
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--panel-soft);
+}
+
+.rateio-producao-stat-label { font-size: 11.5px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.03em; }
+.rateio-producao-stat-value { font-size: 22px; font-weight: 700; }
+
+.rateio-producao-stat.tone-neutral { border-left: 3px solid var(--text-faint); }
+.rateio-producao-stat.tone-warning { border-left: 3px solid var(--warning); }
+.rateio-producao-stat.tone-warning .rateio-producao-stat-value { color: var(--warning); }
+.rateio-producao-stat.tone-success { border-left: 3px solid var(--success); }
+.rateio-producao-stat.tone-success .rateio-producao-stat-value { color: var(--success); }
+
+.rateio-warnings {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--warning-bg);
+  border: 1px solid var(--warning-border);
+}
+.rateio-warnings p { margin: 0; font-size: 12px; color: var(--warning); }
+
+.rateio-reserva-field { display: grid; gap: 10px; }
+
+.rateio-reserva-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.rateio-reserva-buttons .small-button.active,
+.small-button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.rateio-custom-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.rateio-custom-row input {
+  flex: 1;
+  min-width: 160px;
+  height: 36px;
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-input);
+  padding: 0 10px;
+}
+
+/* ---------- Tela 3: Qualificação ---------- */
+
+.rateio-qualificacao-panel { display: grid; gap: 16px; }
+
+.rateio-funil-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.rateio-funil-stat {
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--panel-soft);
+}
+.rateio-funil-stat-label { font-size: 11.5px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.03em; }
+.rateio-funil-stat-value { font-size: 22px; font-weight: 700; }
+
+.rateio-regras { display: grid; gap: 6px; }
+
+.rateio-regras-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+.rateio-qualificados-list {
+  display: grid;
+  gap: 2px;
+  margin-top: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.rateio-qualificado-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 100px 90px 32px;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 12.5px;
+}
+.rateio-qualificado-row:last-child { border-bottom: none; }
+
+.rateio-qualificado-header {
+  background: var(--panel-soft);
+  color: var(--text-faint);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.rateio-qualificado-nome { display: grid; gap: 1px; }
+.rateio-qualificado-nome strong { font-size: 13px; }
+.rateio-qualificado-nome span { font-size: 11px; color: var(--text-faint); }
+
+.rateio-qualificado-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  justify-self: center;
+}
+
+/* ---------- Tela 4: Distribuição ---------- */
+
+.rateio-distribuicao { display: grid; gap: 16px; }
+
+.rateio-funil-stat.tone-danger .rateio-funil-stat-value { color: var(--danger); }
+
+.rateio-distribuicao-list {
+  display: grid;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.rateio-distribuicao-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 100px 90px 100px;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 12.5px;
+}
+.rateio-distribuicao-row:last-child { border-bottom: none; }
+
+.rateio-distribuicao-header {
+  background: var(--panel-soft);
+  color: var(--text-faint);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.rateio-percentual-sugerido { color: var(--text-faint); }
+
+.rateio-distribuicao-row input[type="number"] {
+  width: 100%;
+  height: 30px;
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0 8px;
+  font-size: 12.5px;
+}

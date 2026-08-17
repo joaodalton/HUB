@@ -88,7 +88,7 @@ def apply_uc_fields(uc: ConsumerUnit, data: dict) -> None:
     uc.concessionaria = data.get('concessionaria', uc.concessionaria)
     uc.geracao_propria = bool(data.get('geracaoPropria', uc.geracao_propria))
     uc.dia_emissao_fatura = data.get('diaEmissaoFatura', uc.dia_emissao_fatura)
-    uc.consumo = data.get('consumo', uc.consumo)
+    uc.consumo = _parse_consumo(data['consumo']) if 'consumo' in data else uc.consumo
     uc.base_tarifaria = data.get('baseTarifaria', uc.base_tarifaria or 'B1')
     uc.desconto = data.get('desconto', uc.desconto)
     uc.tipo_ligacao = data.get('tipoLigacao', uc.tipo_ligacao or 'Monofasico')
@@ -96,6 +96,11 @@ def apply_uc_fields(uc: ConsumerUnit, data: dict) -> None:
     uc.termino_contrato = _parse_date(data.get('terminoContrato')) if 'terminoContrato' in data else uc.termino_contrato
     uc.carencia_meses = data.get('carenciaMeses', uc.carencia_meses)
     uc.percentual_desconto_carencia = data.get('percentualDescontoCarencia', uc.percentual_desconto_carencia)
+    uc.documentacao_completa = bool(data.get('documentacaoCompleta', uc.documentacao_completa))
+    uc.sem_pendencia_financeira = bool(data.get('semPendenciaFinanceira', uc.sem_pendencia_financeira))
+    uc.cliente_estrategico = bool(data.get('clienteEstrategico', uc.cliente_estrategico))
+    if 'bufferPercentual' in data:
+        uc.buffer_percentual = data['bufferPercentual']
 
 
 def _parse_date(value: str | None) -> date | None:
@@ -104,21 +109,75 @@ def _parse_date(value: str | None) -> date | None:
     return datetime.strptime(value, '%Y-%m-%d').date()
 
 
-def sync_connections(uc: ConsumerUnit, conexoes_data: list[dict]) -> None:
-    """Reaplica as conexoes UC<->Usina a partir da lista enviada (substitui tudo).
-    Reaproveitado pelo client_service.py ao salvar UCs aninhadas dentro de um cliente --
-    nao duplicar essa logica lá, importar daqui."""
-    for conexao in list(uc.conexoes):
-        db.session.delete(conexao)
-    db.session.flush()
+def _parse_consumo(value) -> float | None:
+    if value is None or value == '':
+        return None
+    return float(value)
 
+def remove_connection(plant_id: int, connection_id: int) -> bool:
+    """Desconecta uma UC de uma usina (exclui a PlantConnection). Esse é o
+    único caminho pra desfazer uma conexão hoje -- o checkbox antigo em
+    ClientCard/UcCard não cria mais conexão nova (isso passou a ser
+    exclusivo do wizard de Rateio), então também não é o lugar certo de
+    remover. A ação vive na tela de Usina, perto de onde a lista de UCs
+    conectadas já é mostrada."""
+    connection = PlantConnection.query.filter_by(id=connection_id, plant_id=plant_id).first()
+
+    if not connection:
+        return False
+
+    uc_codigo = connection.consumer_unit.codigo if connection.consumer_unit else str(connection.consumer_unit_id)
+    db.session.delete(connection)
+    db.session.commit()
+
+    LogService.info(
+        acao='remove_connection',
+        mensagem=f'UC {uc_codigo} desconectada da usina {plant_id}',
+        entidade='PlantConnection',
+        metadados={'plantId': plant_id, 'connectionId': connection_id}
+    )
+    return True
+
+
+def sync_connections(uc: ConsumerUnit, conexoes_data: list[dict]) -> None:
+    """Reconcilia as conexoes UC<->Usina com a lista enviada -- SEM apagar e
+    recriar tudo (bug corrigido: isso destruia percentual/percentual_manual
+    de conexoes ja confirmadas pelo wizard de Rateio toda vez que a UC era
+    salva por qualquer outro motivo, ex.: editar telefone).
+
+    Regra: so remove conexao que SUMIU da lista enviada; so cria conexao que
+    e NOVA na lista; conexao que ja existia e continua na lista NAO e tocada
+    (percentual e percentual_manual dela permanecem intactos).
+
+    Reaproveitado pelo client_service.py ao salvar UCs aninhadas dentro de um
+    cliente -- nao duplicar essa logica lá, importar daqui."""
+    existentes_por_usina = {conexao.plant_id: conexao for conexao in uc.conexoes}
+
+    ids_enviados = set()
+    for conexao_data in conexoes_data:
+        plant_id = conexao_data.get('plantId')
+        if plant_id:
+            ids_enviados.add(int(plant_id))
+
+    # Remove só o que foi explicitamente tirado da lista.
+    for plant_id, conexao in list(existentes_por_usina.items()):
+        if plant_id not in ids_enviados:
+            db.session.delete(conexao)
+
+    # Cria só o que é novo -- conexão que já existia (mesmo plant_id) é
+    # ignorada aqui de propósito, pra não sobrescrever percentual/manual.
     for conexao_data in conexoes_data:
         plant_id = conexao_data.get('plantId')
 
         if not plant_id:
             continue
 
-        plant = Plant.query.get(int(plant_id))
+        plant_id = int(plant_id)
+
+        if plant_id in existentes_por_usina:
+            continue  # já existe -- preserva como está
+
+        plant = Plant.query.get(plant_id)
 
         if not plant:
             LogService.warning(

@@ -183,7 +183,7 @@ function createUcEditor(uc: ClientUc, availablePlants: PlantRow[], onRemove: () 
   const endereco = createInput('Endereco', 'text', uc.endereco ?? '', false);
   const cep = createInput('CEP', 'text', uc.cep ?? '', false);
   const concessionariaUc = createInput('Concessionaria', 'text', uc.concessionaria ?? '', false);
-  const consumo = createInput('Consumo', 'text', uc.consumo, false);
+  const consumo = createInput('Consumo (kWh)', 'number', uc.consumo != null ? String(uc.consumo) : '', false);
   const baseTarifaria = createTariffSelect(uc.baseTarifaria);
   const desconto = createInput('Desconto (%)', 'text', uc.desconto, false);
   const tipoLigacao = createSelect('Ligacao', uc.tipoLigacao, ['Monofasico', 'Bifasico', 'Trifasico']);
@@ -218,7 +218,9 @@ function createUcEditor(uc: ClientUc, availablePlants: PlantRow[], onRemove: () 
   endereco.input.addEventListener('input', () => { uc.endereco = endereco.input.value || null; });
   cep.input.addEventListener('input', () => { uc.cep = cep.input.value || null; });
   concessionariaUc.input.addEventListener('input', () => { uc.concessionaria = concessionariaUc.input.value || null; });
-  consumo.input.addEventListener('input', () => { uc.consumo = consumo.input.value; });
+  consumo.input.addEventListener('input', () => {
+    uc.consumo = consumo.input.value.trim() ? Number(consumo.input.value) : null;
+  });
   baseTarifaria.select.addEventListener('change', () => { uc.baseTarifaria = baseTarifaria.select.value; });
   desconto.input.addEventListener('input', () => { uc.desconto = desconto.input.value; });
   tipoLigacao.select.addEventListener('change', () => {
@@ -278,7 +280,7 @@ function createEmptyUc(): ClientUc {
     concessionaria: null,
     geracaoPropria: false,
     diaEmissaoFatura: null,
-    consumo: '',
+    consumo: null,
     baseTarifaria: 'B1',
     desconto: '',
     tipoLigacao: 'Monofasico',

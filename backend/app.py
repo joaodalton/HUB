@@ -1,11 +1,26 @@
+import sentry_sdk
 from flask import Flask
 from flask_cors import CORS
+from sentry_sdk.integrations.flask import FlaskIntegration
 
 from config import Config
 from extensions import db, migrate, limiter
 
 
 def create_app() -> Flask:
+    # Sem DSN configurado, sentry_sdk.init vira no-op -- seguro rodar local
+    # sem nenhuma variavel setada (dev nao manda erro nenhum pro Sentry por
+    # padrao). send_default_pii=False de proposito: nunca manda dado pessoal
+    # (email, IP) junto do erro sem decisao explicita depois.
+    if Config.SENTRY_DSN:
+        sentry_sdk.init(
+            dsn=Config.SENTRY_DSN,
+            environment=Config.SENTRY_ENVIRONMENT,
+            integrations=[FlaskIntegration()],
+            traces_sample_rate=0.1,
+            send_default_pii=False
+        )
+
     app = Flask(__name__)
     app.config.from_object(Config)
 
@@ -23,6 +38,7 @@ def create_app() -> Flask:
     from models.log_entry import LogEntry
     from models.pendencia import Pendencia, PendenciaComentario
     from models.user import User
+    from models.rateio_historico import RateioHistorico
 
     CORS(app, origins=[Config.FRONTEND_URL], supports_credentials=True)
 
@@ -40,6 +56,7 @@ def create_app() -> Flask:
     from routes.log_routes import log_routes
     from routes.pendencia_routes import pendencia_routes
     from routes.user_routes import user_routes
+    from routes.rateio_routes import rateio_routes
 
     app.register_blueprint(health_routes)
     app.register_blueprint(auth_routes)
@@ -55,6 +72,7 @@ def create_app() -> Flask:
     app.register_blueprint(log_routes)
     app.register_blueprint(pendencia_routes)
     app.register_blueprint(user_routes)
+    app.register_blueprint(rateio_routes)
 
     from utils.auth import register_auth_middleware
     register_auth_middleware(app, public_paths={

@@ -1,6 +1,7 @@
 import { apiRequest } from './apiClient';
 
 export type PlantConnection = {
+  id: number;
   plantId: number;
   usina: string;
   percentual: string;
@@ -17,7 +18,7 @@ export type ClientUc = {
   concessionaria: string | null;
   geracaoPropria: boolean;
   diaEmissaoFatura: number | null;
-  consumo: string;
+  consumo: number | null;
   baseTarifaria: string;
   desconto: string;
   tipoLigacao: 'Monofasico' | 'Bifasico' | 'Trifasico';

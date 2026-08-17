@@ -39,7 +39,7 @@ export function createUcCard({ uc, clients, availablePlants, onSave, onCancel, o
   const endereco = createInput('Endereco', 'text', uc?.endereco ?? '', false);
   const cep = createInput('CEP', 'text', uc?.cep ?? '', false);
   const concessionaria = createInput('Concessionaria', 'text', uc?.concessionaria ?? '', false);
-  const consumo = createInput('Consumo', 'text', uc?.consumo ?? '', false);
+  const consumo = createInput('Consumo (kWh)', 'number', uc?.consumo != null ? String(uc.consumo) : '', false);
   const baseTarifaria = createTariffSelect(uc?.baseTarifaria ?? 'B1');
   const desconto = createInput('Desconto (%)', 'text', uc?.desconto ?? '', false);
   const tipoLigacao = createLigacaoSelect(uc?.tipoLigacao ?? 'Monofasico');
@@ -131,7 +131,7 @@ export function createUcCard({ uc, clients, availablePlants, onSave, onCancel, o
       concessionaria: concessionaria.input.value.trim() || null,
       geracaoPropria: geracaoPropria.input.checked,
       diaEmissaoFatura: diaEmissaoFatura.input.value.trim() ? Number(diaEmissaoFatura.input.value) : null,
-      consumo: consumo.input.value.trim(),
+      consumo: consumo.input.value.trim() ? Number(consumo.input.value) : null,
       baseTarifaria: baseTarifaria.select.value,
       desconto: desconto.input.value.trim(),
       tipoLigacao: tipoLigacao.select.value,

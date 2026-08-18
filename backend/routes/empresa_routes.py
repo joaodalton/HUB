@@ -3,14 +3,39 @@
 Rotas publicas para cadastro de empresa + owner.
 Este e o unico lugar onde Empresa pode ser criada via API.
 """
-from flask import Blueprint, request
+from flask import Blueprint, g, request
 
 from config import Config
+from models.empresa import Empresa
+from models.user import User
 from services.empresa_service import criar_empresa_com_owner
 from utils.api_response import error_response, success_response
 
 
 empresa_routes = Blueprint('empresa_routes', __name__, url_prefix='/api/v1/empresas')
+
+
+def _require_platform_admin():
+    if not g.current_user.is_platform_admin:
+        return error_response('Acesso restrito ao administrador da plataforma.', 403)
+    return None
+
+
+@empresa_routes.route('', methods=['GET'])
+def index():
+    """Lista empresas apenas para quem opera a plataforma."""
+    denied = _require_platform_admin()
+    if denied:
+        return denied
+
+    empresas = Empresa.query.order_by(Empresa.created_at.desc()).all()
+    result = []
+    for empresa in empresas:
+        result.append({
+            **empresa.to_dict(),
+            'totalUsuarios': User.query.filter_by(empresa_id=empresa.id).count()
+        })
+    return success_response(result)
 
 
 # POST /api/v1/empresas/registro -- Cria empresa + owner na mesma transacao
@@ -65,8 +90,6 @@ def registro():
 @empresa_routes.route('/<string:slug>', methods=['GET'])
 def get_by_slug(slug: str):
     """Busca empresa publica por slug."""
-    from models.empresa import Empresa
-
     empresa = Empresa.query.filter_by(slug=slug).first()
     if not empresa:
         return error_response('Empresa nao encontrada.', 404)

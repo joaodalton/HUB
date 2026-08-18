@@ -81,7 +81,15 @@ export function createSidebar(): HTMLElement {
 
   brand.append(brandMark, brandTextElement);
 
-  sections.forEach((section) => {
+  const visibleSections = [...sections];
+  if (getCurrentUser()?.isPlatformAdmin) {
+    visibleSections.push({
+      title: 'Plataforma',
+      items: [{ label: 'Empresas', path: '/empresas', icon: 'clients', enabled: true }]
+    });
+  }
+
+  visibleSections.forEach((section) => {
     const sectionElement = createElement('div', { className: 'sidebar-section' });
 
     if (section.title) {
@@ -140,7 +148,10 @@ function createUserCard(): HTMLElement {
   });
   const text = createElement('div', { className: 'sidebar-user-text' });
   const name = createElement('span', { className: 'sidebar-user-name', textContent: user?.nome || user?.email || 'Usuário' });
-  const role = createElement('span', { className: 'sidebar-user-role', textContent: roleLabel(user?.role) });
+  const role = createElement('span', {
+    className: 'sidebar-user-role',
+    textContent: user?.empresaNome || roleLabel(user?.role)
+  });
 
   text.append(name, role);
   card.append(avatar, text);

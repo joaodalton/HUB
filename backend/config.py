@@ -60,6 +60,9 @@ class Config:
     # vira 'viewer' (so leitura), nunca admin -- isso e forcado no backend,
     # independente do que o formulario mandar (ver services/user_service.py).
     SIGNUP_CODE = os.getenv('SIGNUP_CODE', '')
+    # Auto-cadastro, quando excepcionalmente habilitado, vale só para esta
+    # empresa. Nunca aceitar empresa_id enviado pelo navegador.
+    SIGNUP_EMPRESA_ID = os.getenv('SIGNUP_EMPRESA_ID', '')
 
     # Usada por utils/crypto.py pra criptografar o refresh token do GoogleAccount.
     # Gerar com: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"

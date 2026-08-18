@@ -7,6 +7,8 @@ export type AuthUser = {
   email: string;
   role: string;
   status: string;
+  empresaNome?: string | null;
+  isPlatformAdmin?: boolean;
 };
 
 type ApiResponse<T> = {

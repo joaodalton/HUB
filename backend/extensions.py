@@ -1,12 +1,56 @@
-from flask import g
+from flask import g, has_request_context
 from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from sqlalchemy import event
+from sqlalchemy import inspect
+from flask_sqlalchemy.query import Query
 from sqlalchemy.orm import with_loader_criteria
 
-db = SQLAlchemy()
+class TenantQuery(Query):
+    """Impede que uma busca por PK ignore o escopo do tenant.
+
+    ``Query.get()`` e ``Session.get()`` podem devolver uma instância do
+    identity map sem emitir SELECT. Isso não é uma base segura para o filtro
+    injetado no listener abaixo. Para modelos com TenantMixin e numa request
+    autenticada, transformamos o get numa consulta explícita por PK e
+    empresa_id, que sempre passa pelo banco.
+    """
+    def get(self, ident, populate_existing=False, with_for_update=None,
+            identity_token=None, execution_options=None):
+        model = self.column_descriptions[0].get('entity') if self.column_descriptions else None
+        empresa_id = getattr(g, 'current_empresa_id', None) if has_request_context() else None
+
+        if not model or empresa_id is None or not issubclass(model, TenantMixin):
+            # Query.get() classico do SQLAlchemy aceita só `ident` -- os
+            # kwargs extras (populate_existing, with_for_update,
+            # identity_token, execution_options) são da assinatura do
+            # Session.get(), não do Query.get(). Repassá-los aqui pro
+            # super().get() estourava TypeError em qualquer
+            # Model.query.get(id) que cai neste fallback -- inclusive
+            # User.query.get(), usado no login/middleware de auth.
+            return super().get(ident)
+
+        primary_keys = inspect(model).primary_key
+        if isinstance(ident, dict):
+            criteria = ident
+        elif isinstance(ident, (tuple, list)):
+            if len(ident) != len(primary_keys):
+                raise ValueError('Quantidade de chaves primárias inválida.')
+            criteria = {column.key: value for column, value in zip(primary_keys, ident)}
+        else:
+            criteria = {primary_keys[0].key: ident}
+
+        query = self.filter_by(**criteria, empresa_id=empresa_id)
+        if populate_existing:
+            query = query.populate_existing()
+        if with_for_update:
+            query = query.with_for_update(**(with_for_update if isinstance(with_for_update, dict) else {}))
+        return query.first()
+
+
+db = SQLAlchemy(query_class=TenantQuery)
 migrate = Migrate()
 limiter = Limiter(key_func=get_remote_address, storage_uri='memory://')
 

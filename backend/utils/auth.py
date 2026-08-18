@@ -96,7 +96,7 @@ def resolve_current_user_optional():
 
     from models.user import User
     user = User.query.get(user_id)
-    return user if user and user.ativo else None
+    return user if user and user.status == 'ativo' else None
 
 def register_auth_middleware(app, public_paths: set[str]) -> None:
     @app.before_request

@@ -30,17 +30,21 @@ def bootstrap():
 @auth_routes.route('/register', methods=['POST'])
 @limiter.limit('5 per minute')
 def register():
-    from models.empresa import Empresa
     data = request.get_json(silent=True) or {}
     codigo = (data.get('codigo') or '').strip()
 
-    # empresa_id pode vim no payload ou usa a primeira empresa do banco
-    empresa_id = data.get('empresa_id')
-    if not empresa_id:
-        empresa = Empresa.query.first()
-        if not empresa:
-            return error_response('Nenhuma empresa cadastrada no sistema.', 400)
-        empresa_id = empresa.id
+    # O tenant nunca vem do cliente: um SIGNUP_CODE global não pode dar
+    # acesso a empresas cujo id foi apenas adivinhado. Para o fluxo normal,
+    # use convite; esse endpoint só existe para um tenant explicitamente
+    # configurado no servidor.
+    try:
+        empresa_id = int(Config.SIGNUP_EMPRESA_ID)
+    except (TypeError, ValueError):
+        return error_response('Cadastro público desativado. Use um convite da sua empresa.', 403)
+
+    from models.empresa import Empresa
+    if not Empresa.query.get(empresa_id):
+        return error_response('Cadastro público indisponível: empresa configurada não existe.', 503)
 
     try:
         user = register_with_code(data, codigo, empresa_id)
@@ -97,4 +101,6 @@ def logout():
 
 @auth_routes.route('/me', methods=['GET'])
 def me():
-    return success_response(g.current_user.to_dict())
+    user = g.current_user.to_dict()
+    user['empresaNome'] = g.current_empresa.nome if g.current_empresa else None
+    return success_response(user)

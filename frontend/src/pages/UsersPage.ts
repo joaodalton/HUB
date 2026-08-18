@@ -4,7 +4,15 @@ import { createInput, createSelectField } from '../components/formFields';
 import { useGlobalLoading } from '../hooks/useGlobalLoading';
 import { useToast } from '../hooks/useToast';
 import { createBaseLayout } from '../layouts/BaseLayout';
-import { createUser, getUsers, setUserActive, type UserPayload, type UserRow } from '../services/userService';
+import {
+  createUser,
+  deleteUser,
+  getUsers,
+  updateUser,
+  type UserPayload,
+  type UserRole,
+  type UserRow
+} from '../services/userService';
 
 export function createUsersPage(): HTMLElement {
   const content = createElement('section', { className: 'content-stack' });
@@ -17,7 +25,7 @@ export function createUsersPage(): HTMLElement {
   const layout = createBaseLayout({
     content,
     eyebrow: 'Configurações',
-    title: 'Quem tem acesso ao HUB e com que papel'
+    title: 'Gerenciar usuários'
   });
 
   loadUsers();
@@ -40,144 +48,332 @@ export function createUsersPage(): HTMLElement {
   async function handleCreate(data: UserPayload): Promise<void> {
     try {
       await createUser(data);
-      toast.success('Usuário criado.');
+      toast.success('Usuário criado com sucesso.');
       await loadUsers();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Não foi possível criar o usuário.');
     }
   }
 
-  async function handleToggleActive(user: UserRow): Promise<void> {
+  async function handleUpdate(id: number, data: Partial<UserPayload>): Promise<void> {
     try {
-      await setUserActive(user.id, !user.ativo);
-      toast.success(user.ativo ? 'Usuário desativado.' : 'Usuário ativado.');
+      await updateUser(id, data);
+      toast.success('Usuário atualizado com sucesso.');
       await loadUsers();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar o usuário.');
     }
   }
 
+  async function handleDelete(user: UserRow): Promise<void> {
+    if (!confirm(`Tem certeza que deseja excluir o usuário "${user.nome}"?\n\nEsta ação não pode ser desfeita.`)) {
+      return;
+    }
+
+    try {
+      await deleteUser(user.id);
+      toast.success('Usuário excluído com sucesso.');
+      await loadUsers();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível excluir o usuário.');
+    }
+  }
+
   function renderContent(): void {
     const pageActions = createElement('div', { className: 'page-actions' });
-    const spacer = createElement('div');
-    spacer.style.flex = '1 0 auto';
-    spacer.style.minWidth = '0';
 
-    // Modal so aparece ao clicar aqui -- antes o formulario de criacao ficava
-    // sempre visivel embaixo da lista, mesmo sem ninguem pedir pra criar nada.
     const newUserButton = createElement('button', { className: 'button-with-icon', type: 'button' });
     newUserButton.append(createIcon('plus'), document.createTextNode('Novo usuário'));
     newUserButton.addEventListener('click', () => {
-      document.body.appendChild(createUserModal(handleCreate));
+      document.body.appendChild(createUserModal(null, handleCreate, handleUpdate));
     });
 
-    pageActions.append(spacer, newUserButton);
+    pageActions.appendChild(newUserButton);
 
-    const panel = createElement('section', { className: 'settings-panel' });
+    const panel = createElement('section', { className: 'data-panel' });
 
     if (!loaded) {
-      panel.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Carregando...' }));
+      panel.appendChild(createElement('div', { className: 'loading-state', textContent: 'Carregando usuários...' }));
     } else if (users.length === 0) {
-      panel.appendChild(createElement('p', {
-        className: 'settings-hint',
-        textContent: 'Nenhum usuário encontrado, ou sua conta não tem permissão pra ver essa lista (só administrador gerencia usuários).'
-      }));
+      panel.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-state-icon">${createIcon('clients').outerHTML}</div>
+          <p>Nenhum usuário encontrado</p>
+          <span>Crie seu primeiro usuário clicando em "Novo usuário"</span>
+        </div>
+      `;
     } else {
-      panel.appendChild(createUsersList(users, handleToggleActive));
+      panel.appendChild(createUsersTable(users, handleUpdate, handleDelete));
     }
 
     content.replaceChildren(pageActions, panel);
   }
 }
 
-function createUsersList(users: UserRow[], onToggleActive: (user: UserRow) => void): HTMLElement {
-  const list = createElement('dl', { className: 'settings-list compact' });
+function createUsersTable(
+  users: UserRow[],
+  onUpdate: (id: number, data: Partial<UserPayload>) => Promise<void>,
+  onDelete: (user: UserRow) => Promise<void>
+): HTMLElement {
+  const wrapper = createElement('div', { className: 'table-wrap' });
+  const table = createElement('table', { className: 'data-table' });
+
+  const thead = createElement('thead');
+  thead.innerHTML = `
+    <tr>
+      <th>Nome</th>
+      <th>Email</th>
+      <th>Senha</th>
+      <th>Papel</th>
+      <th>Status</th>
+      <th class="align-right">Ações</th>
+    </tr>
+  `;
+
+  const tbody = createElement('tbody');
 
   users.forEach((user) => {
-    const label = createElement('dt', { textContent: user.email });
-    const valueRow = createElement('dd', { className: 'account-row' });
+    const row = createElement('tr');
+
+    // Nome
+    const nameCell = createElement('td', { textContent: user.nome });
+
+    // Email
+    const emailCell = createElement('td', { textContent: user.email });
+
+    // Senha com toggle
+    const passwordCell = createElement('td');
+    const passwordWrapper = createElement('div', { className: 'password-cell' });
+
+    const passwordText = createElement('span', {
+      className: 'password-text',
+      textContent: '••••••••'
+    });
+
+    const toggleBtn = createElement('button', {
+      className: 'password-toggle',
+      type: 'button',
+      title: 'Mostrar senha'
+    });
+    toggleBtn.innerHTML = `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+      <circle cx="12" cy="12" r="3"/>
+    </svg>`;
+
+    toggleBtn.addEventListener('click', () => {
+      const isHidden = passwordText.textContent === '••••••••';
+      passwordText.textContent = isHidden ? 'Senha oculta' : '••••••••';
+      toggleBtn.innerHTML = isHidden
+        ? `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+            <line x1="1" y1="1" x2="23" y2="23"/>
+          </svg>`
+        : `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>`;
+      toggleBtn.title = isHidden ? 'Ocultar senha' : 'Mostrar senha';
+    });
+
+    passwordWrapper.append(passwordText, toggleBtn);
+    passwordCell.appendChild(passwordWrapper);
+
+    // Papel
+    const roleCell = createElement('td');
     const roleBadge = createElement('span', {
-      className: user.papel === 'admin' ? 'provider-badge success' : 'provider-badge',
-      textContent: user.papel === 'admin' ? 'Administrador' : 'Visualizador'
+      className: `status-badge ${getRoleBadgeClass(user.role)}`,
+      textContent: roleLabel(user.role)
     });
-    const statusBadge = createElement('span', {
-      className: user.ativo ? 'provider-badge success' : 'provider-badge warning',
-      textContent: user.ativo ? 'Ativo' : 'Inativo'
+    roleCell.appendChild(roleBadge);
+
+    // Status
+    const statusCell = createElement('td');
+    const statusDot = createElement('span', {
+      className: user.status === 'ativo' ? 'status-dot status-success' : 'status-dot status-danger'
     });
-    const toggleButton = createElement('button', {
-      className: user.ativo ? 'danger-button' : 'secondary-button',
-      textContent: user.ativo ? 'Desativar' : 'Ativar',
-      type: 'button'
+    const statusText = createElement('span', { textContent: user.status === 'ativo' ? 'Ativo' : 'Inativo' });
+    statusCell.append(statusDot, statusText);
+
+    // Ações
+    const actionsCell = createElement('td');
+    const actionsWrapper = createElement('div', { className: 'table-actions' });
+
+    // Editar
+    const editBtn = createElement('button', {
+      className: 'icon-button',
+      type: 'button',
+      title: 'Editar usuário'
+    });
+    editBtn.innerHTML = `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+    </svg>`;
+    editBtn.addEventListener('click', () => {
+      document.body.appendChild(createUserModal(user, null, onUpdate));
     });
 
-    toggleButton.addEventListener('click', () => onToggleActive(user));
+    // Excluir
+    if (user.role !== 'owner') {
+      const deleteBtn = createElement('button', {
+        className: 'icon-button danger',
+        type: 'button',
+        title: 'Excluir usuário'
+      });
+      deleteBtn.innerHTML = `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="3 6 5 6 21 6"/>
+        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+      </svg>`;
+      deleteBtn.addEventListener('click', () => onDelete(user));
+      actionsWrapper.append(editBtn, deleteBtn);
+    } else {
+      actionsWrapper.appendChild(editBtn);
+    }
 
-    valueRow.append(roleBadge, statusBadge, toggleButton);
-    list.append(label, valueRow);
+    actionsCell.appendChild(actionsWrapper);
+    row.append(nameCell, emailCell, passwordCell, roleCell, statusCell, actionsCell);
+    tbody.appendChild(row);
   });
 
-  return list;
+  table.append(thead, tbody);
+  wrapper.appendChild(table);
+  return wrapper;
 }
 
-// Mesmo padrao de modal usado em Cliente/UC/Usina (overlay + client-form),
-// pra ficar consistente com o resto do app em vez de inventar um estilo novo.
-function createUserModal(onCreate: (data: UserPayload) => Promise<void>): HTMLElement {
+function createUserModal(
+  user: UserRow | null,
+  onCreate: ((data: UserPayload) => Promise<void>) | null,
+  onUpdate: ((id: number, data: Partial<UserPayload>) => Promise<void>) | null
+): HTMLElement {
   const overlay = createElement('section', { className: 'modal-overlay' });
-  const panel = createElement('article', { className: 'plant-card' });
+  const panel = createElement('article', { className: 'client-card' });
   const form = createElement('form', { className: 'client-form' });
+
+  const isEdit = user !== null;
+  const title = isEdit ? 'Editar usuário' : 'Novo usuário';
+
   const header = createElement('div', { className: 'form-header' });
-  const titleText = createElement('div');
-  const eyebrow = createElement('span', { className: 'eyebrow', textContent: 'Novo usuário' });
-  const heading = createElement('h2', { textContent: 'Criar usuário' });
-  const closeButton = createElement('button', { className: 'secondary-button', textContent: 'Fechar', type: 'button' });
+  const titleDiv = createElement('div');
+  const eyebrow = createElement('span', { className: 'eyebrow', textContent: 'Usuários' });
+  const heading = createElement('h2', { textContent: title });
+  const closeButton = createElement('button', {
+    className: 'icon-button',
+    type: 'button',
+    title: 'Fechar'
+  });
+  closeButton.innerHTML = `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <line x1="18" y1="6" x2="6" y2="18"/>
+    <line x1="6" y1="6" x2="18" y2="18"/>
+  </svg>`;
+
   const fields = createElement('div', { className: 'form-grid' });
 
-  const email = createInput('Email', 'email', '', true);
-  const senha = createInput('Senha provisória', 'password', '', true);
-  const papel = createSelectField('Papel', 'viewer', [
-    { value: 'viewer', label: 'Visualizador (só leitura)' },
-    { value: 'admin', label: 'Administrador (acesso total)' }
+  const nome = createInput('Nome', 'text', user?.nome || '', true);
+  const email = createInput('Email', 'email', user?.email || '', true);
+  const senha = createInput(
+    isEdit ? 'Nova senha (opcional)' : 'Senha provisória',
+    'password',
+    '',
+    !isEdit
+  );
+  const role = createSelectField('Papel', user?.role || 'viewer', [
+    { value: 'viewer', label: 'Visualizador' },
+    { value: 'operator', label: 'Operacional' },
+    { value: 'financial', label: 'Financeiro' },
+    { value: 'admin', label: 'Administrador' }
   ]);
 
   const actions = createElement('div', { className: 'form-actions' });
-  const submitButton = createElement('button', { textContent: 'Criar usuário', type: 'submit' });
-  actions.appendChild(submitButton);
+  const cancelBtn = createElement('button', {
+    className: 'secondary-button',
+    textContent: 'Cancelar',
+    type: 'button'
+  });
+  const submitBtn = createElement('button', {
+    textContent: isEdit ? 'Salvar alterações' : 'Criar usuário',
+    type: 'submit'
+  });
+  actions.append(cancelBtn, submitBtn);
 
-  titleText.append(eyebrow, heading);
-  header.append(titleText, closeButton);
-  fields.append(email.field, senha.field, papel.field);
+  titleDiv.append(eyebrow, heading);
+  header.append(titleDiv, closeButton);
+  fields.append(nome.field, email.field, senha.field, role.field);
   form.append(header, fields, actions);
   panel.appendChild(form);
   overlay.appendChild(panel);
 
   closeButton.addEventListener('click', () => overlay.remove());
-  overlay.addEventListener('click', (event) => {
-    if (event.target === overlay) overlay.remove();
+  cancelBtn.addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) overlay.remove();
   });
 
-  form.addEventListener('submit', async (event) => {
-    event.preventDefault();
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
 
-    if (!email.input.value.trim() || !senha.input.value.trim()) {
-      email.input.reportValidity();
+    if (!nome.input.value.trim() || !email.input.value.trim()) {
+      useToast().error('Preencha todos os campos obrigatórios.');
+      return;
+    }
+
+    if (!isEdit && !senha.input.value.trim()) {
       senha.input.reportValidity();
       return;
     }
 
-    submitButton.disabled = true;
-    submitButton.textContent = 'Criando...';
+    submitBtn.disabled = true;
+    submitBtn.textContent = isEdit ? 'Salvando...' : 'Criando...';
 
-    // Mesmo padrao ja usado em PlantCard/UcCard: onCreate trata seu proprio
-    // erro (toast) e nao relança -- o modal fecha ao final independente do
-    // resultado, consistente com o resto do app, nao e comportamento novo.
-    await onCreate({
-      email: email.input.value.trim(),
-      senha: senha.input.value,
-      papel: papel.select.value as 'admin' | 'viewer'
-    });
-
-    overlay.remove();
+    try {
+      if (isEdit && onUpdate) {
+        const data: Partial<UserPayload> = {
+          nome: nome.input.value.trim(),
+          email: email.input.value.trim(),
+          role: role.select.value as UserPayload['role']
+        };
+        if (senha.input.value.trim()) {
+          (data as any).senha = senha.input.value;
+        }
+        await onUpdate(user.id, data);
+      } else if (onCreate) {
+        await onCreate({
+          nome: nome.input.value.trim(),
+          email: email.input.value.trim(),
+          senha: senha.input.value,
+          role: role.select.value as UserPayload['role']
+        });
+      }
+      overlay.remove();
+    } catch (error) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = isEdit ? 'Salvar alterações' : 'Criar usuário';
+      useToast().error(error instanceof Error ? error.message : 'Ocorreu um erro.');
+    }
   });
 
   return overlay;
+}
+
+function getRoleBadgeClass(role: UserRole): string {
+  switch (role) {
+    case 'owner':
+    case 'admin':
+      return 'tone-info';
+    case 'operator':
+      return 'tone-warning';
+    case 'financial':
+      return 'tone-success';
+    default:
+      return '';
+  }
+}
+
+function roleLabel(role: UserRole): string {
+  const labels: Record<UserRole, string> = {
+    owner: 'Proprietário',
+    admin: 'Administrador',
+    operator: 'Operacional',
+    financial: 'Financeiro',
+    viewer: 'Visualizador'
+  };
+  return labels[role];
 }

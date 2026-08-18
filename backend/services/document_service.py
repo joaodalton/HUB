@@ -2,6 +2,7 @@
 import hashlib
 from pathlib import Path
 
+from flask import g
 from werkzeug.utils import secure_filename
 
 from extensions import db
@@ -79,6 +80,7 @@ def create_document(data: dict, file_storage) -> dict:
         drive_file_id = drive.upload_file(file_bytes, drive_name, file_storage.mimetype, Config.GOOGLE_DRIVE_ROOT_FOLDER_ID)
 
     document = Document(
+        empresa_id=g.current_empresa_id,
         nome=(data.get('nome') or '').strip() or original_name,
         client_id=client_id,
         consumer_unit_id=uc_id,
@@ -155,6 +157,7 @@ def create_drive_document(data: dict) -> dict:
         raise ValueError('Arquivo do Google Drive nao informado.')
 
     document = Document(
+        empresa_id=g.current_empresa_id,
         nome=(data.get('nome') or '').strip() or 'Documento do Drive',
         client_id=client_id,
         consumer_unit_id=uc_id,

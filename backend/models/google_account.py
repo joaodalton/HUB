@@ -1,16 +1,17 @@
 # backend/models/google_account.py
 from datetime import datetime
 
-from extensions import db
+from extensions import db, TenantMixin
 from utils.crypto import decrypt_value, encrypt_value
 
 
-class GoogleAccount(db.Model):
+class GoogleAccount(db.Model, TenantMixin):
     __tablename__ = 'google_accounts'
+    __table_args__ = (db.UniqueConstraint('empresa_id', 'email', name='uq_google_accounts_empresa_email'),)
 
     id = db.Column(db.Integer, primary_key=True)
     nome = db.Column(db.String(150), nullable=False, default='Conta Google')
-    email = db.Column(db.String(150), nullable=False, unique=True)
+    email = db.Column(db.String(150), nullable=False)
     # Nunca guardar o refresh token em texto puro -- sempre passar por
     # set_refresh_token()/get_refresh_token(), que criptografam via utils/crypto.py.
     refresh_token_encrypted = db.Column(db.Text, nullable=True)

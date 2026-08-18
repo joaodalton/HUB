@@ -2,9 +2,10 @@
 from datetime import datetime
 
 from extensions import db
+from extensions import TenantMixin
 
 
-class Client(db.Model):
+class Client(TenantMixin, db.Model):
     __tablename__ = 'clients'
 
     id = db.Column(db.Integer, primary_key=True)
@@ -25,6 +26,7 @@ class Client(db.Model):
 
         return {
             'id': self.id,
+            'empresaId': self.empresa_id,
             'nome': self.nome,
             'cpf': self.cpf,
             'email': self.email,

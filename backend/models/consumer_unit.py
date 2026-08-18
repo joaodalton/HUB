@@ -1,10 +1,10 @@
 # backend/models/consumer_unit.py
 from datetime import datetime
 
-from extensions import db
+from extensions import db, TenantMixin
 
 
-class ConsumerUnit(db.Model):
+class ConsumerUnit(TenantMixin, db.Model):
     __tablename__ = 'consumer_units'
 
     id = db.Column(db.Integer, primary_key=True)
@@ -78,7 +78,7 @@ class ConsumerUnit(db.Model):
         }
 
 
-class PlantConnection(db.Model):
+class PlantConnection(TenantMixin, db.Model):
     __tablename__ = 'plant_connections'
 
     id = db.Column(db.Integer, primary_key=True)

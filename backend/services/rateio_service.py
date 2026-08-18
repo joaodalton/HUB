@@ -245,6 +245,70 @@ def confirmar_selecao(plant_id: int, competencia: str, selecoes: list[dict]) -> 
         'ucs': resultado_ucs
     }
 
+def atualizar_distribuicao(plant_id: int, atualizacoes: list[dict]) -> dict:
+    """Edita o percentual de conexões QUE JÁ EXISTEM nesta usina -- usado
+    pelo botão 'Editar distribuição' na tela de Usina (diferente de
+    confirmar_selecao, que só roda dentro do wizard e pode CRIAR conexão
+    nova). Marca percentual_manual=True em cada uma editada (decisão
+    humana explícita). Valida que a soma de TODAS as conexões da usina
+    depois do update (as editadas + as que não foram tocadas) não passa de
+    100% -- se passar, nada é gravado (tudo ou nada)."""
+    plant = Plant.query.get(plant_id)
+    if not plant:
+        raise ValueError('Usina nao encontrada.')
+
+    if not atualizacoes:
+        raise ValueError('Nenhuma atualizacao informada.')
+
+    percentual_por_connection_id: dict[int, float] = {}
+    for item in atualizacoes:
+        connection_id = item.get('connectionId')
+        percentual = item.get('percentual')
+
+        if connection_id is None or percentual is None:
+            continue
+
+        try:
+            percentual_por_connection_id[int(connection_id)] = round(float(percentual), 2)
+        except (TypeError, ValueError):
+            raise ValueError(f'Percentual invalido para a conexao id={connection_id}.')
+
+    if not percentual_por_connection_id:
+        raise ValueError('Nenhuma atualizacao valida.')
+
+    conexoes = PlantConnection.query.filter_by(plant_id=plant.id).all()
+    conexoes_por_id = {c.id: c for c in conexoes}
+
+    for connection_id in percentual_por_connection_id:
+        if connection_id not in conexoes_por_id:
+            raise ValueError(f'Conexao id={connection_id} nao pertence a esta usina.')
+
+    soma_total = round(sum(
+        percentual_por_connection_id.get(c.id, float(c.percentual)) for c in conexoes
+    ), 2)
+
+    if soma_total > 100.0:
+        raise ValueError(f'Soma dos percentuais desta usina ficaria em {soma_total}% -- excede 100%. Ajuste antes de salvar.')
+
+    for connection_id, percentual in percentual_por_connection_id.items():
+        connection = conexoes_por_id[connection_id]
+        connection.percentual = percentual
+        connection.percentual_manual = True
+
+    db.session.commit()
+
+    LogService.info(
+        acao='atualizar_distribuicao',
+        mensagem=f'{len(percentual_por_connection_id)} percentual(is) atualizado(s) manualmente na usina "{plant.nome}"',
+        entidade='PlantConnection',
+        metadados={'plantId': plant.id}
+    )
+
+    return {
+        'plantId': plant.id,
+        'conexoes': [c.to_dict() for c in conexoes]
+    }
+
 def list_historico(competencia: str | None = None, plant_id: int | None = None, uc_id: int | None = None) -> list[dict]:
     query = RateioHistorico.query
 

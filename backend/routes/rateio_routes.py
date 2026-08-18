@@ -1,7 +1,7 @@
 # backend/routes/rateio_routes.py
 from flask import Blueprint, request
 
-from services.rateio_service import aplicar_rateio, confirmar_selecao, funil_qualificacao, list_historico, preview_rateio
+from services.rateio_service import aplicar_rateio, atualizar_distribuicao, confirmar_selecao, funil_qualificacao, list_historico, preview_rateio
 from utils.api_response import error_response, success_response
 
 
@@ -50,6 +50,21 @@ def confirmar():
 
     return success_response(resultado, 'Rateio confirmado. Clientes conectados a usina.', 201)
 
+@rateio_routes.route('/distribuicao', methods=['PUT'])
+def distribuicao():
+    data = request.get_json(silent=True) or {}
+    plant_id = data.get('plantId')
+    atualizacoes = data.get('atualizacoes', [])
+
+    if not plant_id:
+        return error_response('plantId e obrigatorio.', 400)
+
+    try:
+        resultado = atualizar_distribuicao(plant_id, atualizacoes)
+    except ValueError as exc:
+        return error_response(str(exc), 400)
+
+    return success_response(resultado, 'Distribuicao atualizada.')
 
 @rateio_routes.route('/qualificacao', methods=['GET'])
 def qualificacao():

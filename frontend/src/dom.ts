@@ -3,14 +3,18 @@ export function createElement<K extends keyof HTMLElementTagNameMap>(
   options: {
     className?: string;
     textContent?: string;
+    innerHTML?: string;
     type?: HTMLButtonElement['type'];
+    title?: string;
   } = {}
 ): HTMLElementTagNameMap[K] {
   const element = document.createElement(tagName);
 
   if (options.className) element.className = options.className;
   if (options.textContent) element.textContent = options.textContent;
+  if (options.innerHTML) element.innerHTML = options.innerHTML;
   if (options.type && element instanceof HTMLButtonElement) element.type = options.type;
+  if (options.title) element.title = options.title;
 
   return element;
 }

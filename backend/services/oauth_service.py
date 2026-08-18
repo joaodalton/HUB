@@ -13,6 +13,7 @@ em processos diferentes (bug real, ja aconteceu em producao). Setting resolve
 isso porque todo worker le do mesmo Postgres.
 """
 import datetime
+import json
 import os
 import secrets
 
@@ -54,23 +55,31 @@ def _scopes() -> list[str]:
     return [*Config.GOOGLE_DRIVE_SCOPES, *_IDENTITY_SCOPES]
 
 
-def _store_pending_state(state: str, code_verifier: str) -> None:
+def _store_pending_state(state: str, code_verifier: str, empresa_id: int) -> None:
     _cleanup_expired_states()
-    db.session.add(Setting(chave=f'{_STATE_KEY_PREFIX}{state}', valor=code_verifier))
+    # Guarda code_verifier (PKCE) E a empresa que iniciou o fluxo juntos --
+    # o /callback e chamado direto pelo Google, sem sessao/cookie util pra
+    # saber isso, entao precisa vir carregado dentro do proprio state.
+    valor = json.dumps({'codeVerifier': code_verifier, 'empresaId': empresa_id})
+    db.session.add(Setting(chave=f'{_STATE_KEY_PREFIX}{state}', valor=valor))
     db.session.commit()
 
 
-def _pop_pending_state(state: str) -> str | None:
+def _pop_pending_state(state: str) -> dict | None:
     """Le e ja apaga -- state e de uso unico, senao um mesmo link de callback
-    poderia ser reaproveitado."""
+    poderia ser reaproveitado. Retorna {'codeVerifier': ..., 'empresaId': ...}."""
     setting = Setting.query.filter_by(chave=f'{_STATE_KEY_PREFIX}{state}').first()
     if not setting:
         return None
 
-    code_verifier = setting.valor
+    try:
+        dados = json.loads(setting.valor)
+    except (TypeError, ValueError):
+        dados = None
+
     db.session.delete(setting)
     db.session.commit()
-    return code_verifier
+    return dados
 
 
 def _cleanup_expired_states() -> None:
@@ -108,7 +117,7 @@ def _build_flow() -> Flow:
     )
 
 
-def build_authorize_url() -> str:
+def build_authorize_url(empresa_id: int) -> str:
     flow = _build_flow()
     state = secrets.token_urlsafe(24)
 
@@ -123,16 +132,25 @@ def build_authorize_url() -> str:
     # google-auth-oauthlib >=1.2 gera PKCE (code_verifier/code_challenge) sozinho.
     # Precisa guardar o code_verifier junto do state, senao o Flow novo do callback
     # nao tem como reproduzir o code_challenge e a troca do code por token falha.
-    _store_pending_state(state, flow.code_verifier)
+    # empresa_id viaja junto pelo mesmo motivo -- ver _store_pending_state.
+    _store_pending_state(state, flow.code_verifier, empresa_id)
     return auth_url
 
 
 def handle_callback(request_url: str, state: str) -> dict:
     """Troca o 'code' que o Google devolveu por credenciais, descobre o email
-    da conta e cria/atualiza o GoogleAccount correspondente."""
-    code_verifier = _pop_pending_state(state)
+    da conta e cria/atualiza o GoogleAccount correspondente -- SEMPRE dentro
+    da empresa que iniciou o fluxo (empresa_id vindo do state, nao de
+    g.current_empresa_id -- essa rota e publica, esse valor nao existe aqui)."""
+    dados_state = _pop_pending_state(state)
 
-    if code_verifier is None:
+    if dados_state is None:
+        raise ValueError('Link de autorizacao invalido ou expirado. Conecte a conta de novo.')
+
+    code_verifier = dados_state.get('codeVerifier')
+    empresa_id = dados_state.get('empresaId')
+
+    if not code_verifier or not empresa_id:
         raise ValueError('Link de autorizacao invalido ou expirado. Conecte a conta de novo.')
 
     flow = _build_flow()
@@ -147,10 +165,13 @@ def handle_callback(request_url: str, state: str) -> dict:
         )
 
     email = _fetch_email(credentials)
-    account = GoogleAccount.query.filter_by(email=email).first()
+    # Filtro explicito por empresa_id (nao So confiar no TenantMixin aqui --
+    # essa funcao roda fora de request autenticada, g.current_empresa_id
+    # nao existe nesse ponto).
+    account = GoogleAccount.query.filter_by(email=email, empresa_id=empresa_id).first()
 
     if not account:
-        account = GoogleAccount(email=email, nome=email.split('@')[0])
+        account = GoogleAccount(email=email, nome=email.split('@')[0], empresa_id=empresa_id)
         db.session.add(account)
         db.session.flush()
 
@@ -158,9 +179,9 @@ def handle_callback(request_url: str, state: str) -> dict:
     account.set_refresh_token(credentials.refresh_token)
     account.scopes = ','.join(credentials.scopes or _scopes())
 
-    # primeira conta conectada vira ativa sozinha; as seguintes ficam inativas
-    # ate o usuario escolher em Configuracoes.
-    if not GoogleAccount.query.filter_by(is_active=True).first():
+    # primeira conta conectada DESSA EMPRESA vira ativa sozinha; as seguintes
+    # ficam inativas ate o usuario escolher em Configuracoes.
+    if not GoogleAccount.query.filter_by(is_active=True, empresa_id=empresa_id).first():
         account.is_active = True
 
     db.session.commit()
@@ -170,7 +191,7 @@ def handle_callback(request_url: str, state: str) -> dict:
         acao='oauth_connect',
         mensagem=f'Conta Google {email} conectada via OAuth',
         entidade='GoogleAccount',
-        metadados={'id': account.id}
+        metadados={'id': account.id, 'empresaId': empresa_id}
     )
     return account.to_dict()
 
@@ -185,17 +206,20 @@ def _fetch_email(credentials: Credentials) -> str:
     return response.json()['email']
 
 
-def list_accounts() -> list[dict]:
-    accounts = GoogleAccount.query.order_by(GoogleAccount.created_at.desc()).all()
+def list_accounts(empresa_id: int) -> list[dict]:
+    accounts = GoogleAccount.query.filter_by(empresa_id=empresa_id).order_by(GoogleAccount.created_at.desc()).all()
     return [account.to_dict() for account in accounts]
 
 
-def set_active_account(account_id: int) -> dict | None:
-    account = GoogleAccount.query.get(account_id)
+def set_active_account(account_id: int, empresa_id: int) -> dict | None:
+    account = GoogleAccount.query.filter_by(id=account_id, empresa_id=empresa_id).first()
     if not account:
         return None
 
-    GoogleAccount.query.update({GoogleAccount.is_active: False})
+    # Filtro explicito por empresa_id aqui tambem (nao so no .get) -- e um
+    # UPDATE em massa, ponto sensivel o suficiente pra nao depender so do
+    # filtro automatico do TenantMixin.
+    GoogleAccount.query.filter_by(empresa_id=empresa_id).update({GoogleAccount.is_active: False})
     account.is_active = True
     db.session.commit()
     _invalidate_drive_cache()
@@ -204,8 +228,8 @@ def set_active_account(account_id: int) -> dict | None:
     return account.to_dict()
 
 
-def disconnect_account(account_id: int) -> bool:
-    account = GoogleAccount.query.get(account_id)
+def disconnect_account(account_id: int, empresa_id: int) -> bool:
+    account = GoogleAccount.query.filter_by(id=account_id, empresa_id=empresa_id).first()
     if not account:
         return False
 

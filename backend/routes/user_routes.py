@@ -1,6 +1,7 @@
 # backend/routes/user_routes.py
 from flask import Blueprint, g, request
 
+from services.permission_service import require_permission
 from services.user_service import create_user, list_users, set_user_active
 from utils.api_response import error_response, success_response
 
@@ -8,30 +9,19 @@ from utils.api_response import error_response, success_response
 user_routes = Blueprint('user_routes', __name__, url_prefix='/api/v1/users')
 
 
-def _require_admin():
-    if g.current_user.papel != 'admin':
-        return error_response('So administradores podem gerenciar usuarios.', 403)
-    return None
-
-
 @user_routes.route('', methods=['GET'])
+@require_permission('users.read')
 def index():
-    denied = _require_admin()
-    if denied:
-        return denied
-    return success_response(list_users())
+    return success_response(list_users(g.current_user.empresa_id))
 
 
 @user_routes.route('', methods=['POST'])
+@require_permission('users.create')
 def store():
-    denied = _require_admin()
-    if denied:
-        return denied
-
     data = request.get_json(silent=True) or {}
 
     try:
-        user = create_user(data)
+        user = create_user(data, g.current_user.empresa_id)
     except ValueError as exc:
         return error_response(str(exc), 409)
 
@@ -39,18 +29,19 @@ def store():
 
 
 @user_routes.route('/<int:user_id>/ativo', methods=['PUT'])
+@require_permission('users.deactivate', 'users.reactivate')
 def update_active(user_id: int):
-    denied = _require_admin()
-    if denied:
-        return denied
-
     data = request.get_json(silent=True) or {}
     ativo = bool(data.get('ativo', True))
 
     if user_id == g.current_user.id and not ativo:
         return error_response('Voce nao pode desativar sua propria conta.', 400)
 
-    user = set_user_active(user_id, ativo)
+    try:
+        user = set_user_active(user_id, g.current_user.empresa_id, ativo)
+    except ValueError as exc:
+        return error_response(str(exc), 400)
+
     if not user:
         return error_response('Usuario nao encontrado.', 404)
 

@@ -1,3 +1,5 @@
+from flask import g
+
 from extensions import db
 from sqlalchemy.exc import IntegrityError
 from models.client import Client
@@ -6,17 +8,20 @@ from services.uc_service import apply_uc_fields, sync_connections, _parse_date
 
 
 def list_clients() -> list[dict]:
+    # Filtro automatico via TenantMixin (extensions.py)
     clients = Client.query.order_by(Client.created_at.desc()).all()
     return [client.to_dict() for client in clients]
 
 
 def get_client(client_id: int) -> dict | None:
+    # Filtro automatico via TenantMixin
     client = Client.query.get(client_id)
     return client.to_dict() if client else None
 
 
 def create_client(data: dict) -> dict:
     client = Client(
+        empresa_id=g.current_empresa_id,
         nome=data.get('nome', '').strip(),
         cpf=data.get('cpf', '').strip(),
         email=data.get('email', '').strip(),

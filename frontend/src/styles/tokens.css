@@ -50,8 +50,14 @@
 
   /* Sombra unica por camada de UI -- nao inventar box-shadow solto em outro arquivo */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25), 0 1px 1px rgba(0, 0, 0, 0.18);
-  --shadow-md: 0 8px 20px rgba(0, 0, 0, 0.514);
-  --shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.425);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3), 0 2px 4px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-xl: 0 24px 64px rgba(0, 0, 0, 0.5);
+
+  /* Transicoes suaves */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.2s ease;
+  --transition-slow: 0.3s ease;
 
   /* Escala de espacamento -- 4/8/16/24/32 */
   --space-1: 4px;

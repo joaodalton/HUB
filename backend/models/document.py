@@ -1,10 +1,10 @@
 # backend/models/document.py
 from datetime import datetime
 
-from extensions import db
+from extensions import db, TenantMixin
 
 
-class Document(db.Model):
+class Document(TenantMixin, db.Model):
     __tablename__ = 'documents'
 
     id = db.Column(db.Integer, primary_key=True)

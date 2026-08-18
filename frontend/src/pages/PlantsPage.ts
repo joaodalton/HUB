@@ -4,6 +4,7 @@ import { createDataTable } from '../components/DataTable';
 import { createInfoField } from '../components/ClientDetailView';
 import { createIcon } from '../components/Icon';
 import { createPlantCard, type PlantFormData } from '../components/PlantCard';
+import { createPlantDistribuicaoModal, type PlantDistribuicaoModalUc } from '../components/PlantDistribuicaoModal';
 import { createElement } from '../dom';
 import { useGlobalLoading } from '../hooks/useGlobalLoading';
 import { useToast } from '../hooks/useToast';
@@ -372,8 +373,53 @@ export function createPlantsPage(): HTMLElement {
       tabs.appendChild(tab);
     });
 
-    panel.append(tabs, createConnectedUcsTable(plant));
+    panel.append(tabs, createConnectedUcsActions(plant), createConnectedUcsTable(plant));
     return panel;
+  }
+
+  function createConnectedUcsActions(plant: PlantRow): HTMLElement {
+    const bar = createElement('div', { className: 'page-actions' });
+    const spacer = createElement('div');
+    spacer.style.flex = '1 0 auto';
+    spacer.style.minWidth = '0';
+
+    const editButton = createElement('button', { className: 'secondary-button button-with-icon', type: 'button' });
+    editButton.append(createIcon('edit'), document.createTextNode('Editar distribuição'));
+    editButton.disabled = connectedUcs(plant.id).length === 0;
+    editButton.title = editButton.disabled ? 'Nenhuma UC conectada ainda' : 'Editar percentual das UCs conectadas';
+    editButton.addEventListener('click', () => openDistribuicaoModal(plant));
+
+    bar.append(spacer, editButton);
+    return bar;
+  }
+
+  function openDistribuicaoModal(plant: PlantRow): void {
+    const ucsForModal: PlantDistribuicaoModalUc[] = [];
+
+    allUcs.forEach((uc) => {
+      uc.conexoes
+        .filter((conexao) => conexao.plantId === plant.id)
+        .forEach((conexao) => {
+          ucsForModal.push({
+            ucId: uc.id,
+            connectionId: conexao.id,
+            codigo: uc.codigo || 'Sem codigo',
+            clienteNome: uc.clienteNome ?? uc.apelido ?? 'Sem nome',
+            consumo: uc.consumo,
+            percentualAtual: Number(conexao.percentual) || 0
+          });
+        });
+    });
+
+    document.body.appendChild(createPlantDistribuicaoModal({
+      plant,
+      ucs: ucsForModal,
+      onSaved: async () => {
+        toast.success('Distribuição atualizada.');
+        await loadPlants();
+      },
+      onError: (message) => toast.error(message)
+    }));
   }
 
   function createConnectedUcsTable(plant: PlantRow): HTMLElement {

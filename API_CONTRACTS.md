@@ -227,7 +227,7 @@ Todos os filtros opcionais e combináveis. `data` = array de `Pendencia`:
 
 ### `POST /pendencias`
 Body obrigatório: `titulo`, `categoria` (precisa estar em `CATEGORIAS_POR_TIPO['pendencia']`). Opcionais: `descricao`, `clienteId`, `ucId`, `usinaId`, `documentoId`, `prazo` (ISO ou `YYYY-MM-DD`), `prioridade` (default `media`), `responsavelId` (default: usuário logado).
-**Sempre cria tipo `pendencia`** — não existe jeito de criar `alerta`/`erro` por essa rota (são gerados só pelo sistema, via `criar_alerta`/`criar_erro` internos, ainda sem regra automática chamando-os — ver `PROGRESS.md`, Pendências Sprint 2).
+**Sempre cria tipo `pendencia`** — não existe jeito de criar `alerta`/`erro` por essa rota (são gerados só pelo sistema, via `POST /pendencias/verificar` ou regras automáticas internas).
 Sucesso (201): `data` = `Pendencia`. Erros: 400 (`titulo`/`categoria` faltando ou inválidos).
 
 ### `PUT /pendencias/<id>` — mesmo formato, todos os campos opcionais. 404 se não existir.
@@ -242,6 +242,26 @@ Sucesso (201): `data` = `Pendencia`. Erros: 400 (`titulo`/`categoria` faltando o
 
 ### `POST /pendencias/<id>/comentarios`
 Body: `{ "texto": string }`. Autor é sempre o usuário logado (`g.current_user`). Sucesso (201): `data` = `Pendencia` (já com o comentário novo em `comentarios`).
+
+### `POST /pendencias/verificar`
+Executa todas as regras automáticas de pendências. Body: nenhum. Retorna:
+```json
+{
+  "data": {
+    "verificacoes": {
+      "ucs_sem_usina": 0,
+      "clientes_sem_uc": 0,
+      "campos_faltando": 0,
+      "documentos_faltando": 0
+    },
+    "resolvidas": 0,
+    "total_criadas": 0
+  }
+}
+```
+
+### `GET /pendencias/regras`
+Lista as regras automáticas disponíveis. Retorna array de regras com `id`, `nome`, `descricao`, `categoria` e `ativa`.
 
 ---
 

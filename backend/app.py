@@ -28,23 +28,26 @@ def create_app() -> Flask:
     migrate.init_app(app, db)
     limiter.init_app(app)
 
-    from models.client import Client
-    from models.plant import Plant
-    from models.consumer_unit import ConsumerUnit, PlantConnection
-    from models.category import Category
-    from models.document import Document
-    from models.setting import Setting
-    from models.google_account import GoogleAccount
-    from models.log_entry import LogEntry
-    from models.pendencia import Pendencia, PendenciaComentario
-    from models.user import User
-    from models.rateio_historico import RateioHistorico
+    from models.empresa import Empresa  # type: ignore
+    from models.client import Client  # type: ignore
+    from models.plant import Plant  # type: ignore
+    from models.consumer_unit import ConsumerUnit, PlantConnection  # type: ignore
+    from models.category import Category  # type: ignore
+    from models.document import Document  # type: ignore
+    from models.setting import Setting  # type: ignore
+    from models.google_account import GoogleAccount  # type: ignore
+    from models.log_entry import LogEntry  # type: ignore
+    from models.pendencia import Pendencia, PendenciaComentario  # type: ignore
+    from models.user import User  # type: ignore
+    from models.invitation import Invitation  # type: ignore
+    from models.rateio_historico import RateioHistorico  # type: ignore
 
     CORS(app, origins=[Config.FRONTEND_URL], supports_credentials=True)
 
     from routes.auth_routes import auth_routes
     from routes.config_routes import config_routes
     from routes.drive_routes import drive_routes
+    from routes.empresa_routes import empresa_routes
     from routes.health_routes import health_routes
     from routes.client_routes import client_routes
     from routes.plant_routes import plant_routes
@@ -56,12 +59,14 @@ def create_app() -> Flask:
     from routes.log_routes import log_routes
     from routes.pendencia_routes import pendencia_routes
     from routes.user_routes import user_routes
+    from routes.invitation_routes import invitation_routes
     from routes.rateio_routes import rateio_routes
 
     app.register_blueprint(health_routes)
     app.register_blueprint(auth_routes)
     app.register_blueprint(drive_routes)
     app.register_blueprint(config_routes)
+    app.register_blueprint(empresa_routes)
     app.register_blueprint(client_routes)
     app.register_blueprint(plant_routes)
     app.register_blueprint(uc_routes)
@@ -72,12 +77,15 @@ def create_app() -> Flask:
     app.register_blueprint(log_routes)
     app.register_blueprint(pendencia_routes)
     app.register_blueprint(user_routes)
+    app.register_blueprint(invitation_routes)
     app.register_blueprint(rateio_routes)
 
     from utils.auth import register_auth_middleware
     register_auth_middleware(app, public_paths={
         '/', '/api/v1/auth/login', '/api/v1/auth/bootstrap', '/api/v1/auth/logout',
-        '/api/v1/auth/register',
+        '/api/v1/auth/register', '/api/v1/auth/aceitar-convite',
+        '/api/v1/convites/verificar',
+        '/api/v1/empresas/registro', '/api/v1/empresas/<string:slug>',
         '/api/v1/oauth/google/authorize', '/api/v1/oauth/google/callback'
     })
 

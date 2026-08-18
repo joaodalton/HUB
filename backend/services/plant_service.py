@@ -1,21 +1,27 @@
 # backend/services/plant_service.py
 from datetime import date, datetime
 
+from flask import g
+
 from extensions import db
 from models.plant import Plant
 
+
 def list_plants() -> list[dict]:
+    # Filtro automatico via TenantMixin (extensions.py)
     plants = Plant.query.order_by(Plant.created_at.desc()).all()
     return [plant.to_dict() for plant in plants]
 
 
 def get_plant(plant_id: int) -> dict | None:
+    # Filtro automatico via TenantMixin
     plant = Plant.query.get(plant_id)
     return plant.to_dict() if plant else None
 
 
 def create_plant(data: dict) -> dict:
     plant = Plant(
+        empresa_id=g.current_empresa_id,
         nome=data.get('nome', '').strip(),
         uc=data.get('uc', '').strip(),
         kw_pico=data.get('kwPico', 0),

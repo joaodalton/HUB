@@ -5,13 +5,14 @@
    toast, loading global, estados vazios/carregando.
    ============================================================ */
 
-.data-panel, 
-.results-panel, 
-.reserved-panel, 
-.search-panel, 
+/* ---------- Panel / Card base ---------- */
+.data-panel,
+.results-panel,
+.reserved-panel,
+.search-panel,
 .settings-panel,
-.placeholder-panel, 
-.client-uc-panel, 
+.placeholder-panel,
+.client-uc-panel,
 .client-documents-panel {
   display: flex;
   flex-direction: column;
@@ -21,21 +22,20 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-sm);
+  transition: all var(--transition-normal);
 }
 
 .placeholder-panel {
   text-align: center;
   color: var(--text-faint);
-  padding: 40px 20px;
+  padding: 48px 24px;
 }
 
 /* ---------- Icon (Icon.ts) ---------- */
-/* Wrapper generico do componente de icone SVG. Tamanho e definido pelo
-   contexto de uso (.sidebar-icon, .icon-button .icon, .upload-dropzone .icon
-   etc.) -- aqui so o essencial pra svg herdar cor e preencher o wrapper. */
-
 .icon {
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
 }
 
@@ -45,87 +45,188 @@
   display: block;
 }
 
-/* ---------- Page action row ---------- */
-
+/* ---------- Page Action Row ---------- */
 .page-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-2);
   flex-wrap: wrap;
 }
 
 .page-actions input[type="text"],
 .page-actions input[type="search"] {
   flex: 1;
-  min-width: 220px;
+  min-width: 200px;
   height: var(--control-height);
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius-input);
-  padding: 0 12px;
+  padding: 0 14px;
+  color: var(--text);
+  transition: all var(--transition-fast);
 }
 
-/* ---------- Toast / loading ---------- */
+.page-actions input[type="text"]:focus,
+.page-actions input[type="search"]:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-bg);
+}
 
+.page-actions input[type="text"]::placeholder,
+.page-actions input[type="search"]::placeholder {
+  color: var(--text-faint);
+}
+
+/* ---------- Toast / Loading ---------- */
 .toast-container {
   position: fixed;
-  bottom: 20px;
-  right: 20px;
-  display: grid;
-  gap: 8px;
+  bottom: 24px;
+  right: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   z-index: 200;
+  max-width: calc(100vw - 48px);
+}
+
+@media (max-width: 480px) {
+  .toast-container {
+    bottom: 16px;
+    right: 16px;
+    left: 16px;
+  }
 }
 
 .toast {
-  padding: 11px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
   border-radius: var(--radius-card);
   background: var(--panel);
   border: 1px solid var(--border);
   font-size: 13px;
-  box-shadow: var(--shadow-md);
-  animation: toast-in 0.15s ease;
+  box-shadow: var(--shadow-lg);
+  animation: toast-in 0.2s ease;
+  backdrop-filter: blur(8px);
 }
 
 @keyframes toast-in {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
-.toast-success { border-color: var(--success-border); color: var(--success); }
-.toast-error { border-color: var(--danger-border); color: var(--danger); }
+.toast-success {
+  border-color: var(--success-border);
+  color: var(--success);
+}
+
+.toast-error {
+  border-color: var(--danger-border);
+  color: var(--danger);
+}
+
+.toast-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.toast-message {
+  flex: 1;
+  line-height: 1.4;
+}
 
 .global-loading {
   position: fixed;
-  top: 16px;
-  right: 16px;
+  top: 20px;
+  right: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 8px 14px;
+  padding: 10px 16px;
   font-size: 12px;
   color: var(--text-dim);
   z-index: 150;
+  box-shadow: var(--shadow-md);
 }
 
-/* ---------- Empty states ---------- */
+.global-loading::before {
+  content: '';
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
 
+/* ---------- Empty States ---------- */
 .empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
   color: var(--text-faint);
   font-size: 13px;
-  padding: var(--space-4) 0;
+  padding: var(--space-5) var(--space-3);
   text-align: center;
 }
-.empty-state.small { font-size: 12px; padding: 10px 0; }
 
-.loading-state { color: var(--text-faint); font-size: 13px; }
+.empty-state.small {
+  font-size: 12px;
+  padding: var(--space-3) 0;
+}
 
-/* ---------- Select + botao inline (ex.: "+ categoria") ---------- */
-/* Generico de proposito -- reaproveitar aqui em vez de criar de novo se
-   outro lugar do app precisar do mesmo padrao select+acao. */
+.empty-state-icon {
+  width: 56px;
+  height: 56px;
+  color: var(--text-faint);
+  opacity: 0.4;
+  margin-bottom: var(--space-1);
+}
 
+.loading-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  color: var(--text-faint);
+  font-size: 13px;
+  padding: var(--space-4);
+}
+
+.loading-state::before {
+  content: '';
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------- Select + Botao inline ---------- */
 .select-with-button {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
   align-items: center;
 }
 
@@ -134,46 +235,157 @@
   min-width: 0;
 }
 
-/* ---------- Lista + painel de detalhe lateral (generico) ---------- */
-/* Mesma ideia do .pendencias-layout (lista + painel fixo a direita), so que
-   generico pra qualquer tela reaproveitar (hoje: UCs). .detail-info-panel ja
-   existe (clients.css) -- .sticky aqui e so um modificador aditivo, nao
-   afeta os outros lugares que ja usam .detail-info-panel sem essa classe. */
-
+/* ---------- Lista + Painel de Detalhe (generico) ---------- */
 .list-detail-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 500px;
+  grid-template-columns: minmax(0, 1fr) 480px;
   gap: 20px;
   align-items: start;
 }
 
-@media (max-width: 1800px) {
-  .list-detail-grid { grid-template-columns: minmax(0, 1fr) 380px; }
+@media (max-width: 1600px) {
+  .list-detail-grid {
+    grid-template-columns: minmax(0, 1fr) 400px;
+  }
 }
 
-@media (max-width: 720px) {
-  .list-detail-grid { grid-template-columns: 1fr; }
-  .list-detail-grid .detail-info-panel.sticky { position: static; }
+@media (max-width: 1200px) {
+  .list-detail-grid {
+    grid-template-columns: minmax(0, 1fr) 360px;
+  }
+}
+
+@media (max-width: 900px) {
+  .list-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .list-detail-grid .detail-info-panel.sticky {
+    position: static;
+  }
 }
 
 .detail-info-panel.sticky {
   position: sticky;
   top: 20px;
   max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
   overflow-y: auto;
 }
 
-/* So esse painel (UcsPage.ts) usa .sticky hoje -- ClientDetailView.ts e
-   PlantsPage.ts usam .detail-info-grid sem essa classe, entao 2 colunas
-   aqui nao afeta as outras telas. Painel mais largo (500px, +~30% dos
-   380px anteriores) comporta 2 colunas de campo sem espremer. */
 .detail-info-panel.sticky .detail-info-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 20px 15px;
+  gap: 18px 16px;
 }
 
 @media (max-width: 1800px) {
   .detail-info-panel.sticky .detail-info-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- Responsive Helpers ---------- */
+@media (max-width: 640px) {
+  .data-panel,
+  .results-panel,
+  .reserved-panel,
+  .search-panel,
+  .settings-panel,
+  .placeholder-panel,
+  .client-uc-panel,
+  .client-documents-panel {
+    padding: var(--space-2) var(--space-3);
+    gap: var(--space-2);
+  }
+
+  .page-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .page-actions input[type="text"],
+  .page-actions input[type="search"] {
+    min-width: 100%;
+  }
+}
+
+/* ---------- Password Cell (Users Page) ---------- */
+.password-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.password-text {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-faint);
+  letter-spacing: 0.1em;
+}
+
+.password-text.revealed {
+  color: var(--text-dim);
+  letter-spacing: normal;
+}
+
+.password-toggle {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+
+.password-toggle:hover {
+  background: var(--panel-hover);
+  color: var(--text);
+}
+
+.password-toggle .icon {
+  width: 16px;
+  height: 16px;
+}
+
+/* ---------- Table Actions ---------- */
+.table-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.table-actions .icon-button {
+  width: 32px;
+  height: 32px;
+}
+
+.table-actions .icon-button .icon {
+  width: 14px;
+  height: 14px;
+}
+
+/* ---------- Responsive Table ---------- */
+@media (max-width: 640px) {
+  .data-table {
+    font-size: 12px;
+  }
+
+  .data-table th,
+  .data-table td {
+    padding: 10px 12px;
+  }
+
+  .metric-card strong {
+    font-size: 20px;
+  }
+
+  .table-actions {
+    flex-direction: column;
+    gap: 4px;
   }
 }

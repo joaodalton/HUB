@@ -139,8 +139,8 @@ function createUserCard(): HTMLElement {
     textContent: initialsFor(user?.email ?? '?')
   });
   const text = createElement('div', { className: 'sidebar-user-text' });
-  const name = createElement('span', { className: 'sidebar-user-name', textContent: user?.email ?? 'Usuário' });
-  const role = createElement('span', { className: 'sidebar-user-role', textContent: roleLabel(user?.papel) });
+  const name = createElement('span', { className: 'sidebar-user-name', textContent: user?.nome || user?.email || 'Usuário' });
+  const role = createElement('span', { className: 'sidebar-user-role', textContent: roleLabel(user?.role) });
 
   text.append(name, role);
   card.append(avatar, text);
@@ -173,8 +173,13 @@ function initialsFor(email: string): string {
   return name.slice(0, 2).toUpperCase();
 }
 
-function roleLabel(papel?: string): string {
-  if (papel === 'admin') return 'Administrador';
-  if (papel === 'viewer') return 'Visualizador';
-  return papel || 'Usuário';
+function roleLabel(role?: string): string {
+  const labels: Record<string, string> = {
+    owner: 'Proprietário',
+    admin: 'Administrador',
+    operator: 'Operacional',
+    financial: 'Financeiro',
+    viewer: 'Visualizador'
+  };
+  return (role && labels[role]) || role || 'Usuário';
 }

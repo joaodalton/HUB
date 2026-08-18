@@ -1,6 +1,7 @@
 # backend/routes/pendencia_routes.py
 from flask import Blueprint, g, request
 
+from services.automacao_service import resolver_pendencias_resolvidas, verificar_e_criar_pendencias
 from services.pendencia_service import (
     adicionar_comentario,
     cancelar_pendencia,
@@ -117,3 +118,67 @@ def comentar(pendencia_id: int):
     if not pendencia:
         return error_response('Pendencia nao encontrada.', 404)
     return success_response(pendencia, 'Comentario adicionado.', 201)
+
+
+# ========== Rotas de automacao ==========
+
+@pendencia_routes.route('/verificar', methods=['POST'])
+def verificar():
+    """
+    Executa todas as verificacoes automaticas de pendencias.
+    Chamado pela tela de Pendencias (sincronizacao automatica ao abrir)
+    e pelo botao 'Verificar agora'.
+    """
+    try:
+        # Primeiro resolve as pendencias que ja nao se aplicam
+        resolvidas = resolver_pendencias_resolvidas()
+
+        # Depois cria as novas pendencias/alertas necessarios
+        resultado = verificar_e_criar_pendencias()
+
+        return success_response({
+            'verificacoes': resultado,
+            'resolvidas': resolvidas,
+            'total_criadas': sum(resultado.values()),
+        }, 'Verificacao automatica concluida.')
+    except Exception as exc:
+        return error_response(f'Erro na verificacao automatica: {str(exc)}', 500)
+
+
+@pendencia_routes.route('/regras', methods=['GET'])
+def listar_regras():
+    """
+    Retorna a lista de regras automaticas disponiveis para exibicao
+    na interface (Sprint 2: tela de automacao futura).
+    """
+    regras = [
+        {
+            'id': 'uc_sem_usina',
+            'nome': 'UC sem usina vinculada',
+            'descricao': 'Cria alerta quando uma UC fica mais de 7 dias sem conexão com usina',
+            'categoria': 'Operacional',
+            'ativa': True,
+        },
+        {
+            'id': 'cliente_sem_uc',
+            'nome': 'Cliente sem UC',
+            'descricao': 'Cria pendencia quando cliente novo nao tem UC vinculada',
+            'categoria': 'Cadastro',
+            'ativa': True,
+        },
+        {
+            'id': 'campos_faltando',
+            'nome': 'Campos obrigatorios faltando',
+            'descricao': 'Cria pendencia quando campos obrigatorios do cliente estao vazios',
+            'categoria': 'Cadastro',
+            'ativa': True,
+        },
+        {
+            'id': 'documentos_faltando',
+            'nome': 'Documentos obrigatorios faltando',
+            'descricao': 'Cria pendencia quando documentos obrigatorios nao foram enviados',
+            'categoria': 'Documentos',
+            'ativa': True,
+        },
+    ]
+    return success_response(regras)

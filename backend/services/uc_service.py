@@ -1,6 +1,8 @@
 # backend/services/uc_service.py
 from datetime import date, datetime
 
+from flask import g
+
 from extensions import db
 from models.client import Client
 from models.consumer_unit import ConsumerUnit, PlantConnection
@@ -9,6 +11,7 @@ from services.log_service import LogService
 
 
 def list_ucs() -> list[dict]:
+    # Filtro automatico via TenantMixin (extensions.py)
     # Por updated_at, nao created_at -- assim uma UC editada agora aparece no
     # topo, mesmo se foi criada ha meses. updated_at ja e mantido sozinho pelo
     # SQLAlchemy (onupdate=datetime.utcnow no model) a cada save.
@@ -17,6 +20,7 @@ def list_ucs() -> list[dict]:
 
 
 def get_uc(uc_id: int) -> dict | None:
+    # Filtro automatico via TenantMixin
     uc = ConsumerUnit.query.get(uc_id)
     return uc.to_dict() if uc else None
 
@@ -27,7 +31,10 @@ def create_uc(data: dict) -> dict:
     if not client:
         raise ValueError('Cliente informado nao existe.')
 
-    uc = ConsumerUnit(client_id=client.id)
+    uc = ConsumerUnit(
+        empresa_id=g.current_empresa_id,
+        client_id=client.id
+    )
     apply_uc_fields(uc, data)
     db.session.add(uc)
     db.session.flush()
@@ -188,6 +195,7 @@ def sync_connections(uc: ConsumerUnit, conexoes_data: list[dict]) -> None:
             continue  # usina foi excluida; ignora conexao orfa
 
         db.session.add(PlantConnection(
+            empresa_id=g.current_empresa_id,
             consumer_unit_id=uc.id,
             plant_id=plant.id,
             percentual=conexao_data.get('percentual', '')

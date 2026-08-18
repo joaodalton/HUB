@@ -92,3 +92,30 @@ export async function getQualificacao(plantId: number): Promise<RateioQualificac
   return response.data;
 }
 
+export type RateioDistribuicaoConexao = {
+  id: number;
+  plantId: number;
+  usina: string;
+  percentual: number;
+  percentualManual: boolean;
+};
+
+export type RateioDistribuicaoResultado = {
+  plantId: number;
+  conexoes: RateioDistribuicaoConexao[];
+};
+
+// Edita percentual de conexoes que JA EXISTEM (botao "Editar distribuicao"
+// na tela de Usina) -- diferente de confirmarSelecaoRateio, que so roda
+// dentro do wizard e pode criar conexao nova. Ver rateio_service.py.
+export async function atualizarDistribuicao(
+  plantId: number,
+  atualizacoes: Array<{ connectionId: number; percentual: number }>
+): Promise<RateioDistribuicaoResultado> {
+  const response = await apiRequest<ApiResponse<RateioDistribuicaoResultado>>('/rateio/distribuicao', {
+    method: 'PUT',
+    body: { plantId, atualizacoes }
+  });
+  return response.data;
+}
+

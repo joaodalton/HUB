@@ -102,6 +102,7 @@ graph TD
     models_consumer_unit["models.consumer_unit"]
     models_document["models.document"]
     models_drive_item["models.drive_item"]
+    models_email_template["models.email_template"]
     models_empresa["models.empresa"]
     models_google_account["models.google_account"]
     models_invitation["models.invitation"]
@@ -125,6 +126,7 @@ graph TD
     routes_config_routes["routes.config_routes"]
     routes_document_routes["routes.document_routes"]
     routes_drive_routes["routes.drive_routes"]
+    routes_email_template_routes["routes.email_template_routes"]
     routes_empresa_routes["routes.empresa_routes"]
     routes_health_routes["routes.health_routes"]
     routes_invitation_routes["routes.invitation_routes"]
@@ -146,7 +148,8 @@ graph TD
     services_document_service["services.document_service"]
     services_drive_service["services.drive_service"]
     services_email_service["services.email_service"]
-    services_email_templates["services.email_templates"]
+    services_email_template_defaults["services.email_template_defaults"]
+    services_email_template_service["services.email_template_service"]
     services_empresa_service["services.empresa_service"]
     services_invitation_service["services.invitation_service"]
     services_log_service["services.log_service"]
@@ -172,6 +175,7 @@ graph TD
   app --> models_client
   app --> models_consumer_unit
   app --> models_document
+  app --> models_email_template
   app --> models_empresa
   app --> models_google_account
   app --> models_invitation
@@ -188,6 +192,7 @@ graph TD
   app --> routes_config_routes
   app --> routes_document_routes
   app --> routes_drive_routes
+  app --> routes_email_template_routes
   app --> routes_empresa_routes
   app --> routes_health_routes
   app --> routes_invitation_routes
@@ -205,6 +210,7 @@ graph TD
   models_client --> extensions
   models_consumer_unit --> extensions
   models_document --> extensions
+  models_email_template --> extensions
   models_empresa --> extensions
   models_google_account --> extensions
   models_google_account --> utils_crypto
@@ -235,6 +241,10 @@ graph TD
   routes_document_routes --> utils_api_response
   routes_drive_routes --> services_drive_service
   routes_drive_routes --> utils_api_response
+  routes_email_template_routes --> services_email_service
+  routes_email_template_routes --> services_email_template_service
+  routes_email_template_routes --> services_permission_service
+  routes_email_template_routes --> utils_api_response
   routes_empresa_routes --> config
   routes_empresa_routes --> models_empresa
   routes_empresa_routes --> models_user
@@ -301,15 +311,22 @@ graph TD
   services_drive_service --> utils_files
   services_email_service --> config
   services_email_service --> services_log_service
+  services_email_template_service --> extensions
+  services_email_template_service --> models_email_template
+  services_email_template_service --> services_email_template_defaults
+  services_email_template_service --> services_log_service
   services_empresa_service --> extensions
   services_empresa_service --> models_empresa
   services_empresa_service --> models_user
   services_empresa_service --> services_log_service
   services_empresa_service --> utils_auth
+  services_invitation_service --> config
   services_invitation_service --> extensions
   services_invitation_service --> models_empresa
   services_invitation_service --> models_invitation
   services_invitation_service --> models_user
+  services_invitation_service --> services_email_service
+  services_invitation_service --> services_email_template_service
   services_invitation_service --> services_log_service
   services_invitation_service --> services_user_service
   services_invitation_service --> utils_auth
@@ -326,7 +343,7 @@ graph TD
   services_password_reset_service --> models_password_reset_token
   services_password_reset_service --> models_user
   services_password_reset_service --> services_email_service
-  services_password_reset_service --> services_email_templates
+  services_password_reset_service --> services_email_template_service
   services_password_reset_service --> services_log_service
   services_password_reset_service --> utils_auth
   services_pendencia_service --> extensions
@@ -400,11 +417,13 @@ graph TD
     pages_ClientsPage["pages/ClientsPage"]
     pages_DocumentsPage["pages/DocumentsPage"]
     pages_EmpresasPage["pages/EmpresasPage"]
+    pages_ForgotPasswordPage["pages/ForgotPasswordPage"]
     pages_LoginPage["pages/LoginPage"]
     pages_PendenciasPage["pages/PendenciasPage"]
     pages_PlaceholderPage["pages/PlaceholderPage"]
     pages_PlantsPage["pages/PlantsPage"]
     pages_RateioPage["pages/RateioPage"]
+    pages_ResetPasswordPage["pages/ResetPasswordPage"]
     pages_SettingsPage["pages/SettingsPage"]
     pages_UcsPage["pages/UcsPage"]
     pages_UsersPage["pages/UsersPage"]
@@ -419,9 +438,11 @@ graph TD
     services_documentRules["services/documentRules"]
     services_documentsService["services/documentsService"]
     services_driveService["services/driveService"]
+    services_emailTemplatesService["services/emailTemplatesService"]
     services_empresaService["services/empresaService"]
     services_googleAccountService["services/googleAccountService"]
     services_logsService["services/logsService"]
+    services_passwordResetService["services/passwordResetService"]
     services_pendenciaCategoriasService["services/pendenciaCategoriasService"]
     services_pendenciasService["services/pendenciasService"]
     services_plantService["services/plantService"]
@@ -499,6 +520,8 @@ graph TD
   pages_EmpresasPage --> hooks_useGlobalLoading
   pages_EmpresasPage --> layouts_BaseLayout
   pages_EmpresasPage --> services_empresaService
+  pages_ForgotPasswordPage --> components_Icon
+  pages_ForgotPasswordPage --> services_passwordResetService
   pages_LoginPage --> components_Icon
   pages_LoginPage --> components_Sidebar
   pages_LoginPage --> services_authService
@@ -536,11 +559,14 @@ graph TD
   pages_RateioPage --> services_plantService
   pages_RateioPage --> services_rateioService
   pages_RateioPage --> services_ucsService
+  pages_ResetPasswordPage --> components_Icon
+  pages_ResetPasswordPage --> services_passwordResetService
   pages_SettingsPage --> components_DataTable
   pages_SettingsPage --> components_Sidebar
   pages_SettingsPage --> components_formFields
   pages_SettingsPage --> hooks_useToast
   pages_SettingsPage --> layouts_BaseLayout
+  pages_SettingsPage --> services_emailTemplatesService
   pages_SettingsPage --> services_googleAccountService
   pages_SettingsPage --> services_logsService
   pages_SettingsPage --> services_rateioConfigService
@@ -569,10 +595,12 @@ graph TD
   services_databaseConfigService --> services_apiClient
   services_documentsService --> services_apiClient
   services_driveService --> services_apiClient
+  services_emailTemplatesService --> services_apiClient
   services_empresaService --> services_apiClient
   services_googleAccountService --> services_apiClient
   services_googleAccountService --> services_config
   services_logsService --> services_apiClient
+  services_passwordResetService --> services_apiClient
   services_pendenciaCategoriasService --> services_apiClient
   services_pendenciasService --> services_apiClient
   services_plantService --> services_apiClient
@@ -582,10 +610,12 @@ graph TD
   services_router --> pages_ClientsPage
   services_router --> pages_DocumentsPage
   services_router --> pages_EmpresasPage
+  services_router --> pages_ForgotPasswordPage
   services_router --> pages_LoginPage
   services_router --> pages_PendenciasPage
   services_router --> pages_PlantsPage
   services_router --> pages_RateioPage
+  services_router --> pages_ResetPasswordPage
   services_router --> pages_SettingsPage
   services_router --> pages_UcsPage
   services_router --> pages_UsersPage

@@ -39,6 +39,23 @@ Body: `{ "email": string, "senha": string }`
 Sucesso (200): `data` = `{ "token": string, "user": User }`.
 Erro: 401 (email/senha inválidos).
 
+
+### `POST /auth/esqueci-senha` — pública
+Body: `{ "email": string }`. Sempre retorna a mesma mensagem, mesmo se o e-mail não existir (não revela quem tem conta). Rate limit 5/min.
+
+### `POST /auth/redefinir-senha` — pública
+Body: `{ "token": string, "senha": string (min. 6) }`. Token vem do link do e-mail, TTL 1h, uso único. Rate limit 5/min.
+
+## Templates de e-mail (`/email-templates`)
+
+Restrito a `owner`/`admin` (`settings.read`/`settings.update`).
+
+### `GET /email-templates` — `data` = array de `{ chave, nome, assunto, corpo, variaveisDisponiveis }`
+### `GET /email-templates/<chave>` — `data` = um template. 404 se não existir.
+### `PUT /email-templates/<chave>` — Body: `{ assunto, corpo }`. Atualiza o template.
+### `POST /email-templates/<chave>/restaurar` — sem body. Volta ao texto padrão.
+### `POST /email-templates/<chave>/testar` — sem body. Manda um e-mail de teste (dados de exemplo) pro e-mail do usuário logado. 503 se `RESEND_API_KEY` não estiver configurada.
+
 ---
 
 ## Clientes (`/clients`)

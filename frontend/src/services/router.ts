@@ -1,7 +1,9 @@
 import { createClientsPage } from '../pages/ClientsPage';
 import { createAgendaPage } from '../pages/AgendaPage';
 import { createDocumentsPage } from '../pages/DocumentsPage';
+import { createForgotPasswordPage } from '../pages/ForgotPasswordPage';
 import { createLoginPage } from '../pages/LoginPage';
+import { createResetPasswordPage } from '../pages/ResetPasswordPage';
 import { createPendenciasPage } from '../pages/PendenciasPage';
 import { createPlantsPage } from '../pages/PlantsPage';
 import { createRateioPage } from '../pages/RateioPage';
@@ -52,24 +54,40 @@ export function createRouter(root: HTMLElement) {
     });
   }
 
-  function render(): void {
-    const isLoginPath = window.location.pathname === '/login';
+  // Rotas publicas alem de /login -- acessiveis sem sessao, e um usuario
+  // ja logado que cair nelas e redirecionado pra home (mesmo comportamento
+  // que /login ja tinha).
+  const PUBLIC_AUTH_PATHS = new Set(['/login', '/esqueci-senha', '/redefinir-senha']);
 
-    if (!isAuthenticated() && !isLoginPath) {
+  function render(): void {
+    const path = window.location.pathname;
+    const isPublicAuthPath = PUBLIC_AUTH_PATHS.has(path);
+
+    if (!isAuthenticated() && !isPublicAuthPath) {
       redirect('/login');
       return;
     }
 
-    if (isAuthenticated() && isLoginPath) {
+    if (isAuthenticated() && isPublicAuthPath) {
       redirect('/');
       return;
     }
 
-    if (isLoginPath) {
+    if (path === '/login') {
       root.replaceChildren(createLoginPage(() => {
         appearanceLoaded = false;
         redirect('/');
       }));
+      return;
+    }
+
+    if (path === '/esqueci-senha') {
+      root.replaceChildren(createForgotPasswordPage());
+      return;
+    }
+
+    if (path === '/redefinir-senha') {
+      root.replaceChildren(createResetPasswordPage());
       return;
     }
 

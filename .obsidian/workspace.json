@@ -11,14 +11,10 @@
             "id": "5da95964e3915884",
             "type": "leaf",
             "state": {
-              "type": "markdown",
-              "state": {
-                "file": "ARCHITECTURE.md",
-                "mode": "source",
-                "source": false
-              },
-              "icon": "lucide-file",
-              "title": "ARCHITECTURE"
+              "type": "graph",
+              "state": {},
+              "icon": "lucide-git-fork",
+              "title": "Visualização em gráfico"
             }
           }
         ]
@@ -215,19 +211,19 @@
   },
   "active": "5da95964e3915884",
   "lastOpenFiles": [
-    "frontend/vite.config.ts.timestamp-1787223595234-a2410ee3f472b.mjs",
-    "graphify-out/cache/ast/v0.9.47-s2/fd0c8b449955d73ebed36d2edaea3c1e8dae48bb50a50bc4655fea98f7ce738a.json",
-    "graphify-out/cache/ast/v0.9.47-s2/f8d82feadec2af968252e9b13939d2ffbcd604130bf1adeb4b4adf05f22ce50a.json",
-    "graphify-out/cache/ast/v0.9.47-s2/f72dbf182d5ff8d97428f7ce357049bb5a5c0a35a3a7984c5752ce337647a9cc.json",
-    "graphify-out/cache/ast/v0.9.47-s2/f35345c9ad1d5365100268d9a17b633bf5ca74f1a2e725986fd1c7872b09a525.json",
-    "graphify-out/cache/ast/v0.9.47-s2/f1d312ecf3b69f28564faa86d30127d1975480c0e0f5e97e9bd7c30f2824ac80.json",
-    "graphify-out/cache/ast/v0.9.47-s2/ee71083a66a04ebca379540466be6ffba6d7b26a92db31776f2056979df8c4d1.json",
-    "graphify-out/cache/ast/v0.9.47-s2/a45e8a8ad4e153cf79c7eeaae6171c15887d71b83452a70411599dac513ee63b.json",
-    "graphify-out/cache/ast/v0.9.47-s2/a3c78e8a5b0d5e7533a3953086168c860d0ee1ac7129cb8569a8bb3d8cfd6233.json",
-    "graphify-out/cache/ast/v0.9.47-s2/a238a1aaa9d7899b44331bf91d1473e6c5188d783602786f872aff6809b5cdff.json",
-    "graphify-out/cache/ast/v0.9.47-s2/9dfd817c9d6ff701a93b51c3c81805d6f24bf3dc8eb291e52b7e477b6b97bb06.json",
-    "graphify-out/GRAPH_REPORT.md",
+    "processos.json",
+    "backend/migrations/versions/__pycache__/c9190fb66b9f_add_email_templates.cpython-313.pyc",
+    "backend/migrations/versions/c9190fb66b9f_add_email_templates.py",
+    "backend/routes/__pycache__/email_template_routes.cpython-313.pyc",
+    "frontend/src/pages/ResetPasswordPage.ts",
+    "frontend/src/pages/ForgotPasswordPage.ts",
+    "frontend/src/services/emailTemplatesService.ts",
+    "frontend/src/services/passwordResetService.ts",
+    "backend/routes/email_template_routes.py",
+    "backend/services/__pycache__/email_template_defaults.cpython-313.pyc",
+    "backend/models/__pycache__/email_template.cpython-313.pyc",
     "ARCHITECTURE.md",
+    "graphify-out/GRAPH_REPORT.md",
     "frontend/node_modules/vite/LICENSE.md",
     "PENDENCIAS.md",
     "README.md"

@@ -23,8 +23,15 @@ import {
 } from '../services/googleAccountService';
 import { formattedLogDate, getRecentLogs, type LogRow } from '../services/logsService';
 import { DEFAULT_RATEIO_CONFIG, getRateioConfig, saveRateioConfig, type RateioConfig } from '../services/rateioConfigService';
+import {
+  getEmailTemplates,
+  restoreEmailTemplate,
+  sendTestEmail,
+  updateEmailTemplate,
+  type EmailTemplateRow
+} from '../services/emailTemplatesService';
 
-type SettingsCategory = 'home' | 'geral' | 'database' | 'apis' | 'automations' | 'logs' | 'appearance';
+type SettingsCategory = 'home' | 'geral' | 'database' | 'emails' | 'apis' | 'automations' | 'logs' | 'appearance';
 
 type CategoryDefinition = {
   key: SettingsCategory;
@@ -38,6 +45,7 @@ const CATEGORIES: CategoryDefinition[] = [
   { key: 'home', label: 'Home', ready: true },
   { key: 'geral', label: 'Geral', ready: true },
   { key: 'database', label: 'Banco de Dados', ready: true },
+  { key: 'emails', label: 'E-mails', ready: true },
   { key: 'apis', label: 'APIs e Integrações', ready: false },
   { key: 'automations', label: 'Automações', ready: false },
   { key: 'logs', label: 'Logs', ready: true },
@@ -54,12 +62,15 @@ export function createSettingsPage(): HTMLElement {
   let logsLoaded = false;
   let rateioConfig: RateioConfig = DEFAULT_RATEIO_CONFIG;
   let rateioConfigLoaded = false;
+  let emailTemplates: EmailTemplateRow[] = [];
+  let emailTemplatesLoaded = false;
 
   renderContent();
   loadGoogleAccounts();
   refreshAppearance();
   loadRecentLogs();
   loadRateioConfig();
+  loadEmailTemplates();
 
   const layout = createBaseLayout({
     content,
@@ -149,6 +160,50 @@ export function createSettingsPage(): HTMLElement {
     }
   }
 
+  async function loadEmailTemplates(): Promise<void> {
+    try {
+      emailTemplates = await getEmailTemplates();
+    } catch {
+      emailTemplates = [];
+    } finally {
+      emailTemplatesLoaded = true;
+      renderContent();
+    }
+  }
+
+  async function handleSaveEmailTemplate(chave: string, assunto: string, corpo: string): Promise<void> {
+    try {
+      const updated = await updateEmailTemplate(chave, assunto, corpo);
+      emailTemplates = emailTemplates.map((item) => (item.chave === chave ? updated : item));
+      toast.success('Template salvo.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível salvar o template.');
+    } finally {
+      renderContent();
+    }
+  }
+
+  async function handleRestoreEmailTemplate(chave: string): Promise<void> {
+    try {
+      const updated = await restoreEmailTemplate(chave);
+      emailTemplates = emailTemplates.map((item) => (item.chave === chave ? updated : item));
+      toast.success('Template restaurado ao padrão.');
+    } catch {
+      toast.error('Não foi possível restaurar o template.');
+    } finally {
+      renderContent();
+    }
+  }
+
+  async function handleTestEmailTemplate(chave: string): Promise<void> {
+    try {
+      const message = await sendTestEmail(chave);
+      toast.success(message);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível enviar o teste.');
+    }
+  }
+  
   function changeCategory(category: SettingsCategory): void {
     // Sai da aba Aparencia sem salvar -> descarta a pre-visualizacao de cor
     // pra nao deixar o tema "vazando" preview nao salvo pelo resto do app.
@@ -183,6 +238,15 @@ export function createSettingsPage(): HTMLElement {
           onActivate: handleActivateAccount,
           onDisconnect: handleDisconnectAccount
         });
+
+      case 'emails':
+        return createEmailsPanel(
+          emailTemplates,
+          emailTemplatesLoaded,
+          handleSaveEmailTemplate,
+          handleRestoreEmailTemplate,
+          handleTestEmailTemplate
+        );
 
       case 'logs':
         return createLogsPanel(recentLogs, logsLoaded);
@@ -321,6 +385,105 @@ function createGeralPanel(
   panel.append(body, actions);
 
   return panel;
+}
+
+// ---------- E-mails (templates editaveis) ----------
+
+function createEmailsPanel(
+  templates: EmailTemplateRow[],
+  loaded: boolean,
+  onSave: (chave: string, assunto: string, corpo: string) => Promise<void>,
+  onRestore: (chave: string) => Promise<void>,
+  onTest: (chave: string) => Promise<void>
+): HTMLElement {
+  const panel = createElement('section', { className: 'settings-panel' });
+  panel.appendChild(createPanelHeader('E-mails', 'Textos enviados automaticamente pelo sistema (redefinição de senha, convites...)'));
+
+  if (!loaded) {
+    panel.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Carregando templates...' }));
+    return panel;
+  }
+
+  if (templates.length === 0) {
+    panel.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Nenhum template disponível ainda.' }));
+    return panel;
+  }
+
+  const list = createElement('div', { className: 'settings-list' });
+  templates.forEach((template) => list.appendChild(createEmailTemplateCard(template, onSave, onRestore, onTest)));
+  panel.appendChild(list);
+
+  return panel;
+}
+
+function createEmailTemplateCard(
+  template: EmailTemplateRow,
+  onSave: (chave: string, assunto: string, corpo: string) => Promise<void>,
+  onRestore: (chave: string) => Promise<void>,
+  onTest: (chave: string) => Promise<void>
+): HTMLElement {
+  const card = createElement('details', { className: 'uc-editor-card' });
+  const summary = createElement('summary', { className: 'uc-summary' });
+  const titleGroup = createElement('div', { className: 'uc-summary-title' });
+
+  titleGroup.append(
+    createElement('strong', { textContent: template.nome }),
+    createElement('span', { textContent: `Variáveis: ${template.variaveisDisponiveis.map((v) => `{{${v}}}`).join(', ') || '-'}` })
+  );
+  summary.appendChild(titleGroup);
+
+  const body = createElement('div', { className: 'uc-editor-body settings-form' });
+
+  const assuntoField = createElement('label', { className: 'form-field' });
+  const assuntoInput = createElement('input');
+  assuntoInput.type = 'text';
+  assuntoInput.value = template.assunto;
+  assuntoField.append(createElement('span', { textContent: 'Assunto' }), assuntoInput);
+
+  const corpoField = createElement('label', { className: 'form-field' });
+  const corpoInput = createElement('textarea');
+  corpoInput.rows = 8;
+  corpoInput.value = template.corpo;
+  corpoField.append(createElement('span', { textContent: 'Corpo' }), corpoInput);
+
+  const hint = createElement('p', {
+    className: 'settings-hint',
+    textContent: 'Use {{variavel}} pra inserir dados dinâmicos. Quando "{{link}}" aparece sozinho numa linha, vira um botão no e-mail.'
+  });
+
+  const actions = createElement('div', { className: 'form-actions' });
+  const saveButton = createElement('button', { textContent: 'Salvar', type: 'button' });
+  const restoreButton = createElement('button', { className: 'secondary-button', textContent: 'Restaurar padrão', type: 'button' });
+  const testButton = createElement('button', { className: 'secondary-button', textContent: 'Enviar teste pra mim', type: 'button' });
+
+  saveButton.addEventListener('click', async () => {
+    saveButton.disabled = true;
+    saveButton.textContent = 'Salvando...';
+    await onSave(template.chave, assuntoInput.value, corpoInput.value);
+    saveButton.disabled = false;
+    saveButton.textContent = 'Salvar';
+  });
+
+  restoreButton.addEventListener('click', async () => {
+    if (!window.confirm('Restaurar este template ao texto padrão? As edições atuais serão perdidas.')) return;
+    restoreButton.disabled = true;
+    await onRestore(template.chave);
+    restoreButton.disabled = false;
+  });
+
+  testButton.addEventListener('click', async () => {
+    testButton.disabled = true;
+    testButton.textContent = 'Enviando...';
+    await onTest(template.chave);
+    testButton.disabled = false;
+    testButton.textContent = 'Enviar teste pra mim';
+  });
+
+  actions.append(saveButton, restoreButton, testButton);
+  body.append(assuntoField, corpoField, hint, actions);
+  card.append(summary, body);
+
+  return card;
 }
 
 function createComingSoonPanel(message: string): HTMLElement {

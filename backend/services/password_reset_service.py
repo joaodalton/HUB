@@ -13,7 +13,7 @@ from config import Config
 from models.password_reset_token import PasswordResetToken
 from models.user import User
 from services.email_service import send_email
-from services.email_templates import password_reset_email
+from services.email_template_service import renderizar as renderizar_template
 from services.log_service import LogService
 from utils.auth import hash_password
 
@@ -52,8 +52,17 @@ def solicitar_reset(email: str) -> None:
     db.session.commit()
 
     reset_link = f'{Config.FRONTEND_URL}/redefinir-senha?token={token_cru}'
-    subject, html, text = password_reset_email(user.nome, reset_link)
-    send_email(to=user.email, subject=subject, html=html, text=text)
+    renderizado = renderizar_template('password_reset', {'nome': user.nome or user.email, 'link': reset_link})
+
+    if renderizado:
+        subject, html, text = renderizado
+        send_email(to=user.email, subject=subject, html=html, text=text)
+    else:
+        LogService.warning(
+            acao='email_template_missing',
+            mensagem='Template "password_reset" não encontrado -- e-mail de redefinição não enviado.',
+            entidade='EmailTemplate'
+        )
 
     LogService.info(
         acao='password_reset_solicitado',

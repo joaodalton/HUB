@@ -57,8 +57,16 @@ export function createLoginPage(onSuccess: () => void): HTMLElement {
       }
     });
 
+    const forgotLink = createElement('a', { className: 'login-forgot-link', textContent: 'Esqueci minha senha' });
+    forgotLink.href = '/esqueci-senha';
+    forgotLink.addEventListener('click', (event) => {
+      event.preventDefault();
+      window.history.pushState({}, '', '/esqueci-senha');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+
     const wrapper = createElement('div', { className: 'login-view' });
-    wrapper.append(heading, subheading, form, createLoginStatusFooter());
+    wrapper.append(heading, subheading, form, forgotLink, createLoginStatusFooter());
     return wrapper;
   }
 

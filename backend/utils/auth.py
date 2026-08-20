@@ -17,6 +17,11 @@ TOKEN_MAX_AGE_SECONDS = 60 * 60 * 24 * 7
 
 COOKIE_NAME = 'hub_token'
 CSRF_COOKIE_NAME = 'hub_csrf'
+# Cookie separado do de sessão -- só existe pra platform admin que "entrou"
+# numa empresa (ver routes/platform_routes.py). Guarda so o empresa_id
+# escolhido, nunca é lido/confiado por si só: o middleware sempre confere
+# de novo que o dono do cookie é is_platform_admin antes de usar o valor.
+VIEW_COOKIE_NAME = 'hub_platform_view'
 _SAFE_METHODS = {'GET', 'HEAD', 'OPTIONS'}
 
 
@@ -73,6 +78,17 @@ def clear_auth_cookies(response) -> None:
     is_prod = not Config.DEBUG
     response.delete_cookie(COOKIE_NAME, path='/', samesite='Lax', secure=is_prod)
     response.delete_cookie(CSRF_COOKIE_NAME, path='/', samesite='Lax', secure=is_prod)
+
+def set_platform_view_cookie(response, empresa_id: int) -> None:
+    is_prod = not Config.DEBUG
+    response.set_cookie(
+        VIEW_COOKIE_NAME, str(empresa_id), httponly=True, secure=is_prod,
+        samesite='Lax', max_age=TOKEN_MAX_AGE_SECONDS, path='/'
+    )
+
+def clear_platform_view_cookie(response) -> None:
+    is_prod = not Config.DEBUG
+    response.delete_cookie(VIEW_COOKIE_NAME, path='/', samesite='Lax', secure=is_prod)
 
 def resolve_current_user_optional():
     """Mesma checagem de token de _require_auth, mas sem forçar 401 se não
@@ -135,6 +151,22 @@ def register_auth_middleware(app, public_paths: set[str]) -> None:
         g.current_empresa_id = user.empresa_id
         g.current_role = user.role
         g.current_empresa = Empresa.query.get(user.empresa_id)
+        g.platform_view_empresa_id = None
+
+        # Platform admin "dentro" de uma empresa (ver routes/platform_routes.py):
+        # sobrescreve g.current_empresa_id só pra esta requisição -- toda rota
+        # existente (clients, plants, ucs, documents...) passa a enxergar a
+        # empresa escolhida automaticamente, sem precisar de rota duplicada.
+        # Cookie sozinho nunca é suficiente: só vale se o USUÁRIO LOGADO
+        # (não o cookie) for is_platform_admin de verdade.
+        if user.is_platform_admin:
+            view_cookie = request.cookies.get(VIEW_COOKIE_NAME)
+            if view_cookie and view_cookie.isdigit():
+                empresa_visualizada = Empresa.query.get(int(view_cookie))
+                if empresa_visualizada:
+                    g.current_empresa_id = empresa_visualizada.id
+                    g.current_empresa = empresa_visualizada
+                    g.platform_view_empresa_id = empresa_visualizada.id
 
         if token_from_cookie and request.method not in _SAFE_METHODS:
             csrf_cookie = request.cookies.get(CSRF_COOKIE_NAME)

@@ -1,6 +1,7 @@
 # APP HUB — Sistema de Operação Solar
 
 > **Programa de trabalho diário** para organizar clientes, UCs (unidades consumidoras), usinas e documentos de uma operação de energia solar.
+> **Documentos relacionados:** [[VISAO]] · [[ARCHITECTURE]] · [[PROGRESS]] · [[API_CONTRACTS]]
 
 [![Status](https://img.shields.io/badge/versão-V0.x-blue)](VISAO.md)
 [![Backend](https://img.shields.io/badge/backend-Flask%20%2B%20SQLAlchemy-green)](backend/)

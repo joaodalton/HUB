@@ -1,6 +1,7 @@
 # APP HUB — Como contribuir (humanos e agentes de IA)
 
-> Leia isso depois de `VISAO.md` e `PROGRESS.md`. Este arquivo é sobre **processo** — como o trabalho é registrado e entregue. `VISAO.md` continua sendo o norte do produto; `PROGRESS.md`, o estado atual.
+> Leia isso depois de [[VISAO]] e [[PROGRESS]].
+> **Documentos relacionados:** [[VISAO]] · [[PROGRESS]] · [[ARCHITECTURE]] Este arquivo é sobre **processo** — como o trabalho é registrado e entregue. `VISAO.md` continua sendo o norte do produto; `PROGRESS.md`, o estado atual.
 
 ---
 

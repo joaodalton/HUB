@@ -41,6 +41,7 @@ def create_app() -> Flask:
     from models.user import User  # type: ignore
     from models.invitation import Invitation  # type: ignore
     from models.rateio_historico import RateioHistorico  # type: ignore
+    from models.password_reset_token import PasswordResetToken  # type: ignore
 
     CORS(app, origins=[Config.FRONTEND_URL], supports_credentials=True)
 
@@ -61,6 +62,7 @@ def create_app() -> Flask:
     from routes.user_routes import user_routes
     from routes.invitation_routes import invitation_routes
     from routes.rateio_routes import rateio_routes
+    from routes.platform_routes import platform_routes
 
     app.register_blueprint(health_routes)
     app.register_blueprint(auth_routes)
@@ -79,6 +81,7 @@ def create_app() -> Flask:
     app.register_blueprint(user_routes)
     app.register_blueprint(invitation_routes)
     app.register_blueprint(rateio_routes)
+    app.register_blueprint(platform_routes)
 
     from utils.auth import register_auth_middleware
     register_auth_middleware(app, public_paths={
@@ -86,7 +89,8 @@ def create_app() -> Flask:
         '/api/v1/auth/register', '/api/v1/auth/aceitar-convite',
         '/api/v1/convites/verificar',
         '/api/v1/empresas/registro', '/api/v1/empresas/<string:slug>',
-        '/api/v1/oauth/google/authorize', '/api/v1/oauth/google/callback'
+        '/api/v1/oauth/google/authorize', '/api/v1/oauth/google/callback',
+        '/api/v1/auth/esqueci-senha', '/api/v1/auth/redefinir-senha'
     })
 
     @app.after_request

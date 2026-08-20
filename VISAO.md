@@ -2,6 +2,7 @@
 
 > **Para o Codex (ou qualquer IA trabalhando neste repositório):** leia este arquivo INTEIRO antes de começar qualquer tarefa. Ele não muda com frequência — é a meta fixa do projeto. O que muda a cada sessão é o `PROGRESS.md`, que diz exatamente em qual tarefa você está agora.
 >
+> **Documentos relacionados:** [[ARCHITECTURE]] · [[PROGRESS]] · [[API_CONTRACTS]] · [[DEPLOY]] · [[RATEIO]] · [[PENDENCIAS]] · [[CONTRIBUTING]]
 > Se este arquivo e uma instrução dada em um prompt específico entrarem em conflito, este arquivo vence, a menos que o usuário diga explicitamente "isso substitui a visão do projeto".
 
 ---

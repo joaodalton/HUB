@@ -1,6 +1,7 @@
 # HUB — Contratos de API
 
-> Gerado a partir do código em `backend/routes/` e `backend/services/` em 2026-07-27.
+
+> **Documentos relacionados:** [[ARCHITECTURE]] · [[VISAO]] · [[RATEIO]]
 > Se um endpoint mudar, atualize este arquivo no mesmo commit — é a regra combinada em `PROGRESS.md`.
 
 ## Convenções gerais

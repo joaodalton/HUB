@@ -12,3 +12,4 @@ cryptography
 psutil
 gunicorn
 sentry-sdk[flask]
+resend

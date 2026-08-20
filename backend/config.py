@@ -77,6 +77,13 @@ class Config:
     SENTRY_DSN = os.getenv('SENTRY_DSN', '')
     SENTRY_ENVIRONMENT = os.getenv('SENTRY_ENVIRONMENT', 'development')
 
+    # E-mail transacional via Resend (resend.com). Sem RESEND_API_KEY, o
+    # email_service.py vira no-op com log de warning -- mesmo espirito do
+    # Sentry sem DSN, seguro rodar local sem essa variavel configurada.
+    RESEND_API_KEY = os.getenv('RESEND_API_KEY', '')
+    # Precisa ser um remetente/dominio verificado na conta Resend.
+    EMAIL_FROM = os.getenv('EMAIL_FROM', 'HUB <onboarding@resend.dev>')
+
     SQLALCHEMY_DATABASE_URI = os.getenv(
     'DATABASE_URL',
     f"sqlite:///{(BASE_DIR / 'database' / 'hub.db').as_posix()}" 

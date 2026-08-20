@@ -1,6 +1,7 @@
 # APP HUB — Progresso
 
-> Leia `VISAO.md` primeiro. Este arquivo é o estado atual, atualizado a cada tarefa concluída.
+> Leia [[VISAO]] primeiro. Este arquivo é o estado atual, atualizado a cada tarefa concluída.
+> **Documentos relacionados:** [[VISAO]] · [[ARCHITECTURE]] · [[API_CONTRACTS]] · [[CONTRIBUTING]]
 > Regra: pegue a primeira tarefa `[ ]` de cima pra baixo. Não pule.
 
 Última atualização: 2026-08-13 — Sprint 2 de Pendências (automação completa), polimento visual do frontend, tela de Usuários reformulada com tabela, edição e exclusão.

@@ -31,28 +31,14 @@ def bootstrap():
 @auth_routes.route('/register', methods=['POST'])
 @limiter.limit('5 per minute')
 def register():
-    data = request.get_json(silent=True) or {}
-    codigo = (data.get('codigo') or '').strip()
-
-    # O tenant nunca vem do cliente: um SIGNUP_CODE global não pode dar
-    # acesso a empresas cujo id foi apenas adivinhado. Para o fluxo normal,
-    # use convite; esse endpoint só existe para um tenant explicitamente
-    # configurado no servidor.
-    try:
-        empresa_id = int(Config.SIGNUP_EMPRESA_ID)
-    except (TypeError, ValueError):
-        return error_response('Cadastro público desativado. Use um convite da sua empresa.', 403)
-
-    from models.empresa import Empresa
-    if not Empresa.query.get(empresa_id):
-        return error_response('Cadastro público indisponível: empresa configurada não existe.', 503)
-
-    try:
-        user = register_with_code(data, codigo, empresa_id)
-    except ValueError as exc:
-        return error_response(str(exc), 400)
-
-    return success_response(user, 'Conta criada. Faca login.', 201)
+    # Desativado por decisão (2026-08-19): não existe mais auto-cadastro
+    # público, viewer ou owner. O único caminho pra entrar no HUB é convite
+    # (Invitation, aceitar-convite) -- pra empresa nova, o link de convite
+    # do owner já cria empresa + conta juntos (ver scripts/criar_empresa.py).
+    # Modelo futuro (planos pagos): o link de convite será enviado por
+    # e-mail após a compra, continuando 100% por convite -- nunca um
+    # formulário público com código.
+    return error_response('Cadastro público desativado. Use o link de convite recebido por e-mail.', 403)
 
 @auth_routes.route('/aceitar-convite', methods=['POST'])
 @limiter.limit('10 per minute')

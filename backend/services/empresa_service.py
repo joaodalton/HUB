@@ -6,6 +6,7 @@ Usado no fluxo de cadastro inicial.
 import re
 import secrets
 
+from sqlalchemy.exc import IntegrityError
 from extensions import db
 from models.empresa import Empresa
 from models.user import User
@@ -127,6 +128,6 @@ def criar_empresa_com_owner(data: dict) -> dict:
             'owner': owner.to_dict()
         }
 
-    except Exception as exc:
+    except IntegrityError as exc:
         db.session.rollback()
-        raise ValueError(f'Erro ao criar empresa: {str(exc)}')
+        raise ValueError('Não foi possível criar a empresa: dado duplicado (slug ou e-mail já em uso).') from exc

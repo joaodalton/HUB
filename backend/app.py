@@ -88,9 +88,14 @@ def create_app() -> Flask:
         '/', '/api/v1/auth/login', '/api/v1/auth/bootstrap', '/api/v1/auth/logout',
         '/api/v1/auth/register', '/api/v1/auth/aceitar-convite',
         '/api/v1/convites/verificar',
-        '/api/v1/empresas/registro', '/api/v1/empresas/<string:slug>',
+        '/api/v1/empresas/registro',
         '/api/v1/oauth/google/authorize', '/api/v1/oauth/google/callback',
         '/api/v1/auth/esqueci-senha', '/api/v1/auth/redefinir-senha'
+    }, public_path_prefixes={
+        # request.path e' o path LITERAL da requisicao (ex.: /api/v1/empresas/select),
+        # nunca a string do padrao de rota com <string:slug> -- por isso essa rota
+        # nunca cai no set exato acima. Prefixo dedicado, checado a parte.
+        '/api/v1/empresas/'
     })
 
     @app.after_request

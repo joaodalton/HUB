@@ -337,11 +337,11 @@ Sem body. Remove a conta do banco (**não revoga** o acesso do lado do Google �
 
 ---
 
-## Google Drive — busca legada (sem prefixo de rota)
+## Google Drive — busca legada (`/drive`)
 
-Usa a conta OAuth ativa se houver uma; cai pro `credentials.json` de service account se não. Essas duas rotas **não têm `/drive` no path** — ficam na raiz mesmo, cuidado ao chamar.
+Usa a conta OAuth ativa se houver uma; cai pro `credentials.json` de service account se não. Prefixo real: `/api/v1/drive` (`drive_routes.py`, `url_prefix='/api/v1/drive'`).
 
-### `GET /search?q=texto`
+### `GET /drive/search?q=texto`
 Retorna array cru do Google (não passa pelo envelope `success_response`): `[{ id, name, mimeType, webViewLink, iconLink, modifiedTime }, ...]`. Busca só PDFs e pastas.
 Erro (503): `{ "error": "Google Drive nao configurado: ..." }` se não houver credencial válida (nem OAuth nem service account).
 

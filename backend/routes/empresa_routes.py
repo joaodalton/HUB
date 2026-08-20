@@ -41,49 +41,18 @@ def index():
 # POST /api/v1/empresas/registro -- Cria empresa + owner na mesma transacao
 @empresa_routes.route('/registro', methods=['POST'])
 def registro():
-    """
-    Fluxo de cadastro inicial:
-    1. Pessoa informa dados da empresa + seus dados
-    2. Backend cria Empresa + User (owner)
-    3. Owner pode fazer login
-
-    Body:
-    {
-        "empresa": {
-            "nome": "Minha Empresa",
-            "razao_social": "Minha Empresa Ltda",
-            "cnpj": "12.345.678/0001-90",
-            "email": "contato@empresa.com",
-            "telefone": "11999999999"
-        },
-        "owner": {
-            "nome": "João Silva",
-            "email": "joao@empresa.com",
-            "senha": "minhasenha123"
-        }
-    }
-    """
-    # Verifica se cadastro publico esta habilitado
-    if not Config.SIGNUP_CODE:
-        return error_response(
-            'Cadastro publico desativado. Entre em contato com o administrador.',
-            403
-        )
-
-    data = request.get_json(silent=True) or {}
-    codigo = (data.get('codigo') or '').strip()
-
-    # Valida codigo de acesso
-    import secrets
-    if not secrets.compare_digest(codigo, Config.SIGNUP_CODE):
-        return error_response('Codigo de acesso invalido.', 401)
-
-    try:
-        result = criar_empresa_com_owner(data)
-    except ValueError as exc:
-        return error_response(str(exc), 400)
-
-    return success_response(result, 'Empresa e conta criadas com sucesso.', 201)
+    # Desativado por decisão (2026-08-19): criação de empresa é sempre
+    # manual, via backend/scripts/criar_empresa.py -- nunca um formulário
+    # público, mesmo com código de acesso. SIGNUP_CODE não protege mais
+    # esta rota (reuso indevido, ver Issue "SIGNUP_CODE reuso"). Modelo
+    # futuro (planos pagos): link de convite enviado por e-mail após a
+    # compra, criando empresa + owner juntos -- continua sem formulário
+    # público exposto.
+    return error_response(
+        'Cadastro público de empresa desativado. Empresas são criadas manualmente -- '
+        'ver backend/scripts/criar_empresa.py.',
+        403
+    )
 
 
 # GET /api/v1/empresas/:slug -- Busca empresa por slug (publico, para tela de convite)

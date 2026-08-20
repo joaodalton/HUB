@@ -114,12 +114,21 @@ def resolve_current_user_optional():
     user = User.query.get(user_id)
     return user if user and user.status == 'ativo' else None
 
-def register_auth_middleware(app, public_paths: set[str]) -> None:
+def register_auth_middleware(app, public_paths: set[str], public_path_prefixes: set[str] = frozenset()) -> None:
     @app.before_request
     def _require_auth():
         if request.method == 'OPTIONS':
             return None
         if request.path in public_paths:
+            return None
+        # Cobre rotas com parametro dinamico no path (ex.: /empresas/<slug>),
+        # que nunca batem contra o set exato acima (ver comentario em app.py).
+        # count('/') == 4 garante que so casa exatamente UM segmento depois
+        # do prefixo (ex.: /api/v1/empresas/select), nao /api/v1/empresas/x/y.
+        if any(
+            request.path.startswith(prefix) and request.path.count('/') == prefix.count('/') + 1
+            for prefix in public_path_prefixes
+        ):
             return None
 
         token_from_cookie = request.cookies.get(COOKIE_NAME)

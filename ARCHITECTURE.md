@@ -217,7 +217,6 @@ graph TD
   models_setting --> extensions
   models_user --> extensions
   routes_auth_routes --> extensions
-  routes_auth_routes --> models_empresa
   routes_auth_routes --> services_auth_service
   routes_auth_routes --> services_invitation_service
   routes_auth_routes --> services_password_reset_service

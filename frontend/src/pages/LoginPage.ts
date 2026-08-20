@@ -2,24 +2,20 @@ import { createElement } from '../dom';
 import { createIcon } from '../components/Icon';
 import { HUB_VERSION } from '../components/Sidebar';
 import { config } from '../services/config';
-import { login, register } from '../services/authService';
+import { login } from '../services/authService';
 
-type Mode = 'login' | 'register';
-
+// Sem auto-cadastro publico (decisao 2026-08-19) -- todo acesso nasce de
+// convite (Invitation/aceitar-convite), inclusive pra empresa nova (ver
+// scripts/criar_empresa.py). Tela de login so mostra o formulario de login,
+// sem alternador de modo nem botao "Criar uma conta".
 export function createLoginPage(onSuccess: () => void): HTMLElement {
   const page = createElement('section', { className: 'login-page' });
-  let mode: Mode = 'login';
 
   const formPanel = createElement('section', { className: 'login-form-panel' });
   const card = createElement('div', { className: 'login-form-card' });
 
   function render(): void {
-    card.replaceChildren(mode === 'login' ? createLoginView() : createRegisterView());
-  }
-
-  function switchTo(nextMode: Mode): void {
-    mode = nextMode;
-    render();
+    card.replaceChildren(createLoginView());
   }
 
   function createLoginView(): HTMLElement {
@@ -43,16 +39,6 @@ export function createLoginPage(onSuccess: () => void): HTMLElement {
 
     form.append(emailField.field, senhaField.field, rememberRow, errorText, submitButton);
 
-    const divider = createElement('div', { className: 'login-divider' });
-    divider.appendChild(createElement('span', { textContent: 'ou' }));
-
-    const switchLink = createElement('a', { className: 'login-forgot-link', textContent: 'Criar uma conta' });
-    switchLink.href = '#';
-    switchLink.addEventListener('click', (event) => {
-      event.preventDefault();
-      switchTo('register');
-    });
-
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       errorText.hidden = true;
@@ -72,66 +58,7 @@ export function createLoginPage(onSuccess: () => void): HTMLElement {
     });
 
     const wrapper = createElement('div', { className: 'login-view' });
-    wrapper.append(heading, subheading, form, divider, switchLink, createLoginStatusFooter());
-    return wrapper;
-  }
-
-  function createRegisterView(): HTMLElement {
-    const heading = createElement('h1', { textContent: 'Criar conta' });
-    const subheading = createElement('p', {
-      className: 'login-form-subtitle',
-      textContent: 'Acesso somente leitura, com código de convite'
-    });
-
-    const form = createElement('form', { className: 'login-form' });
-    const emailField = createLoginField('E-mail', 'email', 'usuario@email.com', 'user');
-    const senhaField = createLoginField('Senha', 'password', '••••••••••••', 'lock', true);
-    const codigoField = createLoginField('Código de acesso', 'text', 'Código fornecido pelo administrador');
-
-    const hint = createElement('p', {
-      className: 'login-hint',
-      textContent: 'A conta criada aqui vem sempre como "somente leitura". Peça o código de acesso a quem administra o HUB.'
-    });
-
-    const errorText = createElement('p', { className: 'login-error' });
-    errorText.hidden = true;
-
-    const submitButton = createElement('button', { className: 'login-submit-button button-with-icon', type: 'submit' });
-    submitButton.append(createIcon('login'), document.createTextNode('Criar conta'));
-
-    form.append(emailField.field, senhaField.field, codigoField.field, hint, errorText, submitButton);
-
-    const divider = createElement('div', { className: 'login-divider' });
-    divider.appendChild(createElement('span', { textContent: 'ou' }));
-
-    const switchLink = createElement('a', { className: 'login-forgot-link', textContent: 'Já tenho conta' });
-    switchLink.href = '#';
-    switchLink.addEventListener('click', (event) => {
-      event.preventDefault();
-      switchTo('login');
-    });
-
-    form.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      errorText.hidden = true;
-      submitButton.disabled = true;
-      submitButton.classList.add('loading');
-
-      try {
-        await register(emailField.input.value.trim(), senhaField.input.value, codigoField.input.value.trim());
-        await login(emailField.input.value.trim(), senhaField.input.value);
-        onSuccess();
-      } catch (error) {
-        errorText.textContent = error instanceof Error ? error.message : 'Não foi possível criar a conta.';
-        errorText.hidden = false;
-      } finally {
-        submitButton.disabled = false;
-        submitButton.classList.remove('loading');
-      }
-    });
-
-    const wrapper = createElement('div');
-    wrapper.append(heading, subheading, form, divider, switchLink, createLoginStatusFooter());
+    wrapper.append(heading, subheading, form, createLoginStatusFooter());
     return wrapper;
   }
 

@@ -27,9 +27,14 @@ class GoogleDriveService:
     ]
 
     def search_files(self, query_text: str) -> list[dict]:
+        # Mesmo escape ja usado em find_duplicate() deste arquivo -- sem isso,
+        # buscar por termo com apostrofo (ex.: "O'Brien") quebra a sintaxe da
+        # query do Drive (erro 400 da API do Google, sem tratamento especifico
+        # em drive_routes.py -- vira 500 cru pro usuario).
+        escaped_query_text = query_text.replace("'", "\\'")
         mime_filter = ' or '.join(f"mimeType='{mime}'" for mime in self._SEARCHABLE_MIME_TYPES)
         query = (
-            f"name contains '{query_text}' "
+            f"name contains '{escaped_query_text}' "
             f"and ({mime_filter}) "
             f"and trashed=false"
         )

@@ -331,7 +331,7 @@ function createUserModal(
           role: role.select.value as UserPayload['role']
         };
         if (senha.input.value.trim()) {
-          (data as any).senha = senha.input.value;
+          data.senha = senha.input.value;
         }
         await onUpdate(user.id, data);
       } else if (onCreate) {

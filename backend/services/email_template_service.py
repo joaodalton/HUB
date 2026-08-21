@@ -1,17 +1,30 @@
 # backend/services/email_template_service.py
 """
-CRUD + renderizacao dos templates de e-mail editaveis pela tela de
-Configuracoes > E-mails. Templates ficam no banco (EmailTemplate); o
-conteudo em email_template_defaults.py so serve de seed inicial e de
-"Restaurar padrao".
+CRUD + renderização dos templates de e-mail editáveis pela tela de
+Configurações > E-mails. Templates ficam no banco (EmailTemplate); o
+conteúdo em email_template_defaults.py só serve de seed inicial e de
+"Restaurar padrão".
 
-Renderizacao e deliberadamente simples (decisao registrada: campos de texto
-com variaveis {{var}}, sem HTML livre -- reduz risco de quebrar o layout do
-e-mail por edicao acidental). A variavel "link" ganha tratamento especial:
-quando aparece sozinha numa linha, vira um botao estilizado no HTML (senao,
-vira um link normal); no texto simples, e sempre a URL crua.
+Renderização é deliberadamente simples (decisão registrada: campos de texto
+com variáveis {{var}}, sem HTML livre -- reduz risco de quebrar o layout do
+e-mail por edição acidental). A variável "link" ganha tratamento especial:
+quando aparece sozinha numa linha, vira um botão estilizado no HTML (senão,
+vira um link normal); no texto simples, é sempre a URL crua.
+
+SEGURANÇA:
+- Os valores das variáveis são escapeados com html.escape() antes de
+  serem inseridos no HTML, prevenindo XSS via dados do usuário.
+- O corpo do template NÃO deve conter tags <script> ou atributos
+  de evento (onload, onclick, etc.) -- esses são bloqueados na
+  atualização via update_template() para prevenir que um admin
+  mal-intencionado injete JavaScript no e-mail.
+- O HTML gerado não é executado no navegador do destinatário como
+  página web -- é apenas o body de um e-mail HTML. Contudo, alguns
+  clientes de e-mail executam JavaScript, então a sanitização é
+  importante mesmo para e-mails.
 """
 from html import escape
+import re
 
 from extensions import db
 from models.email_template import EmailTemplate
@@ -20,11 +33,28 @@ from services.log_service import LogService
 
 _BUTTON_COLOR = '#f0713a'
 
+# Padrões para detectar conteúdo potencialmente perigoso em templates
+_DANGEROUS_TAG_PATTERN = re.compile(
+    r'<\s*script\b|<\s*/script\s*>|on\w+\s*=\s*["\'][^"\']*["\']|on\w+\s*=\s*\S',
+    re.IGNORECASE
+)
+
+
+def _contem_conteudo_proibido(texto: str) -> bool:
+    """
+    Verifica se o texto contém tags ou atributos que podem permitir XSS
+    em clientes de e-mail que executam JavaScript.
+
+    Returns:
+        True se encontrar conteúdo proibido, False caso contrário.
+    """
+    return bool(_DANGEROUS_TAG_PATTERN.search(texto))
+
 
 def ensure_seeded() -> None:
-    """Cria no banco qualquer template padrao que ainda nao exista. Chamado
-    sob demanda (nao no boot da app) -- nao precisa de migration de dado,
-    o proprio uso normal (tela ou envio de e-mail) semeia sozinho."""
+    """Cria no banco qualquer template padrão que ainda não exista. Chamado
+    sob demanda (não no boot da app) -- não precisa de migration de dado,
+    o próprio uso normal (tela ou envio de e-mail) semeia sozinho."""
     existentes = {t.chave for t in EmailTemplate.query.all()}
 
     for chave, dados in DEFAULT_TEMPLATES.items():
@@ -55,11 +85,40 @@ def get_template(chave: str) -> dict | None:
 
 
 def update_template(chave: str, assunto: str, corpo: str) -> dict | None:
+    """
+    Atualiza um template existente com validação de segurança.
+
+    Args:
+        chave: identificador do template
+        assunto: novo assunto (ou vazio para manter o atual)
+        corpo: novo corpo (ou vazio para manter o atual)
+
+    Returns:
+        dict com o template atualizado, ou None se o template não existir
+
+    Raises:
+        ValueError: se o corpo contiver tags ou atributos proibidos (XSS)
+    """
     ensure_seeded()
     template = EmailTemplate.query.filter_by(chave=chave).first()
 
     if not template:
         return None
+
+    # Validação de segurança: bloqueia tags <script> e atributos de evento
+    if _contem_conteudo_proibido(corpo):
+        raise ValueError(
+            'Corpo do template contém conteúdo não permitido (script ou atributos de evento). '
+            'Links e HTML básico (p, a, strong, em, ul, li, table) são permitidos, '
+            'mas tags <script> e atributos on* (onclick, onload, etc.) são bloqueados '
+            'para prevenir XSS em clientes de e-mail.'
+        )
+
+    # Validação de assunto: bloqueia conteúdo perigoso também
+    if _contem_conteudo_proibido(assunto):
+        raise ValueError(
+            'Assunto do template contém conteúdo não permitido (script ou atributos de evento).'
+        )
 
     template.assunto = (assunto or '').strip() or template.assunto
     template.corpo = corpo or template.corpo
@@ -89,8 +148,15 @@ def restaurar_padrao(chave: str) -> dict | None:
 
 
 def renderizar(chave: str, variaveis: dict) -> tuple[str, str, str] | None:
-    """Retorna (assunto, html, text) prontos pra email_service.send_email.
-    None se o template nao existir (chamador decide o que fazer)."""
+    """
+    Retorna (assunto, html, text) prontos para email_service.send_email.
+    None se o template não existir (chamador decide o que fazer).
+
+    SEGURANÇA: Todos os valores de variáveis são escapeados com html.escape()
+    antes de serem inseridos no HTML, prevenindo injeção de código via dados
+    de variáveis (plausível em cenários onde variáveis vêm de fontes externas
+    ou de usuários não confiáveis).
+    """
     ensure_seeded()
     template = EmailTemplate.query.filter_by(chave=chave).first()
 
@@ -101,14 +167,22 @@ def renderizar(chave: str, variaveis: dict) -> tuple[str, str, str] | None:
     texto = template.corpo
     for nome_var, valor in variaveis.items():
         placeholder = f'{{{{{nome_var}}}}}'
-        assunto = assunto.replace(placeholder, str(valor))
-        texto = texto.replace(placeholder, str(valor))
+        assunto = assunto.replace(placeholder, escape(str(valor)))
+        texto = texto.replace(placeholder, escape(str(valor)))
 
     html = _renderizar_html(template.corpo, variaveis)
     return assunto, html, texto
 
 
 def _renderizar_html(corpo: str, variaveis: dict) -> str:
+    """
+    Converte o corpo do template (texto com placeholders) em HTML.
+
+    SEGURANÇA:
+    - Todos os valores de variáveis são escapeados antes de inserção
+    - O botão de link usa escape tanto no href quanto no texto
+    - Links normais também são escapeados
+    """
     link = variaveis.get('link')
     linhas_html: list[str] = []
 

@@ -5,13 +5,14 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from sqlalchemy import event
 from sqlalchemy import inspect
+from sqlalchemy.orm import Session, with_loader_criteria
 from flask_sqlalchemy.query import Query
-from sqlalchemy.orm import with_loader_criteria
 
 class TenantQuery(Query):
-    """Impede que uma busca por PK ignore o escopo do tenant.
+    """
+    Impede que uma busca por PK ignore o escopo do tenant.
 
-    ``Query.get()`` e ``Session.get()`` podem devolver uma instância do
+    Query.get() e Session.get() podem devolver uma instância do
     identity map sem emitir SELECT. Isso não é uma base segura para o filtro
     injetado no listener abaixo. Para modelos com TenantMixin e numa request
     autenticada, transformamos o get numa consulta explícita por PK e
@@ -23,7 +24,7 @@ class TenantQuery(Query):
         empresa_id = getattr(g, 'current_empresa_id', None) if has_request_context() else None
 
         if not model or empresa_id is None or not issubclass(model, TenantMixin):
-            # Query.get() classico do SQLAlchemy aceita só `ident` -- os
+            # Query.get() clássico do SQLAlchemy aceita só `ident` -- os
             # kwargs extras (populate_existing, with_for_update,
             # identity_token, execution_options) são da assinatura do
             # Session.get(), não do Query.get(). Repassá-los aqui pro
@@ -50,15 +51,58 @@ class TenantQuery(Query):
         return query.first()
 
 
-db = SQLAlchemy(query_class=TenantQuery)
+class TenantSession(Session):
+    """
+    Subclasse de Session que protege db.session.get() para modelos com TenantMixin.
+
+    Session.get() do SQLAlchemy verifica o identity map antes de emitir SELECT.
+    Se o objeto já estiver no identity map (de uma request anterior ou de uma
+    query prévia), ele devolve imediatamente sem passar pelo filtro de tenant
+    injetado pelo listener do_orm_execute. Isso permite vazamento de dados
+    entre empresas em um SaaS multi-tenant.
+
+    Esta subclasse garante que, para modelos com TenantMixin, sempre emitimos
+    um SELECT com o filtro de empresa_id, mesmo se o objeto estiver no identity map.
+    """
+    def get(self, mapper_or_class, ident, cls=None, **kw):
+        # Determina o modelo alvo
+        if cls is None:
+            cls = mapper_or_class
+            if hasattr(mapper_or_class, '_sa_class_manager'):
+                cls = mapper_or_class
+
+        # Verifica se é um modelo com TenantMixin em contexto de request
+        if has_request_context():
+            empresa_id = getattr(g, 'current_empresa_id', None)
+            if empresa_id is not None and issubclass(cls, TenantMixin):
+                # Emite SELECT explícito com filtro de tenant
+                primary_keys = inspect(cls).primary_key
+                if isinstance(ident, dict):
+                    criteria = ident
+                elif isinstance(ident, (tuple, list)):
+                    if len(ident) != len(primary_keys):
+                        raise ValueError('Quantidade de chaves primárias inválida.')
+                    criteria = {column.key: value for column, value in zip(primary_keys, ident)}
+                else:
+                    criteria = {primary_keys[0].key: ident}
+
+                query = self.query(cls).filter_by(**criteria, empresa_id=empresa_id)
+                return query.first()
+
+        # Fallback para comportamento padrão (modelos sem tenant ou fora de request)
+        return super().get(mapper_or_class, ident, cls=cls, **kw)
+
+
+db = SQLAlchemy(query_class=TenantQuery, session_options={'class_': TenantSession})
 migrate = Migrate()
 limiter = Limiter(key_func=get_remote_address, storage_uri='memory://')
 
 
 class TenantMixin:
-    """Toda tabela que pertence a uma empresa herda daqui em vez de repetir
+    """
+    Toda tabela que pertence a uma empresa herda daqui em vez de repetir
     a coluna 'empresa_id' e o filtro na mão em cada service/rota. O listener
-    logo abaixo injeta automaticamente WHERE empresa_id = <empresa da
+    abaixo injeta automaticamente WHERE empresa_id = <empresa da
     sessão atual> em toda query ORM contra uma classe que usa esse mixin --
     é a mitigação estrutural do risco que o VISAO.md (secao 2.1) apontava
     pro modelo multi-tenant ('query esquecida vaza dado entre empresas').

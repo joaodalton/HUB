@@ -1,6 +1,7 @@
 # backend/routes/pendencia_routes.py
 from flask import Blueprint, g, request
 
+from extensions import limiter
 from services.automacao_service import resolver_pendencias_resolvidas, verificar_e_criar_pendencias
 from services.pendencia_service import (
     adicionar_comentario,
@@ -47,6 +48,7 @@ def show(pendencia_id: int):
 
 
 @pendencia_routes.route('', methods=['POST'])
+@limiter.limit('30 per minute')
 def store():
     data = request.get_json(silent=True) or {}
 
@@ -66,6 +68,7 @@ def store():
 
 
 @pendencia_routes.route('/<int:pendencia_id>', methods=['PUT'])
+@limiter.limit('30 per minute')
 def update(pendencia_id: int):
     data = request.get_json(silent=True) or {}
     try:
@@ -78,6 +81,7 @@ def update(pendencia_id: int):
 
 
 @pendencia_routes.route('/<int:pendencia_id>', methods=['DELETE'])
+@limiter.limit('30 per minute')
 def destroy(pendencia_id: int):
     if not delete_pendencia(pendencia_id):
         return error_response('Pendencia nao encontrada.', 404)
@@ -85,6 +89,7 @@ def destroy(pendencia_id: int):
 
 
 @pendencia_routes.route('/<int:pendencia_id>/resolver', methods=['POST'])
+@limiter.limit('30 per minute')
 def resolver(pendencia_id: int):
     pendencia = resolver_pendencia(pendencia_id)
     if not pendencia:
@@ -93,6 +98,7 @@ def resolver(pendencia_id: int):
 
 
 @pendencia_routes.route('/<int:pendencia_id>/cancelar', methods=['POST'])
+@limiter.limit('30 per minute')
 def cancelar(pendencia_id: int):
     pendencia = cancelar_pendencia(pendencia_id)
     if not pendencia:
@@ -101,6 +107,7 @@ def cancelar(pendencia_id: int):
 
 
 @pendencia_routes.route('/<int:pendencia_id>/reabrir', methods=['POST'])
+@limiter.limit('30 per minute')
 def reabrir(pendencia_id: int):
     pendencia = reabrir_pendencia(pendencia_id)
     if not pendencia:
@@ -109,6 +116,7 @@ def reabrir(pendencia_id: int):
 
 
 @pendencia_routes.route('/<int:pendencia_id>/comentarios', methods=['POST'])
+@limiter.limit('30 per minute')
 def comentar(pendencia_id: int):
     data = request.get_json(silent=True) or {}
     texto = data.get('texto', '').strip()
@@ -123,6 +131,7 @@ def comentar(pendencia_id: int):
 # ========== Rotas de automacao ==========
 
 @pendencia_routes.route('/verificar', methods=['POST'])
+@limiter.limit('5 per minute')
 def verificar():
     """
     Executa todas as verificacoes automaticas de pendencias.

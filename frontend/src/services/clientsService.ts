@@ -1,10 +1,12 @@
 import { apiRequest } from './apiClient';
+import { config } from './config';
 
 export type PlantConnection = {
   id: number;
   plantId: number;
   usina: string;
   percentual: string;
+  percentualManual?: boolean;
 };
 
 export type ClientUc = {
@@ -56,6 +58,8 @@ export type ClientPayload = {
 
 export const concessionarias = ['Copel'];
 
+export type ImportResult = { importados: number; falhas: Array<{ linha: number; erro: string }> };
+
 type ApiResponse<T> = {
   success: boolean;
   message: string;
@@ -106,4 +110,45 @@ export function getClientMetrics(clients: ClientRow[]) {
       tone: 'success' as const
     }
   ];
+}
+
+export async function exportClientsCsv(): Promise<Blob> {
+  const csrf = document.cookie.match(/(?:^|; )hub_csrf=([^;]*)/)?.[1];
+  const resp = await fetch(`${config.apiBaseUrl}/api/v1/bulk/clients/export`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: csrf ? { 'X-CSRF-Token': csrf } : {},
+  });
+  if (resp.status === 401) {
+    window.location.href = '/login';
+    throw new Error('Não autenticado.');
+  }
+  if (!resp.ok) {
+    const data = await resp.json().catch(() => null);
+    throw new Error(data?.message || data?.error || 'Falha na exportação.');
+  }
+  return resp.blob();
+}
+
+export async function importClientsFromCsv(csvText: string): Promise<ImportResult> {
+  const csrf = document.cookie.match(/(?:^|; )hub_csrf=([^;]*)/)?.[1];
+  const resp = await fetch(`${config.apiBaseUrl}/api/v1/bulk/clients/import`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'X-CSRF-Token': csrf ? decodeURIComponent(csrf) : '',
+    },
+    body: csvText,
+  });
+  if (resp.status === 401) {
+    window.location.href = '/login';
+    throw new Error('Não autenticado.');
+  }
+  if (!resp.ok) {
+    const data = await resp.json().catch(() => null);
+    throw new Error(data?.message || data?.error || 'Falha na importação.');
+  }
+  const json = await resp.json();
+  return json.data;
 }

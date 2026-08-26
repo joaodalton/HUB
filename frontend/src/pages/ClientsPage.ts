@@ -10,8 +10,10 @@ import { getAvailablePlants, type PlantRow } from '../services/plantService';
 import {
   createClient,
   deleteClient,
+  exportClientsCsv,
   getClientMetrics,
   getClients,
+  importClientsFromCsv,
   type ClientRow,
   updateClient
 } from '../services/clientsService';
@@ -60,6 +62,8 @@ export function createClientsPage(): HTMLElement {
 
     const pageActions = createElement('div', { className: 'page-actions' });
     const newClientButton = createElement('button', { textContent: 'Novo cliente', type: 'button' });
+    const importClientButton = createElement('button', { className: 'secondary-button', textContent: 'Importar CSV', type: 'button' });
+    const exportClientButton = createElement('button', { className: 'secondary-button', textContent: 'Exportar CSV', type: 'button' });
     const table = createDataTable<ClientRow>({
       title: 'Clientes cadastrados',
       eyebrow: 'Listagem',
@@ -86,6 +90,56 @@ export function createClientsPage(): HTMLElement {
     });
 
     pageActions.appendChild(newClientButton);
+    pageActions.appendChild(importClientButton);
+    pageActions.appendChild(exportClientButton);
+
+    importClientButton.addEventListener('click', async () => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.csv';
+      input.style.display = 'none';
+      input.addEventListener('change', async () => {
+        const file = input.files?.[0];
+        if (!file) return;
+        if (file.size > 5 * 1024 * 1024) {
+          toast.error('Arquivo muito grande (máx 5MB).');
+          return;
+        }
+        try {
+          const text = await file.text();
+          const result = await importClientsFromCsv(text);
+          const msg = result.importados > 0
+            ? `${result.importados} cliente(s) importado(s)`
+            : 'Nenhum cliente importado.';
+          if (result.falhas.length > 0) {
+            toast.warning(`${msg}; ${result.falhas.length} falha(s).`);
+          } else {
+            toast.success(msg);
+          }
+          await loadClients();
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : 'Erro na importação.');
+        }
+      });
+      document.body.appendChild(input);
+      input.click();
+    });
+
+    exportClientButton.addEventListener('click', async () => {
+      try {
+        const blob = await exportClientsCsv();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'clientes.csv';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Erro na exportação.');
+      }
+    });
 
     if (isCreating || selectedClient) {
       blocks.push(createClientEditor());

@@ -66,29 +66,29 @@ def set_auth_cookies(response, token: str, remember: bool = False) -> None:
 
     response.set_cookie(
         COOKIE_NAME, token, httponly=True, secure=is_prod,
-        samesite='Lax', max_age=cookie_max_age, path='/'
+        samesite='None', max_age=cookie_max_age, path='/'
     )
     response.set_cookie(
         CSRF_COOKIE_NAME, secrets.token_urlsafe(32), httponly=False, secure=is_prod,
-        samesite='Lax', max_age=cookie_max_age, path='/'
+        samesite='None', max_age=cookie_max_age, path='/'
     )
 
 
 def clear_auth_cookies(response) -> None:
     is_prod = not Config.DEBUG
-    response.delete_cookie(COOKIE_NAME, path='/', samesite='Lax', secure=is_prod)
-    response.delete_cookie(CSRF_COOKIE_NAME, path='/', samesite='Lax', secure=is_prod)
+    response.delete_cookie(COOKIE_NAME, path='/', samesite='None', secure=is_prod)
+    response.delete_cookie(CSRF_COOKIE_NAME, path='/', samesite='None', secure=is_prod)
 
 def set_platform_view_cookie(response, empresa_id: int) -> None:
     is_prod = not Config.DEBUG
     response.set_cookie(
         VIEW_COOKIE_NAME, str(empresa_id), httponly=True, secure=is_prod,
-        samesite='Lax', max_age=TOKEN_MAX_AGE_SECONDS, path='/'
+        samesite='None', max_age=TOKEN_MAX_AGE_SECONDS, path='/'
     )
 
 def clear_platform_view_cookie(response) -> None:
     is_prod = not Config.DEBUG
-    response.delete_cookie(VIEW_COOKIE_NAME, path='/', samesite='Lax', secure=is_prod)
+    response.delete_cookie(VIEW_COOKIE_NAME, path='/', samesite='None', secure=is_prod)
 
 def resolve_current_user_optional():
     """Mesma checagem de token de _require_auth, mas sem forçar 401 se não

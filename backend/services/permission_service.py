@@ -29,6 +29,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         'users.change_role',
         'users.deactivate',
         'users.reactivate',
+        'users.delete',
         # Convites
         'invitations.read',
         'invitations.create',
@@ -83,6 +84,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         'users.change_role',
         'users.deactivate',
         'users.reactivate',
+        'users.delete',
         # Convites
         'invitations.read',
         'invitations.create',

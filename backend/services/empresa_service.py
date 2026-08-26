@@ -13,6 +13,9 @@ from models.user import User
 from services.log_service import LogService
 from utils.auth import hash_password
 
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from models.empresa import Empresa as EmpresaType
 
 def gerar_slug(nome: str) -> str:
     """Gera um slug simples a partir do nome da empresa."""
@@ -130,4 +133,59 @@ def criar_empresa_com_owner(data: dict) -> dict:
 
     except IntegrityError as exc:
         db.session.rollback()
-        raise ValueError('Não foi possível criar a empresa: dado duplicado (slug ou e-mail já em uso).') from exc
+        raise ValueError('Nao foi possível criar a empresa: dado duplicado (slug ou e-mail já em uso).') from exc
+
+
+def update_empresa(empresa_id: int, data: dict) -> Empresa:
+    """
+    Atualiza os campos editáveis de uma empresa.
+
+    Campos editáveis: nome, razao_social, cnpj, email, telefone, status.
+    Slug NÃO é editável aqui (identificador usado em URLs/convites).
+
+    Args:
+        empresa_id: ID da empresa a atualizar.
+        data: dict com os campos a alterar (apenas os fornecidos são atualizados).
+
+    Returns:
+        Empresa atualizada.
+
+    Raises:
+        ValueError se a empresa não existe.
+    """
+    empresa = Empresa.query.get(empresa_id)
+    if not empresa:
+        raise ValueError('Empresa não encontrada.')
+
+    if 'nome' in data and data['nome'] is not None:
+        nome = (data['nome'] or '').strip()
+        if not nome:
+            raise ValueError('Nome da empresa é obrigatório.')
+        empresa.nome = nome
+
+    if 'razao_social' in data:
+        empresa.razao_social = (data['razao_social'] or '').strip() or None
+
+    if 'cnpj' in data:
+        empresa.cnpj = (data['cnpj'] or '').strip() or None
+
+    if 'email' in data:
+        empresa.email = (data['email'] or '').strip() or None
+
+    if 'telefone' in data:
+        empresa.telefone = (data['telefone'] or '').strip() or None
+
+    if 'status' in data and data['status'] is not None:
+        status_val = (data['status'] or '').strip().lower()
+        if status_val not in ('ativa', 'inativa'):
+            raise ValueError('Status deve ser "ativa" ou "inativa".')
+        empresa.status = status_val
+
+    db.session.commit()
+    LogService.info(
+        acao='update',
+        mensagem=f'Empresa {empresa.nome} atualizada',
+        entidade='Empresa',
+        metadados={'empresaId': empresa.id}
+    )
+    return empresa

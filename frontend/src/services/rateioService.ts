@@ -1,4 +1,3 @@
-// frontend/src/services/rateioService.ts
 import { apiRequest } from './apiClient';
 
 export type RateioUcResultado = {
@@ -36,16 +35,21 @@ type ApiResponse<T> = {
 };
 
 export async function previewRateio(plantId: number): Promise<RateioPreview> {
-  const response = await apiRequest<ApiResponse<RateioPreview[]>>(`/rateio/preview?plantId=${plantId}`);
+  const response = await apiRequest<ApiResponse<RateioPreview[]>>(
+    `/rateio/preview?plantId=${plantId}`
+  );
   // Backend sempre devolve array (suporta calcular várias usinas de uma vez) --
   // aqui a gente sempre filtra por 1 plantId, então é sempre o primeiro item.
   return response.data[0];
 }
 
-export async function aplicarRateio(competencia: string, plantId: number): Promise<RateioPreview[]> {
+export async function aplicarRateio(
+  competencia: string,
+  plantId: number
+): Promise<RateioPreview[]> {
   const response = await apiRequest<ApiResponse<RateioPreview[]>>('/rateio/aplicar', {
     method: 'POST',
-    body: { competencia, plantId }
+    body: { competencia, plantId },
   });
   return response.data;
 }
@@ -55,7 +59,12 @@ export type RateioConfirmacaoResultado = {
   competencia: string;
   conexoesCriadas: number;
   conexoesAtualizadas: number;
-  ucs: Array<{ ucId: number; ucCodigo: string; clienteNome: string | null; percentual: number }>;
+  ucs: Array<{
+    ucId: number;
+    ucCodigo: string;
+    clienteNome: string | null;
+    percentual: number;
+  }>;
 };
 
 export async function confirmarSelecaoRateio(
@@ -63,10 +72,13 @@ export async function confirmarSelecaoRateio(
   competencia: string,
   selecoes: Array<{ ucId: number; percentual: number }>
 ): Promise<RateioConfirmacaoResultado> {
-  const response = await apiRequest<ApiResponse<RateioConfirmacaoResultado>>('/rateio/confirmar', {
-    method: 'POST',
-    body: { plantId, competencia, selecoes }
-  });
+  const response = await apiRequest<ApiResponse<RateioConfirmacaoResultado>>(
+    '/rateio/confirmar',
+    {
+      method: 'POST',
+      body: { plantId, competencia, selecoes },
+    }
+  );
   return response.data;
 }
 
@@ -87,8 +99,12 @@ export type RateioQualificacao = {
   ucs: RateioQualificacaoUc[];
 };
 
-export async function getQualificacao(plantId: number): Promise<RateioQualificacao> {
-  const response = await apiRequest<ApiResponse<RateioQualificacao>>(`/rateio/qualificacao?plantId=${plantId}`);
+export async function getQualificacao(
+  plantId: number
+): Promise<RateioQualificacao> {
+  const response = await apiRequest<ApiResponse<RateioQualificacao>>(
+    `/rateio/qualificacao?plantId=${plantId}`
+  );
   return response.data;
 }
 
@@ -112,10 +128,12 @@ export async function atualizarDistribuicao(
   plantId: number,
   atualizacoes: Array<{ connectionId: number; percentual: number }>
 ): Promise<RateioDistribuicaoResultado> {
-  const response = await apiRequest<ApiResponse<RateioDistribuicaoResultado>>('/rateio/distribuicao', {
-    method: 'PUT',
-    body: { plantId, atualizacoes }
-  });
+  const response = await apiRequest<ApiResponse<RateioDistribuicaoResultado>>(
+    '/rateio/distribuicao',
+    {
+      method: 'PUT',
+      body: { plantId, atualizacoes },
+    }
+  );
   return response.data;
 }
-

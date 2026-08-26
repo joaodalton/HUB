@@ -12,8 +12,10 @@ import { createBaseLayout } from '../layouts/BaseLayout';
 import {
   createPlant,
   deletePlant,
+  exportPlantsCsv,
   getPlantStatusSummary,
   getPlants,
+  importPlantsFromCsv,
   plantStatusLabel,
   plantStatusTone,
   removePlantConnection,
@@ -21,6 +23,9 @@ import {
   type PlantStatusTone,
   updatePlant
 } from '../services/plantService';
+import {
+  aplicarRateio,
+} from '../services/rateioService';
 import { getUcs, type UcRow } from '../services/ucsService';
 
 type ConnectedUcRow = {
@@ -30,6 +35,7 @@ type ConnectedUcRow = {
   apelido: string;
   cliente: string;
   percentual: string;
+  percentualManual: boolean;
   status: string;
 };
 
@@ -87,6 +93,7 @@ export function createPlantsPage(): HTMLElement {
             apelido: uc.apelido || uc.clienteNome || 'Sem apelido',
             cliente: uc.clienteNome ?? '-',
             percentual: `${conexao.percentual}%`,
+            percentualManual: conexao.percentualManual ?? false,
             status: 'Ativa'
           });
         });
@@ -142,11 +149,58 @@ export function createPlantsPage(): HTMLElement {
     newPlantButton.append(createIcon('plus'), document.createTextNode('Nova Usina'));
     newPlantButton.addEventListener('click', () => openPlantEditor(null));
 
-    const archiveButton = createElement('button', { className: 'secondary-button', textContent: 'Arquivo ▾', type: 'button' });
-    archiveButton.disabled = true;
-    archiveButton.title = 'Importacao/exportacao em planilha -- em breve';
+    const importPlantButton = createElement('button', { className: 'secondary-button', textContent: 'Importar CSV', type: 'button' });
+    const exportPlantButton = createElement('button', { className: 'secondary-button', textContent: 'Exportar CSV', type: 'button' });
 
-    toolbar.append(searchInput, filtersButton, spacer, newPlantButton, archiveButton);
+    importPlantButton.addEventListener('click', async () => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.csv';
+      input.style.display = 'none';
+      input.addEventListener('change', async () => {
+        const file = input.files?.[0];
+        if (!file) return;
+        if (file.size > 5 * 1024 * 1024) {
+          toast.error('Arquivo muito grande (máx 5MB).');
+          return;
+        }
+        try {
+          const text = await file.text();
+          const result = await importPlantsFromCsv(text);
+          const msg = result.importados > 0
+            ? `${result.importados} usina(s) importada(s)`
+            : 'Nenhuma usina importada.';
+          if (result.falhas.length > 0) {
+            toast.warning(`${msg}; ${result.falhas.length} falha(s).`);
+          } else {
+            toast.success(msg);
+          }
+          await loadPlants();
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : 'Erro na importação.');
+        }
+      });
+      document.body.appendChild(input);
+      input.click();
+    });
+
+    exportPlantButton.addEventListener('click', async () => {
+      try {
+        const blob = await exportPlantsCsv();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'usinas.csv';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Erro na exportação.');
+      }
+    });
+
+    toolbar.append(searchInput, filtersButton, spacer, newPlantButton, importPlantButton, exportPlantButton);
 
     const statsHolder = createElement('div');
     const tableHolder = createElement('div');
@@ -389,6 +443,12 @@ export function createPlantsPage(): HTMLElement {
     editButton.title = editButton.disabled ? 'Nenhuma UC conectada ainda' : 'Editar percentual das UCs conectadas';
     editButton.addEventListener('click', () => openDistribuicaoModal(plant));
 
+    const recalcularButton = createElement('button', { className: 'secondary-button button-with-icon', type: 'button' });
+    recalcularButton.append(createIcon('refresh'), document.createTextNode('Recalcular'));
+    recalcularButton.disabled = connectedUcs(plant.id).length === 0;
+    recalcularButton.title = recalcularButton.disabled ? 'Nenhuma UC conectada ainda' : 'Recalcular o rateio com os dados atuais';
+    recalcularButton.addEventListener('click', () => recalcRateio(plant));
+
     bar.append(spacer, editButton);
     return bar;
   }
@@ -433,7 +493,12 @@ export function createPlantsPage(): HTMLElement {
       columns: [
         { key: 'uc', label: 'UC', render: (row) => createIdNameCell(row.codigo, row.apelido) },
         { key: 'cliente', label: 'Cliente' },
-        { key: 'percentual', label: '% Rateio', align: 'right' },
+        {
+          key: 'percentual',
+          label: '% Rateio',
+          align: 'right',
+          render: (row) => createPercentualCell(row.percentual, row.percentualManual)
+        },
         { key: 'status', label: 'Status', render: (row) => createStatusDotLabel(row.status, 'success') },
         { key: 'acao', label: '', align: 'right', render: (row) => createRemoveConnectionButton(plant, row) }
       ]
@@ -517,6 +582,25 @@ export function createPlantsPage(): HTMLElement {
       loading.hide();
     }
   }
+
+  async function recalcRateio(plant: PlantRow): Promise<void> {
+    const confirmed = window.confirm(`Recalcular o rateio da usina "${plant.nome}" com os dados atuais de producao e consumo? Isso atualizara os percentuais de todas as UCs conectadas (exceto as com percentual manual).`);
+    if (!confirmed) return;
+
+    loading.show();
+    try {
+      const now = new Date();
+      const mes = String(now.getMonth() + 1).padStart(2, '0');
+      const competencia = `${now.getFullYear()}-${mes}`;
+      await aplicarRateio(competencia, plant.id);
+      toast.success('Rateio recalculado com sucesso.');
+      await loadPlants();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Nao foi possivel recalcular o rateio.');
+    } finally {
+      loading.hide();
+    }
+  }
 }
 
 function createIdNameCell(idLabel: string, name: string): HTMLElement {
@@ -534,6 +618,19 @@ function createStatusDotLabel(label: string, tone: PlantStatusTone): HTMLElement
     createElement('span', { className: `status-dot status-${tone}` }),
     createElement('span', { textContent: label })
   );
+  return wrap;
+}
+
+function createPercentualCell(percentual: string, manual: boolean): HTMLElement {
+  const wrap = createElement('span', { className: 'percentual-cell' });
+  wrap.appendChild(createElement('span', { textContent: percentual }));
+
+  if (manual) {
+    const tag = createElement('span', { className: 'manual-tag', textContent: 'manual' });
+    tag.title = 'Percentual definido manualmente -- o motor de rateio nao sobrescreve este valor sozinho.';
+    wrap.appendChild(tag);
+  }
+
   return wrap;
 }
 

@@ -155,6 +155,10 @@ def confirmar_selecao(plant_id: int, competencia: str, selecoes: list[dict]) -> 
     if not selecoes:
         raise ValueError('Nenhum cliente selecionado.')
 
+    criadas = 0
+    atualizadas = 0
+    resultado_ucs = []
+
     selecoes_por_uc: dict[int, float] = {}
     for selecao in selecoes:
         uc_id = selecao.get('ucId')
@@ -202,7 +206,8 @@ def confirmar_selecao(plant_id: int, competencia: str, selecoes: list[dict]) -> 
                 plant_id=plant.id,
                 consumer_unit_id=uc.id,
                 percentual=percentual,
-                percentual_manual=True
+                percentual_manual=True,
+                empresa_id=plant.empresa_id
             )
             db.session.add(connection)
             criadas += 1

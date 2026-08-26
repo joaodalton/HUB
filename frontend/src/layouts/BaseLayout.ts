@@ -41,10 +41,15 @@ export function createBaseLayout({ content, eyebrow, title }: BaseLayoutOptions)
     overlay.classList.toggle('active');
   });
 
-  // Insere o toggle no header
+  // Insere o toggle no header, depois do logo
   const header = main.querySelector('.masthead');
   if (header) {
-    header.insertBefore(menuToggle, header.firstChild);
+    const mark = header.querySelector('.masthead-mark');
+    if (mark) {
+      mark.after(menuToggle);
+    } else {
+      header.insertBefore(menuToggle, header.firstChild);
+    }
   }
 
   return shell;

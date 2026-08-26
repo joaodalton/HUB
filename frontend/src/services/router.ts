@@ -1,6 +1,7 @@
 import { createClientsPage } from '../pages/ClientsPage';
 import { createAgendaPage } from '../pages/AgendaPage';
 import { createDocumentsPage } from '../pages/DocumentsPage';
+import { createFaturasPage } from '../pages/FaturasPage';
 import { createForgotPasswordPage } from '../pages/ForgotPasswordPage';
 import { createLoginPage } from '../pages/LoginPage';
 import { createResetPasswordPage } from '../pages/ResetPasswordPage';
@@ -11,6 +12,7 @@ import { createSettingsPage } from '../pages/SettingsPage';
 import { createUcsPage } from '../pages/UcsPage';
 import { createUsersPage } from '../pages/UsersPage';
 import { createEmpresasPage } from '../pages/EmpresasPage';
+import { createTemplatePage } from '../pages/TemplatePage';
 import { ensureSession, isAuthenticated } from './authService';
 import { loadSettings } from './settingsService';
 
@@ -27,10 +29,12 @@ export function createRouter(root: HTMLElement) {
     { path: '/ucs', render: createUcsPage },
     { path: '/usinas', render: createPlantsPage },
     { path: '/rateio', render: createRateioPage },
+    { path: '/faturas', render: createFaturasPage },
     { path: '/pendencias', render: createPendenciasPage },
     { path: '/agenda', render: createAgendaPage },
     { path: '/usuarios', render: createUsersPage },
     { path: '/empresas', render: createEmpresasPage },
+    { path: '/template', render: createTemplatePage },
     { path: '/configuracoes', render: createSettingsPage }
   ];
 

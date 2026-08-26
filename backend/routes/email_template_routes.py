@@ -19,7 +19,7 @@ from services.log_service import LogService
 # Chaves válidas: começam com letra, seguido por alfanuméricos, hífen e underline.
 # Exemplos: "welcome_email", "password_reset", "invoice_v2", "cliente-confirmacao"
 # Inválidos: "123template", "template<script>", "template admin", "", " "
-_TEMPLATE_CHAVE_PATTERN = re.compile(r'^[a-zA-Z][a-zA-Z0-9_-]*$')
+_TEMPLATE_CHAVE_PATTERN = re.compile(r'^[a-zA-Z][a-zA-Z0-9_-]*[a-zA-Z0-9]$|^[a-zA-Z]$')
 
 
 def _validar_chave_template(chave: str) -> None:
@@ -140,7 +140,7 @@ def test_send(chave: str):
         mensagem=f'Teste de e-mail para template "{chave}" enviado para {g.current_user.email}',
         entidade='EmailTemplate',
         entidade_id=chave,
-        extra={
+        metadados={
             'user_id': g.current_user.id,
             'user_email': g.current_user.email,
             'template': chave,

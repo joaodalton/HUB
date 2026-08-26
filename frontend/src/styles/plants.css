@@ -99,3 +99,24 @@
 @media (max-width: 620px) {
   .cell-id-name { flex-wrap: wrap; }
 }
+
+/* ---------- Celula "% Rateio" com etiqueta de manual ---------- */
+
+.percentual-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.manual-tag {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--accent-bg);
+  color: var(--accent);
+  border: 1px solid var(--accent-border);
+}

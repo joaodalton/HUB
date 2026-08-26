@@ -84,6 +84,20 @@ class Config:
     # Precisa ser um remetente/dominio verificado na conta Resend.
     EMAIL_FROM = os.getenv('EMAIL_FROM', 'HUB <onboarding@resend.dev>')
 
+    # ASAAS (asaas.com) -- cobranca/boleto. Sem ASAAS_API_KEY, asaas_client.py
+    # vira no-op com log de warning, mesmo espirito do email_service sem
+    # RESEND_API_KEY. 'sandbox' usa o ambiente de testes do ASAAS (dados
+    # ficticios, nenhuma cobranca real) -- so trocar pra 'production' quando
+    # for cobrar de verdade.
+    ASAAS_API_KEY = os.getenv('ASAAS_API_KEY', '')
+    ASAAS_ENV = os.getenv('ASAAS_ENV', 'sandbox')
+    # Token que voce configura no painel do ASAAS (Integracoes > Webhooks) --
+    # o ASAAS manda de volta no header 'asaas-access-token' em toda chamada
+    # de webhook, confirmando que a notificacao veio de la mesmo. Vazio =
+    # rota de webhook aceita qualquer chamada sem validar (so pra dev local
+    # antes de configurar o webhook de verdade -- loga warning nesse caso).
+    ASAAS_WEBHOOK_TOKEN = os.getenv('ASAAS_WEBHOOK_TOKEN', '')
+
     SQLALCHEMY_DATABASE_URI = os.getenv(
     'DATABASE_URL',
     f"sqlite:///{(BASE_DIR / 'database' / 'hub.db').as_posix()}" 

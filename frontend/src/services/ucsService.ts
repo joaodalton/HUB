@@ -1,5 +1,5 @@
-// frontend/src/services/ucService.ts
 import { apiRequest } from './apiClient';
+import { config } from './config';
 import type { PlantConnection } from './clientsService';
 
 export type UcRow = {
@@ -45,8 +45,10 @@ export type UcPayload = {
   terminoContrato: string | null;
   carenciaMeses: number | null;
   percentualDescontoCarencia: string | null;
-  conexoes: Array<{ plantId: number; percentual: string }>;
+  conexoes: PlantConnection[];
 };
+
+export type ImportResult = { importados: number; falhas: Array<{ linha: number; erro: string }> };
 
 type ApiResponse<T> = {
   success: boolean;
@@ -94,4 +96,45 @@ export function getUcMetrics(ucs: UcRow[]) {
     },
     { label: 'Geracao propria', value: String(ucs.filter((uc) => uc.geracaoPropria).length) }
   ];
+}
+
+export async function exportUcsCsv(): Promise<Blob> {
+  const csrf = document.cookie.match(/(?:^|; )hub_csrf=([^;]*)/)?.[1];
+  const resp = await fetch(`${config.apiBaseUrl}/api/v1/bulk/ucs/export`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: csrf ? { 'X-CSRF-Token': csrf } : {},
+  });
+  if (resp.status === 401) {
+    window.location.href = '/login';
+    throw new Error('Não autenticado.');
+  }
+  if (!resp.ok) {
+    const data = await resp.json().catch(() => null);
+    throw new Error(data?.message || data?.error || 'Falha na exportação.');
+  }
+  return resp.blob();
+}
+
+export async function importUcsFromCsv(csvText: string): Promise<ImportResult> {
+  const csrf = document.cookie.match(/(?:^|; )hub_csrf=([^;]*)/)?.[1];
+  const resp = await fetch(`${config.apiBaseUrl}/api/v1/bulk/ucs/import`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'X-CSRF-Token': csrf ? decodeURIComponent(csrf) : '',
+    },
+    body: csvText,
+  });
+  if (resp.status === 401) {
+    window.location.href = '/login';
+    throw new Error('Não autenticado.');
+  }
+  if (!resp.ok) {
+    const data = await resp.json().catch(() => null);
+    throw new Error(data?.message || data?.error || 'Falha na importação.');
+  }
+  const json = await resp.json();
+  return json.data;
 }

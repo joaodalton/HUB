@@ -473,7 +473,34 @@
 }
 
 .masthead-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius);
+  background: var(--brand);
+  color: var(--brand-contrast);
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+
+.masthead-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.masthead-company-name {
   display: none;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--brand);
+  margin-top: 2px;
 }
 
 .masthead-text .eyebrow {

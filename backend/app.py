@@ -43,8 +43,9 @@ def create_app() -> Flask:
     from models.rateio_historico import RateioHistorico  # type: ignore
     from models.password_reset_token import PasswordResetToken  # type: ignore
     from models.email_template import EmailTemplate  # type: ignore
+    from models.fatura import Fatura  # type: ignore
 
-    CORS(app, origins=[Config.FRONTEND_URL], supports_credentials=True)
+    CORS(app, origins=['http://localhost:5173', 'http://127.0.0.1:5173', 'https://hub.local'], supports_credentials=True)
 
     from routes.auth_routes import auth_routes
     from routes.config_routes import config_routes
@@ -63,8 +64,9 @@ def create_app() -> Flask:
     from routes.user_routes import user_routes
     from routes.invitation_routes import invitation_routes
     from routes.rateio_routes import rateio_routes
-    from routes.platform_routes import platform_routes
+    from routes.bulk_import_export_routes import bulk_routes
     from routes.email_template_routes import email_template_routes
+    from routes.fatura_routes import fatura_routes
 
     app.register_blueprint(health_routes)
     app.register_blueprint(auth_routes)
@@ -82,24 +84,20 @@ def create_app() -> Flask:
     app.register_blueprint(pendencia_routes)
     app.register_blueprint(user_routes)
     app.register_blueprint(email_template_routes)
+    app.register_blueprint(fatura_routes)
     app.register_blueprint(invitation_routes)
     app.register_blueprint(rateio_routes)
-    app.register_blueprint(platform_routes)
+    app.register_blueprint(bulk_routes)
 
     from utils.auth import register_auth_middleware
     register_auth_middleware(app, public_paths={
         '/', '/api/v1/auth/login', '/api/v1/auth/bootstrap', '/api/v1/auth/logout',
         '/api/v1/auth/register', '/api/v1/auth/aceitar-convite',
         '/api/v1/convites/verificar',
-        '/api/v1/empresas/registro',
         '/api/v1/oauth/google/authorize', '/api/v1/oauth/google/callback',
-        '/api/v1/auth/esqueci-senha', '/api/v1/auth/redefinir-senha'
-    }, public_path_prefixes={
-        # request.path e' o path LITERAL da requisicao (ex.: /api/v1/empresas/select),
-        # nunca a string do padrao de rota com <string:slug> -- por isso essa rota
-        # nunca cai no set exato acima. Prefixo dedicado, checado a parte.
-        '/api/v1/empresas/'
-    })
+        '/api/v1/auth/esqueci-senha', '/api/v1/auth/redefinir-senha',
+        '/api/v1/faturas/webhook/asaas'
+    }, public_path_prefixes=set())
 
     @app.after_request
     def _set_security_headers(response):

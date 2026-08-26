@@ -9,13 +9,13 @@ export type AuthUser = {
   status: string;
   empresaNome?: string | null;
   isPlatformAdmin?: boolean;
+  platformView?: { empresaId: number; empresaNome: string } | null;
+  platformViewEmpresaId?: number | null;
+  platformViewEmpresaNome?: string | null;
+  homeEmpresaId?: number;
 };
 
-type ApiResponse<T> = {
-  success: boolean;
-  message: string;
-  data: T;
-};
+type ApiResponse<T> = { success: boolean; message: string; data: T };
 
 let cachedUser: AuthUser | null = null;
 let sessionChecked = false;
@@ -33,11 +33,13 @@ export async function ensureSession(): Promise<AuthUser | null> {
   try {
     const response = await apiRequest<ApiResponse<AuthUser>>('/auth/me');
     cachedUser = response.data;
+    sessionChecked = true;
+    return cachedUser;
   } catch {
     cachedUser = null;
+    sessionChecked = true;
+    return null;
   }
-  sessionChecked = true;
-  return cachedUser;
 }
 
 export function clearSession(): void {
@@ -55,21 +57,18 @@ export async function login(email: string, senha: string, lembrar = false): Prom
   return response.data;
 }
 
-// Auto-cadastro (tela de login) -- so funciona se o backend tiver SIGNUP_CODE
-// configurado e o codigo bater. NAO loga sozinho -- devolve so a confirmacao,
-// quem chamou decide se quer logar em seguida (ver LoginPage.ts).
+export async function logout(): Promise<void> {
+  try {
+    await apiRequest('/auth/logout', { method: 'POST' });
+  } catch {
+    // ignora
+  }
+  clearSession();
+}
+
 export async function register(email: string, senha: string, codigo: string): Promise<void> {
   await apiRequest('/auth/register', {
     method: 'POST',
     body: { email, senha, codigo }
   });
-}
-
-export async function logout(): Promise<void> {
-  try {
-    await apiRequest('/auth/logout', { method: 'POST' });
-  } catch {
-    // ignora -- limpa local mesmo assim
-  }
-  clearSession();
 }

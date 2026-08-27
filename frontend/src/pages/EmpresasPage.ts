@@ -135,7 +135,7 @@ export function createEmpresasPage(): HTMLElement {
     if (!platformView || !platformView.ativo) return createElement('div');
 
     const bar = createElement('div', { className: 'platform-view-bar' });
-    const label = createElement('span', { className: 'platform-view-label', textContent: 'Visualizando como' });
+    const label = createElement('span', { className: 'platform-view-label', textContent: 'Dentro da empresa: ' });
     const nome = createElement('strong', { className: 'platform-view-nome', textContent: platformView.empresaNome ?? '' });
     const sairBtn = createElement('button', {
       className: 'platform-view-sair',

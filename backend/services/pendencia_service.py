@@ -71,7 +71,39 @@ def _criar(tipo: str, origem: str, data: dict) -> dict:
 
     prioridade = data.get('prioridade', 'media')
     if prioridade not in PRIORIDADES:
-        raise ValueError(f'Prioridade invalida. Use uma de: {", ".join(PRIORIDADES)}.')
+        raise ValueError(
+            f'Prioridade invalida. Use uma de: {", ".join(PRIORIDADES)}.'
+        )
+
+    # Validação de referências cruzadas entre empresas.
+    # Uma pendência não pode apontar para cliente/UC/planta/document de
+    # outra empresa. Isso protege contra vazamento de referências cruzadas
+    # mesmo quando o frontend (ou um request malicioso) envia IDs livres.
+    empresa_id = g.current_empresa_id
+
+    if data.get('clienteId'):
+        from models.client import Client
+        cliente = Client.query.get(data['clienteId'])
+        if not cliente or cliente.empresa_id != empresa_id:
+            raise ValueError('Cliente pertence a outra empresa.')
+
+    if data.get('ucId'):
+        from models.consumer_unit import ConsumerUnit
+        uc = ConsumerUnit.query.get(data['ucId'])
+        if not uc or uc.empresa_id != empresa_id:
+            raise ValueError('UC pertence a outra empresa.')
+
+    if data.get('usinaId'):
+        from models.plant import Plant
+        planta = Plant.query.get(data['usinaId'])
+        if not planta or planta.empresa_id != empresa_id:
+            raise ValueError('Usina pertence a outra empresa.')
+
+    if data.get('documentoId'):
+        from models.document import Document
+        doc = Document.query.get(data['documentoId'])
+        if not doc or doc.empresa_id != empresa_id:
+            raise ValueError('Documento pertence a outra empresa.')
 
     pendencia = Pendencia(
         empresa_id=g.current_empresa_id,
@@ -92,7 +124,12 @@ def _criar(tipo: str, origem: str, data: dict) -> dict:
     db.session.add(pendencia)
     db.session.commit()
 
-    LogService.info(acao='create', mensagem=f'{tipo.capitalize()} "{pendencia.titulo}" criada ({origem})', entidade='Pendencia', entidade_id=pendencia.id)
+    LogService.info(
+        acao='create',
+        mensagem=f'{tipo.capitalize()} "{pendencia.titulo}" criada ({origem})',
+        entidade='Pendencia',
+        entidade_id=pendencia.id
+    )
     return pendencia.to_dict()
 
 
@@ -100,6 +137,35 @@ def update_pendencia(pendencia_id: int, data: dict) -> dict | None:
     pendencia = Pendencia.query.get(pendencia_id)
     if not pendencia:
         return None
+
+    # Validação de referências cruzadas também em update.
+    if 'clienteId' in data and data['clienteId'] is not None:
+        from models.client import Client
+        cliente = Client.query.get(data['clienteId'])
+        if not cliente or cliente.empresa_id != g.current_empresa_id:
+            raise ValueError('Cliente pertence a outra empresa.')
+        pendencia.client_id = data['clienteId']
+
+    if 'ucId' in data and data['ucId'] is not None:
+        from models.consumer_unit import ConsumerUnit
+        uc = ConsumerUnit.query.get(data['ucId'])
+        if not uc or uc.empresa_id != g.current_empresa_id:
+            raise ValueError('UC pertence a outra empresa.')
+        pendencia.consumer_unit_id = data['ucId']
+
+    if 'usinaId' in data and data['usinaId'] is not None:
+        from models.plant import Plant
+        planta = Plant.query.get(data['usinaId'])
+        if not planta or planta.empresa_id != g.current_empresa_id:
+            raise ValueError('Usina pertence a outra empresa.')
+        pendencia.plant_id = data['usinaId']
+
+    if 'documentoId' in data and data['documentoId'] is not None:
+        from models.document import Document
+        doc = Document.query.get(data['documentoId'])
+        if not doc or doc.empresa_id != g.current_empresa_id:
+            raise ValueError('Documento pertence a outra empresa.')
+        pendencia.document_id = data['documentoId']
 
     if 'categoria' in data:
         categoria = (data['categoria'] or '').strip()
@@ -114,15 +180,16 @@ def update_pendencia(pendencia_id: int, data: dict) -> dict | None:
 
     pendencia.titulo = data.get('titulo', pendencia.titulo).strip()
     pendencia.descricao = data.get('descricao', pendencia.descricao)
-    pendencia.client_id = data.get('clienteId', pendencia.client_id)
-    pendencia.consumer_unit_id = data.get('ucId', pendencia.consumer_unit_id)
-    pendencia.plant_id = data.get('usinaId', pendencia.plant_id)
-    pendencia.document_id = data.get('documentoId', pendencia.document_id)
     pendencia.prazo = _parse_datetime(data['prazo']) if 'prazo' in data else pendencia.prazo
     pendencia.responsavel_id = data.get('responsavelId', pendencia.responsavel_id)
 
     db.session.commit()
-    LogService.info(acao='update', mensagem=f'"{pendencia.titulo}" atualizada', entidade='Pendencia', entidade_id=pendencia.id)
+    LogService.info(
+        acao='update',
+        mensagem=f'"{pendencia.titulo}" atualizada',
+        entidade='Pendencia',
+        entidade_id=pendencia.id
+    )
     return pendencia.to_dict()
 
 
@@ -133,7 +200,12 @@ def resolver_pendencia(pendencia_id: int) -> dict | None:
     pendencia.status = 'resolvida'
     pendencia.resolved_at = datetime.utcnow()
     db.session.commit()
-    LogService.info(acao='resolver', mensagem=f'"{pendencia.titulo}" resolvida', entidade='Pendencia', entidade_id=pendencia.id)
+    LogService.info(
+        acao='resolver',
+        mensagem=f'"{pendencia.titulo}" resolvida',
+        entidade='Pendencia',
+        entidade_id=pendencia.id
+    )
     return pendencia.to_dict()
 
 
@@ -143,7 +215,12 @@ def cancelar_pendencia(pendencia_id: int) -> dict | None:
         return None
     pendencia.status = 'cancelada'
     db.session.commit()
-    LogService.info(acao='cancelar', mensagem=f'"{pendencia.titulo}" cancelada', entidade='Pendencia', entidade_id=pendencia.id)
+    LogService.info(
+        acao='cancelar',
+        mensagem=f'"{pendencia.titulo}" cancelada',
+        entidade='Pendencia',
+        entidade_id=pendencia.id
+    )
     return pendencia.to_dict()
 
 
@@ -154,7 +231,12 @@ def reabrir_pendencia(pendencia_id: int) -> dict | None:
     pendencia.status = 'aberta'
     pendencia.resolved_at = None
     db.session.commit()
-    LogService.info(acao='reabrir', mensagem=f'"{pendencia.titulo}" reaberta', entidade='Pendencia', entidade_id=pendencia.id)
+    LogService.info(
+        acao='reabrir',
+        mensagem=f'"{pendencia.titulo}" reaberta',
+        entidade='Pendencia',
+        entidade_id=pendencia.id
+    )
     return pendencia.to_dict()
 
 
@@ -171,6 +253,10 @@ def adicionar_comentario(pendencia_id: int, texto: str, autor_id: int | None) ->
     pendencia = Pendencia.query.get(pendencia_id)
     if not pendencia:
         return None
+    # Validação de referência cruzada: a pendência deve pertencer à empresa
+    # do usuário que está adicionando o comentário.
+    if pendencia.empresa_id != g.current_empresa_id:
+        raise ValueError('Pendencia pertence a outra empresa.')
     comentario = PendenciaComentario(
         empresa_id=g.current_empresa_id,
         pendencia_id=pendencia_id,
@@ -179,7 +265,12 @@ def adicionar_comentario(pendencia_id: int, texto: str, autor_id: int | None) ->
     )
     db.session.add(comentario)
     db.session.commit()
-    LogService.info(acao='comentario', mensagem='Comentario adicionado', entidade='Pendencia', entidade_id=pendencia.id)
+    LogService.info(
+        acao='comentario',
+        mensagem='Comentario adicionado',
+        entidade='Pendencia',
+        entidade_id=pendencia.id
+    )
     return pendencia.to_dict()
 
 

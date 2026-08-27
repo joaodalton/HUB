@@ -5,6 +5,7 @@ from extensions import limiter
 from services.auth_service import authenticate
 from services.invitation_service import aceitar_convite
 from services.password_reset_service import redefinir_senha, solicitar_reset
+from services.user_service import register_with_code
 from utils.api_response import error_response, success_response
 from utils.auth import clear_auth_cookies, set_auth_cookies
 
@@ -73,7 +74,7 @@ def login():
 
     lembrar = bool(data.get('lembrar', False))
 
-    response = jsonify({'success': True, 'message': 'Login realizado.', 'data': result['user'], 'token': result['token']})
+    response = jsonify({'success': True, 'message': 'Login realizado.', 'data': result['user']})
     set_auth_cookies(response, result['token'], remember=lembrar)
     return response
 

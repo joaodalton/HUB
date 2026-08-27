@@ -1,5 +1,5 @@
+// frontend/src/services/plantService.ts
 import { apiRequest } from './apiClient';
-import { config } from './config';
 
 export type PlantRow = {
   id: number;
@@ -34,6 +34,9 @@ export type PlantPayload = {
   marcaInversor?: string | null;
   telefoneProprietario?: string | null;
   emailProprietario?: string | null;
+  // Opcionais -- backend aceita ausencia (mantem valor atual no update,
+  // grava null na criacao). PlantCard.ts sempre manda string (mesmo vazia),
+  // mas o tipo fica opcional aqui pra nao quebrar quem ainda nao envia.
   cidade?: string | null;
   uf?: string | null;
   endereco?: string | null;
@@ -44,22 +47,6 @@ export type PlantPayload = {
   producaoMediaManual?: number | null;
   diaEmissaoUsina?: number | null;
 };
-
-export type PlantRateioConfigPayload = {
-  reservaPercentual?: number;
-  producaoMediaManual?: number | null;
-};
-
-export type PlantStatusTone = 'success' | 'warning' | 'danger' | 'neutral';
-
-export type PlantStatusSummary = {
-  total: number;
-  ativas: number;
-  emImplantacao: number;
-  manutencao: number;
-};
-
-export type ImportResult = { importados: number; falhas: Array<{ linha: number; erro: string }> };
 
 type ApiResponse<T> = {
   success: boolean;
@@ -101,6 +88,15 @@ export async function removePlantConnection(plantId: number, connectionId: numbe
   await apiRequest<ApiResponse<null>>(`/plants/${plantId}/connections/${connectionId}`, { method: 'DELETE' });
 }
 
+// Update parcial -- só os campos do motor de rateio (reserva e produção média
+// manual). O backend já aceita update parcial (mantém o resto como está),
+// mas PlantPayload normal exige nome/uc/kwPico/status preenchidos -- esse
+// tipo aqui é só pra tela de Rateio, que edita só esses 2 campos.
+export type PlantRateioConfigPayload = {
+  reservaPercentual?: number;
+  producaoMediaManual?: number | null;
+};
+
 export async function updatePlantRateioConfig(id: number, data: PlantRateioConfigPayload): Promise<PlantRow> {
   const response = await apiRequest<ApiResponse<PlantRow>>(`/plants/${id}`, {
     method: 'PUT',
@@ -109,25 +105,40 @@ export async function updatePlantRateioConfig(id: number, data: PlantRateioConfi
   return response.data;
 }
 
+// Status "cru" vem do backend (Online/Implantacao/Manutencao/Inativa, ver
+// PlantCard.ts). Esses dois helpers so cuidam da apresentacao (rotulo PT-BR +
+// cor) -- nao mudam o valor gravado, pra nao quebrar o formulario de edicao
+// nem dado ja salvo.
+export type PlantStatusTone = 'success' | 'warning' | 'danger' | 'neutral';
+
+const STATUS_LABELS: Record<string, string> = {
+  Online: 'Ativa',
+  Implantacao: 'Em Implantação',
+  Manutencao: 'Manutenção',
+  Inativa: 'Inativa'
+};
+
+const STATUS_TONES: Record<string, PlantStatusTone> = {
+  Online: 'success',
+  Implantacao: 'warning',
+  Manutencao: 'danger',
+  Inativa: 'neutral'
+};
+
 export function plantStatusLabel(status: string): string {
-  const STATUS_LABELS: Record<string, string> = {
-    Online: 'Ativa',
-    Implantacao: 'Em Implantação',
-    Manutencao: 'Manutenção',
-    Inativa: 'Inativa'
-  };
   return STATUS_LABELS[status] ?? status;
 }
 
 export function plantStatusTone(status: string): PlantStatusTone {
-  const STATUS_TONES: Record<string, PlantStatusTone> = {
-    Online: 'success',
-    Implantacao: 'warning',
-    Manutencao: 'danger',
-    Inativa: 'neutral'
-  };
   return STATUS_TONES[status] ?? 'neutral';
 }
+
+export type PlantStatusSummary = {
+  total: number;
+  ativas: number;
+  emImplantacao: number;
+  manutencao: number;
+};
 
 export function getPlantStatusSummary(plants: PlantRow[]): PlantStatusSummary {
   return {
@@ -136,45 +147,4 @@ export function getPlantStatusSummary(plants: PlantRow[]): PlantStatusSummary {
     emImplantacao: plants.filter((plant) => plant.status === 'Implantacao').length,
     manutencao: plants.filter((plant) => plant.status === 'Manutencao').length
   };
-}
-
-export async function exportPlantsCsv(): Promise<Blob> {
-  const csrf = document.cookie.match(/(?:^|; )hub_csrf=([^;]*)/)?.[1];
-  const resp = await fetch(`${config.apiBaseUrl}/api/v1/bulk/plants/export`, {
-    method: 'GET',
-    credentials: 'include',
-    headers: csrf ? { 'X-CSRF-Token': csrf } : {},
-  });
-  if (resp.status === 401) {
-    window.location.href = '/login';
-    throw new Error('Não autenticado.');
-  }
-  if (!resp.ok) {
-    const data = await resp.json().catch(() => null);
-    throw new Error(data?.message || data?.error || 'Falha na exportação.');
-  }
-  return resp.blob();
-}
-
-export async function importPlantsFromCsv(csvText: string): Promise<ImportResult> {
-  const csrf = document.cookie.match(/(?:^|; )hub_csrf=([^;]*)/)?.[1];
-  const resp = await fetch(`${config.apiBaseUrl}/api/v1/bulk/plants/import`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'text/csv; charset=utf-8',
-      'X-CSRF-Token': csrf ? decodeURIComponent(csrf) : '',
-    },
-    body: csvText,
-  });
-  if (resp.status === 401) {
-    window.location.href = '/login';
-    throw new Error('Não autenticado.');
-  }
-  if (!resp.ok) {
-    const data = await resp.json().catch(() => null);
-    throw new Error(data?.message || data?.error || 'Falha na importação.');
-  }
-  const json = await resp.json();
-  return json.data;
 }

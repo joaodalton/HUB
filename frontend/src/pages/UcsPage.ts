@@ -12,10 +12,8 @@ import { getAvailablePlants, type PlantRow } from '../services/plantService';
 import {
   createUc,
   deleteUc,
-  exportUcsCsv,
   getUcMetrics,
   getUcs,
-  importUcsFromCsv,
   type UcPayload,
   type UcRow,
   updateUc
@@ -66,8 +64,6 @@ export function createUcsPage(): HTMLElement {
     spacer.style.minWidth = '0';
     const newUcButton = createElement('button', { className: 'button-with-icon', type: 'button' });
     newUcButton.append(createIcon('plus'), document.createTextNode('Nova UC'));
-    const importUcButton = createElement('button', { className: 'secondary-button', textContent: 'Importar CSV', type: 'button' });
-    const exportUcButton = createElement('button', { className: 'secondary-button', textContent: 'Exportar CSV', type: 'button' });
 
     newUcButton.addEventListener('click', () => {
       if (clients.length === 0) {
@@ -77,55 +73,7 @@ export function createUcsPage(): HTMLElement {
       openUcEditor(null);
     });
 
-    importUcButton.addEventListener('click', async () => {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = '.csv';
-      input.style.display = 'none';
-      input.addEventListener('change', async () => {
-        const file = input.files?.[0];
-        if (!file) return;
-        if (file.size > 5 * 1024 * 1024) {
-          toast.error('Arquivo muito grande (máx 5MB).');
-          return;
-        }
-        try {
-          const text = await file.text();
-          const result = await importUcsFromCsv(text);
-          const msg = result.importados > 0
-            ? `${result.importados} UC(s) importada(s)`
-            : 'Nenhuma UC importada.';
-          if (result.falhas.length > 0) {
-            toast.warning(`${msg}; ${result.falhas.length} falha(s).`);
-          } else {
-            toast.success(msg);
-          }
-          await loadAll();
-        } catch (err) {
-          toast.error(err instanceof Error ? err.message : 'Erro na importação.');
-        }
-      });
-      document.body.appendChild(input);
-      input.click();
-    });
-
-    exportUcButton.addEventListener('click', async () => {
-      try {
-        const blob = await exportUcsCsv();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'ucs.csv';
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : 'Erro na exportação.');
-      }
-    });
-
-    pageActions.append(spacer, newUcButton, importUcButton, exportUcButton);
+    pageActions.append(spacer, newUcButton);
 
     const rows: UcTableRow[] = ucs.map((uc) => ({
       ...uc,

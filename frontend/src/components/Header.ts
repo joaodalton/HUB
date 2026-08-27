@@ -1,5 +1,4 @@
 import { createElement } from '../dom';
-import { getCurrentUser } from '../services/authService';
 
 type HeaderOptions = {
   eyebrow?: string;
@@ -14,22 +13,9 @@ export function createHeader({
   const mark = createElement('div', { className: 'masthead-mark', textContent: 'HUB' });
   const text = createElement('div', { className: 'masthead-text' });
   const eyebrow = createElement('span', { className: 'eyebrow', textContent: eyebrowText });
-
-  const user = getCurrentUser();
-
-  // Quando impersonando, mostrar o nome da empresa embaixo do logo
-  if (user?.platformView) {
-    const companyName = createElement('span', {
-      className: 'masthead-company-name',
-      textContent: user.platformView.empresaNome
-    });
-    text.append(companyName, eyebrow);
-  } else {
-    text.append(eyebrow);
-  }
-
   const heading = createElement('h1', { textContent: title });
-  text.append(heading);
+
+  text.append(eyebrow, heading);
   header.append(mark, text);
   return header;
 }

@@ -3,10 +3,13 @@ import { getCurrentUser, logout } from '../services/authService';
 import { createIcon, type IconName } from './Icon';
 import { getSettings } from '../services/settingsService';
 
+
 type SidebarLink = {
   label: string;
   path: string;
   icon: IconName;
+  // false = item do mockup que ainda nao tem pagina de verdade. Fica visivel
+  // (organiza o mapa mental do menu final) mas nao navega, so "Em breve".
   enabled: boolean;
 };
 
@@ -15,6 +18,9 @@ type SidebarSection = {
   items: SidebarLink[];
 };
 
+// HUB ainda esta em V0.x (nucleo funcional incompleto, ver PROGRESS.md) --
+// nao copiar numero de versao do mockup (v1.5.0), isso mentiria sobre o
+// estado real do projeto pra quem olhar a tela.
 export const HUB_VERSION = 'V1.x';
 
 const sections: SidebarSection[] = [
@@ -36,7 +42,7 @@ const sections: SidebarSection[] = [
   {
     title: 'Financeiro',
     items: [
-      { label: 'Faturas', path: '/faturas', icon: 'faturas', enabled: true },
+      { label: 'Faturas', path: '/faturas', icon: 'faturas', enabled: false },
       { label: 'Pagamentos', path: '/pagamentos', icon: 'pagamentos', enabled: false },
       { label: 'Cobranças', path: '/cobrancas', icon: 'cobrancas', enabled: false }
     ]
@@ -63,25 +69,14 @@ const sections: SidebarSection[] = [
 
 let brandTextElement: HTMLElement | null = null;
 
-export function refreshSidebarBrand(): void {
-  if (!brandTextElement) return;
-  const user = getCurrentUser();
-  if (user?.platformView) {
-    brandTextElement.textContent = user.platformView.empresaNome;
-  } else {
-    brandTextElement.textContent = getSettings().companyName || 'HUB';
-  }
-}
+export function refreshSidebarBrand(): void { if (brandTextElement)
+   {brandTextElement.textContent = getSettings().companyName || 'HUB';}}
 
 export function createSidebar(): HTMLElement {
   const sidebar = createElement('aside', { className: 'sidebar' });
   const brand = createElement('div', { className: 'sidebar-brand' });
   const brandMark = createElement('span', { className: 'sidebar-mark', textContent: 'H' });
-
-  // Usar nome da empresa se estiver em modo platform view
-  const currentUser = getCurrentUser();
-  const brandText = currentUser?.platformView?.empresaNome || getSettings().companyName || 'HUB';
-  brandTextElement = createElement('span', { textContent: brandText });
+  brandTextElement = createElement('span', { textContent: getSettings().companyName || 'HUB' });
   const nav = createElement('nav', { className: 'sidebar-nav' });
 
   brand.append(brandMark, brandTextElement);
@@ -90,13 +85,11 @@ export function createSidebar(): HTMLElement {
   if (getCurrentUser()?.isPlatformAdmin) {
     visibleSections.push({
       title: 'Plataforma',
-      items: [
-        { label: 'Empresas', path: '/empresas', icon: 'clients', enabled: true }
-      ]
+      items: [{ label: 'Empresas', path: '/empresas', icon: 'clients', enabled: true }]
     });
   }
 
-  visibleSections.forEach(section => {
+  visibleSections.forEach((section) => {
     const sectionElement = createElement('div', { className: 'sidebar-section' });
 
     if (section.title) {
@@ -106,7 +99,7 @@ export function createSidebar(): HTMLElement {
       }));
     }
 
-    section.items.forEach(item => {
+    section.items.forEach((item) => {
       sectionElement.appendChild(createSidebarLink(item));
     });
 
@@ -137,7 +130,7 @@ function createSidebarLink(item: SidebarLink): HTMLElement {
 
   link.href = item.path;
   link.append(icon, label);
-  link.addEventListener('click', event => {
+  link.addEventListener('click', (event) => {
     event.preventDefault();
     window.history.pushState({}, '', item.path);
     window.dispatchEvent(new PopStateEvent('popstate'));
@@ -155,11 +148,9 @@ function createUserCard(): HTMLElement {
   });
   const text = createElement('div', { className: 'sidebar-user-text' });
   const name = createElement('span', { className: 'sidebar-user-name', textContent: user?.nome || user?.email || 'Usuário' });
-
-  // Se em modo platform view, mostrar o nome da empresa sendo visualizada
   const role = createElement('span', {
     className: 'sidebar-user-role',
-    textContent: user?.platformView ? `Visualizando: ${user.platformView.empresaNome}` : (user?.empresaNome || roleLabel(user?.role))
+    textContent: user?.empresaNome || roleLabel(user?.role)
   });
 
   text.append(name, role);

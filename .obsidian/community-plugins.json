@@ -3,12 +3,5 @@
   "dataview",
   "obsidian-git",
   "templater-obsidian",
-  "vscode-editor",
-  "juggl",
-  "excalibrain",
-  "smart-connections",
-  "extended-graph",
-  "omnisearch",
-  "table-editor-obsidian",
-  "obsidian-html-plugin"
+  "vscode-editor"
 ]

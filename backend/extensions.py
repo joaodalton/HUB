@@ -51,10 +51,7 @@ class TenantQuery(Query):
         return query.first()
 
 
-from flask_sqlalchemy.session import Session as FSSession
-from sqlalchemy.orm import Session as BaseSession
-
-class TenantSession(FSSession):
+class TenantSession(Session):
     """
     Subclasse de Session que protege db.session.get() para modelos com TenantMixin.
 
@@ -66,13 +63,13 @@ class TenantSession(FSSession):
 
     Esta subclasse garante que, para modelos com TenantMixin, sempre emitimos
     um SELECT com o filtro de empresa_id, mesmo se o objeto estiver no identity map.
-
-    ASSINATURA: Segue a assinatura oficial do SQLAlchemy 2.x Session.get().
     """
-    def get(self, entity, ident, options=None, populate_existing=False,
-            with_for_update=None, identity_token=None, execution_options=None,
-            bind_arguments=None):
-        cls = entity
+    def get(self, mapper_or_class, ident, cls=None, **kw):
+        # Determina o modelo alvo
+        if cls is None:
+            cls = mapper_or_class
+            if hasattr(mapper_or_class, '_sa_class_manager'):
+                cls = mapper_or_class
 
         # Verifica se é um modelo com TenantMixin em contexto de request
         if has_request_context():
@@ -90,16 +87,10 @@ class TenantSession(FSSession):
                     criteria = {primary_keys[0].key: ident}
 
                 query = self.query(cls).filter_by(**criteria, empresa_id=empresa_id)
-                if populate_existing:
-                    query = query.populate_existing()
-                if with_for_update:
-                    query = query.with_for_update(**(with_for_update if isinstance(with_for_update, dict) else {}))
                 return query.first()
 
         # Fallback para comportamento padrão (modelos sem tenant ou fora de request)
-        return super().get(entity, ident, options=options, populate_existing=populate_existing,
-                           with_for_update=with_for_update, identity_token=identity_token,
-                           execution_options=execution_options, bind_arguments=bind_arguments)
+        return super().get(mapper_or_class, ident, cls=cls, **kw)
 
 
 db = SQLAlchemy(query_class=TenantQuery, session_options={'class_': TenantSession})

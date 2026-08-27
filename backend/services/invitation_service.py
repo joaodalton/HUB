@@ -20,7 +20,7 @@ from models.user import User
 from services.email_service import send_email
 from services.email_template_service import renderizar as renderizar_template
 from services.log_service import LogService
-from services.valid_roles import VALID_ROLES
+from services.user_service import VALID_ROLES
 from utils.auth import hash_password
 
 INVITE_TTL_DAYS = 7

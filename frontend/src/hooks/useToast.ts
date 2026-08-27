@@ -4,7 +4,6 @@ export function useToast() {
   return {
     success: (message: string) => showToast(message, 'success'),
     error: (message: string) => showToast(message, 'error'),
-    info: (message: string) => showToast(message, 'info'),
-    warning: (message: string) => showToast(message, 'info')
+    info: (message: string) => showToast(message, 'info')
   };
 }

@@ -24,3 +24,5 @@ create_issues_batch2.py
 # Scripts de desenvolvimento local (mantidos no FS, não versionados)
 start-hub.sh
 test_hub.py
+test/
+tests/

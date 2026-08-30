@@ -1,5 +1,8 @@
 # APP HUB — Sistema de Operação Solar
 
+Consulte [SECURITY.md](SECURITY.md) para os controles de multi-tenancy, RBAC,
+sessões, Google Drive e o procedimento de migração de segurança.
+
 > **Programa de trabalho diário** para organizar clientes, UCs (unidades consumidoras), usinas e documentos de uma operação de energia solar.
 > **Documentos relacionados:** [[VISAO]] · [[ARCHITECTURE]] · [[PROGRESS]] · [[API_CONTRACTS]]
 

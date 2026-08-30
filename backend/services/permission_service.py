@@ -211,12 +211,16 @@ def can(user, action: str) -> bool:
     """Verifica se o usuário tem permissão para uma ação."""
     if not user:
         return False
+    if getattr(user, 'is_platform_admin', False):
+        return True
     return action in ROLE_PERMISSIONS.get(user.role, set())
 
 def can_any(user, actions: list[str]) -> bool:
     """Verifica se o usuário tem pelo menos uma das ações."""
     if not user:
         return False
+    if getattr(user, 'is_platform_admin', False):
+        return True
     user_perms = ROLE_PERMISSIONS.get(user.role, set())
     return any(a in user_perms for a in actions)
 
@@ -260,7 +264,7 @@ def require_role(*roles: str) -> Callable:
             if not hasattr(g, 'current_user') or not g.current_user:
                 return error_response('Autenticacao obrigatoria.', 401)
 
-            if g.current_user.role not in roles:
+            if not g.current_user.is_platform_admin and g.current_user.role not in roles:
                 return error_response(
                     f'Esta acao requer um dos seguintes perfis: {", ".join(roles)}.',
                     403

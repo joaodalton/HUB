@@ -3,6 +3,7 @@ from flask import Blueprint, request
 
 from extensions import db
 from models.category import Category
+from services.permission_service import require_permission
 from utils.api_response import error_response, success_response
 
 
@@ -10,12 +11,14 @@ category_routes = Blueprint('category_routes', __name__, url_prefix='/api/v1/cat
 
 
 @category_routes.route('', methods=['GET'])
+@require_permission('categories.read')
 def index():
     categories = Category.query.order_by(Category.nome).all()
     return success_response([category.to_dict() for category in categories])
 
 
 @category_routes.route('', methods=['POST'])
+@require_permission('categories.create')
 def store():
     data = request.get_json(silent=True) or {}
     nome = data.get('nome', '').strip()

@@ -15,3 +15,13 @@ export async function getEmpresas(): Promise<EmpresaRow[]> {
   const response = await apiRequest<ApiResponse<EmpresaRow[]>>('/empresas');
   return response.data;
 }
+
+export type EmpresaDocumentos = {
+  cnpj: { id: number; nome: string } | null;
+  estatuto: { id: number; nome: string } | null;
+};
+
+export async function getEmpresaDocumentos(): Promise<EmpresaDocumentos> {
+  const response = await apiRequest<ApiResponse<EmpresaDocumentos>>('/empresas/documentos');
+  return response.data;
+}

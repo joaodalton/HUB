@@ -61,7 +61,7 @@ def _store_pending_state(state: str, code_verifier: str, empresa_id: int) -> Non
     # o /callback e chamado direto pelo Google, sem sessao/cookie util pra
     # saber isso, entao precisa vir carregado dentro do proprio state.
     valor = json.dumps({'codeVerifier': code_verifier, 'empresaId': empresa_id})
-    db.session.add(Setting(chave=f'{_STATE_KEY_PREFIX}{state}', valor=valor))
+    db.session.add(Setting(empresa_id=empresa_id, chave=f'{_STATE_KEY_PREFIX}{state}', valor=valor))
     db.session.commit()
 
 
@@ -185,7 +185,7 @@ def handle_callback(request_url: str, state: str) -> dict:
         account.is_active = True
 
     db.session.commit()
-    _invalidate_drive_cache()
+    _invalidate_drive_cache(empresa_id)
 
     LogService.info(
         acao='oauth_connect',
@@ -222,7 +222,7 @@ def set_active_account(account_id: int, empresa_id: int) -> dict | None:
     GoogleAccount.query.filter_by(empresa_id=empresa_id).update({GoogleAccount.is_active: False})
     account.is_active = True
     db.session.commit()
-    _invalidate_drive_cache()
+    _invalidate_drive_cache(empresa_id)
 
     LogService.info(acao='oauth_activate', mensagem=f'Conta Google {account.email} ativada', entidade='GoogleAccount', metadados={'id': account.id})
     return account.to_dict()
@@ -238,14 +238,14 @@ def disconnect_account(account_id: int, empresa_id: int) -> bool:
     db.session.commit()
 
     if was_active:
-        _invalidate_drive_cache()
+        _invalidate_drive_cache(empresa_id)
 
     LogService.info(acao='oauth_disconnect', mensagem=f'Conta Google {email} desconectada', entidade='GoogleAccount')
     return True
 
 
-def _invalidate_drive_cache() -> None:
+def _invalidate_drive_cache(empresa_id: int) -> None:
     # import tardio pra evitar ciclo de import (drive_service tambem pode vir
     # a importar coisas daqui no futuro).
     from services.drive_service import invalidate_drive_cache
-    invalidate_drive_cache()
+    invalidate_drive_cache(empresa_id)

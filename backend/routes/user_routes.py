@@ -12,7 +12,7 @@ user_routes = Blueprint('user_routes', __name__, url_prefix='/api/v1/users')
 @user_routes.route('', methods=['GET'])
 @require_permission('users.read')
 def index():
-    return success_response(list_users(g.current_user.empresa_id))
+    return success_response(list_users(g.current_empresa_id))
 
 
 @user_routes.route('', methods=['POST'])
@@ -21,7 +21,7 @@ def store():
     data = request.get_json(silent=True) or {}
 
     try:
-        user = create_user(data, g.current_user.empresa_id)
+        user = create_user(data, g.current_empresa_id)
     except ValueError as exc:
         return error_response(str(exc), 409)
 
@@ -38,7 +38,7 @@ def update_active(user_id: int):
         return error_response('Voce nao pode desativar sua propria conta.', 400)
 
     try:
-        user = set_user_active(user_id, g.current_user.empresa_id, ativo)
+        user = set_user_active(user_id, g.current_empresa_id, ativo)
     except ValueError as exc:
         return error_response(str(exc), 400)
 

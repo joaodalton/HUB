@@ -3,6 +3,7 @@ from flask import Blueprint, g, redirect, request
 
 from config import Config
 from services.log_service import LogService
+from services.permission_service import require_permission
 from services.oauth_service import (
     build_authorize_url,
     disconnect_account,
@@ -11,7 +12,6 @@ from services.oauth_service import (
     set_active_account
 )
 from utils.api_response import error_response, success_response
-from utils.auth import resolve_current_user_optional
 
 oauth_routes = Blueprint('oauth_routes', __name__, url_prefix='/api/v1/oauth/google')
 
@@ -21,13 +21,10 @@ oauth_routes = Blueprint('oauth_routes', __name__, url_prefix='/api/v1/oauth/goo
 # aqui dentro -- precisa saber a empresa de quem clicou "Conectar nova
 # conta" antes de mandar pro Google (ver resolve_current_user_optional).
 @oauth_routes.route('/authorize')
+@require_permission('settings.update')
 def authorize():
-    user = resolve_current_user_optional()
-    if not user:
-        return error_response('Faca login antes de conectar uma conta Google.', 401)
-
     try:
-        return redirect(build_authorize_url(user.empresa_id))
+        return redirect(build_authorize_url(g.current_empresa_id))
     except RuntimeError as exc:
         return error_response(str(exc), 503)
 
@@ -56,14 +53,16 @@ def callback():
 
 # GET /api/v1/oauth/google/accounts -- lista contas Google conectadas DA EMPRESA do usuario logado.
 @oauth_routes.route('/accounts')
+@require_permission('settings.read')
 def accounts():
-    return success_response(list_accounts(g.current_user.empresa_id))
+    return success_response(list_accounts(g.current_empresa_id))
 
 
 # POST /api/v1/oauth/google/accounts/<id>/activate -- troca qual conta e a ativa (so uma por vez, por empresa).
 @oauth_routes.route('/accounts/<int:account_id>/activate', methods=['POST'])
+@require_permission('settings.update')
 def activate(account_id: int):
-    account = set_active_account(account_id, g.current_user.empresa_id)
+    account = set_active_account(account_id, g.current_empresa_id)
     if not account:
         return error_response('Conta nao encontrada.', 404)
     return success_response(account, 'Conta ativada.')
@@ -71,7 +70,8 @@ def activate(account_id: int):
 
 # DELETE /api/v1/oauth/google/accounts/<id> -- desconecta e apaga a conta salva (nao revoga no lado do Google).
 @oauth_routes.route('/accounts/<int:account_id>', methods=['DELETE'])
+@require_permission('settings.update')
 def destroy(account_id: int):
-    if not disconnect_account(account_id, g.current_user.empresa_id):
+    if not disconnect_account(account_id, g.current_empresa_id):
         return error_response('Conta nao encontrada.', 404)
     return success_response(None, 'Conta desconectada.')

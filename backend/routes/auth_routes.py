@@ -7,6 +7,7 @@ from services.invitation_service import aceitar_convite
 from services.password_reset_service import redefinir_senha, solicitar_reset
 from services.user_service import register_with_code
 from utils.api_response import error_response, success_response
+from extensions import db
 from utils.auth import clear_auth_cookies, set_auth_cookies
 
 
@@ -81,6 +82,8 @@ def login():
 
 @auth_routes.route('/logout', methods=['POST'])
 def logout():
+    g.current_user.session_version += 1
+    db.session.commit()
     response = jsonify({'success': True, 'message': 'Logout realizado.', 'data': None})
     clear_auth_cookies(response)
     return response

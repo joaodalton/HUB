@@ -11,6 +11,13 @@ processos.json
 backend/uploads/
 logs/ 
 *.log
+tmp/
+output/
+.pytest_cache/
+backend/.pytest_cache/
+backend/debug_*.py
+backend/scripts/debug_*.py
+backend/scripts/testar_*.py
 
 
 

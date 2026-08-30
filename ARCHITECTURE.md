@@ -117,7 +117,12 @@ graph TD
   subgraph raiz["raiz"]
     app["app"]
     config["config"]
+    debug_pdf["debug_pdf"]
     extensions["extensions"]
+    rateio_regression_test["rateio_regression_test"]
+    security_middleware["security_middleware"]
+    security_regression_test["security_regression_test"]
+    test_path_impersonation["test_path_impersonation"]
   end
   subgraph routes["routes"]
     routes_auth_routes["routes.auth_routes"]
@@ -158,6 +163,8 @@ graph TD
     services_pendencia_service["services.pendencia_service"]
     services_permission_service["services.permission_service"]
     services_plant_service["services.plant_service"]
+    services_rateio_formulario_service["services.rateio_formulario_service"]
+    services_rateio_pdf_service["services.rateio_pdf_service"]
     services_rateio_service["services.rateio_service"]
     services_settings_service["services.settings_service"]
     services_uc_service["services.uc_service"]
@@ -222,6 +229,7 @@ graph TD
   models_rateio_historico --> extensions
   models_setting --> extensions
   models_user --> extensions
+  rateio_regression_test --> services_rateio_pdf_service
   routes_auth_routes --> extensions
   routes_auth_routes --> services_auth_service
   routes_auth_routes --> services_invitation_service
@@ -231,39 +239,51 @@ graph TD
   routes_auth_routes --> utils_auth
   routes_category_routes --> extensions
   routes_category_routes --> models_category
+  routes_category_routes --> services_permission_service
   routes_category_routes --> utils_api_response
   routes_client_routes --> services_client_service
+  routes_client_routes --> services_permission_service
   routes_client_routes --> utils_api_response
   routes_config_routes --> services_database_config_service
   routes_config_routes --> services_drive_service
+  routes_config_routes --> services_permission_service
   routes_config_routes --> utils_api_response
   routes_document_routes --> services_document_service
+  routes_document_routes --> services_permission_service
   routes_document_routes --> utils_api_response
   routes_drive_routes --> services_drive_service
+  routes_drive_routes --> services_permission_service
   routes_drive_routes --> utils_api_response
+  routes_email_template_routes --> extensions
   routes_email_template_routes --> services_email_service
   routes_email_template_routes --> services_email_template_service
+  routes_email_template_routes --> services_log_service
   routes_email_template_routes --> services_permission_service
   routes_email_template_routes --> utils_api_response
   routes_empresa_routes --> config
   routes_empresa_routes --> models_empresa
   routes_empresa_routes --> models_user
   routes_empresa_routes --> services_empresa_service
+  routes_empresa_routes --> services_permission_service
   routes_empresa_routes --> utils_api_response
   routes_invitation_routes --> config
   routes_invitation_routes --> services_invitation_service
   routes_invitation_routes --> services_permission_service
   routes_invitation_routes --> utils_api_response
   routes_log_routes --> services_log_service
+  routes_log_routes --> services_permission_service
   routes_log_routes --> utils_api_response
   routes_oauth_routes --> config
   routes_oauth_routes --> services_log_service
   routes_oauth_routes --> services_oauth_service
+  routes_oauth_routes --> services_permission_service
   routes_oauth_routes --> utils_api_response
-  routes_oauth_routes --> utils_auth
+  routes_pendencia_routes --> extensions
   routes_pendencia_routes --> services_automacao_service
   routes_pendencia_routes --> services_pendencia_service
+  routes_pendencia_routes --> services_permission_service
   routes_pendencia_routes --> utils_api_response
+  routes_plant_routes --> services_permission_service
   routes_plant_routes --> services_plant_service
   routes_plant_routes --> services_uc_service
   routes_plant_routes --> utils_api_response
@@ -271,15 +291,23 @@ graph TD
   routes_platform_routes --> services_permission_service
   routes_platform_routes --> utils_api_response
   routes_platform_routes --> utils_auth
+  routes_rateio_routes --> services_permission_service
+  routes_rateio_routes --> services_rateio_formulario_service
+  routes_rateio_routes --> services_rateio_pdf_service
   routes_rateio_routes --> services_rateio_service
   routes_rateio_routes --> utils_api_response
+  routes_settings_routes --> services_permission_service
   routes_settings_routes --> services_settings_service
   routes_settings_routes --> utils_api_response
+  routes_uc_routes --> services_permission_service
   routes_uc_routes --> services_uc_service
   routes_uc_routes --> utils_api_response
   routes_user_routes --> services_permission_service
   routes_user_routes --> services_user_service
   routes_user_routes --> utils_api_response
+  security_middleware --> extensions
+  security_middleware --> services_log_service
+  security_middleware --> utils_api_response
   services_auth_service --> extensions
   services_auth_service --> models_empresa
   services_auth_service --> models_user
@@ -296,7 +324,6 @@ graph TD
   services_client_service --> models_client
   services_client_service --> models_consumer_unit
   services_client_service --> services_uc_service
-  services_document_service --> config
   services_document_service --> extensions
   services_document_service --> models_category
   services_document_service --> models_client
@@ -305,7 +332,9 @@ graph TD
   services_document_service --> services_drive_service
   services_document_service --> services_log_service
   services_drive_service --> config
+  services_drive_service --> models_empresa
   services_drive_service --> models_google_account
+  services_drive_service --> models_setting
   services_drive_service --> services_database_config_service
   services_drive_service --> services_log_service
   services_drive_service --> utils_files
@@ -318,6 +347,7 @@ graph TD
   services_empresa_service --> extensions
   services_empresa_service --> models_empresa
   services_empresa_service --> models_user
+  services_empresa_service --> services_document_service
   services_empresa_service --> services_log_service
   services_empresa_service --> utils_auth
   services_invitation_service --> config
@@ -347,11 +377,24 @@ graph TD
   services_password_reset_service --> services_log_service
   services_password_reset_service --> utils_auth
   services_pendencia_service --> extensions
+  services_pendencia_service --> models_client
+  services_pendencia_service --> models_consumer_unit
+  services_pendencia_service --> models_document
   services_pendencia_service --> models_pendencia
+  services_pendencia_service --> models_plant
   services_pendencia_service --> services_log_service
   services_permission_service --> utils_api_response
   services_plant_service --> extensions
   services_plant_service --> models_plant
+  services_rateio_formulario_service --> extensions
+  services_rateio_formulario_service --> models_consumer_unit
+  services_rateio_formulario_service --> models_document
+  services_rateio_formulario_service --> models_empresa
+  services_rateio_formulario_service --> models_pendencia
+  services_rateio_formulario_service --> models_plant
+  services_rateio_formulario_service --> services_pendencia_service
+  services_rateio_pdf_service --> services_drive_service
+  services_rateio_pdf_service --> services_rateio_formulario_service
   services_rateio_service --> extensions
   services_rateio_service --> models_consumer_unit
   services_rateio_service --> models_plant
@@ -370,7 +413,13 @@ graph TD
   services_user_service --> models_user
   services_user_service --> services_log_service
   services_user_service --> utils_auth
+  test_path_impersonation --> app
+  test_path_impersonation --> extensions
+  test_path_impersonation --> models_client
+  test_path_impersonation --> models_empresa
+  test_path_impersonation --> models_user
   utils_auth --> config
+  utils_auth --> extensions
   utils_auth --> models_empresa
   utils_auth --> models_user
   utils_auth --> utils_api_response
@@ -447,6 +496,7 @@ graph TD
     services_pendenciasService["services/pendenciasService"]
     services_plantService["services/plantService"]
     services_rateioConfigService["services/rateioConfigService"]
+    services_rateioFormularioService["services/rateioFormularioService"]
     services_rateioService["services/rateioService"]
     services_router["services/router"]
     services_settingsService["services/settingsService"]
@@ -517,7 +567,10 @@ graph TD
   pages_DocumentsPage --> services_documentRules
   pages_DocumentsPage --> services_driveService
   pages_EmpresasPage --> components_DataTable
+  pages_EmpresasPage --> components_Icon
+  pages_EmpresasPage --> components_formFields
   pages_EmpresasPage --> hooks_useGlobalLoading
+  pages_EmpresasPage --> hooks_useToast
   pages_EmpresasPage --> layouts_BaseLayout
   pages_EmpresasPage --> services_empresaService
   pages_ForgotPasswordPage --> components_Icon
@@ -556,7 +609,10 @@ graph TD
   pages_RateioPage --> hooks_useGlobalLoading
   pages_RateioPage --> hooks_useToast
   pages_RateioPage --> layouts_BaseLayout
+  pages_RateioPage --> services_config
+  pages_RateioPage --> services_empresaService
   pages_RateioPage --> services_plantService
+  pages_RateioPage --> services_rateioFormularioService
   pages_RateioPage --> services_rateioService
   pages_RateioPage --> services_ucsService
   pages_ResetPasswordPage --> components_Icon
@@ -605,6 +661,7 @@ graph TD
   services_pendenciasService --> services_apiClient
   services_plantService --> services_apiClient
   services_rateioConfigService --> services_apiClient
+  services_rateioFormularioService --> services_apiClient
   services_rateioService --> services_apiClient
   services_router --> pages_AgendaPage
   services_router --> pages_ClientsPage

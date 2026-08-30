@@ -24,6 +24,7 @@ class User(db.Model):
     # Flag global, separado dos papeis que valem apenas dentro da empresa.
     # E concedido exclusivamente pelo script administrativo.
     is_platform_admin = db.Column(db.Boolean, nullable=False, default=False)
+    session_version = db.Column(db.Integer, nullable=False, default=1)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

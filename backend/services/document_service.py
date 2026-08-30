@@ -12,7 +12,6 @@ from models.consumer_unit import ConsumerUnit
 from models.document import Document
 from services.drive_service import get_drive_service
 from services.log_service import LogService
-from config import Config
 
 # Continua existindo so pra servir documentos antigos (storage_provider='local'),
 # enviados antes da troca pro Drive -- nao usar mais pra upload novo (ver
@@ -66,7 +65,7 @@ def create_document(data: dict, file_storage) -> dict:
 
     drive = get_drive_service()  # deixa a excecao propagar -- document_routes.py trata como 503, nao 409
 
-    existing_file_id = drive.find_duplicate(drive_name, file_md5, Config.GOOGLE_DRIVE_ROOT_FOLDER_ID)
+    existing_file_id = drive.find_duplicate(drive_name, file_md5, drive.root_folder_id)
 
     if existing_file_id:
         drive_file_id = existing_file_id
@@ -77,7 +76,7 @@ def create_document(data: dict, file_storage) -> dict:
             metadados={'driveFileId': drive_file_id}
         )
     else:
-        drive_file_id = drive.upload_file(file_bytes, drive_name, file_storage.mimetype, Config.GOOGLE_DRIVE_ROOT_FOLDER_ID)
+        drive_file_id = drive.upload_file(file_bytes, drive_name, file_storage.mimetype, drive.root_folder_id)
 
     document = Document(
         empresa_id=g.current_empresa_id,

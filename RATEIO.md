@@ -335,3 +335,12 @@ O motor de geração identifica automaticamente quais categorias são exigidas p
 Considerações finais
 O módulo de Rateio do HUB não deve ser visto apenas como uma ferramenta para preencher formulários da concessionária. Seu principal valor está em atuar como um motor inteligente de gestão da geração distribuída, centralizando informações das usinas, clientes e documentos, aplicando regras configuráveis de distribuição, considerando a sazonalidade da produção, gerenciando reservas de créditos, validando automaticamente todos os cálculos e organizando a documentação necessária para envio. A geração dos formulários passa a ser apenas a etapa final de um processo muito mais amplo, automatizado e confiável, transformando o HUB em uma plataforma operacional para associações, cooperativas e empresas que administram geração distribuída.
 
+## Fluxo implementado (2026-08-29)
+
+- **Montar Rateio**: seleção da usina, reserva, qualificação, distribuição, competência e aprovação. A aprovação persiste `PlantConnection` com percentual manual e `RateioHistorico`.
+- **Gerar Formulário Copel**: lê somente conexões já aprovadas. Correções feitas na grade alteram apenas o PDF, sem modificar cliente ou UC.
+- **Pré-requisitos**: `Plant.uc`, CNPJ e Estatuto da empresa e um documento cujo nome/categoria contenha “termo” e “adesão” para cada beneficiário.
+- **Verificação**: termos ausentes bloqueiam a geração e mantêm uma única pendência crítica automática por usina. A pendência é resolvida na nova verificação quando não houver mais faltas.
+- **Arquivos finais**: formulário preenchido, termos mesclados, CNPJ e Estatuto. O envio à Copel permanece manual.
+- **Segurança**: arquivos do Drive só podem ser baixados da pasta raiz configurada para a empresa atual; falha em qualquer termo cancela a mesclagem inteira.
+

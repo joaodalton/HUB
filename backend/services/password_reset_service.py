@@ -61,14 +61,15 @@ def solicitar_reset(email: str) -> None:
         LogService.warning(
             acao='email_template_missing',
             mensagem='Template "password_reset" não encontrado -- e-mail de redefinição não enviado.',
-            entidade='EmailTemplate'
+            entidade='EmailTemplate',
+            metadados={'empresaId': user.empresa_id}
         )
 
     LogService.info(
         acao='password_reset_solicitado',
         mensagem=f'Reset de senha solicitado para {user.email}',
         entidade='User',
-        metadados={'userId': user.id}
+        metadados={'userId': user.id, 'empresaId': user.empresa_id}
     )
 
 
@@ -89,6 +90,7 @@ def redefinir_senha(token_cru: str, nova_senha: str) -> None:
         raise ValueError('Usuário não encontrado.')
 
     user.password_hash = hash_password(nova_senha)
+    user.session_version += 1
     reset.used = True
     db.session.commit()
 
@@ -96,5 +98,5 @@ def redefinir_senha(token_cru: str, nova_senha: str) -> None:
         acao='password_reset_concluido',
         mensagem=f'Senha redefinida para {user.email}',
         entidade='User',
-        metadados={'userId': user.id}
+        metadados={'userId': user.id, 'empresaId': user.empresa_id}
     )

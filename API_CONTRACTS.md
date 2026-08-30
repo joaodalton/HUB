@@ -285,6 +285,37 @@ Lista as regras automáticas disponíveis. Retorna array de regras com `id`, `no
 
 ## Logs (`/logs`)
 
+### `GET /rateio/formulario?plantId=`
+Monta a tabela de revisão do Formulário Copel (Associações) a partir das `PlantConnection` já confirmadas dessa usina — não recalcula nada. `data`:
+```json
+{
+  "plantId": 1, "plantNome": "", "empresaNome": "", "empresaCnpj": "",
+  "somaPercentual": 100.0,
+  "linhas": [
+    { "ordem": 1, "tipo": "geradora", "nome": "", "documento": "", "ucIdentificacao": "", "percentual": 0.0, "termoAdesaoOk": null, "clienteId": null, "ucId": null },
+    { "ordem": 2, "tipo": "beneficiaria", "nome": "", "documento": "", "ucIdentificacao": "", "percentual": 33.33, "termoAdesaoOk": true, "clienteId": 1, "ucId": 1 }
+  ]
+}
+```
+Linha 1 é sempre a usina/associação (0%, `termoAdesaoOk: null`). Linhas seguintes vêm ordenadas alfabeticamente pelo nome do cliente titular. Erro 404 se a usina não existir.
+
+### `POST /rateio/formulario/verificar-documentos`
+Body: `{ "plantId": number }`. Confere Termo de Adesão de cada UC beneficiária (por nome/categoria do `Document`). Se faltar algum, cria uma `Pendencia` (categoria `Documentos`, prioridade `critica`) e retorna `ok: false`.
+`data`: `{ "ok": boolean, "faltando": [{ "clienteId": number, "ucId": number, "nome": string }] }`.
+
+### `POST /rateio/formulario/gerar-pdf`
+Body: `{ "plantId": number, "responsavelNome": string, "responsavelCpf": string }`. Gera o Formulário Copel (Associações) preenchido por overlay em cima do template oficial (`backend/assets/formulario_copel_associacao.pdf`). **Resposta binária** (`application/pdf`, `Content-Disposition: attachment`), não passa pelo envelope `success_response`.
+Bloqueia com 400 se: faltar Termo de Adesão de alguma UC beneficiária, ou a usina tiver mais de 24 UCs beneficiárias (limite do formulário oficial).
+
+### `POST /rateio/formulario/gerar-termos`
+Body: `{ "plantId": number }`. Baixa do Google Drive o Termo de Adesão de cada UC beneficiária (mesma ordem alfabética da tabela) e mescla num PDF único. **Resposta binária** (`application/pdf`). Bloqueia com 400 nas mesmas condições da rota acima.
+
+CNPJ e Estatuto **não têm rota própria** — são `Document` normais (ver `GET /empresas/documentos` e `GET /documents/<id>/download`), cadastrados uma vez em Configurações.
+
+---
+
+## Logs (`/logs`)
+
 ### `GET /logs?limit=50&nivel=&entidade=&entidadeId=`
 Todos os filtros opcionais. `limit` tem teto de 200. `entidade`/`entidadeId` combinados servem pra timeline de um registro específico (ex.: histórico de uma Pendência: `entidade=Pendencia&entidadeId=3`).
 `data` = array de `LogEntry`, mais recente primeiro:
@@ -351,6 +382,20 @@ Sem body. Marca essa conta como `ativa` (desativa todas as outras — só uma at
 
 ### `DELETE /oauth/google/accounts/<id>`
 Sem body. Remove a conta do banco (**não revoga** o acesso do lado do Google — isso é manual em myaccount.google.com/permissions). 404 se não existir.
+
+---
+
+## Empresa — documentos fixos (`/empresas/documentos`)
+
+Cartão CNPJ e Estatuto da associação, usados na geração do formulário Copel de rateio. Reaproveita o storage de `Document` — cada upload substitui o anterior daquele tipo (o antigo é excluído).
+
+### `GET /empresas/documentos`
+Requer permissão `settings.read`. `data` = `{ "cnpj": Document | null, "estatuto": Document | null }` (formato `Document`, ver seção Documentos).
+
+### `POST /empresas/documentos/<tipo>` — **multipart/form-data**
+`tipo` = `cnpj` ou `estatuto`. Campo do form: `arquivo` (obrigatório). Requer permissão `settings.update`.
+Sucesso: `data` = mesmo formato do GET acima, já atualizado.
+Erros: 400 (sem arquivo / tipo inválido), 503 (Google Drive indisponível).
 
 ---
 

@@ -21,7 +21,10 @@ def authenticate(email: str, senha: str) -> dict | None:
         return None
 
     token = generate_token(user.id)
-    LogService.info(acao='login', mensagem='Login realizado', entidade='User', metadados={'userId': user.id})
+    LogService.info(
+        acao='login', mensagem='Login realizado', entidade='User',
+        metadados={'userId': user.id, 'empresaId': user.empresa_id}
+    )
 
     user_data = user.to_dict()
     empresa = Empresa.query.get(user.empresa_id)

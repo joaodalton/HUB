@@ -1,4 +1,6 @@
 # backend/services/settings_service.py
+from flask import g
+
 from extensions import db
 from models.setting import Setting
 
@@ -35,6 +37,7 @@ SETTINGS_KEYS_WHITELIST = frozenset({
     'logo_position',
     'show_company_name',
     'custom_css',
+    'google_drive_root_folder_id',
 
     # === EMAIL ===
     'resend_api_key',
@@ -64,10 +67,20 @@ SETTINGS_KEYS_WHITELIST = frozenset({
     'allowed_roles',
 })
 
+SENSITIVE_SETTINGS = frozenset({'resend_api_key'})
+
 
 def get_all_settings() -> dict:
     settings = Setting.query.all()
-    return {setting.chave: setting.valor for setting in settings}
+    result = {
+        setting.chave: setting.valor
+        for setting in settings
+        if setting.chave not in SENSITIVE_SETTINGS
+    }
+    for key in SENSITIVE_SETTINGS:
+        configured = any(setting.chave == key and bool(setting.valor) for setting in settings)
+        result[f'{key}_configured'] = configured
+    return result
 
 
 def _is_key_allowed(chave: str) -> bool:
@@ -107,7 +120,7 @@ def update_settings(data: dict) -> dict:
         if setting:
             setting.valor = valor
         else:
-            setting = Setting(chave=chave, valor=valor)
+            setting = Setting(empresa_id=g.current_empresa_id, chave=chave, valor=valor)
             db.session.add(setting)
 
     db.session.commit()

@@ -11,6 +11,7 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from config import Config
+from extensions import db
 from utils.api_response import error_response
 
 TOKEN_MAX_AGE_SECONDS = 60 * 60 * 24 * 7
@@ -43,13 +44,17 @@ def _get_serializer() -> URLSafeTimedSerializer:
 
 
 def generate_token(user_id: int) -> str:
-    return _get_serializer().dumps({'user_id': user_id})
+    from models.user import User
+    user = db.session.get(User, user_id)
+    if not user:
+        raise ValueError('Usuario nao encontrado.')
+    return _get_serializer().dumps({'user_id': user_id, 'session_version': user.session_version})
 
 
-def decode_token(token: str) -> int | None:
+def decode_token(token: str) -> dict | None:
     try:
         data = _get_serializer().loads(token, max_age=TOKEN_MAX_AGE_SECONDS)
-        return data.get('user_id')
+        return data
     except (BadSignature, SignatureExpired):
         return None
 
@@ -106,13 +111,13 @@ def resolve_current_user_optional():
     if not token:
         return None
 
-    user_id = decode_token(token)
-    if not user_id:
+    token_data = decode_token(token)
+    if not token_data:
         return None
 
     from models.user import User
-    user = User.query.get(user_id)
-    return user if user and user.status == 'ativo' else None
+    user = User.query.get(token_data.get('user_id'))
+    return user if user and user.status == 'ativo' and user.session_version == token_data.get('session_version') else None
 
 def register_auth_middleware(app, public_paths: set[str], public_path_prefixes: set[str] = frozenset()) -> None:
     @app.before_request
@@ -142,15 +147,15 @@ def register_auth_middleware(app, public_paths: set[str], public_path_prefixes: 
         if not token:
             return error_response('Token de autenticacao ausente.', 401)
 
-        user_id = decode_token(token)
-        if not user_id:
+        token_data = decode_token(token)
+        if not token_data:
             return error_response('Token invalido ou expirado.', 401)
 
         from models.user import User
         from models.empresa import Empresa
 
-        user = User.query.get(user_id)
-        if not user or user.status != 'ativo':
+        user = User.query.get(token_data.get('user_id'))
+        if not user or user.status != 'ativo' or user.session_version != token_data.get('session_version'):
             return error_response('Usuario invalido ou inativo.', 401)
 
         # A partir daqui, toda query contra um model com TenantMixin

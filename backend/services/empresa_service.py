@@ -131,3 +131,60 @@ def criar_empresa_com_owner(data: dict) -> dict:
     except IntegrityError as exc:
         db.session.rollback()
         raise ValueError('Não foi possível criar a empresa: dado duplicado (slug ou e-mail já em uso).') from exc
+
+
+# --- Documentos fixos (CNPJ / Estatuto) usados na geracao do formulario Copel ---
+
+TIPOS_DOCUMENTO_EMPRESA = {
+    'cnpj': ('documento_cnpj_id', 'Cartão CNPJ'),
+    'estatuto': ('documento_estatuto_id', 'Estatuto da associação')
+}
+
+
+def get_empresa_documentos(empresa_id: int) -> dict:
+    empresa = Empresa.query.get(empresa_id)
+    if not empresa:
+        raise ValueError('Empresa não encontrada.')
+
+    return {
+        'cnpj': empresa.documento_cnpj.to_dict() if empresa.documento_cnpj else None,
+        'estatuto': empresa.documento_estatuto.to_dict() if empresa.documento_estatuto else None
+    }
+
+
+def set_empresa_documento(empresa_id: int, tipo: str, file_storage) -> dict:
+    """Faz upload do arquivo (CNPJ ou Estatuto) e substitui o documento atual
+    daquele tipo. O documento anterior (se houver) e excluido em seguida, pra
+    nao acumular lixo na lista de Documentos -- mesma logica de 'trocar' que
+    a tela de Aparencia ja usa pro logo, so que aqui persiste via Document
+    (Drive) em vez de base64 direto no Setting."""
+    if tipo not in TIPOS_DOCUMENTO_EMPRESA:
+        raise ValueError('Tipo de documento inválido. Use "cnpj" ou "estatuto".')
+
+    campo_id, nome_padrao = TIPOS_DOCUMENTO_EMPRESA[tipo]
+
+    empresa = Empresa.query.get(empresa_id)
+    if not empresa:
+        raise ValueError('Empresa não encontrada.')
+
+    documento_anterior_id = getattr(empresa, campo_id)
+
+    # import tardio: evita ciclo (document_service nao precisa saber de empresa_service)
+    from services.document_service import create_document, delete_document
+
+    novo_documento = create_document({'nome': nome_padrao}, file_storage)
+
+    setattr(empresa, campo_id, novo_documento['id'])
+    db.session.commit()
+
+    if documento_anterior_id:
+        delete_document(documento_anterior_id)
+
+    LogService.info(
+        acao='update',
+        mensagem=f'Documento "{nome_padrao}" atualizado para a empresa {empresa.nome}',
+        entidade='Empresa',
+        metadados={'empresaId': empresa.id, 'tipo': tipo, 'documentoId': novo_documento['id']}
+    )
+
+    return get_empresa_documentos(empresa_id)

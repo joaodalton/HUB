@@ -15,12 +15,14 @@ from services.pendencia_service import (
     resolver_pendencia,
     update_pendencia
 )
+from services.permission_service import require_permission
 from utils.api_response import error_response, success_response
 
 
 pendencia_routes = Blueprint('pendencia_routes', __name__, url_prefix='/api/v1/pendencias')
 
 @pendencia_routes.route('', methods=['GET'])
+@require_permission('pendencias.read')
 def index():
     filtros = {
         'tipo': request.args.get('tipo'),
@@ -35,11 +37,13 @@ def index():
 
 
 @pendencia_routes.route('/resumo', methods=['GET'])
+@require_permission('pendencias.read')
 def resumo():
     return success_response(get_resumo())
 
 
 @pendencia_routes.route('/<int:pendencia_id>', methods=['GET'])
+@require_permission('pendencias.read')
 def show(pendencia_id: int):
     pendencia = get_pendencia(pendencia_id)
     if not pendencia:
@@ -49,6 +53,7 @@ def show(pendencia_id: int):
 
 @pendencia_routes.route('', methods=['POST'])
 @limiter.limit('30 per minute')
+@require_permission('pendencias.create')
 def store():
     data = request.get_json(silent=True) or {}
 
@@ -69,6 +74,7 @@ def store():
 
 @pendencia_routes.route('/<int:pendencia_id>', methods=['PUT'])
 @limiter.limit('30 per minute')
+@require_permission('pendencias.update')
 def update(pendencia_id: int):
     data = request.get_json(silent=True) or {}
     try:
@@ -82,6 +88,7 @@ def update(pendencia_id: int):
 
 @pendencia_routes.route('/<int:pendencia_id>', methods=['DELETE'])
 @limiter.limit('30 per minute')
+@require_permission('pendencias.delete')
 def destroy(pendencia_id: int):
     if not delete_pendencia(pendencia_id):
         return error_response('Pendencia nao encontrada.', 404)
@@ -90,6 +97,7 @@ def destroy(pendencia_id: int):
 
 @pendencia_routes.route('/<int:pendencia_id>/resolver', methods=['POST'])
 @limiter.limit('30 per minute')
+@require_permission('pendencias.update')
 def resolver(pendencia_id: int):
     pendencia = resolver_pendencia(pendencia_id)
     if not pendencia:
@@ -99,6 +107,7 @@ def resolver(pendencia_id: int):
 
 @pendencia_routes.route('/<int:pendencia_id>/cancelar', methods=['POST'])
 @limiter.limit('30 per minute')
+@require_permission('pendencias.update')
 def cancelar(pendencia_id: int):
     pendencia = cancelar_pendencia(pendencia_id)
     if not pendencia:
@@ -108,6 +117,7 @@ def cancelar(pendencia_id: int):
 
 @pendencia_routes.route('/<int:pendencia_id>/reabrir', methods=['POST'])
 @limiter.limit('30 per minute')
+@require_permission('pendencias.update')
 def reabrir(pendencia_id: int):
     pendencia = reabrir_pendencia(pendencia_id)
     if not pendencia:
@@ -117,6 +127,7 @@ def reabrir(pendencia_id: int):
 
 @pendencia_routes.route('/<int:pendencia_id>/comentarios', methods=['POST'])
 @limiter.limit('30 per minute')
+@require_permission('pendencias.update')
 def comentar(pendencia_id: int):
     data = request.get_json(silent=True) or {}
     texto = data.get('texto', '').strip()
@@ -132,6 +143,7 @@ def comentar(pendencia_id: int):
 
 @pendencia_routes.route('/verificar', methods=['POST'])
 @limiter.limit('5 per minute')
+@require_permission('pendencias.update')
 def verificar():
     """
     Executa todas as verificacoes automaticas de pendencias.
@@ -155,6 +167,7 @@ def verificar():
 
 
 @pendencia_routes.route('/regras', methods=['GET'])
+@require_permission('pendencias.read')
 def listar_regras():
     """
     Retorna a lista de regras automaticas disponiveis para exibicao

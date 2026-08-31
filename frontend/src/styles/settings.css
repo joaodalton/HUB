@@ -1,0 +1,251 @@
+/* ============================================================
+   HUB — Settings
+   Abas de configuracoes, formulario generico, preview de logo,
+   shell de categorias (nav lateral), home em grid, lista de logs,
+   cards de provedor de banco de dados (Google Drive / SQL).
+   ============================================================ */
+
+.settings-tabs {
+  display: flex;
+  gap: 6px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+.settings-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: var(--text-dim);
+  padding: 8px 4px;
+  font-weight: 600;
+  font-size: 13px;
+}
+.settings-tab:hover { background: none; color: var(--text); }
+.settings-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+.settings-form { display: grid; gap: 14px; max-width: 480px; }
+
+.settings-list { display: grid; gap: 10px; }
+.settings-list.compact { gap: 6px; font-size: 12px; }
+
+.settings-hint { font-size: 12px; color: var(--text-faint); }
+
+.logo-preview {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--panel-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  font-size: 10px;
+  color: var(--text-faint);
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.logo-preview-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.logo-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ---------- Shell de categorias (nav lateral) ---------- */
+
+.settings-shell {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .settings-shell { grid-template-columns: 1fr; }
+}
+
+.settings-category-nav {
+  display: grid;
+  gap: 3px;
+  padding: 14px 10px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  position: sticky;
+  top: 20px;
+}
+
+.settings-category-heading {
+  padding: 4px 10px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.settings-category-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  border-left: 2px solid transparent;
+  background: none;
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+}
+
+.settings-category-link:hover { background: var(--panel-hover); color: var(--text); }
+
+.settings-category-link.active {
+  background: var(--accent-bg);
+  border-left-color: var(--accent);
+  color: var(--accent);
+}
+
+.settings-category-tag {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--panel-soft);
+  color: var(--text-faint);
+  border: 1px solid var(--border);
+}
+
+.settings-subheading {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  padding-top: 6px;
+}
+
+.settings-home-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+@media (max-width: 900px) {
+  .settings-home-grid { grid-template-columns: 1fr; }
+}
+
+/* ---------- Logs ---------- */
+
+.log-list { display: grid; gap: 1px; }
+
+.log-row {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 12px;
+}
+.log-row:last-child { border-bottom: none; }
+
+.log-message {
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.log-meta {
+  color: var(--text-faint);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.log-level {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 3px 7px;
+  border-radius: 999px;
+  text-align: center;
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+}
+.log-level-warning { color: var(--warning); background: var(--warning-bg); border-color: var(--warning-border); }
+.log-level-error { color: var(--danger); background: var(--danger-bg); border-color: var(--danger-border); }
+
+/* ---------- Provedor de banco de dados ---------- */
+
+.database-provider-stack { display: grid; gap: 12px; }
+
+.database-provider-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  background: var(--panel-soft);
+  display: grid;
+  gap: 10px;
+}
+
+.provider-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.provider-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+}
+.provider-badge.success { color: var(--success); background: var(--success-bg); border-color: var(--success-border); }
+.provider-badge.warning { color: var(--warning); background: var(--warning-bg); border-color: var(--warning-border); }
+
+.provider-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ---------- APIs e integrações ---------- */
+
+.api-credentials-list { display: grid; gap: 10px; margin-bottom: 22px; }
+
+.api-credential-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel-soft);
+}
+
+.api-credential-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+}
+
+.api-credential-title { display: grid; gap: 3px; }
+.api-credential-title strong { color: var(--text); }
+.api-credential-title span { font-size: 12px; color: var(--text-faint); }
+.api-credential-form { max-width: 560px; padding: 0 16px 16px; }
+.api-credential-form h3 { margin: 0; font-size: 15px; color: var(--text); }

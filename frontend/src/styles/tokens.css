@@ -1,0 +1,75 @@
+/* ============================================================
+   HUB — Design tokens
+   Variaveis de cor, raio de borda e fontes. Fonte de verdade unica
+   pro resto do design system -- nenhum outro arquivo CSS deve
+   declarar cor "solta", sempre via var(--...) daqui.
+   ============================================================ */
+
+:root {
+  --bg: #0b0f19;
+  --panel: #121826;
+  --panel-soft: #161d2d;
+  --panel-hover: #1b2334;
+  --border: #2a3650;
+  --border-soft: rgba(42, 54, 80, 0.6);
+  --text: #f1f5f9;
+  --text-dim: #94a3b8;
+  --text-faint: #64748b;
+
+  --accent: #f0713a;
+  --accent-hover: #e0611f;
+  --accent-bg: rgba(240, 113, 58, 0.1);
+  --accent-border: rgba(240, 113, 58, 0.25);
+
+  --success: #34d399;
+  --success-bg: rgba(52, 211, 153, 0.1);
+  --success-border: rgba(52, 211, 153, 0.2);
+
+  --warning: #fbbf24;
+  --warning-bg: rgba(251, 191, 36, 0.1);
+  --warning-border: rgba(251, 191, 36, 0.2);
+
+  --danger: #fb7185;
+  --danger-bg: rgba(251, 113, 133, 0.1);
+  --danger-border: rgba(251, 113, 133, 0.2);
+
+  --info: #818cf8;
+  --info-bg: rgba(129, 140, 248, 0.1);
+
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+
+  /* Radius por papel do elemento -- os de cima continuam existindo (usados
+     em pontos que nao sao input/botao/card/modal), estes aqui sao pra bater
+     com o guia de polimento visual. */
+  --radius-input: 10px;
+  --radius-button: 12px;
+  --radius-card: 16px;
+  --radius-modal: 20px;
+
+  /* Sombra unica por camada de UI -- nao inventar box-shadow solto em outro arquivo */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25), 0 1px 1px rgba(0, 0, 0, 0.18);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3), 0 2px 4px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-xl: 0 24px 64px rgba(0, 0, 0, 0.5);
+
+  /* Transicoes suaves */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.2s ease;
+  --transition-slow: 0.3s ease;
+
+  /* Escala de espacamento -- 4/8/16/24/32 */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 16px;
+  --space-4: 24px;
+  --space-5: 32px;
+
+  /* Altura padrao de controle (botao/input) e tamanho unico de icone inline */
+  --control-height: 40px;
+  --icon-size: 18px;
+
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+}

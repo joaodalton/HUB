@@ -15,19 +15,37 @@ export function createBaseLayout({ content, eyebrow, title }: BaseLayoutOptions)
   const body = createElement('div', { className: 'app-body' });
   const main = createElement('main', { className: 'app-main' });
 
-  main.append(createHeader({ eyebrow, title }), content);
-  body.append(createSidebar(), main);
-  shell.append(createCorners(), body, createLoading(), createToastContainer());
-
-  return shell;
-}
-
-function createCorners(): DocumentFragment {
-  const fragment = document.createDocumentFragment();
-
-  ['tl', 'tr', 'bl', 'br'].forEach((position) => {
-    fragment.appendChild(createElement('div', { className: `corner corner-${position}` }));
+  // Overlay para mobile
+  const overlay = createElement('div', { className: 'sidebar-overlay' });
+  overlay.addEventListener('click', () => {
+    document.querySelector('.sidebar')?.classList.remove('open');
+    overlay.classList.remove('active');
   });
 
-  return fragment;
+  main.append(createHeader({ eyebrow, title }), content);
+  const sidebar = createSidebar();
+  body.append(sidebar, main);
+  shell.append(overlay, body, createLoading(), createToastContainer());
+
+  // Toggle do menu mobile
+  const menuToggle = createElement('button', {
+    className: 'mobile-menu-toggle',
+    type: 'button',
+    innerHTML: `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M3 12h18M3 6h18M3 18h18"/>
+    </svg>`
+  });
+
+  menuToggle.addEventListener('click', () => {
+    sidebar.classList.toggle('open');
+    overlay.classList.toggle('active');
+  });
+
+  // Insere o toggle no header
+  const header = main.querySelector('.masthead');
+  if (header) {
+    header.insertBefore(menuToggle, header.firstChild);
+  }
+
+  return shell;
 }

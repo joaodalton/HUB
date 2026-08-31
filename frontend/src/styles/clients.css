@@ -1,0 +1,249 @@
+/* ============================================================
+   HUB — Clients
+   Pagina de detalhes do cliente (ClientDetailView.ts): colunas,
+   painel de info, secao de UCs (accordion reaproveitado do modal),
+   abas (Documentos + "em breve").
+   ============================================================ */
+
+/* ---------- Client Detail View ---------- */
+.client-detail-view {
+  display: grid;
+  gap: 20px;
+}
+
+/* ---------- Detail Back Link ---------- */
+.detail-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+.detail-back-link:hover {
+  color: var(--accent);
+}
+
+.detail-back-link .icon {
+  width: 14px;
+  height: 14px;
+}
+
+/* ---------- Detail Header ---------- */
+.detail-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.detail-title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.detail-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/* ---------- Client Status Badge ---------- */
+.client-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.client-status-badge.status-success {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.client-status-badge.status-warning {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+/* ---------- Detail Info Panel ---------- */
+.detail-info-panel,
+.detail-uc-section,
+.detail-tabs-panel {
+  padding: 20px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  transition: box-shadow var(--transition-normal);
+}
+
+.detail-info-panel:hover,
+.detail-uc-section:hover {
+  box-shadow: var(--shadow-sm);
+}
+
+/* ---------- Detail Columns ---------- */
+.detail-columns {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.85fr) minmax(440px, 1.15fr);
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 1200px) {
+  .detail-columns {
+    grid-template-columns: minmax(240px, 0.75fr) minmax(380px, 1.25fr);
+  }
+}
+
+@media (max-width: 900px) {
+  .detail-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- Detail UC Section ---------- */
+.detail-uc-section {
+  display: grid;
+  gap: 16px;
+}
+
+.detail-uc-section .uc-editor-list {
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+/* ---------- Detail Info Grid ---------- */
+.detail-info-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+/* ---------- Detail Info Field ---------- */
+.detail-info-field {
+  display: grid;
+  gap: 5px;
+}
+
+.detail-info-label {
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.detail-info-value {
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.detail-info-value.mono {
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+/* ---------- Detail Tabs Panel ---------- */
+.detail-tabs-panel {
+  padding: 0;
+  overflow: hidden;
+}
+
+/* ---------- Detail Tabs ---------- */
+.detail-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 16px 20px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.detail-tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  padding: 12px 6px;
+  color: var(--text-faint);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  height: auto;
+}
+
+.detail-tab:hover {
+  color: var(--text);
+  background: transparent;
+}
+
+.detail-tab.active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+.detail-tab.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.detail-tab.disabled:hover {
+  background: transparent;
+  color: var(--text-faint);
+}
+
+/* ---------- Detail Tab Content ---------- */
+.detail-tab-content {
+  padding: 20px;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 640px) {
+  .detail-info-grid,
+  .uc-view-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-tabs {
+    padding: 12px 16px 0;
+  }
+
+  .detail-tabs-panel {
+    overflow-x: auto;
+  }
+
+  .detail-tabs {
+    min-width: max-content;
+  }
+
+  .detail-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .detail-title-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-2);
+  }
+}

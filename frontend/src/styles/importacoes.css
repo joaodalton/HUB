@@ -1,0 +1,44 @@
+/* HUB — importação em massa: toda prévia e confirmação vem do backend. */
+.importacao-panel {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--panel);
+  box-shadow: var(--shadow-sm);
+}
+
+.importacao-form { display: grid; gap: var(--space-3); max-width: 620px; }
+.importacao-dropzone { min-height: 122px; justify-content: center; text-align: center; cursor: pointer; }
+.importacao-dropzone input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.importacao-file-name { overflow-wrap: anywhere; }
+
+.importacao-template-guide {
+  padding: var(--space-3);
+  border-radius: var(--radius-input);
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+}
+.importacao-template-guide h2, .importacao-problemas h2 { margin: 0 0 var(--space-1); font-size: 15px; color: var(--text); }
+.importacao-template-guide p, .importacao-template-guide ol { margin: var(--space-1) 0 0; font-size: 13px; line-height: 1.55; }
+.importacao-template-guide ol { padding-left: 22px; }
+
+.importacao-summary-grid { display: grid; grid-template-columns: repeat(6, minmax(100px, 1fr)); gap: var(--space-2); }
+.importacao-summary-card { display: grid; gap: 4px; padding: var(--space-2); border: 1px solid var(--border); border-radius: var(--radius-input); background: var(--panel-soft); }
+.importacao-summary-card strong { font-size: 22px; color: var(--text); font-variant-numeric: tabular-nums; }
+.importacao-summary-card span { font-size: 11px; color: var(--text-faint); }
+.importacao-summary-card.danger { border-color: var(--danger-border); background: var(--danger-bg); }
+.importacao-summary-card.danger strong { color: var(--danger); }
+
+.importacao-problemas { display: grid; gap: var(--space-2); }
+.importacao-problemas .data-panel { box-shadow: none; }
+.importacao-erros { padding-top: var(--space-2); }
+.importacao-ready { margin: 0; color: var(--success); font-weight: 600; }
+.importacao-error { margin: 0; color: var(--danger); font-size: 13px; }
+.importacao-success-icon { width: 48px; height: 48px; color: var(--success); }
+.importacao-result { max-width: 980px; }
+
+@media (max-width: 900px) { .importacao-summary-grid { grid-template-columns: repeat(3, minmax(100px, 1fr)); } }
+@media (max-width: 560px) { .importacao-panel { padding: var(--space-3); } .importacao-summary-grid { grid-template-columns: repeat(2, minmax(100px, 1fr)); } }

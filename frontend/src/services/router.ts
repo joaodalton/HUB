@@ -1,9 +1,22 @@
 import { createClientsPage } from '../pages/ClientsPage';
+import { createDashboardPage } from '../pages/DashboardPage';
 import { createAgendaPage } from '../pages/AgendaPage';
 import { createDocumentsPage } from '../pages/DocumentsPage';
-import { createPlaceholderPage } from '../pages/PlaceholderPage';
+import { createForgotPasswordPage } from '../pages/ForgotPasswordPage';
+import { createLoginPage } from '../pages/LoginPage';
+import { createResetPasswordPage } from '../pages/ResetPasswordPage';
+import { createPendenciasPage } from '../pages/PendenciasPage';
 import { createPlantsPage } from '../pages/PlantsPage';
+import { createRateioPage } from '../pages/RateioPage';
 import { createSettingsPage } from '../pages/SettingsPage';
+import { createUcsPage } from '../pages/UcsPage';
+import { createUsersPage } from '../pages/UsersPage';
+import { createEmpresasPage } from '../pages/EmpresasPage';
+import { createImportacoesPage } from '../pages/ImportacoesPage';
+import { createTemplatesPage } from '../pages/TemplatesPage';
+import { createChangePasswordPage } from '../pages/ChangePasswordPage';
+import { ensureSession, getCurrentUser, isAuthenticated } from './authService';
+import { loadSettings } from './settingsService';
 
 type Route = {
   path: string;
@@ -12,38 +25,97 @@ type Route = {
 
 export function createRouter(root: HTMLElement) {
   const routes: Route[] = [
-    { path: '/', render: createDocumentsPage },
+    { path: '/', render: createDashboardPage },
+    { path: '/dashboard', render: createDashboardPage },
     { path: '/documentos', render: createDocumentsPage },
     { path: '/clientes', render: createClientsPage },
-    {
-      path: '/ucs',
-      render: () => createPlaceholderPage({
-        eyebrow: 'UCs',
-        title: 'Unidades consumidoras',
-        message: 'A tela de UCs sera conectada aos clientes e usinas nas proximas fases.'
-      })
-    },
+    { path: '/ucs', render: createUcsPage },
     { path: '/usinas', render: createPlantsPage },
-    {
-      path: '/pendencias',
-      render: () => createPlaceholderPage({
-        eyebrow: 'Pendencias',
-        title: 'Pendencias operacionais',
-        message: 'A listagem de pendencias sera adicionada quando os fluxos de cliente e rateio estiverem definidos.'
-      })
-    },
-    {
-      path: '/agenda',
-      render: createAgendaPage
-    },
+    { path: '/rateio', render: createRateioPage },
+    { path: '/pendencias', render: createPendenciasPage },
+    { path: '/agenda', render: createAgendaPage },
+    { path: '/usuarios', render: createUsersPage },
+    { path: '/empresas', render: createEmpresasPage },
+    { path: '/importacoes', render: createImportacoesPage },
+    { path: '/templates', render: createTemplatesPage },
+    { path: '/trocar-senha', render: createChangePasswordPage },
     { path: '/configuracoes', render: createSettingsPage }
   ];
+
+  let appearanceLoaded = false;
 
   function resolveRoute(): Route {
     return routes.find((route) => route.path === window.location.pathname) ?? routes[0];
   }
 
+  function redirect(path: string): void {
+    window.history.replaceState({}, '', path);
+    render();
+  }
+
+  function ensureAppearanceLoaded(): void {
+    if (appearanceLoaded) return;
+    appearanceLoaded = true;
+
+    loadSettings().catch(() => {
+      // Aparencia fica no padrao se o backend estiver fora do ar; nao trava a navegacao.
+    });
+  }
+
+  // Rotas publicas alem de /login -- acessiveis sem sessao, e um usuario
+  // ja logado que cair nelas e redirecionado pra home (mesmo comportamento
+  // que /login ja tinha).
+  const PUBLIC_AUTH_PATHS = new Set(['/login', '/esqueci-senha', '/redefinir-senha']);
+
+  window.addEventListener('hub:password-change-required', () => {
+    if (isAuthenticated() && window.location.pathname !== '/trocar-senha') redirect('/trocar-senha');
+  });
+
   function render(): void {
+    const path = window.location.pathname;
+    const isPublicAuthPath = PUBLIC_AUTH_PATHS.has(path);
+
+    const mustChangePassword = getCurrentUser()?.mustChangePassword === true;
+    if (!isAuthenticated() && !isPublicAuthPath) {
+      redirect('/login');
+      return;
+    }
+
+    if (isAuthenticated() && mustChangePassword && path !== '/trocar-senha') {
+      redirect('/trocar-senha');
+      return;
+    }
+
+    if (isAuthenticated() && path === '/trocar-senha' && !mustChangePassword) {
+      redirect('/dashboard');
+      return;
+    }
+
+    if (isAuthenticated() && isPublicAuthPath) {
+      redirect('/');
+      return;
+    }
+
+    if (path === '/login') {
+      root.replaceChildren(createLoginPage(() => {
+        appearanceLoaded = false;
+        redirect('/');
+      }));
+      return;
+    }
+
+    if (path === '/esqueci-senha') {
+      root.replaceChildren(createForgotPasswordPage());
+      return;
+    }
+
+    if (path === '/redefinir-senha') {
+      root.replaceChildren(createResetPasswordPage());
+      return;
+    }
+
+    ensureAppearanceLoaded();
+
     const route = resolveRoute();
     root.replaceChildren(route.render());
   }
@@ -51,7 +123,7 @@ export function createRouter(root: HTMLElement) {
   return {
     start() {
       window.addEventListener('popstate', render);
-      render();
+      ensureSession().finally(render);
     }
   };
 }

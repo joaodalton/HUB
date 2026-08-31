@@ -1,3 +1,4 @@
+import { createDocumentLinkModal } from '../components/DocumentLinkModal';
 import { createReservedPanel } from '../components/ReservedPanel';
 import { createResultsPanel } from '../components/ResultsList';
 import { createSearchPanel } from '../components/SearchPanel';
@@ -5,13 +6,18 @@ import { createElement } from '../dom';
 import { useGlobalLoading } from '../hooks/useGlobalLoading';
 import { useToast } from '../hooks/useToast';
 import { createBaseLayout } from '../layouts/BaseLayout';
+import { getClients, type ClientRow } from '../services/clientsService';
+import { fileTypeLabel, isFolder, matchesDateRange, matchesFilter, matchesType } from '../services/documentRules';
 import { downloadReservedZip, searchDriveItems } from '../services/driveService';
-import { isFolder, matchesFilter } from '../services/documentRules';
 import type { DriveItem, FilterKey } from '../types';
 
 export function createDocumentsPage(): HTMLElement {
   let currentFilter: FilterKey = 'todos';
+  let currentType = 'todos';
+  let dateFrom = '';
+  let dateTo = '';
   let currentResults: DriveItem[] = [];
+  let clients: ClientRow[] = [];
   const reservedItems = new Map<string, DriveItem>();
   const loading = useGlobalLoading();
   const toast = useToast();
@@ -25,7 +31,8 @@ export function createDocumentsPage(): HTMLElement {
     onRemove: toggleReserved,
     onClear: clearReserved,
     onOpenAll: openAllReserved,
-    onDownloadZip: downloadZip
+    onDownloadZip: downloadZip,
+    onLinkToClient: openLinkModal
   });
 
   const searchPanel = createSearchPanel({
@@ -33,15 +40,25 @@ export function createDocumentsPage(): HTMLElement {
     onFilterChange: (filter) => {
       currentFilter = filter;
       renderResults();
+    },
+    onTypeChange: (tipo) => {
+      currentType = tipo;
+      renderResults();
+    },
+    onDateRangeChange: (from, to) => {
+      dateFrom = from;
+      dateTo = to;
+      renderResults();
     }
   });
 
   const workspace = createElement('section', { className: 'workspace' });
   const mainColumn = createElement('section', { className: 'main-column' });
 
-  mainColumn.append(searchPanel, resultsPanel.element);
+  mainColumn.append(searchPanel.element, resultsPanel.element);
   workspace.append(mainColumn, reservedPanel.element);
   renderReserved();
+  loadClients();
 
   return createBaseLayout({
     content: workspace,
@@ -49,10 +66,19 @@ export function createDocumentsPage(): HTMLElement {
     title: 'Busque, separe e abra arquivos do Drive'
   });
 
+  async function loadClients(): Promise<void> {
+    try {
+      clients = await getClients();
+    } catch {
+      clients = [];
+    }
+  }
+
   async function runSearch(term: string): Promise<void> {
     if (!term) {
       currentResults = [];
       resultsPanel.setMessage('Digite algo para iniciar a busca.');
+      searchPanel.updateTypeOptions([]);
       return;
     }
 
@@ -61,6 +87,7 @@ export function createDocumentsPage(): HTMLElement {
 
     try {
       currentResults = await searchDriveItems(term);
+      searchPanel.updateTypeOptions(Array.from(new Set(currentResults.map(fileTypeLabel))));
       renderResults();
     } catch {
       currentResults = [];
@@ -72,7 +99,11 @@ export function createDocumentsPage(): HTMLElement {
   }
 
   function renderResults(): void {
-    resultsPanel.render(currentResults.filter((item) => matchesFilter(item, currentFilter)));
+    resultsPanel.render(currentResults.filter((item) =>
+      matchesFilter(item, currentFilter) &&
+      matchesType(item, currentType) &&
+      matchesDateRange(item, dateFrom, dateTo)
+    ));
   }
 
   function renderReserved(): void {
@@ -100,6 +131,27 @@ export function createDocumentsPage(): HTMLElement {
     reservedItems.forEach((item) => {
       window.open(item.webViewLink, '_blank', 'noopener,noreferrer');
     });
+  }
+
+  function openLinkModal(): void {
+    const files = Array.from(reservedItems.values()).filter((item) => !isFolder(item));
+
+    if (files.length === 0) {
+      toast.error('Reserve pelo menos um arquivo (nao uma pasta) antes de vincular a um cliente.');
+      return;
+    }
+
+    document.body.appendChild(createDocumentLinkModal({
+      files,
+      clients,
+      onLinked: (linkedIds) => {
+        linkedIds.forEach((id) => reservedItems.delete(id));
+        renderResults();
+        renderReserved();
+        toast.success(linkedIds.length === 1 ? 'Documento vinculado ao cliente.' : `${linkedIds.length} documentos vinculados ao cliente.`);
+      },
+      onError: (message) => toast.error(message)
+    }));
   }
 
   async function downloadZip(): Promise<void> {

@@ -21,6 +21,7 @@ from services.client_service import create_client, delete_client, update_client
 from services.document_service import delete_document
 from services.pendencia_service import criar_pendencia_manual
 from services.plant_service import delete_plant, update_plant
+from services.settings_service import get_all_settings, update_settings
 from services.uc_service import delete_uc, sync_connections, update_uc
 try:
     from .support import IsolatedTestRuntime
@@ -97,6 +98,16 @@ class TenantServiceLookupsTest(IsolatedTestRuntime, unittest.TestCase):
             })
             self.assertEqual(updated['ucs'][0]['id'], uc_id)
             self.assertEqual(ConsumerUnit.query.filter_by(id=uc_id).first().empresa_id, 1)
+
+    def test_drive_root_setting_is_tenant_scoped(self):
+        with self.app.test_request_context('/'):
+            g.current_empresa_id = 1
+            update_settings({'google_drive_root_folder_id': 'pasta-empresa-a'})
+            self.assertEqual(get_all_settings()['google_drive_root_folder_id'], 'pasta-empresa-a')
+
+        with self.app.test_request_context('/'):
+            g.current_empresa_id = 2
+            self.assertNotIn('google_drive_root_folder_id', get_all_settings())
 
 
 if __name__ == '__main__':

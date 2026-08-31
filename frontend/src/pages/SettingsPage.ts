@@ -13,7 +13,9 @@ import {
   getSettings,
   loadSettings,
   resetAppearanceToDefaults,
+  loadGoogleDriveRootFolderId,
   saveSettings,
+  saveGoogleDriveRootFolderId,
   type AppSettings
 } from '../services/settingsService';
 import {
@@ -71,12 +73,15 @@ export function createSettingsPage(): HTMLElement {
   let empresaAtual: EmpresaAtual | null = null;
   let empresaAtualLoaded = false;
   let empresaAtualLoadError = false;
+  let driveRootFolderId = '';
+  let driveRootFolderLoaded = false;
 
   renderContent();
   loadGoogleAccounts();
   refreshAppearance();
   loadRecentLogs();
   loadRateioConfig();
+  loadDriveRootFolder();
   if (canManageSettings()) loadApiCredentials();
   else apiCredentialsLoaded = true;
   if (canManageSettings()) loadEmpresaAtual();
@@ -155,6 +160,30 @@ export function createSettingsPage(): HTMLElement {
       rateioConfig = DEFAULT_RATEIO_CONFIG;
     } finally {
       rateioConfigLoaded = true;
+      renderContent();
+    }
+  }
+
+  async function loadDriveRootFolder(): Promise<void> {
+    try {
+      driveRootFolderId = await loadGoogleDriveRootFolderId();
+    } catch {
+      driveRootFolderId = '';
+    } finally {
+      driveRootFolderLoaded = true;
+      renderContent();
+    }
+  }
+
+  async function handleSaveDriveRootFolderId(rootFolderId: string): Promise<void> {
+    try {
+      await saveGoogleDriveRootFolderId(rootFolderId);
+      driveRootFolderId = rootFolderId.trim();
+      toast.success('Pasta raiz do Google Drive salva.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Nao foi possivel salvar a pasta raiz do Google Drive.');
+      throw error;
+    } finally {
       renderContent();
     }
   }
@@ -288,7 +317,11 @@ export function createSettingsPage(): HTMLElement {
         return createDatabasePanel({
           items: googleAccounts,
           onActivate: handleActivateAccount,
-          onDisconnect: handleDisconnectAccount
+          onDisconnect: handleDisconnectAccount,
+          rootFolderId: driveRootFolderId,
+          rootFolderLoaded: driveRootFolderLoaded,
+          canManage: canManageSettings(),
+          onSaveRootFolder: handleSaveDriveRootFolderId
         });
 
       case 'apis':
@@ -721,21 +754,64 @@ function createLogsPanel(logs: LogRow[], loaded: boolean): HTMLElement {
 }
 
 // ---------- Banco de dados ----------
-// So mostra contas Google conectadas via OAuth -- troca de provedor (Google
-// Drive vs SQL) saiu da interface porque ja esta configurada e estavel no
-// backend (.env), nao precisa mais de tela pra trocar isso. Os services
-// continuam existindo (databaseConfigService.ts no front,
-// database_config_service.py + config_routes.py no back) -- so a UI parou
-// de expor, se um dia precisar trocar de provedor de novo e so reativar.
-
 function createDatabasePanel(googleAccounts: {
   items: GoogleAccountRow[];
   onActivate: (id: number) => void;
   onDisconnect: (id: number) => void;
+  rootFolderId: string;
+  rootFolderLoaded: boolean;
+  canManage: boolean;
+  onSaveRootFolder: (rootFolderId: string) => Promise<void>;
 }): HTMLElement {
   const wrapper = createElement('section', { className: 'database-provider-stack' });
   wrapper.appendChild(createGoogleAccountsSection(googleAccounts.items, googleAccounts.onActivate, googleAccounts.onDisconnect));
+  wrapper.appendChild(createDriveRootFolderPanel(
+    googleAccounts.rootFolderId,
+    googleAccounts.rootFolderLoaded,
+    googleAccounts.canManage,
+    googleAccounts.onSaveRootFolder
+  ));
   return wrapper;
+}
+
+function createDriveRootFolderPanel(
+  rootFolderId: string,
+  loaded: boolean,
+  canManage: boolean,
+  onSave: (rootFolderId: string) => Promise<void>
+): HTMLElement {
+  const section = createElement('section', { className: 'database-provider-card' });
+  section.appendChild(createPanelHeader('Google Drive', 'Pasta exclusiva da empresa atual para busca e documentos'));
+
+  if (!loaded) {
+    section.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Carregando configuracao...' }));
+    return section;
+  }
+
+  const folderField = createInput('ID da pasta raiz', 'text', rootFolderId);
+  folderField.input.placeholder = 'ID presente na URL da pasta do Google Drive';
+  folderField.input.disabled = !canManage;
+  const hint = createElement('p', {
+    className: 'settings-hint',
+    textContent: 'Necessario para manter documentos e buscas isolados por empresa.'
+  });
+  section.append(folderField.field, hint);
+
+  if (!canManage) return section;
+
+  const saveButton = createElement('button', { textContent: 'Salvar pasta', type: 'button' });
+  saveButton.addEventListener('click', async () => {
+    saveButton.disabled = true;
+    saveButton.textContent = 'Salvando...';
+    try {
+      await onSave(folderField.input.value);
+    } finally {
+      saveButton.disabled = false;
+      saveButton.textContent = 'Salvar pasta';
+    }
+  });
+  section.appendChild(saveButton);
+  return section;
 }
 
 // Contas Google conectadas via OAuth real (multiplas, com refresh token no banco).

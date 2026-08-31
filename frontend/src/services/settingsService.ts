@@ -114,3 +114,15 @@ function toStorageKeys(settings: Partial<AppSettings>): Record<string, string> {
 
   return payload;
 }
+
+export async function loadGoogleDriveRootFolderId(): Promise<string> {
+  const response = await apiRequest<ApiResponse<Record<string, string>>>('/settings');
+  return response.data.google_drive_root_folder_id ?? '';
+}
+
+export async function saveGoogleDriveRootFolderId(rootFolderId: string): Promise<void> {
+  await apiRequest<ApiResponse<Record<string, string>>>('/settings', {
+    method: 'PUT',
+    body: { google_drive_root_folder_id: rootFolderId.trim() }
+  });
+}

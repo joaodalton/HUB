@@ -310,6 +310,33 @@ Requer `pendencias.read`. Retorna o resumo operacional calculado em tempo real, 
 
 ---
 
+## Agenda (`/agenda`)
+
+### `GET /agenda?inicio=YYYY-MM-DD&fim=YYYY-MM-DD&visao=dia|semana|mes`
+
+Requer `pendencias.read`. Agenda nao possui tabela nem CRUD proprio: nesta fase cada item e uma visao em tempo real de uma `Pendencia` **aberta** que tem `prazo`. Assim, editar prazo ou reabrir a pendencia de origem aparece na proxima consulta; resolver ou cancelar a remove imediatamente, sem sincronizacao manual ou duplicacao de estado.
+
+`inicio` e `fim` sao opcionais, mas devem ser enviados juntos e cobrir no maximo 93 dias-calendario (diferença máxima de 92 dias). Sem intervalo explicito, `visao` define o periodo atual (`mes` e o default; `dia` e hoje; `semana` vai de domingo a sabado). Datas usam `YYYY-MM-DD` e os limites sao inclusivos. O resultado e ordenado por prazo e limitado a 500 itens.
+
+```json
+{
+  "data": {
+    "visao": "mes", "inicio": "2026-08-01", "fim": "2026-08-31",
+    "itens": [{
+      "fonte": "pendencia", "pendenciaId": 1,
+      "id": 1, "titulo": "Enviar fatura", "tipo": "pendencia",
+      "prioridade": "alta", "prazo": "2026-08-31T14:00:00",
+      "status": "aberta", "clienteId": 2,
+      "ucId": null, "usinaId": null, "documentoId": null
+    }]
+  }
+}
+```
+
+O item e uma projeção mínima para calendário/lista: não inclui descrição, comentários, responsável/e-mail, metadados ou timestamps. Nesta versao nao ha eventos manuais, financeiro ou rateio; novas fontes deverao ser adicionadas como consultas derivadas, nunca por uma tabela de eventos duplicada.
+
+---
+
 ## Logs (`/logs`)
 
 ### `GET /rateio/formulario?plantId=`

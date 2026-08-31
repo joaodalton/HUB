@@ -52,7 +52,10 @@ export function createPendenciasPage(): HTMLElement {
   let categoriaExtras: string[] = [];
   let loadError = false;
 
-  let selectedId: number | null = null;
+  // Agenda navega com uma dica de seleção; a lista ainda busca e autoriza o
+  // registro pelo endpoint normal antes de mostrá-lo.
+  const requestedId = Number(new URLSearchParams(window.location.search).get('selecionada'));
+  let selectedId: number | null = Number.isSafeInteger(requestedId) && requestedId > 0 ? requestedId : null;
   let tipoFilter: PendenciaTipo | null = null;
   let showAll = false;
   let searchTerm = '';

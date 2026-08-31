@@ -293,9 +293,10 @@ A API segue padrão RESTful com envelope de resposta consistente:
 
 - [x] Dashboard operacional e Agenda derivada de Pendências
 - [x] Credenciais de integração cifradas por empresa
-- [ ] Importação em massa de Cliente/UC/Usina via planilha Excel
+- [x] Importação em massa de Cliente/UC/Usina via planilha Excel
 - [ ] V1.5-B: empresa, convites e aceite de termos
-- [ ] V1.5-C: templates e comunicação WhatsApp
+- [x] Templates tenant-scoped de e-mail e WhatsApp, com pré-visualização local
+- [ ] Comunicação WhatsApp (inbox e envio) — depende da decisão de provedor
 - [ ] V2.0: financeiro, importação de boleto/fatura e notificações
 
 📋 **Roadmap detalhado em**: [PROGRESS.md](PROGRESS.md)

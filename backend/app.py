@@ -52,6 +52,7 @@ def create_app() -> Flask:
     from models.email_template import EmailTemplate  # type: ignore
     from models.api_credential import ApiCredential  # type: ignore
     from models.import_preview import ImportPreview  # type: ignore
+    from models.message_template import MessageTemplate  # type: ignore
 
     CORS(app, origins=[Config.FRONTEND_URL], supports_credentials=True)
 
@@ -78,6 +79,7 @@ def create_app() -> Flask:
     from routes.email_template_routes import email_template_routes
     from routes.api_credential_routes import api_credential_routes
     from routes.import_routes import import_routes
+    from routes.message_template_routes import message_template_routes
 
     app.register_blueprint(health_routes)
     app.register_blueprint(auth_routes)
@@ -99,6 +101,7 @@ def create_app() -> Flask:
     app.register_blueprint(email_template_routes)
     app.register_blueprint(api_credential_routes)
     app.register_blueprint(import_routes)
+    app.register_blueprint(message_template_routes)
     app.register_blueprint(invitation_routes)
     app.register_blueprint(rateio_routes)
     app.register_blueprint(platform_routes)

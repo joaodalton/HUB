@@ -177,6 +177,11 @@ def criar_empresa_com_owner(data: dict) -> dict:
         raise ValueError('Nao foi possivel criar um slug unico para a empresa.')
 
     try:
+        # Defaults globais existem antes da transação do novo tenant; as cópias
+        # tenant-scoped abaixo entram no mesmo commit da empresa/owner.
+        from services.email_template_service import ensure_seeded
+        from services.message_template_service import seed_for_empresa
+        ensure_seeded()
         # Cria empresa
         empresa = Empresa(
             nome=nome,
@@ -189,6 +194,7 @@ def criar_empresa_com_owner(data: dict) -> dict:
         )
         db.session.add(empresa)
         db.session.flush()  # Obtem o ID da empresa antes de criar o user
+        seed_for_empresa(empresa.id, commit=False)
 
         # Cria owner
         owner = User(

@@ -174,6 +174,12 @@ def renderizar(chave: str, variaveis: dict) -> tuple[str, str, str] | None:
     return assunto, html, texto
 
 
+def renderizar_para_empresa(empresa_id: int, chave: str, variaveis: dict) -> tuple[str, str, str] | None:
+    """Adaptador de compatibilidade: convite/reset preferem o template do tenant."""
+    from services.message_template_service import render_email_for_empresa
+    return render_email_for_empresa(empresa_id, chave, variaveis) or renderizar(chave, variaveis)
+
+
 def _renderizar_html(corpo: str, variaveis: dict) -> str:
     """
     Converte o corpo do template (texto com placeholders) em HTML.

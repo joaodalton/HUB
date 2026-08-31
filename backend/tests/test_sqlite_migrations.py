@@ -72,7 +72,7 @@ class SQLiteMigrationsTest(unittest.TestCase):
                 preview_indexes = {row[1] for row in connection.execute("PRAGMA index_list('import_previews')")}
             finally:
                 connection.close()
-            self.assertEqual(revision, 'd5e7f9a1b2c3')
+            self.assertEqual(revision, 'e6a8c0d2f4b6')
             self.assertTrue({'empresa_id', 'provider', 'nome', 'segredo_encrypted'}.issubset(columns))
             self.assertIn('ix_import_previews_expires_at', preview_indexes)
         finally:
@@ -131,6 +131,28 @@ class SQLiteMigrationsTest(unittest.TestCase):
                 connection.close()
         finally:
             database_path.unlink(missing_ok=True)
+
+    def test_message_template_backfill_and_downgrade_guard(self):
+        handle = tempfile.NamedTemporaryFile(suffix='.db', delete=False)
+        handle.close(); database_path = Path(handle.name)
+        try:
+            self.assertEqual(self._flask(database_path, 'upgrade', 'd5e7f9a1b2c3').returncode, 0)
+            connection = sqlite3.connect(database_path)
+            try:
+                connection.execute("INSERT INTO empresas (id,nome,slug,status) VALUES (2,'Empresa 2','template-2','ativa')")
+                connection.execute("INSERT INTO email_templates (chave,nome,assunto,corpo,variaveis_disponiveis) VALUES ('convite','Convite','Oi','Corpo','nome')")
+                connection.commit()
+            finally: connection.close()
+            self.assertEqual(self._flask(database_path, 'upgrade', 'e6a8c0d2f4b6').returncode, 0)
+            connection = sqlite3.connect(database_path)
+            try:
+                self.assertEqual(connection.execute("SELECT COUNT(*) FROM message_templates WHERE canal='email' AND chave='convite'").fetchone()[0], 2)
+                connection.execute("UPDATE message_templates SET corpo='Alterado' WHERE empresa_id=2 AND chave='convite'"); connection.commit()
+            finally: connection.close()
+            result = self._flask(database_path, 'downgrade', 'd5e7f9a1b2c3')
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('templates por empresa alterados ou criados', result.stdout + result.stderr)
+        finally: database_path.unlink(missing_ok=True)
 
 
 if __name__ == '__main__':

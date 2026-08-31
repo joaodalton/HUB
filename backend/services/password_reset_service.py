@@ -13,7 +13,7 @@ from config import Config
 from models.password_reset_token import PasswordResetToken
 from models.user import User
 from services.email_service import send_email
-from services.email_template_service import renderizar as renderizar_template
+from services.email_template_service import renderizar_para_empresa as renderizar_template
 from services.log_service import LogService
 from utils.auth import hash_password
 
@@ -52,7 +52,7 @@ def solicitar_reset(email: str) -> None:
     db.session.commit()
 
     reset_link = f'{Config.FRONTEND_URL}/redefinir-senha?token={token_cru}'
-    renderizado = renderizar_template('password_reset', {'nome': user.nome or user.email, 'link': reset_link})
+    renderizado = renderizar_template(user.empresa_id, 'password_reset', {'nome': user.nome or user.email, 'link': reset_link})
 
     if renderizado:
         subject, html, text = renderizado

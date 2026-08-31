@@ -1,0 +1,20 @@
+.templates-panel { display: grid; gap: var(--space-3); }
+.templates-header { display: flex; gap: var(--space-3); align-items: flex-start; justify-content: space-between; flex-wrap: wrap; }
+.templates-description { margin: 0 0 6px; color: var(--text); }
+.templates-actions, .templates-row-actions { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }
+.templates-actions select { min-height: 38px; }
+.templates-error { display: flex; gap: var(--space-2); align-items: center; justify-content: space-between; flex-wrap: wrap; padding: var(--space-3); border: 1px solid var(--danger-border); background: var(--danger-bg); color: var(--danger); border-radius: var(--radius); }
+.templates-editor { max-width: 760px; }
+.templates-editor h2 { margin: 0; font-size: 20px; }
+.templates-form { max-width: none; }
+.templates-variables { margin: 0; font-size: 12px; color: var(--text-dim); line-height: 1.8; }
+.templates-variable-picker { display: flex; gap: var(--space-2); flex-wrap: wrap; margin: 0; padding: var(--space-2); border: 1px solid var(--border); border-radius: var(--radius); }
+.templates-variable-picker legend { padding: 0 4px; color: var(--text-dim); font-size: 12px; }
+.templates-variable-option { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: var(--text); }
+.template-variable { padding: 1px 5px; min-height: auto; margin: 0; border: 1px solid var(--border); color: var(--accent); background: var(--panel); font-size: 12px; }
+.templates-preview { display: grid; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--border); background: var(--panel-soft); border-radius: var(--radius); }
+.templates-preview h3, .templates-preview p { margin: 0; }
+.templates-preview h3 { font-size: 13px; }
+.templates-preview-subject { font-weight: 700; color: var(--text); }
+.templates-preview-body { white-space: pre-wrap; color: var(--text-dim); line-height: 1.5; }
+@media (max-width: 600px) { .templates-header { flex-direction: column; } .templates-actions { width: 100%; } .templates-actions select, .templates-actions button { flex: 1; } }

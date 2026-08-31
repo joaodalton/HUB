@@ -18,7 +18,7 @@ from models.empresa import Empresa
 from models.invitation import Invitation
 from models.user import User
 from services.email_service import send_email
-from services.email_template_service import renderizar as renderizar_template
+from services.email_template_service import renderizar_para_empresa as renderizar_template
 from services.log_service import LogService
 from services.user_service import VALID_ROLES
 from utils.auth import hash_password
@@ -85,7 +85,7 @@ def _enviar_email_convite(convite: Invitation, token_cru: str) -> None:
     empresa = Empresa.query.get(convite.empresa_id)
     link = f'{Config.FRONTEND_URL}/aceitar-convite?token={token_cru}'
 
-    renderizado = renderizar_template('convite', {
+    renderizado = renderizar_template(convite.empresa_id, 'convite', {
         'papel': convite.role,
         'empresa': empresa.nome if empresa else 'HUB',
         'link': link

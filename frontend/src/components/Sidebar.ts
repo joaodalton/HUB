@@ -53,7 +53,7 @@ const sections: SidebarSection[] = [
     items: [
       { label: 'Pendências', path: '/pendencias', icon: 'pending', enabled: true },
       { label: 'Agenda', path: '/agenda', icon: 'agenda', enabled: true },
-      { label: 'Templates', path: '/templates', icon: 'templates', enabled: false },
+      { label: 'Templates', path: '/templates', icon: 'templates', enabled: true },
       { label: 'Mensagens', path: '/mensagens', icon: 'mensagens', enabled: false }
     ]
   },

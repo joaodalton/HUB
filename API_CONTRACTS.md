@@ -52,9 +52,11 @@ Restrito a `owner`/`admin` (`settings.read`/`settings.update`).
 
 ### `GET /email-templates` — `data` = array de `{ chave, nome, assunto, corpo, variaveisDisponiveis }`
 ### `GET /email-templates/<chave>` — `data` = um template. 404 se não existir.
-### `PUT /email-templates/<chave>` — Body: `{ assunto, corpo }`. Atualiza o template.
-### `POST /email-templates/<chave>/restaurar` — sem body. Volta ao texto padrão.
-### `POST /email-templates/<chave>/testar` — sem body. Manda um e-mail de teste (dados de exemplo) pro e-mail do usuário logado. 503 se `RESEND_API_KEY` não estiver configurada.
+### Endpoints mutáveis/teste legados retornam `410`; use `/message-templates`.
+
+## Templates de mensagem (`/message-templates`)
+
+Templates por empresa com `canal` `email` ou `whatsapp`. Listagem/consulta exigem `settings.read`; criação, edição, exclusão, restauração e `POST /message-templates/<id>/preview` exigem `settings.update`. Preview só renderiza localmente, sem enviar mensagens. Variáveis aceitas: `nome`, `link`, `papel`, `empresa`; HTML livre, placeholders desconhecidos/malformados e links não HTTPS absolutos são rejeitados.
 
 ---
 

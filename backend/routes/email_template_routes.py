@@ -68,6 +68,7 @@ def show(chave: str):
 @email_template_routes.route('/<string:chave>', methods=['PUT'])
 @require_permission('settings.update')
 def update(chave: str):
+    return error_response('Endpoint legado somente leitura; use /message-templates.', 410)
     _validar_chave_template(chave)
     data = request.get_json(silent=True) or {}
     assunto = (data.get('assunto') or '').strip()
@@ -87,6 +88,7 @@ def update(chave: str):
 @email_template_routes.route('/<string:chave>/restaurar', methods=['POST'])
 @require_permission('settings.update')
 def restore(chave: str):
+    return error_response('Endpoint legado somente leitura; use /message-templates.', 410)
     _validar_chave_template(chave)
     template = restaurar_padrao(chave)
     if not template:
@@ -98,6 +100,7 @@ def restore(chave: str):
 @require_role('owner', 'admin')
 @limiter.limit('10 per minute')
 def test_send(chave: str):
+    return error_response('Envio de teste desativado; use preview local em /message-templates.', 410)
     """
     Envia um e-mail de teste para o usuário logado.
 

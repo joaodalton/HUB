@@ -8,7 +8,10 @@ from flask import Blueprint, g, request
 from config import Config
 from models.empresa import Empresa
 from models.user import User
-from services.empresa_service import criar_empresa_com_owner, get_empresa_documentos, set_empresa_documento
+from services.empresa_service import (
+    criar_empresa_com_owner, get_empresa_atual, get_empresa_documentos,
+    set_empresa_documento, update_empresa_atual,
+)
 from services.permission_service import require_permission
 from utils.api_response import error_response, success_response
 
@@ -54,6 +57,27 @@ def registro():
         'ver backend/scripts/criar_empresa.py.',
         403
     )
+
+
+@empresa_routes.route('/atual', methods=['GET'])
+@require_permission('empresa.read')
+def atual():
+    empresa = get_empresa_atual()
+    if not empresa:
+        return error_response('Empresa nao encontrada.', 404)
+    return success_response(empresa)
+
+
+@empresa_routes.route('/atual', methods=['PUT'])
+@require_permission('empresa.update')
+def atualizar_atual():
+    try:
+        empresa = update_empresa_atual(request.get_json(silent=True) or {})
+    except ValueError as exc:
+        return error_response(str(exc), 400)
+    if not empresa:
+        return error_response('Empresa nao encontrada.', 404)
+    return success_response(empresa, 'Dados da empresa atualizados.')
 
 
 # GET /api/v1/empresas/:slug -- Busca empresa por slug (publico, para tela de convite)

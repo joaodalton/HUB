@@ -7,6 +7,7 @@ Create Date: 2026-08-12 00:00:01.000000
 """
 from alembic import op
 import sqlalchemy as sa
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 
 revision = 'e5f9a3b2c7d4'
@@ -29,27 +30,63 @@ def _sqlite_normalizar_consumo(valor):
     if valor is None:
         return None
     limpo = ''.join(char for char in str(valor).replace(',', '.') if char.isdigit() or char == '.')
-    return limpo or None
+    if not limpo:
+        return None
+    try:
+        numero = Decimal(limpo)
+    except InvalidOperation as exc:
+        raise ValueError(f'consumer_units.consumo invalido para conversao numerica: {valor!r}.') from exc
+    if not numero.is_finite():
+        raise ValueError(f'consumer_units.consumo invalido para conversao numerica: {valor!r}.')
+    return _sqlite_numeric(numero, precision=10, scale=2, campo='consumer_units.consumo', original=valor)
+
+
+def _sqlite_normalizar_percentual(valor):
+    if valor is None or not str(valor).strip():
+        raise ValueError('plant_connections.percentual vazio nao pode ser convertido para numerico.')
+    try:
+        numero = Decimal(str(valor).strip())
+    except InvalidOperation as exc:
+        raise ValueError(f'plant_connections.percentual invalido para conversao numerica: {valor!r}.') from exc
+    if not numero.is_finite():
+        raise ValueError(f'plant_connections.percentual invalido para conversao numerica: {valor!r}.')
+    return _sqlite_numeric(numero, precision=5, scale=2, campo='plant_connections.percentual', original=valor)
+
+
+def _sqlite_numeric(numero: Decimal, *, precision: int, scale: int, campo: str, original) -> str:
+    """Replica NUMERIC(p,s) do PostgreSQL, que SQLite não impõe por tipo."""
+    quantizado = numero.quantize(Decimal(1).scaleb(-scale), rounding=ROUND_HALF_UP)
+    limite = Decimal(10) ** (precision - scale)
+    if abs(quantizado) >= limite:
+        raise ValueError(f'{campo} excede NUMERIC({precision}, {scale}): {original!r}.')
+    return format(quantizado, f'.{scale}f')
 
 
 def _upgrade_sqlite():
     bind = op.get_bind()
-    for row in bind.execute(sa.text('SELECT id, consumo FROM consumer_units')).mappings():
+    # Normaliza/valida tudo ANTES de executar UPDATE/batch, garantindo que uma
+    # linha malformada não deixe o banco parcialmente convertido.
+    consumos = [
+        {'id': row['id'], 'consumo': _sqlite_normalizar_consumo(row['consumo'])}
+        for row in bind.execute(sa.text('SELECT id, consumo FROM consumer_units')).mappings()
+    ]
+    percentuais = [
+        {'id': row['id'], 'percentual': _sqlite_normalizar_percentual(row['percentual'])}
+        for row in bind.execute(sa.text('SELECT id, percentual FROM plant_connections')).mappings()
+    ]
+    for row in consumos:
         bind.execute(
             sa.text('UPDATE consumer_units SET consumo = :consumo WHERE id = :id'),
-            {'id': row['id'], 'consumo': _sqlite_normalizar_consumo(row['consumo'])},
+            row,
         )
 
     # percentual não aceita NULL no schema histórico. A migration PostgreSQL
     # também falharia se uma string vazia existisse por causa desse NOT NULL;
     # manter o valor limpo permite o mesmo cast para os dados válidos.
-    for row in bind.execute(sa.text('SELECT id, percentual FROM plant_connections')).mappings():
-        percentual = row['percentual']
-        if percentual is None or str(percentual).strip() == '':
-            raise ValueError('plant_connections.percentual vazio nao pode ser convertido para numerico.')
+    for row in percentuais:
         bind.execute(
             sa.text('UPDATE plant_connections SET percentual = :percentual WHERE id = :id'),
-            {'id': row['id'], 'percentual': str(percentual).strip()},
+            row,
         )
 
     with op.batch_alter_table('consumer_units', schema=None) as batch_op:

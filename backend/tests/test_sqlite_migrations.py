@@ -5,32 +5,65 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import importlib.util
 from pathlib import Path
 
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 
 
+def _load_migration(filename: str):
+    path = BACKEND_DIR / 'migrations' / 'versions' / filename
+    spec = importlib.util.spec_from_file_location(filename[:-3], path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader
+    spec.loader.exec_module(module)
+    return module
+
+
 class SQLiteMigrationsTest(unittest.TestCase):
+    def _environment(self, database_path: Path) -> dict:
+        environment = os.environ.copy()
+        environment.update({
+            'DATABASE_URL': f"sqlite:///{database_path.as_posix()}",
+            'SECRET_KEY': 'sqlite-migration-test-secret',
+            'FLASK_DEBUG': 'true',
+        })
+        return environment
+
+    def _flask(self, database_path: Path, *args: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [sys.executable, '-m', 'flask', '--app', 'app', 'db', *args],
+            cwd=BACKEND_DIR,
+            env=self._environment(database_path),
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+    def test_legacy_numeric_normalizers_accept_valid_and_reject_malformed_data(self):
+        migration = _load_migration('e5f9a3b2c7d4_consumo_percentual_numeric.py')
+        self.assertEqual(migration._sqlite_normalizar_consumo('450 kWh'), '450.00')
+        self.assertEqual(migration._sqlite_normalizar_consumo('1,25'), '1.25')
+        self.assertEqual(migration._sqlite_normalizar_consumo('1.234'), '1.23')
+        self.assertIsNone(migration._sqlite_normalizar_consumo('sem consumo'))
+        self.assertEqual(migration._sqlite_normalizar_percentual('12.50'), '12.50')
+        self.assertEqual(migration._sqlite_normalizar_percentual('1.234'), '1.23')
+        with self.assertRaises(ValueError):
+            migration._sqlite_normalizar_consumo('1.2.3')
+        with self.assertRaises(ValueError):
+            migration._sqlite_normalizar_percentual('12,50')
+        with self.assertRaises(ValueError):
+            migration._sqlite_normalizar_consumo('100000000')
+        with self.assertRaises(ValueError):
+            migration._sqlite_normalizar_percentual('1000')
+
     def test_empty_sqlite_upgrades_to_current_head(self):
         handle = tempfile.NamedTemporaryFile(suffix='.db', delete=False)
         handle.close()
         database_path = Path(handle.name)
         try:
-            environment = os.environ.copy()
-            environment.update({
-                'DATABASE_URL': f"sqlite:///{database_path.as_posix()}",
-                'SECRET_KEY': 'sqlite-migration-test-secret',
-                'FLASK_DEBUG': 'true',
-            })
-            result = subprocess.run(
-                [sys.executable, '-m', 'flask', '--app', 'app', 'db', 'upgrade'],
-                cwd=BACKEND_DIR,
-                env=environment,
-                text=True,
-                capture_output=True,
-                check=False,
-            )
+            result = self._flask(database_path, 'upgrade')
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             connection = sqlite3.connect(database_path)
             try:
@@ -40,6 +73,32 @@ class SQLiteMigrationsTest(unittest.TestCase):
                 connection.close()
             self.assertEqual(revision, 'c2d4e6f8a0b1')
             self.assertTrue({'empresa_id', 'provider', 'nome', 'segredo_encrypted'}.issubset(columns))
+        finally:
+            database_path.unlink(missing_ok=True)
+
+    def test_google_account_downgrade_rejects_duplicate_email_before_rebuild(self):
+        handle = tempfile.NamedTemporaryFile(suffix='.db', delete=False)
+        handle.close()
+        database_path = Path(handle.name)
+        try:
+            upgraded = self._flask(database_path, 'upgrade', 'd1e5f8a2b4c7')
+            self.assertEqual(upgraded.returncode, 0, upgraded.stdout + upgraded.stderr)
+            connection = sqlite3.connect(database_path)
+            try:
+                connection.execute("INSERT INTO empresas (id, nome, slug, ativa) VALUES (2, 'Empresa 2', 'empresa-2', 1)")
+                connection.execute("INSERT INTO google_accounts (nome, email, is_active, empresa_id) VALUES ('A', 'duplicado@example.test', 0, 1)")
+                connection.execute("INSERT INTO google_accounts (nome, email, is_active, empresa_id) VALUES ('B', 'duplicado@example.test', 0, 2)")
+                connection.commit()
+            finally:
+                connection.close()
+            downgraded = self._flask(database_path, 'downgrade', 'c9d2e6f1a3b5')
+            self.assertNotEqual(downgraded.returncode, 0)
+            self.assertIn('emails repetidos entre empresas', downgraded.stdout + downgraded.stderr)
+            connection = sqlite3.connect(database_path)
+            try:
+                self.assertEqual(connection.execute('SELECT COUNT(*) FROM google_accounts').fetchone()[0], 2)
+            finally:
+                connection.close()
         finally:
             database_path.unlink(missing_ok=True)
 

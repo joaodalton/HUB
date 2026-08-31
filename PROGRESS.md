@@ -72,7 +72,7 @@
 ### Deploy
 - [x] **Backend rodando na nuvem (Render) com Postgres**, saindo do SQLite local. `config.py` normaliza `postgres://` → `postgresql://`. `psycopg2-binary` e `gunicorn` adicionados ao `requirements.txt`. Start Command: `gunicorn -w 2 -b 0.0.0.0:$PORT app:app`.
 - [ ] Start Command ainda não roda a migration sozinho a cada deploy (sugestão: `flask db upgrade && gunicorn ...`) — hoje precisa rodar `flask db upgrade` manualmente do PC local apontando `DATABASE_URL` pra URL externa do Postgres do Render.
-- [x] **Histórico Alembic validado em SQLite vazio:** `backend/tests/test_sqlite_migrations.py` executa `flask db upgrade` até a head e confere `api_credentials`. Em 2026-08-31, passou após tornar as migrations legadas `e5f9a3b2c7d4` (conversão numérica) e `d1e5f8a2b4c7` (unicidade de GoogleAccount) compatíveis com SQLite, preservando os caminhos PostgreSQL.
+- [x] **Histórico Alembic validado em SQLite vazio:** `backend/tests/test_sqlite_migrations.py` executa `flask db upgrade` até a head e confere `api_credentials`. Em 2026-08-31, passou após tornar as migrations legadas `e5f9a3b2c7d4` (conversão numérica) e `d1e5f8a2b4c7` (unicidade de GoogleAccount) compatíveis com SQLite, preservando os caminhos PostgreSQL. O teste também cobre valores legados válidos/malformados, precisão/overflow `NUMERIC(p,2)` e bloqueia downgrade quando emails duplicados entre tenants perderiam a unicidade global.
 - [x] Frontend confirmado publicado no Render. `VITE_API_BASE_URL` apontando pro backend do Render em produção.
 
 ---
@@ -106,6 +106,7 @@
 - [x] **Hardening OAuth de transporte:** `OAUTHLIB_INSECURE_TRANSPORT` não é mais habilitado no import e `OAUTHLIB_RELAX_TOKEN_SCOPE` foi removido, preservando a validação padrão de escopos. HTTP é aceito apenas em desenvolvimento local explicitamente configurado (`FLASK_DEBUG=true`, `OAUTH_ALLOW_INSECURE_TRANSPORT=true`, callback/frontend loopback); qualquer outro ambiente exige callback e frontend HTTPS absolutos, sem credenciais/fragmentos, e remove a exceção herdada do processo.
 - [x] **Credenciais de API por empresa:** `ApiCredential` armazena segredo somente criptografado (`SECRET_ENCRYPTION_KEY`) para Resend, WhatsApp, ASAAS e concessionárias. CRUD em `/api-credentials` é tenant-scoped, não serializa segredo e registra auditoria sem valores sensíveis. O endpoint de teste é dry-run local, sem chamadas externas.
 - [x] **Agenda operacional (fonte Pendências)** — `GET /agenda` entrega a fila de pendências abertas com `prazo`, tenant-scoped e protegida por `pendencias.read`, com filtros de intervalo (máximo 93 dias-calendário) e visões dia/semana/mês (mês atual por padrão). Não há tabela de evento nem duplicação de estado: edição de prazo ou reabertura aparece imediatamente; conclusão/cancelamento remove o item na próxima consulta. Financeiro e Rateio continuam como fontes futuras.
+- [x] **Dados cadastrais da empresa atual:** `GET`/`PUT /empresas/atual` expõem e atualizam somente nome, razão social, CNPJ, e-mail e telefone da empresa autenticada. Escrita é limitada a owner/admin; slug, status e IDs são protegidos e o contrato/testes cobrem isolamento e validação.
 - [ ] Importação em massa de Cliente/UC/Usina via planilha Excel.
 
 ## V2.0 — Cobrança e automação de mensagens

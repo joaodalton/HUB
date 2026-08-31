@@ -6,12 +6,102 @@ Usado no fluxo de cadastro inicial.
 import re
 import secrets
 
+from flask import g
+
 from sqlalchemy.exc import IntegrityError
 from extensions import db
 from models.empresa import Empresa
 from models.user import User
 from services.log_service import LogService
 from utils.auth import hash_password
+
+
+_EMPRESA_PROFILE_FIELDS = frozenset({'nome', 'razaoSocial', 'cnpj', 'email', 'telefone'})
+_CNPJ_DIGITS = re.compile(r'\D')
+_EMAIL_PATTERN = re.compile(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
+
+
+def _empresa_profile_dict(empresa: Empresa) -> dict:
+    """Contrato de perfil; não inclui slug, status ou identificadores internos."""
+    return {
+        'nome': empresa.nome,
+        'razaoSocial': empresa.razao_social,
+        'cnpj': empresa.cnpj,
+        'email': empresa.email,
+        'telefone': empresa.telefone,
+    }
+
+
+def get_empresa_atual() -> dict | None:
+    empresa = Empresa.query.filter_by(id=g.current_empresa_id).first()
+    return _empresa_profile_dict(empresa) if empresa else None
+
+
+def update_empresa_atual(data: dict) -> dict | None:
+    campos_enviados = set(data)
+    desconhecidos = campos_enviados - _EMPRESA_PROFILE_FIELDS
+    if desconhecidos:
+        raise ValueError('Campos nao permitidos para atualizacao da empresa.')
+    if not campos_enviados:
+        raise ValueError('Informe ao menos um campo para atualizar.')
+
+    empresa = Empresa.query.filter_by(id=g.current_empresa_id).first()
+    if not empresa:
+        return None
+
+    if 'nome' in data:
+        nome = _validar_texto(data['nome'], 'Nome', 150, obrigatorio=True)
+        empresa.nome = nome
+    if 'razaoSocial' in data:
+        empresa.razao_social = _validar_texto(data['razaoSocial'], 'Razao social', 200)
+    if 'cnpj' in data:
+        empresa.cnpj = _validar_cnpj(data['cnpj'])
+    if 'email' in data:
+        empresa.email = _validar_email(data['email'])
+    if 'telefone' in data:
+        empresa.telefone = _validar_texto(data['telefone'], 'Telefone', 20)
+
+    db.session.commit()
+    LogService.info(
+        acao='empresa_profile_update',
+        mensagem='Dados cadastrais da empresa atualizados',
+        entidade='Empresa',
+        entidade_id=empresa.id,
+        metadados={'campos': sorted(campos_enviados)},
+    )
+    return _empresa_profile_dict(empresa)
+
+
+def _validar_texto(valor, campo: str, limite: int, *, obrigatorio: bool = False) -> str | None:
+    if valor is None:
+        if obrigatorio:
+            raise ValueError(f'{campo} e obrigatorio.')
+        return None
+    if not isinstance(valor, str):
+        raise ValueError(f'{campo} deve ser texto.')
+    resultado = valor.strip()
+    if obrigatorio and not resultado:
+        raise ValueError(f'{campo} e obrigatorio.')
+    if len(resultado) > limite:
+        raise ValueError(f'{campo} excede o tamanho permitido.')
+    return resultado or None
+
+
+def _validar_cnpj(valor) -> str | None:
+    texto = _validar_texto(valor, 'CNPJ', 20)
+    if texto is None:
+        return None
+    digitos = _CNPJ_DIGITS.sub('', texto)
+    if len(digitos) != 14:
+        raise ValueError('CNPJ deve conter 14 digitos.')
+    return digitos
+
+
+def _validar_email(valor) -> str | None:
+    email = _validar_texto(valor, 'Email', 150)
+    if email is not None and not _EMAIL_PATTERN.fullmatch(email):
+        raise ValueError('Email invalido.')
+    return email.lower() if email else None
 
 
 def gerar_slug(nome: str) -> str:

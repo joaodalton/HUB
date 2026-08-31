@@ -463,6 +463,18 @@ Executa somente um dry-run local: verifica que a cifra existe e pode ser lida, s
 
 ---
 
+## Empresa atual (`/empresas/atual`)
+
+### `GET /empresas/atual`
+
+Requer `empresa.read`. Retorna apenas os dados cadastrais da empresa do usuário autenticado: `{ nome, razaoSocial, cnpj, email, telefone }`. Não expõe nem aceita troca de `id`, `empresa_id`, `slug` ou `status`.
+
+### `PUT /empresas/atual`
+
+Requer `empresa.update` (owner ou admin). Aceita atualização parcial de `nome`, `razaoSocial`, `cnpj`, `email` e `telefone`; `nome` é obrigatório quando enviado, CNPJ deve conter 14 dígitos e e-mail deve ser válido. Campos protegidos ou desconhecidos retornam 400. A rota sempre atua na empresa da sessão, sem aceitar identificador no body ou na URL.
+
+---
+
 ## Empresa — documentos fixos (`/empresas/documentos`)
 
 Cartão CNPJ e Estatuto da associação, usados na geração do formulário Copel de rateio. Reaproveita o storage de `Document` — cada upload substitui o anterior daquele tipo (o antigo é excluído).

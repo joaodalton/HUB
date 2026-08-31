@@ -4,6 +4,7 @@ import { createDataTable } from '../components/DataTable';
 import { useToast } from '../hooks/useToast';
 import { createBaseLayout } from '../layouts/BaseLayout';
 import { getCurrentUser } from '../services/authService';
+import { getEmpresaAtual, updateEmpresaAtual, type EmpresaAtual, type EmpresaAtualUpdate } from '../services/empresaService';
 import { refreshSidebarBrand } from '../components/Sidebar';
 import {
   applyAppearanceSettings,
@@ -77,6 +78,9 @@ export function createSettingsPage(): HTMLElement {
   let apiCredentials: ApiCredentialRow[] = [];
   let apiCredentialsLoaded = false;
   let apiCredentialsLoadError = false;
+  let empresaAtual: EmpresaAtual | null = null;
+  let empresaAtualLoaded = false;
+  let empresaAtualLoadError = false;
 
   renderContent();
   loadGoogleAccounts();
@@ -86,6 +90,8 @@ export function createSettingsPage(): HTMLElement {
   loadEmailTemplates();
   if (canManageSettings()) loadApiCredentials();
   else apiCredentialsLoaded = true;
+  if (canManageSettings()) loadEmpresaAtual();
+  else empresaAtualLoaded = true;
 
   const layout = createBaseLayout({
     content,
@@ -232,6 +238,31 @@ export function createSettingsPage(): HTMLElement {
     }
   }
 
+  async function loadEmpresaAtual(): Promise<void> {
+    try {
+      empresaAtual = await getEmpresaAtual();
+      empresaAtualLoadError = false;
+    } catch {
+      empresaAtual = null;
+      empresaAtualLoadError = true;
+    } finally {
+      empresaAtualLoaded = true;
+      renderContent();
+    }
+  }
+
+  async function handleSaveEmpresaAtual(data: EmpresaAtualUpdate): Promise<void> {
+    try {
+      empresaAtual = await updateEmpresaAtual(data);
+      toast.success('Dados da empresa atualizados.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar os dados da empresa.');
+      throw error;
+    } finally {
+      renderContent();
+    }
+  }
+
   async function handleCreateApiCredential(data: Required<ApiCredentialPayload>): Promise<void> {
     try {
       apiCredentials = [...apiCredentials, await createApiCredential(data)];
@@ -295,7 +326,17 @@ export function createSettingsPage(): HTMLElement {
         return createHomePanel(recentLogs, logsLoaded, () => changeCategory('logs'));
 
       case 'geral':
-        return createGeralPanel(rateioConfig, rateioConfigLoaded, handleSaveRateioConfig);
+        return createGeralPanel(
+          empresaAtual,
+          empresaAtualLoaded,
+          empresaAtualLoadError,
+          canManageSettings(),
+          loadEmpresaAtual,
+          handleSaveEmpresaAtual,
+          rateioConfig,
+          rateioConfigLoaded,
+          handleSaveRateioConfig
+        );
 
       case 'database':
         return createDatabasePanel({
@@ -396,15 +437,101 @@ function categoryMessage(category: SettingsCategory): string {
   }
 }
 
-// ---------- Geral (buffer padrão do motor de rateio) ----------
+// ---------- Geral ----------
 
 function createGeralPanel(
+  empresa: EmpresaAtual | null,
+  empresaLoaded: boolean,
+  empresaLoadError: boolean,
+  canManage: boolean,
+  onRetryEmpresa: () => Promise<void>,
+  onSaveEmpresa: (data: EmpresaAtualUpdate) => Promise<void>,
+  config: RateioConfig,
+  loaded: boolean,
+  onSave: (config: RateioConfig) => Promise<void>
+): HTMLElement {
+  const stack = createElement('div', { className: 'content-stack' });
+  if (!canManage) {
+    const denied = createElement('section', { className: 'settings-panel' });
+    denied.append(
+      createPanelHeader('Dados da Empresa', 'Informações cadastrais da empresa atual'),
+      createElement('p', { className: 'settings-hint', textContent: 'Seu perfil não tem permissão para visualizar ou alterar os dados da empresa.' })
+    );
+    stack.appendChild(denied);
+    return stack;
+  }
+
+  stack.append(
+    createEmpresaAtualPanel(empresa, empresaLoaded, empresaLoadError, onRetryEmpresa, onSaveEmpresa),
+    createRateioConfigPanel(config, loaded, onSave)
+  );
+  return stack;
+}
+
+function createEmpresaAtualPanel(
+  empresa: EmpresaAtual | null,
+  loaded: boolean,
+  loadError: boolean,
+  onRetry: () => Promise<void>,
+  onSave: (data: EmpresaAtualUpdate) => Promise<void>
+): HTMLElement {
+  const panel = createElement('section', { className: 'settings-panel' });
+  panel.appendChild(createPanelHeader('Dados da Empresa', 'Informações cadastrais da empresa atual. Slug e status não podem ser alterados aqui.'));
+
+  if (!loaded) {
+    panel.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Carregando dados da empresa...' }));
+    return panel;
+  }
+  if (loadError || !empresa) {
+    const retry = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Tentar novamente' });
+    retry.addEventListener('click', () => void onRetry());
+    panel.append(createElement('p', { className: 'settings-hint', textContent: 'Não foi possível carregar os dados da empresa.' }), retry);
+    return panel;
+  }
+
+  const form = createElement('form', { className: 'settings-form empresa-atual-form' });
+  const nome = createInput('Nome', 'text', empresa.nome, true);
+  const razaoSocial = createInput('Razão social', 'text', empresa.razaoSocial ?? '', false);
+  const cnpj = createInput('CNPJ', 'text', empresa.cnpj ?? '', false);
+  cnpj.input.inputMode = 'numeric';
+  cnpj.input.placeholder = 'Somente números';
+  const email = createInput('E-mail', 'email', empresa.email ?? '', false);
+  const telefone = createInput('Telefone', 'tel', empresa.telefone ?? '', false);
+  const actions = createElement('div', { className: 'form-actions' });
+  const submit = createElement('button', { type: 'submit', textContent: 'Salvar dados' });
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const nomeValue = nome.input.value.trim();
+    const cnpjValue = cnpj.input.value.replace(/\D/g, '');
+    const telefoneValue = telefone.input.value.trim();
+    if (!nomeValue) { nome.input.focus(); return; }
+    if (cnpjValue && cnpjValue.length !== 14) { cnpj.input.setCustomValidity('Informe os 14 dígitos do CNPJ.'); cnpj.input.reportValidity(); return; }
+    cnpj.input.setCustomValidity('');
+    if (!email.input.checkValidity()) { email.input.reportValidity(); return; }
+    if (telefoneValue && telefoneValue.replace(/\D/g, '').length < 8) { telefone.input.setCustomValidity('Informe um telefone válido.'); telefone.input.reportValidity(); return; }
+    telefone.input.setCustomValidity('');
+    submit.disabled = true;
+    submit.textContent = 'Salvando...';
+    try {
+      await onSave({ nome: nomeValue, razaoSocial: razaoSocial.input.value.trim(), cnpj: cnpjValue, email: email.input.value.trim(), telefone: telefoneValue });
+    } catch {
+      submit.disabled = false;
+      submit.textContent = 'Salvar dados';
+    }
+  });
+  actions.appendChild(submit);
+  form.append(nome.field, razaoSocial.field, cnpj.field, email.field, telefone.field, actions);
+  panel.appendChild(form);
+  return panel;
+}
+
+function createRateioConfigPanel(
   config: RateioConfig,
   loaded: boolean,
   onSave: (config: RateioConfig) => Promise<void>
 ): HTMLElement {
   const panel = createElement('section', { className: 'settings-panel' });
-  panel.appendChild(createPanelHeader('Geral', 'Regras padrão usadas pelo motor de rateio'));
+  panel.appendChild(createPanelHeader('Rateio', 'Regras padrão usadas pelo motor de rateio'));
 
   if (!loaded) {
     panel.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Carregando...' }));

@@ -58,6 +58,14 @@ def upgrade():
 
 def downgrade():
     if op.get_bind().dialect.name == 'sqlite':
+        duplicates = op.get_bind().execute(sa.text("""
+            SELECT email FROM google_accounts
+            GROUP BY email HAVING COUNT(*) > 1
+        """)).scalars().all()
+        if duplicates:
+            raise ValueError(
+                'Nao e possivel reverter google_accounts: existem emails repetidos entre empresas.'
+            )
         op.create_table(
             'google_accounts_old',
             sa.Column('id', sa.Integer(), nullable=False),

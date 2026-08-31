@@ -116,7 +116,7 @@ def resolve_current_user_optional():
         return None
 
     from models.user import User
-    user = User.query.get(token_data.get('user_id'))
+    user = db.session.get(User, token_data.get('user_id'))
     return user if user and user.status == 'ativo' and user.session_version == token_data.get('session_version') else None
 
 def register_auth_middleware(app, public_paths: set[str], public_path_prefixes: set[str] = frozenset()) -> None:
@@ -154,7 +154,7 @@ def register_auth_middleware(app, public_paths: set[str], public_path_prefixes: 
         from models.user import User
         from models.empresa import Empresa
 
-        user = User.query.get(token_data.get('user_id'))
+        user = db.session.get(User, token_data.get('user_id'))
         if not user or user.status != 'ativo' or user.session_version != token_data.get('session_version'):
             return error_response('Usuario invalido ou inativo.', 401)
 
@@ -164,7 +164,7 @@ def register_auth_middleware(app, public_paths: set[str], public_path_prefixes: 
         g.current_user = user
         g.current_empresa_id = user.empresa_id
         g.current_role = user.role
-        g.current_empresa = Empresa.query.get(user.empresa_id)
+        g.current_empresa = db.session.get(Empresa, user.empresa_id)
         g.platform_view_empresa_id = None
 
         # Platform admin "dentro" de uma empresa (ver routes/platform_routes.py):
@@ -176,7 +176,7 @@ def register_auth_middleware(app, public_paths: set[str], public_path_prefixes: 
         if user.is_platform_admin:
             view_cookie = request.cookies.get(VIEW_COOKIE_NAME)
             if view_cookie and view_cookie.isdigit():
-                empresa_visualizada = Empresa.query.get(int(view_cookie))
+                empresa_visualizada = db.session.get(Empresa, int(view_cookie))
                 if empresa_visualizada:
                     g.current_empresa_id = empresa_visualizada.id
                     g.current_empresa = empresa_visualizada

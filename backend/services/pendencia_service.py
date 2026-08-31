@@ -7,6 +7,8 @@ from extensions import db
 from models.pendencia import Pendencia, PendenciaComentario, PRIORIDADES
 from services.log_service import LogService
 
+def _tenant(model, identifier): return model.query.filter_by(id=identifier, empresa_id=g.current_empresa_id).first()
+
 
 def list_pendencias(filtros: dict) -> list[dict]:
     # Filtro automatico via TenantMixin (extensions.py)
@@ -32,7 +34,7 @@ def list_pendencias(filtros: dict) -> list[dict]:
 
 
 def get_pendencia(pendencia_id: int) -> dict | None:
-    pendencia = Pendencia.query.get(pendencia_id)
+    pendencia = _tenant(Pendencia, pendencia_id)
     return pendencia.to_dict() if pendencia else None
 
 
@@ -83,25 +85,25 @@ def _criar(tipo: str, origem: str, data: dict) -> dict:
 
     if data.get('clienteId'):
         from models.client import Client
-        cliente = Client.query.get(data['clienteId'])
+        cliente = _tenant(Client, data['clienteId'])
         if not cliente or cliente.empresa_id != empresa_id:
             raise ValueError('Cliente pertence a outra empresa.')
 
     if data.get('ucId'):
         from models.consumer_unit import ConsumerUnit
-        uc = ConsumerUnit.query.get(data['ucId'])
+        uc = _tenant(ConsumerUnit, data['ucId'])
         if not uc or uc.empresa_id != empresa_id:
             raise ValueError('UC pertence a outra empresa.')
 
     if data.get('usinaId'):
         from models.plant import Plant
-        planta = Plant.query.get(data['usinaId'])
+        planta = _tenant(Plant, data['usinaId'])
         if not planta or planta.empresa_id != empresa_id:
             raise ValueError('Usina pertence a outra empresa.')
 
     if data.get('documentoId'):
         from models.document import Document
-        doc = Document.query.get(data['documentoId'])
+        doc = _tenant(Document, data['documentoId'])
         if not doc or doc.empresa_id != empresa_id:
             raise ValueError('Documento pertence a outra empresa.')
 
@@ -146,35 +148,35 @@ def _criar(tipo: str, origem: str, data: dict) -> dict:
 
 
 def update_pendencia(pendencia_id: int, data: dict) -> dict | None:
-    pendencia = Pendencia.query.get(pendencia_id)
+    pendencia = _tenant(Pendencia, pendencia_id)
     if not pendencia:
         return None
 
     # Validação de referências cruzadas também em update.
     if 'clienteId' in data and data['clienteId'] is not None:
         from models.client import Client
-        cliente = Client.query.get(data['clienteId'])
+        cliente = _tenant(Client, data['clienteId'])
         if not cliente or cliente.empresa_id != g.current_empresa_id:
             raise ValueError('Cliente pertence a outra empresa.')
         pendencia.client_id = data['clienteId']
 
     if 'ucId' in data and data['ucId'] is not None:
         from models.consumer_unit import ConsumerUnit
-        uc = ConsumerUnit.query.get(data['ucId'])
+        uc = _tenant(ConsumerUnit, data['ucId'])
         if not uc or uc.empresa_id != g.current_empresa_id:
             raise ValueError('UC pertence a outra empresa.')
         pendencia.consumer_unit_id = data['ucId']
 
     if 'usinaId' in data and data['usinaId'] is not None:
         from models.plant import Plant
-        planta = Plant.query.get(data['usinaId'])
+        planta = _tenant(Plant, data['usinaId'])
         if not planta or planta.empresa_id != g.current_empresa_id:
             raise ValueError('Usina pertence a outra empresa.')
         pendencia.plant_id = data['usinaId']
 
     if 'documentoId' in data and data['documentoId'] is not None:
         from models.document import Document
-        doc = Document.query.get(data['documentoId'])
+        doc = _tenant(Document, data['documentoId'])
         if not doc or doc.empresa_id != g.current_empresa_id:
             raise ValueError('Documento pertence a outra empresa.')
         pendencia.document_id = data['documentoId']
@@ -214,7 +216,7 @@ def update_pendencia(pendencia_id: int, data: dict) -> dict | None:
 
 
 def resolver_pendencia(pendencia_id: int) -> dict | None:
-    pendencia = Pendencia.query.get(pendencia_id)
+    pendencia = _tenant(Pendencia, pendencia_id)
     if not pendencia:
         return None
     pendencia.status = 'resolvida'
@@ -230,7 +232,7 @@ def resolver_pendencia(pendencia_id: int) -> dict | None:
 
 
 def cancelar_pendencia(pendencia_id: int) -> dict | None:
-    pendencia = Pendencia.query.get(pendencia_id)
+    pendencia = _tenant(Pendencia, pendencia_id)
     if not pendencia:
         return None
     pendencia.status = 'cancelada'
@@ -245,7 +247,7 @@ def cancelar_pendencia(pendencia_id: int) -> dict | None:
 
 
 def reabrir_pendencia(pendencia_id: int) -> dict | None:
-    pendencia = Pendencia.query.get(pendencia_id)
+    pendencia = _tenant(Pendencia, pendencia_id)
     if not pendencia:
         return None
     pendencia.status = 'aberta'
@@ -261,7 +263,7 @@ def reabrir_pendencia(pendencia_id: int) -> dict | None:
 
 
 def delete_pendencia(pendencia_id: int) -> bool:
-    pendencia = Pendencia.query.get(pendencia_id)
+    pendencia = _tenant(Pendencia, pendencia_id)
     if not pendencia:
         return False
     db.session.delete(pendencia)
@@ -270,7 +272,7 @@ def delete_pendencia(pendencia_id: int) -> bool:
 
 
 def adicionar_comentario(pendencia_id: int, texto: str, autor_id: int | None) -> dict | None:
-    pendencia = Pendencia.query.get(pendencia_id)
+    pendencia = _tenant(Pendencia, pendencia_id)
     if not pendencia:
         return None
     # Validação de referência cruzada: a pendência deve pertencer à empresa

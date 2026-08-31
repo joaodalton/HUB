@@ -17,6 +17,9 @@ from services.log_service import LogService
 # enviados antes da troca pro Drive -- nao usar mais pra upload novo (ver
 # create_document abaixo). Nao apaga essa pasta nem os arquivos nela.
 UPLOAD_ROOT = Path(__file__).resolve().parent.parent / 'uploads'
+def _document(identifier): return Document.query.filter_by(id=identifier, empresa_id=g.current_empresa_id).first()
+def _client(identifier): return Client.query.filter_by(id=identifier, empresa_id=g.current_empresa_id).first()
+def _uc(identifier): return ConsumerUnit.query.filter_by(id=identifier, empresa_id=g.current_empresa_id).first()
 
 def list_documents(client_id: int | None = None, uc_id: int | None = None) -> list[dict]:
     query = Document.query
@@ -31,7 +34,7 @@ def list_documents(client_id: int | None = None, uc_id: int | None = None) -> li
 
 
 def get_document(document_id: int) -> Document | None:
-    return Document.query.get(document_id)
+    return _document(document_id)
 
 
 def create_document(data: dict, file_storage) -> dict:
@@ -41,17 +44,17 @@ def create_document(data: dict, file_storage) -> dict:
     MESMO conteudo (md5) -- se achar, reaproveita em vez de subir uma copia
     nova (find_duplicate em drive_service.py)."""
     category_id = data.get('categoriaId')
-    category = Category.query.get(category_id) if category_id else None
+    category = db.session.get(Category, category_id) if category_id else None
 
     if category_id and not category:
         raise ValueError('Categoria informada nao existe.')
 
     client_id = data.get('clienteId')
-    if client_id and not Client.query.get(client_id):
+    if client_id and not _client(client_id):
         raise ValueError('Cliente informado nao existe.')
 
     uc_id = data.get('ucId')
-    if uc_id and not ConsumerUnit.query.get(uc_id):
+    if uc_id and not _uc(uc_id):
         raise ValueError('UC informada nao existe.')
 
     original_name = secure_filename(file_storage.filename or 'arquivo')
@@ -96,7 +99,7 @@ def create_document(data: dict, file_storage) -> dict:
 
 
 def rename_document(document_id: int, novo_nome: str) -> dict | None:
-    document = Document.query.get(document_id)
+    document = _document(document_id)
 
     if not document:
         return None
@@ -109,7 +112,7 @@ def rename_document(document_id: int, novo_nome: str) -> dict | None:
 
 
 def delete_document(document_id: int) -> bool:
-    document = Document.query.get(document_id)
+    document = _document(document_id)
 
     if not document:
         return False
@@ -139,16 +142,16 @@ def create_drive_document(data: dict) -> dict:
     nem mover nada -- so cria o registro em Document apontando pro fileId
     (storageProvider='google_drive', storageRef=fileId). O Drive continua sendo
     o armazenamento; o Document e so o catalogo (dono, categoria, UC)."""
-    category = Category.query.get(data.get('categoriaId'))
+    category = db.session.get(Category, data.get('categoriaId'))
     if not category:
         raise ValueError('Categoria informada nao existe.')
 
     client_id = data.get('clienteId')
-    if client_id and not Client.query.get(client_id):
+    if client_id and not _client(client_id):
         raise ValueError('Cliente informado nao existe.')
 
     uc_id = data.get('ucId')
-    if uc_id and not ConsumerUnit.query.get(uc_id):
+    if uc_id and not _uc(uc_id):
         raise ValueError('UC informada nao existe.')
 
     drive_file_id = (data.get('driveFileId') or '').strip()

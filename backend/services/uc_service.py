@@ -9,6 +9,10 @@ from models.consumer_unit import ConsumerUnit, PlantConnection
 from models.plant import Plant
 from services.log_service import LogService
 
+def _uc(uc_id): return ConsumerUnit.query.filter_by(id=uc_id, empresa_id=g.current_empresa_id).first()
+def _client(client_id): return Client.query.filter_by(id=client_id, empresa_id=g.current_empresa_id).first()
+def _plant(plant_id): return Plant.query.filter_by(id=plant_id, empresa_id=g.current_empresa_id).first()
+
 
 def list_ucs() -> list[dict]:
     # Filtro automatico via TenantMixin (extensions.py)
@@ -21,12 +25,12 @@ def list_ucs() -> list[dict]:
 
 def get_uc(uc_id: int) -> dict | None:
     # Filtro automatico via TenantMixin
-    uc = ConsumerUnit.query.get(uc_id)
+    uc = _uc(uc_id)
     return uc.to_dict() if uc else None
 
 
 def create_uc(data: dict) -> dict:
-    client = Client.query.get(data.get('clienteId'))
+    client = _client(data.get('clienteId'))
 
     if not client:
         raise ValueError('Cliente informado nao existe.')
@@ -47,13 +51,13 @@ def create_uc(data: dict) -> dict:
 
 
 def update_uc(uc_id: int, data: dict) -> dict | None:
-    uc = ConsumerUnit.query.get(uc_id)
+    uc = _uc(uc_id)
 
     if not uc:
         return None
 
     if data.get('clienteId') and data['clienteId'] != uc.client_id:
-        novo_cliente = Client.query.get(data['clienteId'])
+        novo_cliente = _client(data['clienteId'])
         if not novo_cliente:
             raise ValueError('Cliente informado nao existe.')
         uc.client_id = novo_cliente.id
@@ -70,7 +74,7 @@ def update_uc(uc_id: int, data: dict) -> dict | None:
 
 
 def delete_uc(uc_id: int) -> bool:
-    uc = ConsumerUnit.query.get(uc_id)
+    uc = _uc(uc_id)
 
     if not uc:
         return False
@@ -184,7 +188,7 @@ def sync_connections(uc: ConsumerUnit, conexoes_data: list[dict]) -> None:
         if plant_id in existentes_por_usina:
             continue  # já existe -- preserva como está
 
-        plant = Plant.query.get(plant_id)
+        plant = _plant(plant_id)
 
         if not plant:
             LogService.warning(

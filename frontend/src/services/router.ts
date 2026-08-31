@@ -1,4 +1,5 @@
 import { createClientsPage } from '../pages/ClientsPage';
+import { createDashboardPage } from '../pages/DashboardPage';
 import { createAgendaPage } from '../pages/AgendaPage';
 import { createDocumentsPage } from '../pages/DocumentsPage';
 import { createForgotPasswordPage } from '../pages/ForgotPasswordPage';
@@ -21,7 +22,8 @@ type Route = {
 
 export function createRouter(root: HTMLElement) {
   const routes: Route[] = [
-    { path: '/', render: createDocumentsPage },
+    { path: '/', render: createDashboardPage },
+    { path: '/dashboard', render: createDashboardPage },
     { path: '/documentos', render: createDocumentsPage },
     { path: '/clientes', render: createClientsPage },
     { path: '/ucs', render: createUcsPage },

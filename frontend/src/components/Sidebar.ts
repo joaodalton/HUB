@@ -26,7 +26,7 @@ export const HUB_VERSION = 'V1.x';
 const sections: SidebarSection[] = [
   {
     items: [
-      { label: 'Dashboard', path: '/dashboard', icon: 'dashboard', enabled: false }
+      { label: 'Dashboard', path: '/dashboard', icon: 'dashboard', enabled: true }
     ]
   },
   {
@@ -125,7 +125,7 @@ function createSidebarLink(item: SidebarLink): HTMLElement {
   }
 
   const isActive = item.path === window.location.pathname
-    || (window.location.pathname === '/' && item.path === '/documentos');
+    || (window.location.pathname === '/' && item.path === '/dashboard');
   const link = createElement('a', { className: isActive ? 'sidebar-link active' : 'sidebar-link' });
 
   link.href = item.path;

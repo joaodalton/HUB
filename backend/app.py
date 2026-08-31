@@ -60,6 +60,7 @@ def create_app() -> Flask:
     from routes.oauth_routes import oauth_routes
     from routes.log_routes import log_routes
     from routes.pendencia_routes import pendencia_routes
+    from routes.dashboard_routes import dashboard_routes
     from routes.user_routes import user_routes
     from routes.invitation_routes import invitation_routes
     from routes.rateio_routes import rateio_routes
@@ -80,6 +81,7 @@ def create_app() -> Flask:
     app.register_blueprint(oauth_routes)
     app.register_blueprint(log_routes)
     app.register_blueprint(pendencia_routes)
+    app.register_blueprint(dashboard_routes)
     app.register_blueprint(user_routes)
     app.register_blueprint(email_template_routes)
     app.register_blueprint(invitation_routes)

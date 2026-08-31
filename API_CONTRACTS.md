@@ -283,6 +283,33 @@ Lista as regras automáticas disponíveis. Retorna array de regras com `id`, `no
 
 ---
 
+## Dashboard (`/dashboard`)
+
+### `GET /dashboard/resumo`
+Requer `pendencias.read`. Retorna o resumo operacional calculado em tempo real, sempre no escopo da empresa ativa (ou da empresa selecionada por platform admin). Não cria nem persiste registros de dashboard.
+
+`data`:
+```json
+{
+  "geradoEm": "2026-08-31T12:00:00",
+  "pendencias": {
+    "abertas": 5,
+    "vencidas": 1,
+    "vencendoEm7Dias": 2,
+    "resolvidasNoMes": 3,
+    "fila": ["Pendencia"]
+  },
+  "clientes": { "disponivel": true, "total": 12, "porStatus": { "Ativo": 10, "Esperando usina": 2 } },
+  "ucs": { "disponivel": true, "total": 14 },
+  "usinas": { "disponivel": true, "total": 4, "porStatus": { "Ativa": 3, "Implantacao": 1 } },
+  "documentos": { "disponivel": true, "total": 25, "porCategoria": { "1": 18, "semCategoria": 7 } }
+}
+```
+
+`fila` contém no máximo 10 pendências abertas, ordenadas por prioridade e prazo, no formato `Pendencia`. `vencendoEm7Dias` cobre prazos entre o instante da consulta e os próximos sete dias; vencidas ficam apenas em `vencidas`. Em recursos sem permissão de leitura para o papel autenticado, `disponivel` é `false` e as métricas desse recurso retornam `null`, evitando exposição indireta de dados.
+
+---
+
 ## Logs (`/logs`)
 
 ### `GET /rateio/formulario?plantId=`

@@ -1,4 +1,4 @@
-# APP HUB — Documento de Visão (Norte do Projeto)
+# HUB — Documento de Visão (Norte do Projeto)
 
 > **Para qualquer IA trabalhando neste repositório (Claude, Codex, etc.):** leia este arquivo INTEIRO antes de começar qualquer tarefa. Ele não muda com frequência — é a meta fixa do projeto. O que muda a cada sessão é o `PROGRESS.md`, que diz exatamente em qual tarefa você está agora.
 >
@@ -8,15 +8,15 @@
 
 ---
 
-## 1. O que é o APP HUB
+## 1. O que é o HUB
 
-O APP HUB organiza clientes, UCs (unidades consumidoras), usinas, documentos, rateio de energia, pendências operacionais, financeiro e comunicação (WhatsApp/email) de empresas de energia solar — hoje espalhados em Google Drive, planilhas e processos manuais — numa única interface.
+O HUB organiza clientes, UCs (unidades consumidoras), usinas, documentos, rateio de energia, pendências operacionais, financeiro e comunicação (WhatsApp/email) de empresas de energia solar — hoje espalhados em Google Drive, planilhas e processos manuais — numa única interface.
 
 Não é um site institucional. Não é um dashboard interno de uso ocasional. É pra ser o **programa de trabalho diário** de quem opera o negócio.
 
 **Motivação original (2026-07-19):** substituir o sistema antigo (GDASH), considerado ruim, reduzindo o trabalho manual do próprio João.
 
-**Motivação atual (evoluída em 2026-08-17):** o HUB deixou de ser só uma ferramenta interna da Select Energia Solar e virou **produto vendável pra outras empresas de geração distribuída** — daí a decisão de multi-tenancy (seção 2). Isso não muda o critério de priorização: **valor visível e usável no dia a dia continua batendo arquitetura perfeita**. Prioridade favorece o que reduz dor real de operação primeiro, não o que é "mais correto" em teoria.
+**Motivação atual (evoluída em 2026-08-17):** o HUB deixou de ser só uma ferramenta interna da Selec Energy e virou **produto vendável pra outras empresas de geração distribuída** — daí a decisão de multi-tenancy (seção 2). Isso não muda o critério de priorização: **valor visível e usável no dia a dia continua batendo arquitetura perfeita**. Prioridade favorece o que reduz dor real de operação primeiro, não o que é "mais correto" em teoria.
 
 ---
 
@@ -67,7 +67,7 @@ Fluxo de **redefinição de senha por e-mail já existe** (`ForgotPasswordPage.t
 
 ### 2.5 Integração planejada com o SunHub
 
-Integração futura com o **SunHub** (sistema comercial que a Select já usa) via API — dois sistemas independentes, cada um com seu próprio banco. Não é fusão de dados nem o HUB assumindo o papel do SunHub.
+Integração futura com o **SunHub** (sistema comercial que a Selec Energy já usa) via API — dois sistemas independentes, cada um com seu próprio banco. Não é fusão de dados nem o HUB assumindo o papel do SunHub.
 
 ---
 
@@ -143,7 +143,7 @@ Pendente dentro desse escopo original:
 ### V1.5-A — Refinamento operacional (pendências + agenda + configurações de API)
 - [x] Pendências — Sprint 1 (model, CRUD, comentários, timeline) e Sprint 2 (motor de automação: UC sem usina, cliente sem UC, campos obrigatórios, documentos obrigatórios, resolução automática).
 - [ ] **Regras automáticas adicionais de pendência** — boleto vencido, lembrete de vencimento (ver `PENDENCIAS.md` 11.3/11.4), protocolo de rateio parado.
-- [ ] Dashboard com métricas reais (hoje é item desabilitado "Em breve" na sidebar).
+- [x] Dashboard com métricas reais (fila de pendências, vencidas, vencendo em 7 dias, concluídas no mês e indicadores operacionais por empresa).
 - [ ] **Agenda operacional com backend próprio, sincronizada com Pendências e Financeiro** — hoje a Agenda só lê de `Pendencia.prazo`; precisa virar fonte única de verdade pra prazo de qualquer entidade (pendência, boleto a vencer, protocolo de rateio), sem duplicar estado. Todo evento com prazo em qualquer domínio aparece na Agenda automaticamente, e resolver/pagar/concluir o item de origem atualiza a Agenda sem passo manual extra.
 - [ ] **Configurações → APIs e Integrações** vira o local único pra gerenciar toda credencial de serviço externo por empresa: Google OAuth (já existe, só muda de aba), Resend (e-mail), provedor de WhatsApp, ASAAS, e qualquer chave de robô/scraper (seção V6). Cada credencial fica guardada criptografada (mesmo padrão Fernet de `GoogleAccount.refresh_token_encrypted`), nunca em texto puro, com teste de conexão por integração — reaproveita e generaliza a rota `POST /config/database/test` que já existe.
 
@@ -168,7 +168,7 @@ Financeiro deixa de ser só "geração de boleto" e vira módulo com histórico,
 - [ ] **Model `Boleto`/`Fatura`** (nome final a definir com o João) — competência, mês de referência, mês de vencimento, valor, status (a pagar / pago / vencido), concessionária de origem, UC e cliente vinculados, arquivo do boleto (mesmo padrão de storage do `Document`, Google Drive).
 - [ ] **Importação de boleto/fatura** — dois caminhos: (1) importação em lote (planilha, já previsto desde `VISAO.md` original), e (2) **upload direto dentro da página do cliente**, sem precisar passar pela tela de importação em massa — o cliente já teria uma aba/seção "Financeiro" análoga à de "Documentos" que já existe hoje em `ClientDetailView.ts`.
 - [ ] **Página financeira do cliente** — histórico completo de boletos daquele cliente, com gráfico (evolução de valor pago/pendente ao longo dos meses), lista separada de "pagos" vs. "a pagar", sempre cruzando concessionária + mês de referência + mês de vencimento (os 3 já são campos do model, é questão de expor bem na UI).
-- [ ] Integração ASAAS (geração de boleto de cobrança da própria Select pro cliente — não confundir com o boleto da concessionária, que é importado).
+- [ ] Integração ASAAS (geração de boleto de cobrança da própria Selec Energy pro cliente — não confundir com o boleto da concessionária, que é importado).
 - [ ] **Notificações** ligadas ao ciclo de pendência financeira: lembrete de vencimento (N dias antes, configurável — já previsto em `PENDENCIAS.md` 11.3), boleto vencido (11.4), primeiro boleto com desconto (11.2). Cada uma dessas já tem especificação de gatilho em `PENDENCIAS.md`, falta implementar como regra automática do motor que já existe (mesmo padrão de `automacao_service.py`).
 - [ ] Cobranças automáticas recorrentes (depende da integração ASAAS acima).
 
@@ -222,7 +222,7 @@ Pré-requisitos antes de começar qualquer um dos três:
 
 ## 6. Cobrança do próprio HUB — modelo detalhado
 
-Não confundir com o financeiro da V2.0: aquele é a Select (ou qualquer empresa-tenant) cobrando **o cliente final dela** via ASAAS. Esta seção é sobre cobrar **a empresa-tenant pelo uso do HUB** — a assinatura do próprio produto. As duas coisas podem reaproveitar a mesma integração ASAAS (um único adapter de pagamento, dois contextos de cobrança diferentes), mas são fluxos de negócio separados e nunca devem se misturar no código nem na UI.
+Não confundir com o financeiro da V2.0: aquele é a Selec Energy (ou qualquer empresa-tenant) cobrando **o cliente final dela** via ASAAS. Esta seção é sobre cobrar **a empresa-tenant pelo uso do HUB** — a assinatura do próprio produto. As duas coisas podem reaproveitar a mesma integração ASAAS (um único adapter de pagamento, dois contextos de cobrança diferentes), mas são fluxos de negócio separados e nunca devem se misturar no código nem na UI.
 
 Este desenho é ponto de partida pra validar com o João — os nomes de tier e valores abaixo são exemplo, não decisão fechada.
 

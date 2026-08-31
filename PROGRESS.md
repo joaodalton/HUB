@@ -101,7 +101,7 @@
   - Verificação automática ao abrir a tela de Pendências
   - Botão "Verificar agora" na toolbar
 - [x] **Formulário Copel de Rateio (Associações) — geração completa** (`RATEIO.md` seções 8-10). 4 sprints: (1) documentos fixos da empresa (CNPJ/Estatuto, reaproveitando `Document`/Drive), (2) tabela de revisão + checagem automática de Termo de Adesão (bloqueia geração e cria `Pendencia` crítica se faltar), (3) aba nova em `/rateio` ("Gerar Formulário Copel") com tabela editável de conferência antes de gerar, (4) geração real dos PDFs — overlay de texto sobre o template oficial em branco (`backend/assets/formulario_copel_associacao.pdf`, calibrado via `pdfplumber`) + merge dos Termos de Adesão em PDF único. Entrega final: 4 arquivos pro envio à Copel (formulário preenchido + termos mesclados + CNPJ + estatuto). **Pendente de validação visual em produção** — ver seção de decisões em aberto abaixo.
-- [ ] Dashboard inteligente com métricas reais (hoje é item desabilitado "Em breve" na sidebar).
+- [x] **Dashboard operacional:** `GET /dashboard/resumo` entrega, em tempo real e no tenant ativo, fila de pendências abertas (priorizada), abertas/vencidas/vencendo em 7 dias/resolvidas no mês, totais e status de Clientes/Usinas, totais de UCs e documentos por categoria. A tela `/dashboard` consome esse contrato, é a página inicial e apresenta métricas, fila operacional e estados de carregamento/erro/vazio. O payload respeita RBAC: métricas de um domínio sem permissão de leitura são omitidas (`disponivel: false`), sem vazamento indireto. Build do frontend validado em 2026-08-31.
 - [ ] **Agenda operacional real** — hoje é grade estática com 3 itens de exemplo, sem backend.
 - [ ] Importação em massa de Cliente/UC/Usina via planilha Excel.
 

@@ -105,6 +105,18 @@ def _criar(tipo: str, origem: str, data: dict) -> dict:
         if not doc or doc.empresa_id != empresa_id:
             raise ValueError('Documento pertence a outra empresa.')
 
+    if data.get('responsavelId'):
+        # User não usa TenantMixin porque o login precisa encontrá-lo antes
+        # de haver empresa na requisição. Por isso esta referência cruzada
+        # precisa do filtro explícito: Pendencia.to_dict expõe o email do
+        # responsável e jamais pode apontar para usuário de outro tenant.
+        from models.user import User
+        responsavel = User.query.filter_by(
+            id=data['responsavelId'], empresa_id=empresa_id
+        ).first()
+        if not responsavel:
+            raise ValueError('Responsavel pertence a outra empresa.')
+
     pendencia = Pendencia(
         empresa_id=g.current_empresa_id,
         tipo=tipo,
@@ -166,6 +178,14 @@ def update_pendencia(pendencia_id: int, data: dict) -> dict | None:
         if not doc or doc.empresa_id != g.current_empresa_id:
             raise ValueError('Documento pertence a outra empresa.')
         pendencia.document_id = data['documentoId']
+
+    if 'responsavelId' in data and data['responsavelId'] is not None:
+        from models.user import User
+        responsavel = User.query.filter_by(
+            id=data['responsavelId'], empresa_id=g.current_empresa_id
+        ).first()
+        if not responsavel:
+            raise ValueError('Responsavel pertence a outra empresa.')
 
     if 'categoria' in data:
         categoria = (data['categoria'] or '').strip()

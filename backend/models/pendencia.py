@@ -59,6 +59,13 @@ class Pendencia(TenantMixin, db.Model):
     )
 
     def to_dict(self) -> dict:
+        # A FK histórica pode ter sido gravada antes da validação de tenant no
+        # service. Nunca exponha email/ID de responsável de outra empresa.
+        responsavel_compativel = (
+            self.responsavel
+            if self.responsavel and self.responsavel.empresa_id == self.empresa_id
+            else None
+        )
         return {
             'id': self.id,
             'tipo': self.tipo,
@@ -76,8 +83,8 @@ class Pendencia(TenantMixin, db.Model):
             'documentoNome': self.document.nome if self.document else None,
             'prazo': self.prazo.isoformat() if self.prazo else None,
             'prioridade': self.prioridade,
-            'responsavelId': self.responsavel_id,
-            'responsavelNome': self.responsavel.email if self.responsavel else None,
+            'responsavelId': responsavel_compativel.id if responsavel_compativel else None,
+            'responsavelNome': responsavel_compativel.email if responsavel_compativel else None,
             'status': self.status,
             'metadados': self.metadados,
             'criadoEm': self.created_at.isoformat() if self.created_at else None,

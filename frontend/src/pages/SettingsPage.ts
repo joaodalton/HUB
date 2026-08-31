@@ -3,6 +3,7 @@ import { createInput, createSelectField } from '../components/formFields';
 import { createDataTable } from '../components/DataTable';
 import { useToast } from '../hooks/useToast';
 import { createBaseLayout } from '../layouts/BaseLayout';
+import { getCurrentUser } from '../services/authService';
 import { refreshSidebarBrand } from '../components/Sidebar';
 import {
   applyAppearanceSettings,
@@ -30,6 +31,15 @@ import {
   updateEmailTemplate,
   type EmailTemplateRow
 } from '../services/emailTemplatesService';
+import {
+  createApiCredential,
+  deleteApiCredential,
+  getApiCredentials,
+  updateApiCredential,
+  type ApiCredentialPayload,
+  type ApiCredentialProvider,
+  type ApiCredentialRow
+} from '../services/apiCredentialsService';
 
 type SettingsCategory = 'home' | 'geral' | 'database' | 'emails' | 'apis' | 'automations' | 'logs' | 'appearance';
 
@@ -46,7 +56,7 @@ const CATEGORIES: CategoryDefinition[] = [
   { key: 'geral', label: 'Geral', ready: true },
   { key: 'database', label: 'Banco de Dados', ready: true },
   { key: 'emails', label: 'E-mails', ready: true },
-  { key: 'apis', label: 'APIs e Integrações', ready: false },
+  { key: 'apis', label: 'APIs e Integrações', ready: true },
   { key: 'automations', label: 'Automações', ready: false },
   { key: 'logs', label: 'Logs', ready: true },
   { key: 'appearance', label: 'Aparência', ready: true }
@@ -64,6 +74,9 @@ export function createSettingsPage(): HTMLElement {
   let rateioConfigLoaded = false;
   let emailTemplates: EmailTemplateRow[] = [];
   let emailTemplatesLoaded = false;
+  let apiCredentials: ApiCredentialRow[] = [];
+  let apiCredentialsLoaded = false;
+  let apiCredentialsLoadError = false;
 
   renderContent();
   loadGoogleAccounts();
@@ -71,6 +84,8 @@ export function createSettingsPage(): HTMLElement {
   loadRecentLogs();
   loadRateioConfig();
   loadEmailTemplates();
+  if (canManageSettings()) loadApiCredentials();
+  else apiCredentialsLoaded = true;
 
   const layout = createBaseLayout({
     content,
@@ -203,6 +218,56 @@ export function createSettingsPage(): HTMLElement {
       toast.error(error instanceof Error ? error.message : 'Não foi possível enviar o teste.');
     }
   }
+
+  async function loadApiCredentials(): Promise<void> {
+    try {
+      apiCredentials = await getApiCredentials();
+      apiCredentialsLoadError = false;
+    } catch {
+      apiCredentials = [];
+      apiCredentialsLoadError = true;
+    } finally {
+      apiCredentialsLoaded = true;
+      renderContent();
+    }
+  }
+
+  async function handleCreateApiCredential(data: Required<ApiCredentialPayload>): Promise<void> {
+    try {
+      apiCredentials = [...apiCredentials, await createApiCredential(data)];
+      toast.success('Integração adicionada.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível adicionar a integração.');
+      throw error;
+    } finally {
+      renderContent();
+    }
+  }
+
+  async function handleUpdateApiCredential(id: number, data: Pick<ApiCredentialPayload, 'nome' | 'segredo'>): Promise<void> {
+    try {
+      const updated = await updateApiCredential(id, data);
+      apiCredentials = apiCredentials.map((item) => item.id === id ? updated : item);
+      toast.success('Integração atualizada.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar a integração.');
+      throw error;
+    } finally {
+      renderContent();
+    }
+  }
+
+  async function handleDeleteApiCredential(id: number): Promise<void> {
+    try {
+      await deleteApiCredential(id);
+      apiCredentials = apiCredentials.filter((item) => item.id !== id);
+      toast.success('Integração removida.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível remover a integração.');
+    } finally {
+      renderContent();
+    }
+  }
   
   function changeCategory(category: SettingsCategory): void {
     // Sai da aba Aparencia sem salvar -> descarta a pre-visualizacao de cor
@@ -246,6 +311,18 @@ export function createSettingsPage(): HTMLElement {
           handleSaveEmailTemplate,
           handleRestoreEmailTemplate,
           handleTestEmailTemplate
+        );
+
+      case 'apis':
+        return createApiCredentialsPanel(
+          apiCredentials,
+          apiCredentialsLoaded,
+          apiCredentialsLoadError,
+          canManageSettings(),
+          loadApiCredentials,
+          handleCreateApiCredential,
+          handleUpdateApiCredential,
+          handleDeleteApiCredential
         );
 
       case 'logs':
@@ -484,6 +561,140 @@ function createEmailTemplateCard(
   card.append(summary, body);
 
   return card;
+}
+
+// ---------- APIs e integrações ----------
+
+const API_PROVIDER_OPTIONS: Array<{ value: ApiCredentialProvider; label: string }> = [
+  { value: 'resend', label: 'Resend (e-mail)' },
+  { value: 'whatsapp', label: 'WhatsApp' },
+  { value: 'asaas', label: 'Asaas (financeiro)' },
+  { value: 'concessionaria', label: 'Concessionária' }
+];
+
+function createApiCredentialsPanel(
+  credentials: ApiCredentialRow[],
+  loaded: boolean,
+  loadError: boolean,
+  canManage: boolean,
+  onRetry: () => Promise<void>,
+  onCreate: (data: Required<ApiCredentialPayload>) => Promise<void>,
+  onUpdate: (id: number, data: Pick<ApiCredentialPayload, 'nome' | 'segredo'>) => Promise<void>,
+  onDelete: (id: number) => Promise<void>
+): HTMLElement {
+  const panel = createElement('section', { className: 'settings-panel' });
+  panel.appendChild(createPanelHeader('APIs e Integrações', 'Credenciais por empresa para serviços externos. O segredo nunca é exibido depois de salvo.'));
+
+  if (!canManage) {
+    panel.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Seu perfil não tem permissão para visualizar ou administrar credenciais de integração.' }));
+    return panel;
+  }
+
+  if (!loaded) {
+    panel.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Carregando integrações...' }));
+    return panel;
+  }
+
+  if (loadError) {
+    const message = createElement('p', { className: 'settings-hint', textContent: 'Não foi possível carregar as integrações.' });
+    const retry = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Tentar novamente' });
+    retry.addEventListener('click', () => void onRetry());
+    panel.append(message, retry);
+    return panel;
+  }
+
+  const list = createElement('div', { className: 'api-credentials-list' });
+  if (credentials.length === 0) {
+    list.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Nenhuma integração configurada ainda.' }));
+  } else {
+    credentials.forEach((credential) => list.appendChild(createApiCredentialCard(credential, onUpdate, onDelete)));
+  }
+  panel.appendChild(list);
+  panel.appendChild(createApiCredentialForm(onCreate));
+  return panel;
+}
+
+function createApiCredentialCard(
+  credential: ApiCredentialRow,
+  onUpdate: (id: number, data: Pick<ApiCredentialPayload, 'nome' | 'segredo'>) => Promise<void>,
+  onDelete: (id: number) => Promise<void>
+): HTMLElement {
+  const card = createElement('details', { className: 'api-credential-card' });
+  const summary = createElement('summary', { className: 'api-credential-summary' });
+  const provider = API_PROVIDER_OPTIONS.find((option) => option.value === credential.provider)?.label ?? credential.provider;
+  const status = createElement('span', { className: credential.configurada ? 'provider-badge success' : 'provider-badge warning', textContent: credential.configurada ? 'Configurada' : 'Sem segredo' });
+  const title = createElement('div', { className: 'api-credential-title' });
+  title.append(createElement('strong', { textContent: credential.nome }), createElement('span', { textContent: provider }));
+  summary.append(title, status);
+
+  const body = createElement('form', { className: 'settings-form api-credential-form' });
+  const providerField = createElement('label', { className: 'form-field' });
+  providerField.append(
+    createElement('span', { textContent: 'Provedor' }),
+    createElement('strong', { textContent: provider })
+  );
+  const nameField = createInput('Nome da integração', 'text', credential.nome, true);
+  const secretField = createInput('Novo segredo (opcional)', 'password', '', false);
+  secretField.input.autocomplete = 'new-password';
+  secretField.input.placeholder = 'Deixe em branco para manter o atual';
+  const hint = createElement('p', { className: 'settings-hint', textContent: 'Por segurança, o segredo configurado não pode ser consultado ou exibido. Informe outro valor somente para substituí-lo.' });
+  const actions = createElement('div', { className: 'form-actions' });
+  const save = createElement('button', { type: 'submit', textContent: 'Salvar alterações' });
+  const remove = createElement('button', { className: 'danger-button', type: 'button', textContent: 'Remover' });
+  body.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const nome = nameField.input.value.trim();
+    if (!nome) { nameField.input.focus(); return; }
+    save.disabled = true;
+    save.textContent = 'Salvando...';
+    try {
+      const segredo = secretField.input.value;
+      await onUpdate(credential.id, { nome, ...(segredo ? { segredo } : {}) });
+    } catch {
+      save.disabled = false;
+      save.textContent = 'Salvar alterações';
+    }
+  });
+  remove.addEventListener('click', async () => {
+    if (!window.confirm(`Remover a integração "${credential.nome}"?`)) return;
+    remove.disabled = true;
+    await onDelete(credential.id);
+    remove.disabled = false;
+  });
+  actions.append(save, remove);
+  body.append(providerField, nameField.field, secretField.field, hint, actions);
+  card.append(summary, body);
+  return card;
+}
+
+function createApiCredentialForm(onCreate: (data: Required<ApiCredentialPayload>) => Promise<void>): HTMLElement {
+  const form = createElement('form', { className: 'settings-form api-credential-form' });
+  form.appendChild(createElement('h3', { textContent: 'Adicionar integração' }));
+  const providerField = createSelectField('Provedor', 'resend', API_PROVIDER_OPTIONS);
+  const nameField = createInput('Nome da integração', 'text', '', true);
+  const secretField = createInput('Segredo de acesso', 'password', '', true);
+  secretField.input.autocomplete = 'new-password';
+  const hint = createElement('p', { className: 'settings-hint', textContent: 'O segredo é enviado apenas para ser protegido no servidor; ele não será listado, preenchido novamente nem gravado pelo navegador.' });
+  const actions = createElement('div', { className: 'form-actions' });
+  const submit = createElement('button', { type: 'submit', textContent: 'Adicionar' });
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const nome = nameField.input.value.trim();
+    const segredo = secretField.input.value;
+    if (!nome) { nameField.input.focus(); return; }
+    if (!segredo) { secretField.input.focus(); return; }
+    submit.disabled = true;
+    submit.textContent = 'Adicionando...';
+    try {
+      await onCreate({ provider: providerField.select.value as ApiCredentialProvider, nome, segredo });
+    } catch {
+      submit.disabled = false;
+      submit.textContent = 'Adicionar';
+    }
+  });
+  actions.appendChild(submit);
+  form.append(providerField.field, nameField.field, secretField.field, hint, actions);
+  return form;
 }
 
 function createComingSoonPanel(message: string): HTMLElement {
@@ -823,4 +1034,9 @@ function createPanelHeader(eyebrowText: string, title: string, action?: HTMLElem
   if (action) header.appendChild(action);
 
   return header;
+}
+
+function canManageSettings(): boolean {
+  const role = getCurrentUser()?.role;
+  return role === 'owner' || role === 'admin';
 }

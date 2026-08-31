@@ -43,6 +43,7 @@ def create_app() -> Flask:
     from models.rateio_historico import RateioHistorico  # type: ignore
     from models.password_reset_token import PasswordResetToken  # type: ignore
     from models.email_template import EmailTemplate  # type: ignore
+    from models.api_credential import ApiCredential  # type: ignore
 
     CORS(app, origins=[Config.FRONTEND_URL], supports_credentials=True)
 
@@ -67,6 +68,7 @@ def create_app() -> Flask:
     from routes.rateio_routes import rateio_routes
     from routes.platform_routes import platform_routes
     from routes.email_template_routes import email_template_routes
+    from routes.api_credential_routes import api_credential_routes
 
     app.register_blueprint(health_routes)
     app.register_blueprint(auth_routes)
@@ -86,6 +88,7 @@ def create_app() -> Flask:
     app.register_blueprint(agenda_routes)
     app.register_blueprint(user_routes)
     app.register_blueprint(email_template_routes)
+    app.register_blueprint(api_credential_routes)
     app.register_blueprint(invitation_routes)
     app.register_blueprint(rateio_routes)
     app.register_blueprint(platform_routes)

@@ -441,6 +441,28 @@ Sem body. Remove a conta do banco (**não revoga** o acesso do lado do Google �
 
 ---
 
+## Credenciais de API (`/api-credentials`)
+
+Credenciais de integrações pertencem à empresa autenticada e requerem `settings.read` para consulta ou `settings.update` para alteração. Providers iniciais: `resend`, `whatsapp`, `asaas` e `concessionaria`. O segredo é criptografado com `SECRET_ENCRYPTION_KEY` antes de persistir e **nunca** aparece em resposta, erro ou auditoria.
+
+### `GET /api-credentials`
+
+Lista as credenciais da empresa. Cada item tem somente `{ id, provider, nome, configurada, criadaEm, atualizadaEm }`.
+
+### `POST /api-credentials`
+
+Body obrigatório: `{ "provider": "resend", "nome": "Principal", "segredo": "..." }`. Retorna 201 com os metadados redigidos da credencial.
+
+### `GET /api-credentials/<id>` · `PUT /api-credentials/<id>` · `DELETE /api-credentials/<id>`
+
+`PUT` aceita `nome` e/ou `segredo`; omitir `segredo` preserva a cifra já gravada. Provider é imutável. IDs de outra empresa retornam 404. A exclusão não revoga nem chama o provedor externo.
+
+### `POST /api-credentials/<id>/testar`
+
+Executa somente um dry-run local: verifica que a cifra existe e pode ser lida, sem enviar segredo e sem fazer HTTP, e retorna `{ "ok": true, "modo": "dry-run", "provider": "..." }`.
+
+---
+
 ## Empresa — documentos fixos (`/empresas/documentos`)
 
 Cartão CNPJ e Estatuto da associação, usados na geração do formulário Copel de rateio. Reaproveita o storage de `Document` — cada upload substitui o anterior daquele tipo (o antigo é excluído).

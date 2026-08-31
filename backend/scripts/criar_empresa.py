@@ -38,9 +38,13 @@ def main() -> None:
             print(f'ERRO: ja existe uma empresa com slug "{args.slug}".')
             sys.exit(1)
 
+        from services.email_template_service import ensure_seeded
+        from services.message_template_service import seed_for_empresa
+        ensure_seeded()
         empresa = Empresa(nome=args.nome, slug=args.slug, status='ativa')
         db.session.add(empresa)
         db.session.flush()
+        seed_for_empresa(empresa.id, commit=False)
 
         try:
             _, token = criar_convite(empresa.id, args.owner_email, 'owner', invited_by_id=None)

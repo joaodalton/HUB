@@ -37,6 +37,16 @@ async function readErrorMessage(response: Response): Promise<string> {
   return payload?.message ?? payload?.error ?? 'Falha na comunicacao com a API.';
 }
 
+async function notifyRequiredPasswordChange(response: Response): Promise<void> {
+  if (response.status !== 403) return;
+  const payload = await response.clone().json().catch(() => null) as { code?: string; errorCode?: string; message?: string } | null;
+  const code = payload?.code ?? payload?.errorCode ?? '';
+  const message = payload?.message ?? '';
+  if (code === 'PASSWORD_CHANGE_REQUIRED' || /troca.*senha|senha.*obrigat|password.*change/i.test(message)) {
+    window.dispatchEvent(new Event('hub:password-change-required'));
+  }
+}
+
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const response = await fetch(`${config.apiBaseUrl}${config.apiPrefix}${path}`, {
     ...options,
@@ -46,6 +56,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   });
 
   if (response.status === 401) redirectToLogin();
+  await notifyRequiredPasswordChange(response);
   if (!response.ok) throw new Error(await readErrorMessage(response));
   return response.json() as Promise<T>;
 }
@@ -59,6 +70,7 @@ export async function apiBlob(path: string, options: RequestOptions = {}): Promi
   });
 
   if (response.status === 401) redirectToLogin();
+  await notifyRequiredPasswordChange(response);
   if (!response.ok) throw new Error(await readErrorMessage(response));
   return response.blob();
 }
@@ -72,6 +84,7 @@ export async function apiUpload<T>(path: string, formData: FormData): Promise<T>
   });
 
   if (response.status === 401) redirectToLogin();
+  await notifyRequiredPasswordChange(response);
   if (!response.ok) throw new Error(await readErrorMessage(response));
   return response.json() as Promise<T>;
 }

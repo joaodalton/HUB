@@ -12,3 +12,7 @@ cryptography
 psutil
 gunicorn
 sentry-sdk[flask]
+pypdf
+reportlab
+resend
+openpyxl

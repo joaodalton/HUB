@@ -1,14 +1,21 @@
 import { createClientsPage } from '../pages/ClientsPage';
+import { createDashboardPage } from '../pages/DashboardPage';
 import { createAgendaPage } from '../pages/AgendaPage';
 import { createDocumentsPage } from '../pages/DocumentsPage';
+import { createForgotPasswordPage } from '../pages/ForgotPasswordPage';
 import { createLoginPage } from '../pages/LoginPage';
+import { createResetPasswordPage } from '../pages/ResetPasswordPage';
 import { createPendenciasPage } from '../pages/PendenciasPage';
 import { createPlantsPage } from '../pages/PlantsPage';
 import { createRateioPage } from '../pages/RateioPage';
 import { createSettingsPage } from '../pages/SettingsPage';
 import { createUcsPage } from '../pages/UcsPage';
 import { createUsersPage } from '../pages/UsersPage';
-import { ensureSession, isAuthenticated } from './authService';
+import { createEmpresasPage } from '../pages/EmpresasPage';
+import { createImportacoesPage } from '../pages/ImportacoesPage';
+import { createTemplatesPage } from '../pages/TemplatesPage';
+import { createChangePasswordPage } from '../pages/ChangePasswordPage';
+import { ensureSession, getCurrentUser, isAuthenticated } from './authService';
 import { loadSettings } from './settingsService';
 
 type Route = {
@@ -18,7 +25,8 @@ type Route = {
 
 export function createRouter(root: HTMLElement) {
   const routes: Route[] = [
-    { path: '/', render: createDocumentsPage },
+    { path: '/', render: createDashboardPage },
+    { path: '/dashboard', render: createDashboardPage },
     { path: '/documentos', render: createDocumentsPage },
     { path: '/clientes', render: createClientsPage },
     { path: '/ucs', render: createUcsPage },
@@ -27,6 +35,10 @@ export function createRouter(root: HTMLElement) {
     { path: '/pendencias', render: createPendenciasPage },
     { path: '/agenda', render: createAgendaPage },
     { path: '/usuarios', render: createUsersPage },
+    { path: '/empresas', render: createEmpresasPage },
+    { path: '/importacoes', render: createImportacoesPage },
+    { path: '/templates', render: createTemplatesPage },
+    { path: '/trocar-senha', render: createChangePasswordPage },
     { path: '/configuracoes', render: createSettingsPage }
   ];
 
@@ -50,24 +62,55 @@ export function createRouter(root: HTMLElement) {
     });
   }
 
-  function render(): void {
-    const isLoginPath = window.location.pathname === '/login';
+  // Rotas publicas alem de /login -- acessiveis sem sessao, e um usuario
+  // ja logado que cair nelas e redirecionado pra home (mesmo comportamento
+  // que /login ja tinha).
+  const PUBLIC_AUTH_PATHS = new Set(['/login', '/esqueci-senha', '/redefinir-senha']);
 
-    if (!isAuthenticated() && !isLoginPath) {
+  window.addEventListener('hub:password-change-required', () => {
+    if (isAuthenticated() && window.location.pathname !== '/trocar-senha') redirect('/trocar-senha');
+  });
+
+  function render(): void {
+    const path = window.location.pathname;
+    const isPublicAuthPath = PUBLIC_AUTH_PATHS.has(path);
+
+    const mustChangePassword = getCurrentUser()?.mustChangePassword === true;
+    if (!isAuthenticated() && !isPublicAuthPath) {
       redirect('/login');
       return;
     }
 
-    if (isAuthenticated() && isLoginPath) {
+    if (isAuthenticated() && mustChangePassword && path !== '/trocar-senha') {
+      redirect('/trocar-senha');
+      return;
+    }
+
+    if (isAuthenticated() && path === '/trocar-senha' && !mustChangePassword) {
+      redirect('/dashboard');
+      return;
+    }
+
+    if (isAuthenticated() && isPublicAuthPath) {
       redirect('/');
       return;
     }
 
-    if (isLoginPath) {
+    if (path === '/login') {
       root.replaceChildren(createLoginPage(() => {
         appearanceLoaded = false;
         redirect('/');
       }));
+      return;
+    }
+
+    if (path === '/esqueci-senha') {
+      root.replaceChildren(createForgotPasswordPage());
+      return;
+    }
+
+    if (path === '/redefinir-senha') {
+      root.replaceChildren(createResetPasswordPage());
       return;
     }
 

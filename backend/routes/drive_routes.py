@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, request, send_file
 
 from services.drive_service import get_drive_service
+from services.permission_service import require_permission
 from utils.api_response import error_response
 
 
@@ -17,6 +18,7 @@ def _resolve_service():
 
 
 @drive_routes.route('/search')
+@require_permission('documents.read')
 def search():
     service, error = _resolve_service()
     if error:
@@ -27,6 +29,7 @@ def search():
 
 
 @drive_routes.route('/download-zip', methods=['POST'])
+@require_permission('documents.read')
 def download_zip():
     service, error = _resolve_service()
     if error:

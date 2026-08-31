@@ -1,4 +1,6 @@
 # backend/services/log_service.py
+from flask import g, has_request_context
+
 from extensions import db
 from models.log_entry import LogEntry
 
@@ -13,7 +15,14 @@ class LogService:
         entidade_id: int | None = None,
         metadados: dict | None = None
     ) -> None:
+        empresa_id = getattr(g, 'current_empresa_id', None) if has_request_context() else None
+        if empresa_id is None and metadados:
+            empresa_id = metadados.get('empresaId')
+        if empresa_id is None:
+            return
+
         entry = LogEntry(
+            empresa_id=empresa_id,
             nivel=nivel,
             acao=acao,
             entidade=entidade,

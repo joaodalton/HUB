@@ -52,7 +52,10 @@ export function createPendenciasPage(): HTMLElement {
   let categoriaExtras: string[] = [];
   let loadError = false;
 
-  let selectedId: number | null = null;
+  // Agenda navega com uma dica de seleção; a lista ainda busca e autoriza o
+  // registro pelo endpoint normal antes de mostrá-lo.
+  const requestedId = Number(new URLSearchParams(window.location.search).get('selecionada'));
+  let selectedId: number | null = Number.isSafeInteger(requestedId) && requestedId > 0 ? requestedId : null;
   let tipoFilter: PendenciaTipo | null = null;
   let showAll = false;
   let searchTerm = '';
@@ -66,6 +69,8 @@ export function createPendenciasPage(): HTMLElement {
   loadAll();
 
   return layout;
+
+  let verificacaoEmAndamento = false;
 
   async function loadAll(): Promise<void> {
     loading.show();
@@ -85,27 +90,53 @@ export function createPendenciasPage(): HTMLElement {
       plants = plantsData;
       categoriaExtras = categoriaExtrasData;
       loadError = false;
-
-      // Executa verificacao automatica em background (não bloqueia UI)
-      verificarPendencias()
-        .then((resultado) => {
-          if (resultado.total_criadas > 0) {
-            toast.success(`${resultado.total_criadas} nova(s) pendência(s) criada(s) automaticamente.`);
-            // Recarrega a lista se houver novas pendências
-            return loadAll();
-          } else if (resultado.resolvidas > 0) {
-            toast.success(`${resultado.resolvidas} pendência(s) resolvida(s) automaticamente.`);
-            return loadAll();
-          }
-        })
-        .catch(() => {
-          // Silencioso - não mostra erro na verificação automática
-        });
     } catch {
       loadError = true;
       toast.error('Não foi possível carregar pendências. Verifique se o backend está rodando.');
     } finally {
       loading.hide();
+      renderContent();
+    }
+
+    // Verificacao automatica roda DEPOIS, fora do try/finally do loading
+    // global -- nunca acende o overlay e nunca chama loadAll() de novo
+    // (isso causava um ciclo show/hide sem fim quando o backend sempre
+    // encontrava algo pra criar/resolver, dando a impressao de "carregando
+    // pra sempre" no canto superior direito).
+    runVerificacaoAutomatica();
+  }
+
+  async function runVerificacaoAutomatica(): Promise<void> {
+    if (verificacaoEmAndamento) return;
+    verificacaoEmAndamento = true;
+
+    try {
+      const resultado = await verificarPendencias();
+
+      if (resultado.total_criadas > 0) {
+        toast.success(`${resultado.total_criadas} nova(s) pendência(s) criada(s) automaticamente.`);
+        await refreshListaSemLoading();
+      } else if (resultado.resolvidas > 0) {
+        toast.success(`${resultado.resolvidas} pendência(s) resolvida(s) automaticamente.`);
+        await refreshListaSemLoading();
+      }
+    } catch {
+      // Silencioso - não mostra erro na verificação automática
+    } finally {
+      verificacaoEmAndamento = false;
+    }
+  }
+
+  // Atualiza só pendências + resumo (sem loading global, sem recarregar
+  // clientes/UCs/usinas de novo) -- usado depois da verificação automática.
+  async function refreshListaSemLoading(): Promise<void> {
+    try {
+      const [pendenciasData, resumoData] = await Promise.all([getPendencias(), getPendenciaResumo()]);
+      pendencias = pendenciasData;
+      resumo = resumoData;
+    } catch {
+      // mantém o que já estava carregado se falhar
+    } finally {
       renderContent();
     }
   }

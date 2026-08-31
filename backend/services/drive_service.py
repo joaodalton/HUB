@@ -1,6 +1,7 @@
 import io
 import zipfile
 
+from flask import g
 from google.auth.transport.requests import Request as GoogleAuthRequest
 from google.oauth2 import service_account
 from google.oauth2.credentials import Credentials as OAuthCredentials
@@ -12,8 +13,9 @@ from utils.files import safe_filename, unique_filename
 
 
 class GoogleDriveService:
-    def __init__(self, credentials) -> None:
+    def __init__(self, credentials, root_folder_id: str) -> None:
         self.client = build('drive', 'v3', credentials=credentials)
+        self.root_folder_id = root_folder_id
 
     # Lista fechada de proposito -- ainda e um whitelist, so mais largo que so PDF/pasta,
     # pra alimentar o filtro dinamico de "Tipo de arquivo" no frontend com algo real.
@@ -27,12 +29,19 @@ class GoogleDriveService:
     ]
 
     def search_files(self, query_text: str) -> list[dict]:
+        # Mesmo escape ja usado em find_duplicate() deste arquivo -- sem isso,
+        # buscar por termo com apostrofo (ex.: "O'Brien") quebra a sintaxe da
+        # query do Drive (erro 400 da API do Google, sem tratamento especifico
+        # em drive_routes.py -- vira 500 cru pro usuario).
+        escaped_query_text = query_text.replace("'", "\\'")
         mime_filter = ' or '.join(f"mimeType='{mime}'" for mime in self._SEARCHABLE_MIME_TYPES)
         query = (
-            f"name contains '{query_text}' "
+            f"name contains '{escaped_query_text}' "
             f"and ({mime_filter}) "
             f"and trashed=false"
         )
+        if self.root_folder_id:
+            query += f" and '{self.root_folder_id}' in parents"
 
         results = self.client.files().list(
             q=query,
@@ -51,8 +60,11 @@ class GoogleDriveService:
             for file_id in file_ids:
                 metadata = self.client.files().get(
                     fileId=file_id,
-                    fields="id, name, mimeType"
+                    fields="id, name, mimeType, parents"
                 ).execute()
+
+                if self.root_folder_id and self.root_folder_id not in metadata.get('parents', []):
+                    raise ValueError('Arquivo fora da pasta autorizada para esta empresa.')
 
                 if metadata.get('mimeType') == 'application/vnd.google-apps.folder':
                     skipped.append(metadata.get('name', file_id))
@@ -78,6 +90,26 @@ class GoogleDriveService:
 
         zip_buffer.seek(0)
         return zip_buffer
+
+    def download_file(self, file_id: str) -> bytes:
+        """Baixa somente arquivos pertencentes a pasta raiz do tenant atual."""
+        metadata = self.client.files().get(
+            fileId=file_id,
+            fields="id, name, mimeType, parents"
+        ).execute()
+
+        if self.root_folder_id and self.root_folder_id not in metadata.get('parents', []):
+            raise ValueError('Arquivo fora da pasta autorizada para esta empresa.')
+        if metadata.get('mimeType') == 'application/vnd.google-apps.folder':
+            raise ValueError('Pastas nao podem ser baixadas como documento.')
+
+        file_buffer = io.BytesIO()
+        request_media = self.client.files().get_media(fileId=file_id)
+        downloader = MediaIoBaseDownload(file_buffer, request_media)
+        done = False
+        while not done:
+            _, done = downloader.next_chunk()
+        return file_buffer.getvalue()
 
     def find_duplicate(self, name: str, md5: str, parent_folder_id: str | None) -> str | None:
         """Procura, dentro da pasta configurada, um arquivo com o MESMO nome E o
@@ -125,7 +157,7 @@ class GoogleDriveService:
         return created['id']
 
 
-_drive_service_cache: GoogleDriveService | None = None
+_drive_service_cache: dict[int, GoogleDriveService] = {}
 
 
 def _build_oauth_credentials():
@@ -183,20 +215,47 @@ def get_drive_service() -> GoogleDriveService:
     conta conectada ou o token dela estiver morto."""
     global _drive_service_cache
 
-    if _drive_service_cache is not None:
-        return _drive_service_cache
+    empresa_id = getattr(g, 'current_empresa_id', None)
+    if empresa_id is None:
+        raise RuntimeError('Empresa atual nao definida para acesso ao Google Drive.')
+
+    if empresa_id in _drive_service_cache:
+        return _drive_service_cache[empresa_id]
+
+    root_folder_id = _resolve_tenant_root_folder_id()
 
     credentials = _build_oauth_credentials()
 
     if credentials is None:
         credentials = _build_service_account_credentials()
 
-    _drive_service_cache = GoogleDriveService(credentials)
-    return _drive_service_cache
+    service = GoogleDriveService(credentials, root_folder_id)
+    _drive_service_cache[empresa_id] = service
+    return service
 
 
-def invalidate_drive_cache() -> None:
+def _resolve_tenant_root_folder_id() -> str:
+    from models.empresa import Empresa
+    from models.setting import Setting
+
+    setting = Setting.query.filter_by(chave='google_drive_root_folder_id').first()
+    if setting and setting.valor:
+        return setting.valor.strip()
+
+    if Empresa.query.count() == 1 and Config.GOOGLE_DRIVE_ROOT_FOLDER_ID:
+        return Config.GOOGLE_DRIVE_ROOT_FOLDER_ID
+
+    raise RuntimeError(
+        'Pasta raiz do Google Drive nao configurada para esta empresa. '
+        'Defina google_drive_root_folder_id nas configuracoes do tenant.'
+    )
+
+
+def invalidate_drive_cache(empresa_id: int | None = None) -> None:
     """Chamado pelo oauth_service ao conectar/ativar/desconectar uma conta, pra
     forcar o proximo get_drive_service() a reconstruir com a credencial certa."""
     global _drive_service_cache
-    _drive_service_cache = None
+    if empresa_id is None:
+        _drive_service_cache.clear()
+    else:
+        _drive_service_cache.pop(empresa_id, None)

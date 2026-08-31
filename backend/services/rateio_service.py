@@ -23,6 +23,8 @@ NÃO bloqueiam mais o funil -- não tem automação real por trás delas ainda.
 """
 from datetime import datetime
 
+from flask import g
+
 from extensions import db
 from models.plant import Plant
 from models.consumer_unit import ConsumerUnit, PlantConnection
@@ -113,6 +115,7 @@ def aplicar_rateio(competencia: str, plant_id: int | None = None) -> list[dict]:
                 connection.percentual = uc_resultado['percentualCalculado']
 
             db.session.add(RateioHistorico(
+                empresa_id=g.current_empresa_id,
                 competencia=competencia,
                 plant_id=plant.id,
                 consumer_unit_id=uc_resultado['ucId'],
@@ -161,12 +164,48 @@ def confirmar_selecao(plant_id: int, competencia: str, selecoes: list[dict]) -> 
         percentual = selecao.get('percentual')
         if uc_id and percentual is not None:
             try:
-                selecoes_por_uc[int(uc_id)] = round(float(percentual), 2)
+                percentual_float = float(percentual)
+            except (TypeError, ValueError):
+                raise ValueError(f'Percentual invalido para a UC id={uc_id}.')
+            if percentual_float < 0:
+                raise ValueError(f'Percentual nao pode ser negativo para a UC id={uc_id}.')
+            try:
+                selecoes_por_uc[int(uc_id)] = round(percentual_float, 2)
             except (TypeError, ValueError):
                 raise ValueError(f'Percentual invalido para a UC id={uc_id}.')
 
     if not selecoes_por_uc:
         raise ValueError('Nenhuma UC valida na selecao.')
+
+    # Checa qualificacao de cada UC antes de criar/atualizar qualquer conexao.
+    # Reusa _checar_qualificacao() que o funil e o preview_rateio ja usam --
+    # se uma UC nao for qualificada para esta competencia, aborta com a lista
+    # de motivos (mesma assinatura de erro que o aplicar_rateio usa para outros
+    # validations, pra nao introduzir um segundo formato de erro).
+    ucs_nao_qualificadas = []
+    for uc_id in selecoes_por_uc:
+        uc = ConsumerUnit.query.get(uc_id)
+        if not uc:
+            raise ValueError(f'UC id={uc_id} nao encontrada.')
+
+        qualificado, motivo = _checar_qualificacao(plant, uc)
+        if not qualificado:
+            ucs_nao_qualificadas.append({
+                'ucId': uc_id,
+                'codigo': uc.codigo,
+                'clienteNome': uc.client.nome if uc.client else None,
+                'motivo': motivo
+            })
+
+    if ucs_nao_qualificadas:
+        motivos = '; '.join(
+            f"UC {u['codigo']} ({u['clienteNome'] or 'cliente nao encontrado'}): {u['motivo']}"
+            for u in ucs_nao_qualificadas
+        )
+        raise ValueError(
+            'Nenhuma das UCs informadas esta qualificada para esta competencia '
+            f'(motivos: {motivos}).'
+        )
 
     conexoes_existentes = PlantConnection.query.filter_by(plant_id=plant.id).all()
     conexoes_por_uc_id = {c.consumer_unit_id: c for c in conexoes_existentes}
@@ -201,6 +240,7 @@ def confirmar_selecao(plant_id: int, competencia: str, selecoes: list[dict]) -> 
             connection = PlantConnection(
                 plant_id=plant.id,
                 consumer_unit_id=uc.id,
+                empresa_id=g.current_empresa_id,
                 percentual=percentual,
                 percentual_manual=True
             )
@@ -212,6 +252,7 @@ def confirmar_selecao(plant_id: int, competencia: str, selecoes: list[dict]) -> 
         producao_considerada = round((percentual / 100) * producao_disponivel, 2) if producao_disponivel else 0.0
 
         db.session.add(RateioHistorico(
+            empresa_id=g.current_empresa_id,
             competencia=competencia,
             plant_id=plant.id,
             consumer_unit_id=uc.id,

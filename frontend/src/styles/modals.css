@@ -261,4 +261,34 @@ details[open] > .uc-summary::after {
   .modal-body {
     padding: 20px;
   }
+
+  /* ---------- Empresa editor (slug informativo, não editável) ---------- */
+  .slug-info {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 14px 16px;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-input);
+    background: var(--panel-soft);
+  }
+
+  .slug-info .form-field {
+    gap: 8px;
+    font-size: 12px;
+  }
+
+  .slug-value {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--text-dim);
+    word-break: break-all;
+  }
+
+  .slug-note {
+    color: var(--text-faint);
+    font-size: 12px;
+    font-style: italic;
+  }
 }

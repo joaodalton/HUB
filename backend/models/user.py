@@ -21,6 +21,10 @@ class User(db.Model):
     status = db.Column(db.String(20), nullable=False, default='ativo')
     email_verified = db.Column(db.Boolean, nullable=False, default=False)
     must_change_password = db.Column(db.Boolean, nullable=False, default=False)
+    # Flag global, separado dos papeis que valem apenas dentro da empresa.
+    # E concedido exclusivamente pelo script administrativo.
+    is_platform_admin = db.Column(db.Boolean, nullable=False, default=False)
+    session_version = db.Column(db.Integer, nullable=False, default=1)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -35,5 +39,6 @@ class User(db.Model):
             'role': self.role,
             'status': self.status,
             'emailVerified': self.email_verified,
-            'mustChangePassword': self.must_change_password
+            'mustChangePassword': self.must_change_password,
+            'isPlatformAdmin': self.is_platform_admin
         }

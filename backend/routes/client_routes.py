@@ -7,6 +7,7 @@ from services.client_service import (
     list_clients,
     update_client
 )
+from services.permission_service import require_permission
 from utils.api_response import error_response, success_response
 
 
@@ -14,11 +15,13 @@ client_routes = Blueprint('client_routes', __name__, url_prefix='/api/v1/clients
 
 
 @client_routes.route('', methods=['GET'])
+@require_permission('clients.read')
 def index():
     return success_response(list_clients())
 
 
 @client_routes.route('/<int:client_id>', methods=['GET'])
+@require_permission('clients.read')
 def show(client_id: int):
     client = get_client(client_id)
 
@@ -29,6 +32,7 @@ def show(client_id: int):
 
 
 @client_routes.route('', methods=['POST'])
+@require_permission('clients.create')
 def store():
     data = request.get_json(silent=True) or {}
 
@@ -47,6 +51,7 @@ def store():
     return success_response(client, 'Cliente cadastrado.', 201)
 
 @client_routes.route('/<int:client_id>', methods=['PUT'])
+@require_permission('clients.update')
 def update(client_id: int):
     data = request.get_json(silent=True) or {}
 
@@ -69,6 +74,7 @@ def update(client_id: int):
 
 
 @client_routes.route('/<int:client_id>', methods=['DELETE'])
+@require_permission('clients.delete')
 def destroy(client_id: int):
     if not delete_client(client_id):
         return error_response('Cliente nao encontrado.', 404)

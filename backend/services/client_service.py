@@ -6,6 +6,9 @@ from models.client import Client
 from models.consumer_unit import ConsumerUnit
 from services.uc_service import apply_uc_fields, sync_connections, _parse_date
 
+def _client(client_id): return Client.query.filter_by(id=client_id, empresa_id=g.current_empresa_id).first()
+def _uc(uc_id): return ConsumerUnit.query.filter_by(id=uc_id, empresa_id=g.current_empresa_id).first()
+
 
 def list_clients() -> list[dict]:
     # Filtro automatico via TenantMixin (extensions.py)
@@ -15,7 +18,7 @@ def list_clients() -> list[dict]:
 
 def get_client(client_id: int) -> dict | None:
     # Filtro automatico via TenantMixin
-    client = Client.query.get(client_id)
+    client = _client(client_id)
     return client.to_dict() if client else None
 
 
@@ -44,7 +47,7 @@ def create_client(data: dict) -> dict:
 
 
 def update_client(client_id: int, data: dict) -> dict | None:
-    client = Client.query.get(client_id)
+    client = _client(client_id)
 
     if not client:
         return None
@@ -69,7 +72,7 @@ def update_client(client_id: int, data: dict) -> dict | None:
 
 
 def delete_client(client_id: int) -> bool:
-    client = Client.query.get(client_id)
+    client = _client(client_id)
 
     if not client:
         return False
@@ -92,16 +95,16 @@ def _sync_ucs(client: Client, ucs_data: list[dict]) -> None:
     sent_ids = {int(uc['id']) for uc in ucs_data if _is_persisted_id(uc.get('id'))}
 
     for uc_id in existing_ids - sent_ids:
-        uc = ConsumerUnit.query.get(uc_id)
+        uc = _uc(uc_id)
         if uc:
             db.session.delete(uc)
 
     for uc_data in ucs_data:
         uc_id = uc_data.get('id')
-        uc = ConsumerUnit.query.get(int(uc_id)) if _is_persisted_id(uc_id) else None
+        uc = _uc(int(uc_id)) if _is_persisted_id(uc_id) else None
 
         if not uc:
-            uc = ConsumerUnit(client_id=client.id)
+            uc = ConsumerUnit(empresa_id=g.current_empresa_id, client_id=client.id)
             db.session.add(uc)
 
         apply_uc_fields(uc, uc_data)

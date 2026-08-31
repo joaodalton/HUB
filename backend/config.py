@@ -39,6 +39,11 @@ class Config:
 
     GOOGLE_OAUTH_REDIRECT_URI = os.getenv('GOOGLE_OAUTH_REDIRECT_URI', 'http://localhost:8000/api/v1/oauth/google/callback')
 
+    # OAuthlib recusa HTTP por padrão. Desenvolvimento local pode habilitar a
+    # exceção oficial somente de forma explícita, nunca por acidente ao ligar
+    # FLASK_DEBUG em uma instância acessível pela rede.
+    OAUTH_ALLOW_INSECURE_TRANSPORT = os.getenv('OAUTH_ALLOW_INSECURE_TRANSPORT', 'false').lower() == 'true'
+
     # Pra onde redirecionar de volta depois do callback do Google (a SPA do frontend, nao o backend).
     FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
 
@@ -60,6 +65,9 @@ class Config:
     # vira 'viewer' (so leitura), nunca admin -- isso e forcado no backend,
     # independente do que o formulario mandar (ver services/user_service.py).
     SIGNUP_CODE = os.getenv('SIGNUP_CODE', '')
+    # Auto-cadastro, quando excepcionalmente habilitado, vale só para esta
+    # empresa. Nunca aceitar empresa_id enviado pelo navegador.
+    SIGNUP_EMPRESA_ID = os.getenv('SIGNUP_EMPRESA_ID', '')
 
     # Usada por utils/crypto.py pra criptografar o refresh token do GoogleAccount.
     # Gerar com: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
@@ -73,6 +81,13 @@ class Config:
     # de erro por completo, sem quebrar nada (sentry_sdk.init com dsn=None e no-op).
     SENTRY_DSN = os.getenv('SENTRY_DSN', '')
     SENTRY_ENVIRONMENT = os.getenv('SENTRY_ENVIRONMENT', 'development')
+
+    # E-mail transacional via Resend (resend.com). Sem RESEND_API_KEY, o
+    # email_service.py vira no-op com log de warning -- mesmo espirito do
+    # Sentry sem DSN, seguro rodar local sem essa variavel configurada.
+    RESEND_API_KEY = os.getenv('RESEND_API_KEY', '')
+    # Precisa ser um remetente/dominio verificado na conta Resend.
+    EMAIL_FROM = os.getenv('EMAIL_FROM', 'HUB <onboarding@resend.dev>')
 
     SQLALCHEMY_DATABASE_URI = os.getenv(
     'DATABASE_URL',

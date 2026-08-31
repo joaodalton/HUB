@@ -5,6 +5,7 @@ import time
 import urllib.request
 import urllib.error
 
+from comandos.mapear import mapear
 from comandos.process_utils import (
     BACKEND_DIR,
     BACKEND_PORT,
@@ -42,6 +43,17 @@ def iniciar():
         return
 
     LOGS_DIR.mkdir(exist_ok=True)
+
+    # Atualiza ARCHITECTURE.md com o mapa real de dependencias antes de subir
+    # os processos -- roda toda vez que o HUB inicia, nunca fica desatualizado.
+    # Erro aqui NUNCA deve impedir o start (por isso o try/except): pior caso,
+    # o mapa so nao atualiza dessa vez.
+    try:
+        mapear()
+        print("✔ Mapa de dependencias atualizado (ARCHITECTURE.md)")
+    except Exception as exc:
+        print(f"⚠ Nao foi possivel atualizar o mapa de dependencias: {exc}")
+
     backend_log_path = LOGS_DIR / "backend.log"
     frontend_log_path = LOGS_DIR / "frontend.log"
     backend_log = open(backend_log_path, "w", encoding="utf-8")

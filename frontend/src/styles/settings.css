@@ -224,3 +224,28 @@
 .provider-badge.warning { color: var(--warning); background: var(--warning-bg); border-color: var(--warning-border); }
 
 .provider-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ---------- APIs e integrações ---------- */
+
+.api-credentials-list { display: grid; gap: 10px; margin-bottom: 22px; }
+
+.api-credential-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel-soft);
+}
+
+.api-credential-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+}
+
+.api-credential-title { display: grid; gap: 3px; }
+.api-credential-title strong { color: var(--text); }
+.api-credential-title span { font-size: 12px; color: var(--text-faint); }
+.api-credential-form { max-width: 560px; padding: 0 16px 16px; }
+.api-credential-form h3 { margin: 0; font-size: 15px; color: var(--text); }

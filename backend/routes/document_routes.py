@@ -10,6 +10,7 @@ from services.document_service import (
     rename_document,
     resolve_file_path
 )
+from services.permission_service import require_permission
 from utils.api_response import error_response, success_response
 
 
@@ -18,6 +19,7 @@ document_routes = Blueprint('document_routes', __name__, url_prefix='/api/v1/doc
 
 # GET /api/v1/documents?clienteId=1&ucId=2 -- lista documentos, filtro opcional por cliente/UC
 @document_routes.route('', methods=['GET'])
+@require_permission('documents.read')
 def index():
     client_id = request.args.get('clienteId', type=int)
     uc_id = request.args.get('ucId', type=int)
@@ -25,6 +27,7 @@ def index():
 
 
 @document_routes.route('/<int:document_id>', methods=['GET'])
+@require_permission('documents.read')
 def show(document_id: int):
     document = get_document(document_id)
 
@@ -36,6 +39,7 @@ def show(document_id: int):
 
 # POST /api/v1/documents -- multipart/form-data. Campos: arquivo (file), nome, clienteId, ucId, categoriaId
 @document_routes.route('', methods=['POST'])
+@require_permission('documents.create')
 def store():
     if 'arquivo' not in request.files or not request.files['arquivo'].filename:
         return error_response('Nenhum arquivo enviado.', 400)
@@ -64,6 +68,7 @@ def store():
 # Vincula um arquivo que ja esta no Google Drive a um cliente/UC sem copiar/mover
 # o arquivo -- so cria o registro em Document apontando pro fileId do Drive.
 @document_routes.route('/drive-link', methods=['POST'])
+@require_permission('documents.create')
 def link_from_drive():
     data = request.get_json(silent=True) or {}
 
@@ -85,6 +90,7 @@ def link_from_drive():
 
 # PUT /api/v1/documents/<id> -- Body: {nome}. So renomeia, nao troca o arquivo.
 @document_routes.route('/<int:document_id>', methods=['PUT'])
+@require_permission('documents.update')
 def rename(document_id: int):
     data = request.get_json(silent=True) or {}
     novo_nome = data.get('nome', '').strip()
@@ -101,6 +107,7 @@ def rename(document_id: int):
 
 
 @document_routes.route('/<int:document_id>', methods=['DELETE'])
+@require_permission('documents.delete')
 def destroy(document_id: int):
     if not delete_document(document_id):
         return error_response('Documento nao encontrado.', 404)
@@ -109,6 +116,7 @@ def destroy(document_id: int):
 
 
 @document_routes.route('/<int:document_id>/download', methods=['GET'])
+@require_permission('documents.read')
 def download(document_id: int):
     document = get_document(document_id)
 

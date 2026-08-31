@@ -1,10 +1,10 @@
 # backend/models/log_entry.py
 from datetime import datetime
 
-from extensions import db
+from extensions import db, TenantMixin
 
 
-class LogEntry(db.Model):
+class LogEntry(TenantMixin, db.Model):
     __tablename__ = 'logs'
 
     id = db.Column(db.Integer, primary_key=True)

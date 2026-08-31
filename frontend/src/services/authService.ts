@@ -7,6 +7,9 @@ export type AuthUser = {
   email: string;
   role: string;
   status: string;
+  mustChangePassword: boolean;
+  empresaNome?: string | null;
+  isPlatformAdmin?: boolean;
 };
 
 type ApiResponse<T> = {
@@ -38,6 +41,17 @@ export async function ensureSession(): Promise<AuthUser | null> {
   return cachedUser;
 }
 
+export async function refreshCurrentUser(): Promise<AuthUser | null> {
+  try {
+    const response = await apiRequest<ApiResponse<AuthUser>>('/auth/me');
+    cachedUser = response.data;
+  } catch {
+    cachedUser = null;
+  }
+  sessionChecked = true;
+  return cachedUser;
+}
+
 export function clearSession(): void {
   cachedUser = null;
   sessionChecked = true;
@@ -51,6 +65,13 @@ export async function login(email: string, senha: string, lembrar = false): Prom
   cachedUser = response.data;
   sessionChecked = true;
   return response.data;
+}
+
+export async function alterarSenhaObrigatoria(senhaAtual: string, novaSenha: string): Promise<void> {
+  await apiRequest<ApiResponse<unknown>>('/auth/alterar-senha', {
+    method: 'POST',
+    body: { senhaAtual, novaSenha }
+  });
 }
 
 // Auto-cadastro (tela de login) -- so funciona se o backend tiver SIGNUP_CODE

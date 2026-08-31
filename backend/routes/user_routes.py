@@ -32,7 +32,9 @@ def store():
 @require_permission('users.deactivate', 'users.reactivate')
 def update_active(user_id: int):
     data = request.get_json(silent=True) or {}
-    ativo = bool(data.get('ativo', True))
+    ativo = data.get('ativo')
+    if type(ativo) is not bool:
+        return error_response('Campo ativo deve ser booleano.', 400)
 
     if user_id == g.current_user.id and not ativo:
         return error_response('Voce nao pode desativar sua propria conta.', 400)

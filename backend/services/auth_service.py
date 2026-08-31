@@ -27,9 +27,32 @@ def authenticate(email: str, senha: str) -> dict | None:
     )
 
     user_data = user.to_dict()
-    empresa = Empresa.query.get(user.empresa_id)
+    empresa = db.session.get(Empresa, user.empresa_id)
     user_data['empresaNome'] = empresa.nome if empresa else None
     return {
         'token': token,
         'user': user_data
     }
+
+
+def change_password(user: User, senha_atual: str, nova_senha: str) -> dict:
+    """Troca autenticada de senha, inclusive no primeiro acesso forçado."""
+    if not isinstance(senha_atual, str) or not verify_password(senha_atual, user.password_hash):
+        raise ValueError('Senha atual invalida.')
+    if not isinstance(nova_senha, str) or len(nova_senha) < 6:
+        raise ValueError('Nova senha precisa ter pelo menos 6 caracteres.')
+    if verify_password(nova_senha, user.password_hash):
+        raise ValueError('Nova senha deve ser diferente da senha atual.')
+
+    user.password_hash = hash_password(nova_senha)
+    user.must_change_password = False
+    user.session_version += 1
+    db.session.commit()
+
+    LogService.info(
+        acao='password_changed',
+        mensagem=f'Senha alterada para {user.email}',
+        entidade='User',
+        metadados={'userId': user.id, 'empresaId': user.empresa_id},
+    )
+    return {'token': generate_token(user.id), 'user': user.to_dict()}

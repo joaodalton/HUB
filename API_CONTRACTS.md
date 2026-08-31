@@ -36,8 +36,12 @@ Erros: 400 (faltando campo/senha curta), 403 (bootstrap já usado).
 ### `POST /auth/login` — pública
 Body: `{ "email": string, "senha": string }`
 
-Sucesso (200): `data` = `{ "token": string, "user": User }`.
+Sucesso (200): `data` = `User` (o token é enviado apenas em cookie HttpOnly). `mustChangePassword: true` sinaliza que a sessão fica limitada a identidade, logout e troca de senha até a conclusão.
 Erro: 401 (email/senha inválidos).
+
+### `POST /auth/alterar-senha` — autenticada
+
+Body: `{ "senhaAtual": string, "novaSenha": string }`. Exige senha atual válida e nova senha com pelo menos 6 caracteres. Retorna o `User` sem campos de senha, limpa `mustChangePassword`, incrementa a versão de sessão e renova os cookies de autenticação; qualquer token anterior deixa de valer.
 
 
 ### `POST /auth/esqueci-senha` — pública
@@ -45,6 +49,12 @@ Body: `{ "email": string }`. Sempre retorna a mesma mensagem, mesmo se o e-mail 
 
 ### `POST /auth/redefinir-senha` — pública
 Body: `{ "token": string, "senha": string (min. 6) }`. Token vem do link do e-mail, TTL 1h, uso único. Rate limit 5/min.
+
+## Usuários (`/users`)
+
+### `PUT /users/<id>/ativo`
+
+Exige `users.deactivate` ou `users.reactivate`; só alcança usuários da empresa autenticada. Body obrigatório: `{ "ativo": boolean }` — strings, números e ausência do campo retornam `400`. Não permite desativar o próprio usuário nem o `owner` da empresa. Cada transição entre `ativo` e `inativo` incrementa a versão de sessão, invalidando tokens emitidos antes da transição.
 
 ## Templates de e-mail (`/email-templates`)
 

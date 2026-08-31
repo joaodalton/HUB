@@ -24,6 +24,11 @@ CSRF_COOKIE_NAME = 'hub_csrf'
 # de novo que o dono do cookie é is_platform_admin antes de usar o valor.
 VIEW_COOKIE_NAME = 'hub_platform_view'
 _SAFE_METHODS = {'GET', 'HEAD', 'OPTIONS'}
+_PASSWORD_CHANGE_SAFE_PATHS = {
+    '/api/v1/auth/me',
+    '/api/v1/auth/logout',
+    '/api/v1/auth/alterar-senha',
+}
 
 
 def hash_password(raw_password: str) -> str:
@@ -181,6 +186,13 @@ def register_auth_middleware(app, public_paths: set[str], public_path_prefixes: 
                     g.current_empresa_id = empresa_visualizada.id
                     g.current_empresa = empresa_visualizada
                     g.platform_view_empresa_id = empresa_visualizada.id
+
+        if user.must_change_password and request.path not in _PASSWORD_CHANGE_SAFE_PATHS:
+            return error_response(
+                'Troca de senha obrigatoria antes de continuar.',
+                403,
+                code='PASSWORD_CHANGE_REQUIRED',
+            )
 
         if token_from_cookie and request.method not in _SAFE_METHODS:
             csrf_cookie = request.cookies.get(CSRF_COOKIE_NAME)

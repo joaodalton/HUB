@@ -9,10 +9,12 @@ def success_response(data=None, message='OK', status_code=200):
     }), status_code
 
 
-def error_response(message, status_code=400, details=None):
+def error_response(message, status_code=400, details=None, code=None):
     payload = {'error': message}
 
     if details is not None:
         payload['details'] = details
+    if code is not None:
+        payload['code'] = code
 
     return jsonify(payload), status_code

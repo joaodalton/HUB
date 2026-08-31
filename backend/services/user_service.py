@@ -74,6 +74,9 @@ def register_with_code(data: dict, provided_code: str, empresa_id: int) -> dict:
 
 
 def set_user_active(user_id: int, empresa_id: int, ativo: bool) -> dict | None:
+    if type(ativo) is not bool:
+        raise ValueError('Campo ativo deve ser booleano.')
+
     user = User.query.filter_by(id=user_id, empresa_id=empresa_id).first()
     if not user:
         return None
@@ -81,7 +84,12 @@ def set_user_active(user_id: int, empresa_id: int, ativo: bool) -> dict | None:
     if user.role == 'owner' and not ativo:
         raise ValueError('Nao e possivel desativar o owner da empresa.')
 
-    user.status = 'ativo' if ativo else 'inativo'
+    novo_status = 'ativo' if ativo else 'inativo'
+    if user.status != novo_status:
+        user.status = novo_status
+        # Tokens carregam esta versao; toda troca de status revoga a sessao
+        # anterior, inclusive reativacao apos uma desativacao.
+        user.session_version += 1
     db.session.commit()
 
     LogService.info(

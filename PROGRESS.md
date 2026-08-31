@@ -112,6 +112,8 @@
 - [x] **Isolamento do estado OAuth:** a limpeza de estados OAuth expirados executada durante uma requisição agora é limitada explicitamente à empresa atual; teste de regressão confirma que iniciar OAuth em uma empresa não remove estado de outra. O build do frontend também está sem aviso de import dinâmico/estático do cliente HTTP.
 - [x] **Lookups de domínio tenant-scoped:** autenticação, Cliente, UC, Usina, Pendência e Documento deixaram de usar `Query.get()` para modelos de domínio; buscas e referências agora filtram explicitamente a empresa atual. Regressão A/B cobre criação/edição de UC aninhada, update/delete de entidades estrangeiras, vínculo de pendência e conexão de usina entre empresas.
 - [x] **Infraestrutura de testes isolada:** fixtures de backend restauram ambiente, configuração e limiter após cada módulo, permitindo executar a mesma bateria tanto por módulo quanto diretamente, em ordem normal ou invertida, sem dependência de estado global.
+- [x] **Ativação segura de usuários:** `PUT /users/<id>/ativo` aceita somente booleano real e revoga tokens anteriores a cada transição de status via `session_version`; testes cobrem token antigo, RBAC, owner/self e isolamento entre empresas (2026-08-31).
+- [x] **Troca obrigatória de senha:** contas com `must_change_password` só acessam identidade, logout e `POST /auth/alterar-senha`; a troca confirma a senha atual, valida a nova, limpa a flag, revoga o token anterior e renova o cookie. Cobertura direta inclui bloqueio de API, falhas de validação, auditoria redigida e desbloqueio (2026-08-31).
 
 ## V2.0 — Cobrança e automação de mensagens
 - [ ] Integração ASAAS (boleto).

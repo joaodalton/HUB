@@ -14,7 +14,8 @@ import { createUsersPage } from '../pages/UsersPage';
 import { createEmpresasPage } from '../pages/EmpresasPage';
 import { createImportacoesPage } from '../pages/ImportacoesPage';
 import { createTemplatesPage } from '../pages/TemplatesPage';
-import { ensureSession, isAuthenticated } from './authService';
+import { createChangePasswordPage } from '../pages/ChangePasswordPage';
+import { ensureSession, getCurrentUser, isAuthenticated } from './authService';
 import { loadSettings } from './settingsService';
 
 type Route = {
@@ -37,6 +38,7 @@ export function createRouter(root: HTMLElement) {
     { path: '/empresas', render: createEmpresasPage },
     { path: '/importacoes', render: createImportacoesPage },
     { path: '/templates', render: createTemplatesPage },
+    { path: '/trocar-senha', render: createChangePasswordPage },
     { path: '/configuracoes', render: createSettingsPage }
   ];
 
@@ -65,12 +67,27 @@ export function createRouter(root: HTMLElement) {
   // que /login ja tinha).
   const PUBLIC_AUTH_PATHS = new Set(['/login', '/esqueci-senha', '/redefinir-senha']);
 
+  window.addEventListener('hub:password-change-required', () => {
+    if (isAuthenticated() && window.location.pathname !== '/trocar-senha') redirect('/trocar-senha');
+  });
+
   function render(): void {
     const path = window.location.pathname;
     const isPublicAuthPath = PUBLIC_AUTH_PATHS.has(path);
 
+    const mustChangePassword = getCurrentUser()?.mustChangePassword === true;
     if (!isAuthenticated() && !isPublicAuthPath) {
       redirect('/login');
+      return;
+    }
+
+    if (isAuthenticated() && mustChangePassword && path !== '/trocar-senha') {
+      redirect('/trocar-senha');
+      return;
+    }
+
+    if (isAuthenticated() && path === '/trocar-senha' && !mustChangePassword) {
+      redirect('/dashboard');
       return;
     }
 

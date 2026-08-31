@@ -2,7 +2,7 @@
 from flask import Blueprint, g, jsonify, request
 
 from extensions import limiter
-from services.auth_service import authenticate
+from services.auth_service import authenticate, change_password
 from services.invitation_service import aceitar_convite
 from services.password_reset_service import redefinir_senha, solicitar_reset
 from services.user_service import register_with_code
@@ -86,6 +86,27 @@ def logout():
     db.session.commit()
     response = jsonify({'success': True, 'message': 'Logout realizado.', 'data': None})
     clear_auth_cookies(response)
+    return response
+
+
+@auth_routes.route('/alterar-senha', methods=['POST'])
+def alterar_senha():
+    data = request.get_json(silent=True) or {}
+    try:
+        result = change_password(
+            g.current_user,
+            data.get('senhaAtual'),
+            data.get('novaSenha'),
+        )
+    except ValueError as exc:
+        return error_response(str(exc), 400)
+
+    response = jsonify({
+        'success': True,
+        'message': 'Senha alterada com sucesso.',
+        'data': result['user'],
+    })
+    set_auth_cookies(response, result['token'])
     return response
 
 

@@ -463,6 +463,14 @@ Executa somente um dry-run local: verifica que a cifra existe e pode ser lida, s
 
 ---
 
+## Importações (`/importacoes`)
+
+`POST /importacoes/preview` recebe `arquivo` (CSV UTF-8 com `tipo=clientes|ucs|usinas`, ou XLSX com abas `Clientes`, `UCs`, `Usinas`) e requer `imports.preview`. Não cria entidades: persiste um plano tenant/user-scoped com hash e TTL de 20 minutos. Planos expirados, que podem conter PII, são removidos antes de preview/confirmação e pela rotina global `flask purge-import-previews`. Limites: 10 MB, 10 mil linhas, 80 colunas, células de até 2.000 caracteres e três abas; fórmulas/injeção de planilha (`=`, `+`, `-`, `@`), XLSM e ZIP suspeito são rejeitados. A auditoria registra somente empresa, usuário, hash, contagens e resultado — nunca conteúdo de células.
+
+`POST /importacoes/<previewId>/confirmar` requer `imports.commit`, revalida empresa, usuário, expiração e replay e cria Clientes, UCs e Usinas numa única transação. Qualquer conflito/erro faz rollback total. Esta versão é somente criação e não cria conexões UC–usina.
+
+---
+
 ## Empresa atual (`/empresas/atual`)
 
 ### `GET /empresas/atual`

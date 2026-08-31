@@ -69,10 +69,12 @@ class SQLiteMigrationsTest(unittest.TestCase):
             try:
                 revision = connection.execute('SELECT version_num FROM alembic_version').fetchone()[0]
                 columns = {row[1] for row in connection.execute('PRAGMA table_info(api_credentials)')}
+                preview_indexes = {row[1] for row in connection.execute("PRAGMA index_list('import_previews')")}
             finally:
                 connection.close()
-            self.assertEqual(revision, 'c2d4e6f8a0b1')
+            self.assertEqual(revision, 'd5e7f9a1b2c3')
             self.assertTrue({'empresa_id', 'provider', 'nome', 'segredo_encrypted'}.issubset(columns))
+            self.assertIn('ix_import_previews_expires_at', preview_indexes)
         finally:
             database_path.unlink(missing_ok=True)
 
@@ -97,6 +99,34 @@ class SQLiteMigrationsTest(unittest.TestCase):
             connection = sqlite3.connect(database_path)
             try:
                 self.assertEqual(connection.execute('SELECT COUNT(*) FROM google_accounts').fetchone()[0], 2)
+            finally:
+                connection.close()
+        finally:
+            database_path.unlink(missing_ok=True)
+
+    def test_client_cpf_downgrade_rejects_cross_tenant_duplicates_before_ddl(self):
+        handle = tempfile.NamedTemporaryFile(suffix='.db', delete=False)
+        handle.close()
+        database_path = Path(handle.name)
+        try:
+            upgraded = self._flask(database_path, 'upgrade', 'd5e7f9a1b2c3')
+            self.assertEqual(upgraded.returncode, 0, upgraded.stdout + upgraded.stderr)
+            connection = sqlite3.connect(database_path)
+            try:
+                connection.execute("INSERT INTO empresas (id, nome, slug, status) VALUES (2, 'Empresa 2', 'empresa-2', 'ativa')")
+                connection.execute("INSERT INTO clients (nome, cpf, email, concessionaria, status, empresa_id) VALUES ('A', '12345678901', 'a@example.test', 'Copel', 'ativo', 1)")
+                connection.execute("INSERT INTO clients (nome, cpf, email, concessionaria, status, empresa_id) VALUES ('B', '12345678901', 'b@example.test', 'Copel', 'ativo', 2)")
+                connection.commit()
+            finally:
+                connection.close()
+            downgraded = self._flask(database_path, 'downgrade', 'c2d4e6f8a0b1')
+            self.assertNotEqual(downgraded.returncode, 0)
+            self.assertIn('CPFs repetidos entre empresas', downgraded.stdout + downgraded.stderr)
+            connection = sqlite3.connect(database_path)
+            try:
+                self.assertEqual(connection.execute('SELECT COUNT(*) FROM clients').fetchone()[0], 2)
+                constraints = {row[1] for row in connection.execute("PRAGMA index_list('clients')")}
+                self.assertIn('sqlite_autoindex_clients_1', constraints)
             finally:
                 connection.close()
         finally:

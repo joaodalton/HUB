@@ -12,6 +12,7 @@ import { createSettingsPage } from '../pages/SettingsPage';
 import { createUcsPage } from '../pages/UcsPage';
 import { createUsersPage } from '../pages/UsersPage';
 import { createEmpresasPage } from '../pages/EmpresasPage';
+import { createImportacoesPage } from '../pages/ImportacoesPage';
 import { ensureSession, isAuthenticated } from './authService';
 import { loadSettings } from './settingsService';
 
@@ -33,6 +34,7 @@ export function createRouter(root: HTMLElement) {
     { path: '/agenda', render: createAgendaPage },
     { path: '/usuarios', render: createUsersPage },
     { path: '/empresas', render: createEmpresasPage },
+    { path: '/importacoes', render: createImportacoesPage },
     { path: '/configuracoes', render: createSettingsPage }
   ];
 

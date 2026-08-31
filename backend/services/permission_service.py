@@ -70,6 +70,8 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         # Settings
         'settings.read',
         'settings.update',
+        'imports.preview',
+        'imports.commit',
     },
     'admin': {
         # Empresa
@@ -124,6 +126,8 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         # Settings
         'settings.read',
         'settings.update',
+        'imports.preview',
+        'imports.commit',
     },
     'operator': {
         # Empresa - leitura
@@ -159,6 +163,8 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         'rateios.read',
         'rateios.calculate',
         'rateios.update',
+        'imports.preview',
+        'imports.commit',
     },
     'financial': {
         # Empresa - leitura

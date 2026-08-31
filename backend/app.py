@@ -1,4 +1,5 @@
 import sentry_sdk
+import click
 from flask import Flask
 from flask_cors import CORS
 from sentry_sdk.integrations.flask import FlaskIntegration
@@ -28,6 +29,12 @@ def create_app() -> Flask:
     migrate.init_app(app, db)
     limiter.init_app(app)
 
+    @app.cli.command('purge-import-previews')
+    def purge_import_previews_command() -> None:
+        """Remove globalmente previews expirados, incluindo planos com PII."""
+        from services.import_service import purge_expirados
+        click.echo(f'Previews expirados removidos: {purge_expirados()}')
+
     from models.empresa import Empresa  # type: ignore
     from models.client import Client  # type: ignore
     from models.plant import Plant  # type: ignore
@@ -44,6 +51,7 @@ def create_app() -> Flask:
     from models.password_reset_token import PasswordResetToken  # type: ignore
     from models.email_template import EmailTemplate  # type: ignore
     from models.api_credential import ApiCredential  # type: ignore
+    from models.import_preview import ImportPreview  # type: ignore
 
     CORS(app, origins=[Config.FRONTEND_URL], supports_credentials=True)
 
@@ -69,6 +77,7 @@ def create_app() -> Flask:
     from routes.platform_routes import platform_routes
     from routes.email_template_routes import email_template_routes
     from routes.api_credential_routes import api_credential_routes
+    from routes.import_routes import import_routes
 
     app.register_blueprint(health_routes)
     app.register_blueprint(auth_routes)
@@ -89,6 +98,7 @@ def create_app() -> Flask:
     app.register_blueprint(user_routes)
     app.register_blueprint(email_template_routes)
     app.register_blueprint(api_credential_routes)
+    app.register_blueprint(import_routes)
     app.register_blueprint(invitation_routes)
     app.register_blueprint(rateio_routes)
     app.register_blueprint(platform_routes)

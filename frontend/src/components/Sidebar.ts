@@ -36,7 +36,8 @@ const sections: SidebarSection[] = [
       { label: 'Usinas', path: '/usinas', icon: 'plants', enabled: true },
       { label: 'UCs', path: '/ucs', icon: 'ucs', enabled: true },
       { label: 'Rateio', path: '/rateio', icon: 'rateio', enabled: true },
-      { label: 'Documentos', path: '/documentos', icon: 'documents', enabled: true }
+      { label: 'Documentos', path: '/documentos', icon: 'documents', enabled: true },
+      { label: 'Importações', path: '/importacoes', icon: 'upload', enabled: true }
     ]
   },
   {

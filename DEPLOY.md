@@ -99,7 +99,18 @@ Isso seta a variável só naquela janela do PowerShell — fechar o terminal (ou
 
 ---
 
-## 4. Como migrar dados do zero (SQLite antigo → Postgres)
+## 4. Limpeza periódica de previews de importação
+
+O preview de importação pode conter CPF/e-mail temporariamente. A aplicação o remove antes de cada preview/confirmação e também expõe uma limpeza global, segura para executar por agendador da plataforma, sem chamar serviços externos:
+
+```powershell
+cd backend
+..\.venv\Scripts\flask purge-import-previews
+```
+
+O comando remove somente registros com `expires_at` já vencido, de todas as empresas, e mostra a quantidade removida. Agende-o diariamente no mecanismo operacional escolhido (por exemplo, um cron do provedor) depois de configurar o ambiente; esta alteração não configura nem executa deploy.
+
+## 5. Como migrar dados do zero (SQLite antigo → Postgres)
 
 Script em `backend/scripts/migrate_sqlite_to_postgres.py` — pontual, só pra quando existir um `hub.db` novo pra trazer (não é rotina, diferente da seção 3).
 
@@ -113,7 +124,7 @@ Detalhes de cada flag no docstring do próprio arquivo.
 
 ---
 
-## 5. Se algo quebrar: rollback
+## 6. Se algo quebrar: rollback
 
 **Backend ou frontend no Render:** dashboard do serviço → aba **Events** → escolhe um deploy anterior que funcionava → **Rollback**. O Render mantém builds anteriores prontos, é praticamente instantâneo.
 
@@ -123,7 +134,7 @@ Detalhes de cada flag no docstring do próprio arquivo.
 
 ---
 
-## 6. Reconectar Google Drive — quando e por quê
+## 7. Reconectar Google Drive — quando e por quê
 
 Precisa reconectar a conta Google (Configurações → desconectar → conectar de novo) sempre que:
 - `SECRET_ENCRYPTION_KEY` mudar (o refresh token salvo fica ilegível com a chave nova)
@@ -133,13 +144,13 @@ Sintoma de token quebrado: erro 503 "Google Drive não configurado ou indisponí
 
 ---
 
-## 7. Domínio e SSL
+## 8. Domínio e SSL
 
 Render provisiona SSL automático (Let's Encrypt) tanto pro domínio `.onrender.com` padrão quanto pra domínio próprio, se um dia configurarmos um (`hub.selectenergiasolar.com.br`, por exemplo). Não precisa fazer nada manual pra isso funcionar — só confirmar o cadeado no navegador depois de qualquer mudança de domínio.
 
 ---
 
-## 8. Coisas aprendidas no caminho (não repetir)
+## 9. Coisas aprendidas no caminho (não repetir)
 
 - **Render não lê arquivo `_redirects` (isso é do Netlify).** Rewrite de SPA é configurado direto no dashboard: Settings → Redirects/Rewrites → `/*` → `/index.html` → Rewrite (não Redirect).
 - **Neon free "dorme" com inatividade** — tanto ele quanto o backend do Render (também free) podem demorar uns 30-50s na primeira requisição depois de um tempo parado. Normal do plano grátis, não é bug.

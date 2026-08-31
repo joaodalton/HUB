@@ -16,6 +16,34 @@ depends_on = None
 
 
 def upgrade():
+    if op.get_bind().dialect.name == 'sqlite':
+        # SQLite cria UNIQUE(email) sem um nome removível. Recriar a tabela
+        # preserva os dados e troca a unicidade global pela unicidade tenant.
+        op.create_table(
+            'google_accounts_new',
+            sa.Column('id', sa.Integer(), nullable=False),
+            sa.Column('nome', sa.String(length=150), nullable=False),
+            sa.Column('email', sa.String(length=150), nullable=False),
+            sa.Column('refresh_token_encrypted', sa.Text(), nullable=True),
+            sa.Column('scopes', sa.String(length=500), nullable=True),
+            sa.Column('is_active', sa.Boolean(), nullable=False),
+            sa.Column('created_at', sa.DateTime(), nullable=True),
+            sa.Column('updated_at', sa.DateTime(), nullable=True),
+            sa.Column('empresa_id', sa.Integer(), nullable=False),
+            sa.ForeignKeyConstraint(['empresa_id'], ['empresas.id'], name='fk_google_accounts_empresa_id'),
+            sa.PrimaryKeyConstraint('id'),
+            sa.UniqueConstraint('empresa_id', 'email', name='uq_google_accounts_empresa_email'),
+        )
+        op.execute("""
+            INSERT INTO google_accounts_new
+              (id, nome, email, refresh_token_encrypted, scopes, is_active, created_at, updated_at, empresa_id)
+            SELECT id, nome, email, refresh_token_encrypted, scopes, is_active, created_at, updated_at, 1
+            FROM google_accounts
+        """)
+        op.drop_table('google_accounts')
+        op.rename_table('google_accounts_new', 'google_accounts')
+        return
+
     with op.batch_alter_table('google_accounts', schema=None) as batch_op:
         batch_op.add_column(sa.Column('empresa_id', sa.Integer(), nullable=True))
 
@@ -29,6 +57,30 @@ def upgrade():
 
 
 def downgrade():
+    if op.get_bind().dialect.name == 'sqlite':
+        op.create_table(
+            'google_accounts_old',
+            sa.Column('id', sa.Integer(), nullable=False),
+            sa.Column('nome', sa.String(length=150), nullable=False),
+            sa.Column('email', sa.String(length=150), nullable=False),
+            sa.Column('refresh_token_encrypted', sa.Text(), nullable=True),
+            sa.Column('scopes', sa.String(length=500), nullable=True),
+            sa.Column('is_active', sa.Boolean(), nullable=False),
+            sa.Column('created_at', sa.DateTime(), nullable=True),
+            sa.Column('updated_at', sa.DateTime(), nullable=True),
+            sa.PrimaryKeyConstraint('id'),
+            sa.UniqueConstraint('email'),
+        )
+        op.execute("""
+            INSERT INTO google_accounts_old
+              (id, nome, email, refresh_token_encrypted, scopes, is_active, created_at, updated_at)
+            SELECT id, nome, email, refresh_token_encrypted, scopes, is_active, created_at, updated_at
+            FROM google_accounts
+        """)
+        op.drop_table('google_accounts')
+        op.rename_table('google_accounts_old', 'google_accounts')
+        return
+
     with op.batch_alter_table('google_accounts', schema=None) as batch_op:
         batch_op.drop_constraint('uq_google_accounts_empresa_email', type_='unique')
         batch_op.create_unique_constraint('google_accounts_email_key', ['email'])

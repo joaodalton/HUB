@@ -72,6 +72,7 @@
 ### Deploy
 - [x] **Backend rodando na nuvem (Render) com Postgres**, saindo do SQLite local. `config.py` normaliza `postgres://` → `postgresql://`. `psycopg2-binary` e `gunicorn` adicionados ao `requirements.txt`. Start Command: `gunicorn -w 2 -b 0.0.0.0:$PORT app:app`.
 - [ ] Start Command ainda não roda a migration sozinho a cada deploy (sugestão: `flask db upgrade && gunicorn ...`) — hoje precisa rodar `flask db upgrade` manualmente do PC local apontando `DATABASE_URL` pra URL externa do Postgres do Render.
+- [x] **Histórico Alembic validado em SQLite vazio:** `backend/tests/test_sqlite_migrations.py` executa `flask db upgrade` até a head e confere `api_credentials`. Em 2026-08-31, passou após tornar as migrations legadas `e5f9a3b2c7d4` (conversão numérica) e `d1e5f8a2b4c7` (unicidade de GoogleAccount) compatíveis com SQLite, preservando os caminhos PostgreSQL.
 - [x] Frontend confirmado publicado no Render. `VITE_API_BASE_URL` apontando pro backend do Render em produção.
 
 ---

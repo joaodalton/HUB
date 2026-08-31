@@ -6,6 +6,8 @@
 
 Última atualização: 2026-08-31 — base multi-tenant auditada, V1.5-A concluída e ciclo de acesso de usuários endurecido.
 
+- 2026-08-31: busca de documentos corrigida para configuração multi-tenant: Configurações > Banco de Dados salva a pasta raiz do Google Drive por empresa e invalida o cache ao alterar; o frontend mostra o motivo real do 503.
+
 ---
 
 ## Decisões já resolvidas (não reabrir sem motivo novo)

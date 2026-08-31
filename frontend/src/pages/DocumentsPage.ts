@@ -89,10 +89,11 @@ export function createDocumentsPage(): HTMLElement {
       currentResults = await searchDriveItems(term);
       searchPanel.updateTypeOptions(Array.from(new Set(currentResults.map(fileTypeLabel))));
       renderResults();
-    } catch {
+    } catch (error) {
       currentResults = [];
-      resultsPanel.setMessage('Nao foi possivel conectar ao servidor. Verifique se o backend esta rodando.');
-      toast.error('Nao foi possivel conectar ao servidor.');
+      const message = error instanceof Error ? error.message : 'Nao foi possivel pesquisar documentos.';
+      resultsPanel.setMessage(message);
+      toast.error(message);
     } finally {
       loading.hide();
     }

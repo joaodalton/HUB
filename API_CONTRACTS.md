@@ -397,6 +397,8 @@ Armazenamento livre chave/valor. Hoje só usado pela tela de Aparência (`themeC
 
 ### `GET /settings` — `data` = `{ "chave1": "valor1", ... }` (objeto plano, não array).
 
+`google_drive_root_folder_id` é a pasta raiz exclusiva da empresa autenticada para busca e documentos. Ao alterar essa chave, o cache do Drive da empresa é invalidado.
+
 ### `PUT /settings` — Body: `{ "chave": "valor", ... }` (uma ou mais chaves). Cria ou atualiza cada uma. `data` = objeto completo atualizado, igual ao `GET`.
 
 ---

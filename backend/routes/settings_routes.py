@@ -1,7 +1,8 @@
 # backend/routes/settings_routes.py
-from flask import Blueprint, request
+from flask import Blueprint, g, request
 
 from services.settings_service import get_all_settings, update_settings
+from services.drive_service import invalidate_drive_cache
 from services.permission_service import require_permission
 from utils.api_response import success_response
 
@@ -21,4 +22,7 @@ def index():
 @require_permission('settings.update')
 def update():
     data = request.get_json(silent=True) or {}
-    return success_response(update_settings(data), 'Configuracoes atualizadas.')
+    settings = update_settings(data)
+    if 'google_drive_root_folder_id' in data:
+        invalidate_drive_cache(g.current_empresa_id)
+    return success_response(settings, 'Configuracoes atualizadas.')

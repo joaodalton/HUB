@@ -1,4 +1,4 @@
-import { apiRequest } from './apiClient';
+import { apiBlob, apiRequest } from './apiClient';
 
 export type FormularioLinha = {
   ordem: number;
@@ -49,7 +49,6 @@ export async function verificarDocumentosFormulario(plantId: number): Promise<Ve
 // As 2 funcoes abaixo baixam PDF binario -- nao usam apiRequest (que espera
 // JSON), seguem o mesmo padrao de apiBlob usado em documentsService.ts.
 async function baixarPdf(path: string, body: unknown): Promise<Blob> {
-  const { apiBlob } = await import('./apiClient');
   return apiBlob(path, { method: 'POST', body });
 }
 

@@ -45,7 +45,7 @@ def _scopes() -> list[str]:
 
 
 def _store_pending_state(state: str, code_verifier: str, empresa_id: int) -> None:
-    _cleanup_expired_states()
+    _cleanup_expired_states(empresa_id)
     # Guarda code_verifier (PKCE) E a empresa que iniciou o fluxo juntos --
     # o /callback e chamado direto pelo Google, sem sessao/cookie util pra
     # saber isso, entao precisa vir carregado dentro do proprio state.
@@ -71,11 +71,12 @@ def _pop_pending_state(state: str) -> dict | None:
     return dados
 
 
-def _cleanup_expired_states() -> None:
+def _cleanup_expired_states(empresa_id: int) -> None:
     cutoff = datetime.datetime.utcnow() - datetime.timedelta(minutes=_STATE_TTL_MINUTES)
     Setting.query.filter(
         Setting.chave.like(f'{_STATE_KEY_PREFIX}%'),
-        Setting.created_at < cutoff
+        Setting.created_at < cutoff,
+        Setting.empresa_id == empresa_id,
     ).delete(synchronize_session=False)
     db.session.commit()
 

@@ -6,7 +6,6 @@ from pathlib import Path
 from openpyxl import Workbook
 
 _DB = tempfile.NamedTemporaryFile(suffix='.db', delete=False); _DB.close()
-os.environ.update({'DATABASE_URL': f"sqlite:///{_DB.name.replace(chr(92), '/')}", 'SECRET_KEY': 'import-test-secret', 'FLASK_DEBUG': 'true'})
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app import create_app  # noqa
 from config import Config  # noqa
@@ -19,12 +18,16 @@ from models.user import User  # noqa
 from services.import_service import MAX_CELL_CHARS, MAX_COLUMNS, MAX_ROWS, _read_file, criar_preview  # noqa
 from utils.auth import generate_token  # noqa
 from werkzeug.datastructures import FileStorage  # noqa
-Config.SECRET_KEY = os.environ['SECRET_KEY']
+try:
+ from .support import IsolatedTestRuntime  # noqa
+except ImportError:
+ from support import IsolatedTestRuntime  # noqa
 
-class ImportacoesTest(unittest.TestCase):
+class ImportacoesTest(IsolatedTestRuntime, unittest.TestCase):
  @classmethod
  def setUpClass(cls):
-  cls.app=create_app(); cls.app.config.update(TESTING=True, RATELIMIT_ENABLED=False); limiter.enabled=False
+  cls.prepare_test_runtime(f"sqlite:///{_DB.name.replace(chr(92), '/')}",'import-test-secret',limiter_enabled=False)
+  cls.app=create_app(); cls.app.config.update(TESTING=True, RATELIMIT_ENABLED=False)
   with cls.app.app_context():
    db.create_all(); a=Empresa(nome='A',slug='import-a'); b=Empresa(nome='B',slug='import-b'); db.session.add_all([a,b]); db.session.flush()
    users=[User(empresa_id=a.id,nome='Owner',email='io@example.test',password_hash='x',role='owner'),User(empresa_id=a.id,nome='Viewer',email='iv@example.test',password_hash='x',role='viewer'),User(empresa_id=b.id,nome='Owner B',email='ib@example.test',password_hash='x',role='owner')]
@@ -33,6 +36,7 @@ class ImportacoesTest(unittest.TestCase):
  def tearDownClass(cls):
   with cls.app.app_context(): db.session.remove(); db.drop_all(); db.engine.dispose()
   os.unlink(_DB.name)
+  cls.restore_test_runtime()
  def _token(self, user):
   with self.app.app_context(): return generate_token(user)
  def _preview(self,user,body,kind='clientes'):
@@ -66,9 +70,9 @@ class ImportacoesTest(unittest.TestCase):
   invalid=self.app.test_client().post('/api/v1/importacoes/preview',headers={'Authorization':'Bearer '+self._token(self.a)},data={'arquivo':(io.BytesIO(b'not an xlsx'),'invalido.xlsx')},content_type='multipart/form-data'); self.assertEqual(invalid.status_code,400)
   with self.app.test_request_context('/'):
    from flask import g
-   g.current_empresa_id=1; g.current_user=User.query.get(self.a)
+   g.current_empresa_id=1; g.current_user=db.session.get(User,self.a)
    first=criar_preview(FileStorage(stream=io.BytesIO(b'nome,cpf,email\nPurge,12345678907,purge@example.test\n'), filename='purge.csv'), 'clientes')['previewId']
-   preview=ImportPreview.query.get(first); preview.expires_at=datetime.utcnow()-timedelta(seconds=1); db.session.commit()
+   preview=db.session.get(ImportPreview,first); preview.expires_at=datetime.utcnow()-timedelta(seconds=1); db.session.commit()
    criar_preview(FileStorage(stream=io.BytesIO(b'nome,cpf,email\nNovo,12345678908,novo@example.test\n'), filename='novo.csv'), 'clientes')
    db.session.expire_all()
    self.assertEqual(ImportPreview.query.filter(ImportPreview.expires_at < datetime.utcnow()).count(), 0)

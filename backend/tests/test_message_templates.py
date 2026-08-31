@@ -3,9 +3,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 _DB=tempfile.NamedTemporaryFile(suffix='.db',delete=False); _DB.close()
-os.environ.update({'DATABASE_URL':f"sqlite:///{_DB.name.replace(chr(92),'/')}",'SECRET_KEY':'message-test','FLASK_DEBUG':'true'})
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from app import create_app
+from config import Config
 from extensions import db, limiter
 from models.empresa import Empresa
 from models.user import User
@@ -13,17 +13,23 @@ from models.message_template import MessageTemplate
 from services.message_template_service import seed_for_empresa
 from services.message_template_service import render_email_for_empresa
 from utils.auth import generate_token
+try:
+ from .support import IsolatedTestRuntime
+except ImportError:
+ from support import IsolatedTestRuntime
 
-class MessageTemplatesTest(unittest.TestCase):
+class MessageTemplatesTest(IsolatedTestRuntime, unittest.TestCase):
  @classmethod
  def setUpClass(cls):
-  cls.app=create_app(); cls.app.config['TESTING']=True; limiter.enabled=False
+  cls.prepare_test_runtime(f"sqlite:///{_DB.name.replace(chr(92),'/')}",'message-test',limiter_enabled=False)
+  cls.app=create_app(); cls.app.config['TESTING']=True
   with cls.app.app_context():
    db.create_all(); a=Empresa(nome='A',slug='mt-a'); b=Empresa(nome='B',slug='mt-b'); db.session.add_all([a,b]); db.session.flush(); db.session.add_all([User(empresa_id=a.id,nome='A',email='a@mt.test',password_hash='x',role='admin'),User(empresa_id=a.id,nome='V',email='v@mt.test',password_hash='x',role='viewer'),User(empresa_id=b.id,nome='B',email='b@mt.test',password_hash='x',role='admin')]); db.session.commit(); cls.a,cls.viewer,cls.b=1,2,3
  @classmethod
  def tearDownClass(cls):
   with cls.app.app_context(): db.session.remove(); db.drop_all(); db.engine.dispose()
   os.unlink(_DB.name)
+  cls.restore_test_runtime()
  def _headers(self,user):
   with self.app.app_context(): return {'Authorization':'Bearer '+generate_token(user)}
  def _request(self,user,path,method='GET',body=None): return self.app.test_client().open(path,method=method,headers=self._headers(user),json=body)

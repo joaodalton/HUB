@@ -9,9 +9,6 @@ from pathlib import Path
 
 _DATABASE_FILE = tempfile.NamedTemporaryFile(suffix='.db', delete=False)
 _DATABASE_FILE.close()
-os.environ['DATABASE_URL'] = f"sqlite:///{_DATABASE_FILE.name.replace(chr(92), '/')}"
-os.environ['SECRET_KEY'] = 'agenda-service-test-secret'
-os.environ['FLASK_DEBUG'] = 'true'
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app import create_app  # noqa: E402
@@ -21,15 +18,19 @@ from models.empresa import Empresa  # noqa: E402
 from models.pendencia import Pendencia  # noqa: E402
 from models.user import User  # noqa: E402
 from utils.auth import generate_token  # noqa: E402
+try:  # execucao por unittest como modulo
+    from .support import IsolatedTestRuntime  # noqa: E402
+except ImportError:  # execucao direta: python backend/tests/test_agenda_service.py
+    from support import IsolatedTestRuntime  # noqa: E402
 
-# Outros módulos de teste podem importar Config antes deste arquivo; mantenha o
-# segredo de teste consistente mesmo quando a suíte for executada em conjunto.
-Config.SECRET_KEY = os.environ['SECRET_KEY']
 
-
-class AgendaServiceTest(unittest.TestCase):
+class AgendaServiceTest(IsolatedTestRuntime, unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        cls.prepare_test_runtime(
+            f"sqlite:///{_DATABASE_FILE.name.replace(chr(92), '/')}",
+            'agenda-service-test-secret',
+        )
         cls.app = create_app()
         cls.app.config['TESTING'] = True
         with cls.app.app_context():
@@ -61,6 +62,7 @@ class AgendaServiceTest(unittest.TestCase):
             db.drop_all()
             db.engine.dispose()
         os.unlink(_DATABASE_FILE.name)
+        cls.restore_test_runtime()
 
     def _get(self, user_id, query=''):
         with self.app.app_context():

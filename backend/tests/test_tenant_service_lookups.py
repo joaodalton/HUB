@@ -6,15 +6,11 @@ from pathlib import Path
 
 _DB = tempfile.NamedTemporaryFile(suffix='.db', delete=False)
 _DB.close()
-os.environ.update({
-    'DATABASE_URL': f"sqlite:///{_DB.name.replace(chr(92), '/')}",
-    'SECRET_KEY': 'tenant-lookup-test',
-    'FLASK_DEBUG': 'true',
-})
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from flask import g
 from app import create_app
+from config import Config
 from extensions import db
 from models.client import Client
 from models.consumer_unit import ConsumerUnit, PlantConnection
@@ -26,11 +22,19 @@ from services.document_service import delete_document
 from services.pendencia_service import criar_pendencia_manual
 from services.plant_service import delete_plant, update_plant
 from services.uc_service import delete_uc, sync_connections, update_uc
+try:
+    from .support import IsolatedTestRuntime
+except ImportError:
+    from support import IsolatedTestRuntime
 
 
-class TenantServiceLookupsTest(unittest.TestCase):
+class TenantServiceLookupsTest(IsolatedTestRuntime, unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        cls.prepare_test_runtime(
+            f"sqlite:///{_DB.name.replace(chr(92), '/')}",
+            'tenant-lookup-test',
+        )
         cls.app = create_app()
         with cls.app.app_context():
             db.create_all()
@@ -56,6 +60,7 @@ class TenantServiceLookupsTest(unittest.TestCase):
             db.drop_all()
             db.engine.dispose()
         os.unlink(_DB.name)
+        cls.restore_test_runtime()
 
     def test_foreign_ids_cannot_update_delete_or_be_referenced(self):
         with self.app.test_request_context('/'):

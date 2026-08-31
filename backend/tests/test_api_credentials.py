@@ -11,9 +11,6 @@ from cryptography.fernet import Fernet
 
 _DATABASE_FILE = tempfile.NamedTemporaryFile(suffix='.db', delete=False)
 _DATABASE_FILE.close()
-os.environ['DATABASE_URL'] = f"sqlite:///{_DATABASE_FILE.name.replace(chr(92), '/')}"
-os.environ['SECRET_KEY'] = 'api-credential-test-secret'
-os.environ['FLASK_DEBUG'] = 'true'
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app import create_app  # noqa: E402
@@ -24,15 +21,20 @@ from models.empresa import Empresa  # noqa: E402
 from models.log_entry import LogEntry  # noqa: E402
 from models.user import User  # noqa: E402
 from utils.auth import generate_token  # noqa: E402
+try:
+    from .support import IsolatedTestRuntime  # noqa: E402
+except ImportError:
+    from support import IsolatedTestRuntime  # noqa: E402
 
 
-Config.SECRET_KEY = os.environ['SECRET_KEY']
-Config.SECRET_ENCRYPTION_KEY = Fernet.generate_key().decode()
-
-
-class ApiCredentialTest(unittest.TestCase):
+class ApiCredentialTest(IsolatedTestRuntime, unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        cls.prepare_test_runtime(
+            f"sqlite:///{_DATABASE_FILE.name.replace(chr(92), '/')}",
+            'api-credential-test-secret',
+            encryption_key=Fernet.generate_key().decode(),
+        )
         cls.app = create_app()
         cls.app.config['TESTING'] = True
         with cls.app.app_context():
@@ -55,6 +57,7 @@ class ApiCredentialTest(unittest.TestCase):
             db.drop_all()
             db.engine.dispose()
         os.unlink(_DATABASE_FILE.name)
+        cls.restore_test_runtime()
 
     def _request(self, method, path, user_id=None, **kwargs):
         headers = kwargs.pop('headers', {})
@@ -93,7 +96,7 @@ class ApiCredentialTest(unittest.TestCase):
     def test_update_without_secret_preserves_cipher_and_invalid_cipher_is_safe(self):
         credential_id = self._create(self.owner_a_id, nome='Atualizar', segredo='segredo-original').get_json()['data']['id']
         with self.app.app_context():
-            credential = ApiCredential.query.get(credential_id)
+            credential = db.session.get(ApiCredential, credential_id)
             original_cipher = credential.segredo_encrypted
         response = self._request('PUT', f'/api/v1/api-credentials/{credential_id}', self.owner_a_id, json={'nome': 'Renomeada'})
         self.assertEqual(response.status_code, 200)
@@ -101,7 +104,7 @@ class ApiCredentialTest(unittest.TestCase):
         immutable = self._request('PUT', f'/api/v1/api-credentials/{credential_id}', self.owner_a_id, json={'provider': 'asaas'})
         self.assertEqual(immutable.status_code, 400)
         with self.app.app_context():
-            credential = ApiCredential.query.get(credential_id)
+            credential = db.session.get(ApiCredential, credential_id)
             self.assertEqual(credential.segredo_encrypted, original_cipher)
             credential.segredo_encrypted = 'invalid-cipher'
             db.session.commit()
@@ -112,7 +115,7 @@ class ApiCredentialTest(unittest.TestCase):
     def test_missing_crypto_does_not_persist_partial_update_and_dry_run_never_uses_http(self):
         credential_id = self._create(self.owner_a_id, nome='Cifra', segredo='segredo-original').get_json()['data']['id']
         with self.app.app_context():
-            original_cipher = ApiCredential.query.get(credential_id).segredo_encrypted
+            original_cipher = db.session.get(ApiCredential, credential_id).segredo_encrypted
         original_key = Config.SECRET_ENCRYPTION_KEY
         Config.SECRET_ENCRYPTION_KEY = ''
         try:
@@ -121,7 +124,7 @@ class ApiCredentialTest(unittest.TestCase):
         finally:
             Config.SECRET_ENCRYPTION_KEY = original_key
         with self.app.app_context():
-            credential = ApiCredential.query.get(credential_id)
+            credential = db.session.get(ApiCredential, credential_id)
             self.assertEqual(credential.nome, 'Cifra')
             self.assertEqual(credential.segredo_encrypted, original_cipher)
         with patch('requests.sessions.Session.request', side_effect=AssertionError('rede proibida')):
@@ -134,7 +137,7 @@ class ApiCredentialTest(unittest.TestCase):
         response = self._request('DELETE', f'/api/v1/api-credentials/{credential_id}', self.owner_a_id)
         self.assertEqual(response.status_code, 200)
         with self.app.app_context():
-            self.assertIsNone(ApiCredential.query.get(credential_id))
+            self.assertIsNone(db.session.get(ApiCredential, credential_id))
             audit = LogEntry.query.filter_by(acao='api_credential_delete', entidade_id=credential_id).first()
             self.assertIsNotNone(audit)
             self.assertEqual(audit.metadados, {'provider': 'resend'})

@@ -8,9 +8,6 @@ from pathlib import Path
 
 _DATABASE_FILE = tempfile.NamedTemporaryFile(suffix='.db', delete=False)
 _DATABASE_FILE.close()
-os.environ['DATABASE_URL'] = f"sqlite:///{_DATABASE_FILE.name.replace(chr(92), '/')}"
-os.environ['SECRET_KEY'] = 'empresa-atual-test-secret'
-os.environ['FLASK_DEBUG'] = 'true'
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app import create_app  # noqa: E402
@@ -19,14 +16,19 @@ from extensions import db  # noqa: E402
 from models.empresa import Empresa  # noqa: E402
 from models.user import User  # noqa: E402
 from utils.auth import generate_token  # noqa: E402
+try:
+    from .support import IsolatedTestRuntime  # noqa: E402
+except ImportError:
+    from support import IsolatedTestRuntime  # noqa: E402
 
 
-Config.SECRET_KEY = os.environ['SECRET_KEY']
-
-
-class EmpresaAtualTest(unittest.TestCase):
+class EmpresaAtualTest(IsolatedTestRuntime, unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        cls.prepare_test_runtime(
+            f"sqlite:///{_DATABASE_FILE.name.replace(chr(92), '/')}",
+            'empresa-atual-test-secret',
+        )
         cls.app = create_app()
         cls.app.config['TESTING'] = True
         with cls.app.app_context():
@@ -52,6 +54,7 @@ class EmpresaAtualTest(unittest.TestCase):
             db.drop_all()
             db.engine.dispose()
         os.unlink(_DATABASE_FILE.name)
+        cls.restore_test_runtime()
 
     def _request(self, method, user_id=None, body=None):
         headers = {}

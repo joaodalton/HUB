@@ -16,6 +16,7 @@ import datetime
 import json
 import os
 import secrets
+from urllib.parse import urlparse
 
 import requests as http_requests
 from google.oauth2.credentials import Credentials
@@ -27,19 +28,6 @@ from models.google_account import GoogleAccount
 from models.setting import Setting
 from services.log_service import LogService
 
-# oauthlib recusa qualquer OAuth fora de HTTPS por padrao. Nosso redirect_uri e
-# http://localhost:8000/... de proposito (app local, sem certificado) -- isso nao
-# abaixa seguranca de verdade, a troca do code pelo token com o Google continua
-# sempre HTTPS por baixo. Flag oficial da propria lib pra esse cenario (apps locais/instalados).
-os.environ.setdefault('OAUTHLIB_INSECURE_TRANSPORT', '1')
-# oauthlib e rigido demais nessa checagem por padrao: se o Google devolver o
-# escopo com qualquer diferenca textual do que foi pedido -- inclusive quando
-# devolve MAIS escopo que o pedido, por causa do include_granted_scopes=true
-# la embaixo, que a gente usa de proposito -- ele trata como erro ("Scope has
-# changed from X to Y"), mesmo sendo um comportamento normal e documentado do
-# OAuth. Flag oficial da propria lib pra relaxar essa comparacao.
-os.environ.setdefault('OAUTHLIB_RELAX_TOKEN_SCOPE', '1')
-
 # Sempre pede o mesmo escopo de Drive que a service account usa (fonte unica
 # de verdade em Config.GOOGLE_DRIVE_SCOPES), mais 'email' so pra identificar
 # qual conta Google foi conectada -- HUB nunca le nome/foto, so o email.
@@ -49,6 +37,7 @@ _IDENTITY_SCOPES = ['openid', 'https://www.googleapis.com/auth/userinfo.email']
 # que ja vivem na mesma tabela Setting -- sem colisao de namespace.
 _STATE_KEY_PREFIX = 'oauth_pending_state:'
 _STATE_TTL_MINUTES = 15  # state abandonado (usuario fechou a aba no meio) expira sozinho
+_LOCAL_OAUTH_HOSTS = frozenset({'localhost', '127.0.0.1', '::1'})
 
 
 def _scopes() -> list[str]:
@@ -109,7 +98,63 @@ def _client_config() -> dict:
     }
 
 
+def _configure_transport_security() -> None:
+    """Configura a excecao HTTP do OAuthlib apenas no localhost em dev.
+
+    A variavel e global ao processo porque a propria oauthlib le o ambiente.
+    Por isso ela tambem e removida explicitamente em qualquer configuracao de
+    producao, inclusive se o host a tiver herdado por engano.
+    """
+    redirect = urlparse(Config.GOOGLE_OAUTH_REDIRECT_URI)
+    frontend = urlparse(Config.FRONTEND_URL)
+    is_explicit_local_dev = (
+        Config.DEBUG
+        and Config.OAUTH_ALLOW_INSECURE_TRANSPORT
+        and redirect.scheme == 'http'
+        and redirect.hostname in _LOCAL_OAUTH_HOSTS
+    )
+    if is_explicit_local_dev:
+        _validate_frontend_url(frontend, allow_http_loopback=True)
+        os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+        return
+
+    os.environ.pop('OAUTHLIB_INSECURE_TRANSPORT', None)
+    if not _is_absolute_https(redirect):
+        raise RuntimeError(
+            'GOOGLE_OAUTH_REDIRECT_URI deve usar HTTPS fora do desenvolvimento local explicito.'
+        )
+    _validate_frontend_url(frontend, allow_http_loopback=False)
+
+
+def _is_absolute_https(parsed) -> bool:
+    return (
+        parsed.scheme == 'https'
+        and bool(parsed.hostname)
+        and not parsed.username
+        and not parsed.password
+        and not parsed.fragment
+    )
+
+
+def _validate_frontend_url(parsed, *, allow_http_loopback: bool) -> None:
+    """Evita redirecionamento OAuth para URL relativa, HTTP público ou URL com credenciais."""
+    local_http = (
+        allow_http_loopback
+        and parsed.scheme == 'http'
+        and parsed.hostname in _LOCAL_OAUTH_HOSTS
+        and not parsed.username
+        and not parsed.password
+        and not parsed.fragment
+    )
+    if local_http or _is_absolute_https(parsed):
+        return
+    raise RuntimeError(
+        'FRONTEND_URL deve ser uma URL HTTPS absoluta sem credenciais ou fragmento fora do desenvolvimento local.'
+    )
+
+
 def _build_flow() -> Flow:
+    _configure_transport_security()
     return Flow.from_client_config(
         _client_config(),
         scopes=_scopes(),
@@ -125,7 +170,6 @@ def build_authorize_url(empresa_id: int) -> str:
         access_type='offline',     # necessario pra ganhar refresh_token
         prompt='consent',          # forca a tela de consentimento sempre -- sem isso o Google
                                     # as vezes nao manda refresh_token de novo pra quem ja autorizou antes
-        include_granted_scopes='true',
         state=state
     )
 

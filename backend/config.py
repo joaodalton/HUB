@@ -39,6 +39,11 @@ class Config:
 
     GOOGLE_OAUTH_REDIRECT_URI = os.getenv('GOOGLE_OAUTH_REDIRECT_URI', 'http://localhost:8000/api/v1/oauth/google/callback')
 
+    # OAuthlib recusa HTTP por padrão. Desenvolvimento local pode habilitar a
+    # exceção oficial somente de forma explícita, nunca por acidente ao ligar
+    # FLASK_DEBUG em uma instância acessível pela rede.
+    OAUTH_ALLOW_INSECURE_TRANSPORT = os.getenv('OAUTH_ALLOW_INSECURE_TRANSPORT', 'false').lower() == 'true'
+
     # Pra onde redirecionar de volta depois do callback do Google (a SPA do frontend, nao o backend).
     FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
 

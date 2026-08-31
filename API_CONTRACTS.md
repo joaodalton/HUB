@@ -422,6 +422,8 @@ Controla qual provedor de dados o backend usa (Google Drive service-account, ou 
 
 Fluxo de autorização de usuário real (PKCE), complementar ao `credentials.json` de service account usado pelo Drive legado. Contas ficam salvas em `GoogleAccount`, refresh token criptografado (nunca exposto em nenhum `to_dict`).
 
+O callback registrado e `FRONTEND_URL` devem usar HTTPS absoluto sem credenciais ou fragmento em produção. HTTP só é permitido para `localhost`/loopback quando `FLASK_DEBUG=true` **e** `OAUTH_ALLOW_INSECURE_TRANSPORT=true` forem configurados explicitamente; a aplicação remove a exceção de transporte inseguro do OAuthlib em qualquer outro ambiente. A validação padrão de escopos do OAuthlib permanece ativa.
+
 ### `GET /oauth/google/authorize` — pública
 Sem chamar via `fetch` — é link direto (`<a href>`). Redireciona pro consentimento do Google.
 

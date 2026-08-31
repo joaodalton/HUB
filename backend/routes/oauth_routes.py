@@ -1,4 +1,6 @@
 # backend/routes/oauth_routes.py
+from urllib.parse import urlencode
+
 from flask import Blueprint, g, redirect, request
 
 from config import Config
@@ -6,6 +8,7 @@ from services.log_service import LogService
 from services.permission_service import require_permission
 from services.oauth_service import (
     build_authorize_url,
+    _configure_transport_security,
     disconnect_account,
     handle_callback,
     list_accounts,
@@ -14,6 +17,21 @@ from services.oauth_service import (
 from utils.api_response import error_response, success_response
 
 oauth_routes = Blueprint('oauth_routes', __name__, url_prefix='/api/v1/oauth/google')
+
+
+def _configured_callback_url(query_string: bytes) -> str:
+    """Preserva query do Google, mas fixa scheme/host no callback registrado."""
+    separador = '&' if '?' in Config.GOOGLE_OAUTH_REDIRECT_URI else '?'
+    return f'{Config.GOOGLE_OAUTH_REDIRECT_URI}{separador}{query_string.decode("ascii")}'
+
+
+def _frontend_oauth_redirect(resultado: str, motivo: str | None = None) -> str:
+    parametros = {'google_oauth': resultado}
+    if motivo:
+        parametros['motivo'] = motivo
+    destino = f'{Config.FRONTEND_URL.rstrip("/")}/configuracoes'
+    separador = '&' if '?' in destino else '?'
+    return f'{destino}{separador}{urlencode(parametros)}'
 
 
 # GET /api/v1/oauth/google/authorize -- redireciona o navegador pra tela de consentimento do Google.
@@ -33,22 +51,33 @@ def authorize():
 # Tambem publica pelo mesmo motivo da rota acima. Sempre volta pro frontend (nunca fica presa no backend).
 @oauth_routes.route('/callback')
 def callback():
+    # Esta rota e publica e pode receber callback com erro antes de _build_flow
+    # ser executado. Validar aqui garante que nenhum ramo redirecione para HTTP
+    # publico ou para URL malformada.
+    try:
+        _configure_transport_security()
+    except RuntimeError as exc:
+        return error_response(str(exc), 503)
+
     if request.args.get('error'):
-        return redirect(f'{Config.FRONTEND_URL}/configuracoes?google_oauth=erro&motivo={request.args["error"]}')
+        return redirect(_frontend_oauth_redirect('erro', request.args['error']))
 
     try:
-        handle_callback(request.url, request.args.get('state', ''))
+        # Em produção o URI registrado é HTTPS. Não usar request.url aqui:
+        # atrás do proxy TLS do Render ele pode aparecer internamente como
+        # HTTP, o que faria oauthlib rejeitar um callback público válido.
+        handle_callback(_configured_callback_url(request.query_string), request.args.get('state', ''))
     except ValueError as exc:
-        return redirect(f'{Config.FRONTEND_URL}/configuracoes?google_oauth=erro&motivo={exc}')
+        return redirect(_frontend_oauth_redirect('erro', str(exc)))
     except Exception as exc:
         LogService.error(
             acao='oauth_callback_failed',
             mensagem=f'Falha inesperada no callback OAuth: {exc}',
             entidade='GoogleAccount'
         )
-        return redirect(f'{Config.FRONTEND_URL}/configuracoes?google_oauth=erro&motivo={exc}')
+        return redirect(_frontend_oauth_redirect('erro', str(exc)))
 
-    return redirect(f'{Config.FRONTEND_URL}/configuracoes?google_oauth=sucesso')
+    return redirect(_frontend_oauth_redirect('sucesso'))
 
 
 # GET /api/v1/oauth/google/accounts -- lista contas Google conectadas DA EMPRESA do usuario logado.

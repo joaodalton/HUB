@@ -15,11 +15,16 @@ os.environ['FLASK_DEBUG'] = 'true'
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app import create_app  # noqa: E402
+from config import Config  # noqa: E402
 from extensions import db  # noqa: E402
 from models.empresa import Empresa  # noqa: E402
 from models.pendencia import Pendencia  # noqa: E402
 from models.user import User  # noqa: E402
 from utils.auth import generate_token  # noqa: E402
+
+# Outros módulos de teste podem importar Config antes deste arquivo; mantenha o
+# segredo de teste consistente mesmo quando a suíte for executada em conjunto.
+Config.SECRET_KEY = os.environ['SECRET_KEY']
 
 
 class AgendaServiceTest(unittest.TestCase):

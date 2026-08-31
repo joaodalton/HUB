@@ -1,6 +1,7 @@
 # HUB — Contratos de API
 
-> Gerado a partir do código em `backend/routes/` e `backend/services/` em 2026-07-27.
+
+> **Documentos relacionados:** [[ARCHITECTURE]] · [[VISAO]] · [[RATEIO]]
 > Se um endpoint mudar, atualize este arquivo no mesmo commit — é a regra combinada em `PROGRESS.md`.
 
 ## Convenções gerais
@@ -35,8 +36,37 @@ Erros: 400 (faltando campo/senha curta), 403 (bootstrap já usado).
 ### `POST /auth/login` — pública
 Body: `{ "email": string, "senha": string }`
 
-Sucesso (200): `data` = `{ "token": string, "user": User }`.
+Sucesso (200): `data` = `User` (o token é enviado apenas em cookie HttpOnly). `mustChangePassword: true` sinaliza que a sessão fica limitada a identidade, logout e troca de senha até a conclusão.
 Erro: 401 (email/senha inválidos).
+
+### `POST /auth/alterar-senha` — autenticada
+
+Body: `{ "senhaAtual": string, "novaSenha": string }`. Exige senha atual válida e nova senha com pelo menos 6 caracteres. Retorna o `User` sem campos de senha, limpa `mustChangePassword`, incrementa a versão de sessão e renova os cookies de autenticação; qualquer token anterior deixa de valer.
+
+
+### `POST /auth/esqueci-senha` — pública
+Body: `{ "email": string }`. Sempre retorna a mesma mensagem, mesmo se o e-mail não existir (não revela quem tem conta). Rate limit 5/min.
+
+### `POST /auth/redefinir-senha` — pública
+Body: `{ "token": string, "senha": string (min. 6) }`. Token vem do link do e-mail, TTL 1h, uso único. Rate limit 5/min.
+
+## Usuários (`/users`)
+
+### `PUT /users/<id>/ativo`
+
+Exige `users.deactivate` ou `users.reactivate`; só alcança usuários da empresa autenticada. Body obrigatório: `{ "ativo": boolean }` — strings, números e ausência do campo retornam `400`. Não permite desativar o próprio usuário nem o `owner` da empresa. Cada transição entre `ativo` e `inativo` incrementa a versão de sessão, invalidando tokens emitidos antes da transição.
+
+## Templates de e-mail (`/email-templates`)
+
+Restrito a `owner`/`admin` (`settings.read`/`settings.update`).
+
+### `GET /email-templates` — `data` = array de `{ chave, nome, assunto, corpo, variaveisDisponiveis }`
+### `GET /email-templates/<chave>` — `data` = um template. 404 se não existir.
+### Endpoints mutáveis/teste legados retornam `410`; use `/message-templates`.
+
+## Templates de mensagem (`/message-templates`)
+
+Templates por empresa com `canal` `email` ou `whatsapp`. Listagem/consulta exigem `settings.read`; criação, edição, exclusão, restauração e `POST /message-templates/<id>/preview` exigem `settings.update`. Preview só renderiza localmente, sem enviar mensagens. Variáveis aceitas: `nome`, `link`, `papel`, `empresa`; HTML livre, placeholders desconhecidos/malformados e links não HTTPS absolutos são rejeitados.
 
 ---
 
@@ -265,6 +295,91 @@ Lista as regras automáticas disponíveis. Retorna array de regras com `id`, `no
 
 ---
 
+## Dashboard (`/dashboard`)
+
+### `GET /dashboard/resumo`
+Requer `pendencias.read`. Retorna o resumo operacional calculado em tempo real, sempre no escopo da empresa ativa (ou da empresa selecionada por platform admin). Não cria nem persiste registros de dashboard.
+
+`data`:
+```json
+{
+  "geradoEm": "2026-08-31T12:00:00",
+  "pendencias": {
+    "abertas": 5,
+    "vencidas": 1,
+    "vencendoEm7Dias": 2,
+    "resolvidasNoMes": 3,
+    "fila": ["Pendencia"]
+  },
+  "clientes": { "disponivel": true, "total": 12, "porStatus": { "Ativo": 10, "Esperando usina": 2 } },
+  "ucs": { "disponivel": true, "total": 14 },
+  "usinas": { "disponivel": true, "total": 4, "porStatus": { "Ativa": 3, "Implantacao": 1 } },
+  "documentos": { "disponivel": true, "total": 25, "porCategoria": { "1": 18, "semCategoria": 7 } }
+}
+```
+
+`fila` contém no máximo 10 pendências abertas, ordenadas por prioridade e prazo, no formato `Pendencia`. `vencendoEm7Dias` cobre prazos entre o instante da consulta e os próximos sete dias; vencidas ficam apenas em `vencidas`. Em recursos sem permissão de leitura para o papel autenticado, `disponivel` é `false` e as métricas desse recurso retornam `null`, evitando exposição indireta de dados.
+
+---
+
+## Agenda (`/agenda`)
+
+### `GET /agenda?inicio=YYYY-MM-DD&fim=YYYY-MM-DD&visao=dia|semana|mes`
+
+Requer `pendencias.read`. Agenda nao possui tabela nem CRUD proprio: nesta fase cada item e uma visao em tempo real de uma `Pendencia` **aberta** que tem `prazo`. Assim, editar prazo ou reabrir a pendencia de origem aparece na proxima consulta; resolver ou cancelar a remove imediatamente, sem sincronizacao manual ou duplicacao de estado.
+
+`inicio` e `fim` sao opcionais, mas devem ser enviados juntos e cobrir no maximo 93 dias-calendario (diferença máxima de 92 dias). Sem intervalo explicito, `visao` define o periodo atual (`mes` e o default; `dia` e hoje; `semana` vai de domingo a sabado). Datas usam `YYYY-MM-DD` e os limites sao inclusivos. O resultado e ordenado por prazo e limitado a 500 itens.
+
+```json
+{
+  "data": {
+    "visao": "mes", "inicio": "2026-08-01", "fim": "2026-08-31",
+    "itens": [{
+      "fonte": "pendencia", "pendenciaId": 1,
+      "id": 1, "titulo": "Enviar fatura", "tipo": "pendencia",
+      "prioridade": "alta", "prazo": "2026-08-31T14:00:00",
+      "status": "aberta", "clienteId": 2,
+      "ucId": null, "usinaId": null, "documentoId": null
+    }]
+  }
+}
+```
+
+O item e uma projeção mínima para calendário/lista: não inclui descrição, comentários, responsável/e-mail, metadados ou timestamps. Nesta versao nao ha eventos manuais, financeiro ou rateio; novas fontes deverao ser adicionadas como consultas derivadas, nunca por uma tabela de eventos duplicada.
+
+---
+
+## Logs (`/logs`)
+
+### `GET /rateio/formulario?plantId=`
+Monta a tabela de revisão do Formulário Copel (Associações) a partir das `PlantConnection` já confirmadas dessa usina — não recalcula nada. `data`:
+```json
+{
+  "plantId": 1, "plantNome": "", "empresaNome": "", "empresaCnpj": "",
+  "somaPercentual": 100.0,
+  "linhas": [
+    { "ordem": 1, "tipo": "geradora", "nome": "", "documento": "", "ucIdentificacao": "", "percentual": 0.0, "termoAdesaoOk": null, "clienteId": null, "ucId": null },
+    { "ordem": 2, "tipo": "beneficiaria", "nome": "", "documento": "", "ucIdentificacao": "", "percentual": 33.33, "termoAdesaoOk": true, "clienteId": 1, "ucId": 1 }
+  ]
+}
+```
+Linha 1 é sempre a usina/associação (0%, `termoAdesaoOk: null`). Linhas seguintes vêm ordenadas alfabeticamente pelo nome do cliente titular. Erro 404 se a usina não existir.
+
+### `POST /rateio/formulario/verificar-documentos`
+Body: `{ "plantId": number }`. Confere Termo de Adesão de cada UC beneficiária (por nome/categoria do `Document`). Se faltar algum, cria uma `Pendencia` (categoria `Documentos`, prioridade `critica`) e retorna `ok: false`.
+`data`: `{ "ok": boolean, "faltando": [{ "clienteId": number, "ucId": number, "nome": string }] }`.
+
+### `POST /rateio/formulario/gerar-pdf`
+Body: `{ "plantId": number, "responsavelNome": string, "responsavelCpf": string }`. Gera o Formulário Copel (Associações) preenchido por overlay em cima do template oficial (`backend/assets/formulario_copel_associacao.pdf`). **Resposta binária** (`application/pdf`, `Content-Disposition: attachment`), não passa pelo envelope `success_response`.
+Bloqueia com 400 se: faltar Termo de Adesão de alguma UC beneficiária, ou a usina tiver mais de 24 UCs beneficiárias (limite do formulário oficial).
+
+### `POST /rateio/formulario/gerar-termos`
+Body: `{ "plantId": number }`. Baixa do Google Drive o Termo de Adesão de cada UC beneficiária (mesma ordem alfabética da tabela) e mescla num PDF único. **Resposta binária** (`application/pdf`). Bloqueia com 400 nas mesmas condições da rota acima.
+
+CNPJ e Estatuto **não têm rota própria** — são `Document` normais (ver `GET /empresas/documentos` e `GET /documents/<id>/download`), cadastrados uma vez em Configurações.
+
+---
+
 ## Logs (`/logs`)
 
 ### `GET /logs?limit=50&nivel=&entidade=&entidadeId=`
@@ -319,6 +434,8 @@ Controla qual provedor de dados o backend usa (Google Drive service-account, ou 
 
 Fluxo de autorização de usuário real (PKCE), complementar ao `credentials.json` de service account usado pelo Drive legado. Contas ficam salvas em `GoogleAccount`, refresh token criptografado (nunca exposto em nenhum `to_dict`).
 
+O callback registrado e `FRONTEND_URL` devem usar HTTPS absoluto sem credenciais ou fragmento em produção. HTTP só é permitido para `localhost`/loopback quando `FLASK_DEBUG=true` **e** `OAUTH_ALLOW_INSECURE_TRANSPORT=true` forem configurados explicitamente; a aplicação remove a exceção de transporte inseguro do OAuthlib em qualquer outro ambiente. A validação padrão de escopos do OAuthlib permanece ativa.
+
 ### `GET /oauth/google/authorize` — pública
 Sem chamar via `fetch` — é link direto (`<a href>`). Redireciona pro consentimento do Google.
 
@@ -336,11 +453,67 @@ Sem body. Remove a conta do banco (**não revoga** o acesso do lado do Google �
 
 ---
 
-## Google Drive — busca legada (sem prefixo de rota)
+## Credenciais de API (`/api-credentials`)
 
-Usa a conta OAuth ativa se houver uma; cai pro `credentials.json` de service account se não. Essas duas rotas **não têm `/drive` no path** — ficam na raiz mesmo, cuidado ao chamar.
+Credenciais de integrações pertencem à empresa autenticada e requerem `settings.read` para consulta ou `settings.update` para alteração. Providers iniciais: `resend`, `whatsapp`, `asaas` e `concessionaria`. O segredo é criptografado com `SECRET_ENCRYPTION_KEY` antes de persistir e **nunca** aparece em resposta, erro ou auditoria.
 
-### `GET /search?q=texto`
+### `GET /api-credentials`
+
+Lista as credenciais da empresa. Cada item tem somente `{ id, provider, nome, configurada, criadaEm, atualizadaEm }`.
+
+### `POST /api-credentials`
+
+Body obrigatório: `{ "provider": "resend", "nome": "Principal", "segredo": "..." }`. Retorna 201 com os metadados redigidos da credencial.
+
+### `GET /api-credentials/<id>` · `PUT /api-credentials/<id>` · `DELETE /api-credentials/<id>`
+
+`PUT` aceita `nome` e/ou `segredo`; omitir `segredo` preserva a cifra já gravada. Provider é imutável. IDs de outra empresa retornam 404. A exclusão não revoga nem chama o provedor externo.
+
+### `POST /api-credentials/<id>/testar`
+
+Executa somente um dry-run local: verifica que a cifra existe e pode ser lida, sem enviar segredo e sem fazer HTTP, e retorna `{ "ok": true, "modo": "dry-run", "provider": "..." }`.
+
+---
+
+## Importações (`/importacoes`)
+
+`POST /importacoes/preview` recebe `arquivo` (CSV UTF-8 com `tipo=clientes|ucs|usinas`, ou XLSX com abas `Clientes`, `UCs`, `Usinas`) e requer `imports.preview`. Não cria entidades: persiste um plano tenant/user-scoped com hash e TTL de 20 minutos. Planos expirados, que podem conter PII, são removidos antes de preview/confirmação e pela rotina global `flask purge-import-previews`. Limites: 10 MB, 10 mil linhas, 80 colunas, células de até 2.000 caracteres e três abas; fórmulas/injeção de planilha (`=`, `+`, `-`, `@`), XLSM e ZIP suspeito são rejeitados. A auditoria registra somente empresa, usuário, hash, contagens e resultado — nunca conteúdo de células.
+
+`POST /importacoes/<previewId>/confirmar` requer `imports.commit`, revalida empresa, usuário, expiração e replay e cria Clientes, UCs e Usinas numa única transação. Qualquer conflito/erro faz rollback total. Esta versão é somente criação e não cria conexões UC–usina.
+
+---
+
+## Empresa atual (`/empresas/atual`)
+
+### `GET /empresas/atual`
+
+Requer `empresa.read`. Retorna apenas os dados cadastrais da empresa do usuário autenticado: `{ nome, razaoSocial, cnpj, email, telefone }`. Não expõe nem aceita troca de `id`, `empresa_id`, `slug` ou `status`.
+
+### `PUT /empresas/atual`
+
+Requer `empresa.update` (owner ou admin). Aceita atualização parcial de `nome`, `razaoSocial`, `cnpj`, `email` e `telefone`; `nome` é obrigatório quando enviado, CNPJ deve conter 14 dígitos e e-mail deve ser válido. Campos protegidos ou desconhecidos retornam 400. A rota sempre atua na empresa da sessão, sem aceitar identificador no body ou na URL.
+
+---
+
+## Empresa — documentos fixos (`/empresas/documentos`)
+
+Cartão CNPJ e Estatuto da associação, usados na geração do formulário Copel de rateio. Reaproveita o storage de `Document` — cada upload substitui o anterior daquele tipo (o antigo é excluído).
+
+### `GET /empresas/documentos`
+Requer permissão `settings.read`. `data` = `{ "cnpj": Document | null, "estatuto": Document | null }` (formato `Document`, ver seção Documentos).
+
+### `POST /empresas/documentos/<tipo>` — **multipart/form-data**
+`tipo` = `cnpj` ou `estatuto`. Campo do form: `arquivo` (obrigatório). Requer permissão `settings.update`.
+Sucesso: `data` = mesmo formato do GET acima, já atualizado.
+Erros: 400 (sem arquivo / tipo inválido), 503 (Google Drive indisponível).
+
+---
+
+## Google Drive — busca legada (`/drive`)
+
+Usa a conta OAuth ativa se houver uma; cai pro `credentials.json` de service account se não. Prefixo real: `/api/v1/drive` (`drive_routes.py`, `url_prefix='/api/v1/drive'`).
+
+### `GET /drive/search?q=texto`
 Retorna array cru do Google (não passa pelo envelope `success_response`): `[{ id, name, mimeType, webViewLink, iconLink, modifiedTime }, ...]`. Busca só PDFs e pastas.
 Erro (503): `{ "error": "Google Drive nao configurado: ..." }` se não houver credencial válida (nem OAuth nem service account).
 

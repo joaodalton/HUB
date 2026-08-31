@@ -46,17 +46,3 @@ export async function setUserActive(id: number, ativo: boolean): Promise<UserRow
   });
   return response.data;
 }
-
-export async function updateUser(id: number, data: Partial<UserPayload>): Promise<UserRow> {
-  const response = await apiRequest<ApiResponse<UserRow>>(`/users/${id}`, {
-    method: 'PUT',
-    body: data
-  });
-  return response.data;
-}
-
-export async function deleteUser(id: number): Promise<void> {
-  await apiRequest<ApiResponse<null>>(`/users/${id}`, {
-    method: 'DELETE'
-  });
-}

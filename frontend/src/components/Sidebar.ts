@@ -26,7 +26,7 @@ export const HUB_VERSION = 'V1.x';
 const sections: SidebarSection[] = [
   {
     items: [
-      { label: 'Dashboard', path: '/dashboard', icon: 'dashboard', enabled: false }
+      { label: 'Dashboard', path: '/dashboard', icon: 'dashboard', enabled: true }
     ]
   },
   {
@@ -36,7 +36,8 @@ const sections: SidebarSection[] = [
       { label: 'Usinas', path: '/usinas', icon: 'plants', enabled: true },
       { label: 'UCs', path: '/ucs', icon: 'ucs', enabled: true },
       { label: 'Rateio', path: '/rateio', icon: 'rateio', enabled: true },
-      { label: 'Documentos', path: '/documentos', icon: 'documents', enabled: true }
+      { label: 'Documentos', path: '/documentos', icon: 'documents', enabled: true },
+      { label: 'Importações', path: '/importacoes', icon: 'upload', enabled: true }
     ]
   },
   {
@@ -52,7 +53,7 @@ const sections: SidebarSection[] = [
     items: [
       { label: 'Pendências', path: '/pendencias', icon: 'pending', enabled: true },
       { label: 'Agenda', path: '/agenda', icon: 'agenda', enabled: true },
-      { label: 'Templates', path: '/templates', icon: 'templates', enabled: false },
+      { label: 'Templates', path: '/templates', icon: 'templates', enabled: true },
       { label: 'Mensagens', path: '/mensagens', icon: 'mensagens', enabled: false }
     ]
   },
@@ -81,7 +82,15 @@ export function createSidebar(): HTMLElement {
 
   brand.append(brandMark, brandTextElement);
 
-  sections.forEach((section) => {
+  const visibleSections = [...sections];
+  if (getCurrentUser()?.isPlatformAdmin) {
+    visibleSections.push({
+      title: 'Plataforma',
+      items: [{ label: 'Empresas', path: '/empresas', icon: 'clients', enabled: true }]
+    });
+  }
+
+  visibleSections.forEach((section) => {
     const sectionElement = createElement('div', { className: 'sidebar-section' });
 
     if (section.title) {
@@ -117,7 +126,7 @@ function createSidebarLink(item: SidebarLink): HTMLElement {
   }
 
   const isActive = item.path === window.location.pathname
-    || (window.location.pathname === '/' && item.path === '/documentos');
+    || (window.location.pathname === '/' && item.path === '/dashboard');
   const link = createElement('a', { className: isActive ? 'sidebar-link active' : 'sidebar-link' });
 
   link.href = item.path;
@@ -140,7 +149,10 @@ function createUserCard(): HTMLElement {
   });
   const text = createElement('div', { className: 'sidebar-user-text' });
   const name = createElement('span', { className: 'sidebar-user-name', textContent: user?.nome || user?.email || 'Usuário' });
-  const role = createElement('span', { className: 'sidebar-user-role', textContent: roleLabel(user?.role) });
+  const role = createElement('span', {
+    className: 'sidebar-user-role',
+    textContent: user?.empresaNome || roleLabel(user?.role)
+  });
 
   text.append(name, role);
   card.append(avatar, text);

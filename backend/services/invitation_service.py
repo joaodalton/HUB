@@ -12,10 +12,13 @@ import hashlib
 import secrets
 from datetime import datetime, timedelta
 
+from config import Config
 from extensions import db
 from models.empresa import Empresa
 from models.invitation import Invitation
 from models.user import User
+from services.email_service import send_email
+from services.email_template_service import renderizar_para_empresa as renderizar_template
 from services.log_service import LogService
 from services.user_service import VALID_ROLES
 from utils.auth import hash_password
@@ -69,7 +72,35 @@ def criar_convite(empresa_id: int, email: str, role: str, invited_by_id: int | N
         entidade='Invitation',
         metadados={'invitationId': convite.id, 'empresaId': empresa_id}
     )
+
+    _enviar_email_convite(convite, token_cru)
+
     return convite.to_dict(), token_cru
+
+
+def _enviar_email_convite(convite: Invitation, token_cru: str) -> None:
+    """Sem RESEND_API_KEY configurada, send_email() vira no-op com warning
+    (nao quebra a criacao do convite) -- o link continua disponivel no
+    retorno da API pra copiar na mao, mesmo se o e-mail nao sair."""
+    empresa = Empresa.query.get(convite.empresa_id)
+    link = f'{Config.FRONTEND_URL}/aceitar-convite?token={token_cru}'
+
+    renderizado = renderizar_template(convite.empresa_id, 'convite', {
+        'papel': convite.role,
+        'empresa': empresa.nome if empresa else 'HUB',
+        'link': link
+    })
+
+    if not renderizado:
+        LogService.warning(
+            acao='email_template_missing',
+            mensagem='Template "convite" não encontrado -- e-mail de convite não enviado.',
+            entidade='EmailTemplate'
+        )
+        return
+
+    assunto, html, text = renderizado
+    send_email(to=convite.email, subject=assunto, html=html, text=text)
 
 
 def listar_convites(empresa_id: int) -> list[dict]:

@@ -7,10 +7,11 @@ from extensions import TenantMixin
 
 class Client(TenantMixin, db.Model):
     __tablename__ = 'clients'
+    __table_args__ = (db.UniqueConstraint('empresa_id', 'cpf', name='uq_clients_empresa_cpf'),)
 
     id = db.Column(db.Integer, primary_key=True)
     nome = db.Column(db.String(150), nullable=False)
-    cpf = db.Column(db.String(20), nullable=False, unique=True)
+    cpf = db.Column(db.String(20), nullable=False)
     email = db.Column(db.String(150), nullable=False)
     telefone = db.Column(db.String(20), nullable=True)
     concessionaria = db.Column(db.String(50), nullable=False, default='Copel')

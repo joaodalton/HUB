@@ -308,3 +308,156 @@
 /* ---------- Modal "Editar distribuição" (PlantDistribuicaoModal.ts) ---------- */
 
 .settings-hint.rateio-total-excede { color: var(--danger); font-weight: 600; }
+
+.rateio-formulario-downloads {
+  display: grid;
+  gap: 10px;
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-soft);
+}
+.rateio-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-input);
+  background: var(--panel-soft);
+  width: fit-content;
+  box-shadow: var(--shadow-sm);
+}
+
+.rateio-tabs button {
+  background: transparent;
+  color: var(--text-dim);
+  box-shadow: none;
+}
+
+.rateio-tabs button.active {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: var(--shadow-sm);
+}
+
+/* Seletor da etapa de formulário não fica dentro de .form-field; sem estas
+   regras o navegador pode usar fundo branco com texto claro do tema do HUB. */
+.rateio-picker select {
+  width: 100%;
+  min-height: var(--control-height);
+  padding: 0 36px 0 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-input);
+  background-color: var(--panel-soft);
+  color: var(--text);
+  color-scheme: dark;
+}
+
+.rateio-picker select:hover { border-color: var(--border-soft); }
+
+.rateio-picker select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-bg);
+}
+
+.rateio-picker select option { background: var(--panel-soft); color: var(--text); }
+
+/* ---------- Formulário Copel ---------- */
+.rateio-field-label {
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: calc(-1 * var(--space-2));
+}
+
+.rateio-formulario-panel {
+  gap: var(--space-4);
+}
+
+.rateio-formulario-panel .panel-title {
+  margin-bottom: 0;
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.rateio-formulario-panel .table-wrap {
+  border-radius: var(--radius);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+}
+
+.rateio-formulario-panel .data-table td {
+  color: var(--text-dim);
+}
+
+.rateio-formulario-panel .data-table input {
+  width: 100%;
+  min-width: 92px;
+  height: 34px;
+  padding: 0 10px;
+  color: var(--text);
+  background: var(--panel-soft);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font: inherit;
+}
+
+.rateio-formulario-panel .data-table input:hover { border-color: var(--border); }
+
+.rateio-formulario-panel .data-table input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-bg);
+}
+
+.rateio-form-field {
+  display: grid;
+  gap: 6px;
+}
+
+.rateio-form-field input {
+  height: var(--control-height);
+  padding: 0 14px;
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-input);
+  color: var(--text);
+}
+
+.rateio-form-field input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-bg);
+}
+
+.rateio-back-link {
+  width: fit-content;
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.rateio-back-link:hover { color: var(--accent); }
+
+.termo-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-dim);
+  background: var(--panel-soft);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.termo-badge .icon { width: 14px; height: 14px; }
+.termo-badge.ok { color: var(--success); background: var(--success-bg); border-color: var(--success-border); }
+.termo-badge.falta { color: var(--warning); background: var(--warning-bg); border-color: var(--warning-border); }
+
+@media (max-width: 640px) {
+  .rateio-tabs { width: 100%; }
+  .rateio-tabs button { flex: 1; padding: 0 10px; font-size: 12px; }
+  .rateio-formulario-panel { padding: var(--space-3); }
+}

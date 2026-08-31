@@ -2,6 +2,7 @@
 from flask import Blueprint, request
 
 from services.uc_service import create_uc, delete_uc, get_uc, list_ucs, update_uc
+from services.permission_service import require_permission
 from utils.api_response import error_response, success_response
 
 
@@ -9,11 +10,13 @@ uc_routes = Blueprint('uc_routes', __name__, url_prefix='/api/v1/ucs')
 
 
 @uc_routes.route('', methods=['GET'])
+@require_permission('consumer_units.read')
 def index():
     return success_response(list_ucs())
 
 
 @uc_routes.route('/<int:uc_id>', methods=['GET'])
+@require_permission('consumer_units.read')
 def show(uc_id: int):
     uc = get_uc(uc_id)
 
@@ -24,6 +27,7 @@ def show(uc_id: int):
 
 
 @uc_routes.route('', methods=['POST'])
+@require_permission('consumer_units.create')
 def store():
     data = request.get_json(silent=True) or {}
 
@@ -41,6 +45,7 @@ def store():
 
 
 @uc_routes.route('/<int:uc_id>', methods=['PUT'])
+@require_permission('consumer_units.update')
 def update(uc_id: int):
     data = request.get_json(silent=True) or {}
 
@@ -56,6 +61,7 @@ def update(uc_id: int):
 
 
 @uc_routes.route('/<int:uc_id>', methods=['DELETE'])
+@require_permission('consumer_units.delete')
 def destroy(uc_id: int):
     if not delete_uc(uc_id):
         return error_response('UC nao encontrada.', 404)

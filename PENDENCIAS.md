@@ -1,6 +1,7 @@
 PENDENCIAS.md
 
 Especificação operacional do motor de pendências do HUB
+> **Documentos relacionados:** [[VISAO]] · [[ARCHITECTURE]] · [[API_CONTRACTS]]
 
 HUB V1.5
 Operacional

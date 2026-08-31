@@ -99,26 +99,22 @@ def _filtrar_por_empresa(execute_state):
 ## 3. Fluxo de Isolamento
 
 ```
-Usuário A (Empresa 1)
-  ↓
-Login → g.current_empresa_id = 1
-  ↓
-GET /api/v1/clients
-  ↓
-SQL: SELECT * FROM clients WHERE empresa_id = 1
-  ↓
-Retorna apenas clientes da Empresa 1
+```mermaid
+graph TD
+  subgraph EmpresaA["Empresa 1"]
+    UA["Usuário A"] --> LoginA["Login → current_empresa_id = 1"]
+    LoginA --> GetA["GET /api/v1/clients"]
+    GetA --> SqlA["SELECT * FROM clients WHERE empresa_id = 1"]
+    SqlA --> ResultA["Retorna só clientes da Empresa 1"]
+  end
 
-
-Usuário B (Empresa 2)
-  ↓
-Login → g.current_empresa_id = 2
-  ↓
-GET /api/v1/clients
-  ↓
-SQL: SELECT * FROM clients WHERE empresa_id = 2
-  ↓
-Retorna apenas clientes da Empresa 2
+  subgraph EmpresaB["Empresa 2"]
+    UB["Usuário B"] --> LoginB["Login → current_empresa_id = 2"]
+    LoginB --> GetB["GET /api/v1/clients"]
+    GetB --> SqlB["SELECT * FROM clients WHERE empresa_id = 2"]
+    SqlB --> ResultB["Retorna só clientes da Empresa 2"]
+  end
+```
 ```
 
 **Empresa A nunca vê dados de Empresa B.**

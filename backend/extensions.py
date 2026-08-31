@@ -30,10 +30,6 @@ def _filtrar_por_empresa(execute_state):
     if not execute_state.is_select:
         return
 
-    # Setado pelo middleware de auth (utils/auth.py) a partir do usuário
-    # logado. Ausente = requisição ainda não autenticada, ou execução fora
-    # de request (scripts, migrations) -- nesses casos não filtra, quem
-    # decide o escopo é o próprio script/rota.
     empresa_id = getattr(g, 'current_empresa_id', None)
     if empresa_id is None:
         return

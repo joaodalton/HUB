@@ -8,6 +8,7 @@ from services.database_config_service import (
     test_database_config
 )
 from services.drive_service import invalidate_drive_cache
+from services.permission_service import require_platform_admin
 from utils.api_response import error_response, success_response
 
 
@@ -15,11 +16,13 @@ config_routes = Blueprint('config_routes', __name__, url_prefix='/api/v1/config'
 
 
 @config_routes.route('/database')
+@require_platform_admin()
 def database_config():
     return success_response(get_database_config())
 
 
 @config_routes.route('/database/provider', methods=['POST'])
+@require_platform_admin()
 def update_provider():
     data = request.get_json(silent=True) or {}
 
@@ -32,6 +35,7 @@ def update_provider():
 
 
 @config_routes.route('/database/google-drive', methods=['POST'])
+@require_platform_admin()
 def update_google_drive():
     data = request.get_json(silent=True) or {}
     config = save_google_drive_config(data)
@@ -40,12 +44,14 @@ def update_google_drive():
 
 
 @config_routes.route('/database/sql', methods=['POST'])
+@require_platform_admin()
 def update_sql():
     data = request.get_json(silent=True) or {}
     return success_response(save_sql_config(data), 'SQL configurado.')
 
 
 @config_routes.route('/database/test', methods=['POST'])
+@require_platform_admin()
 def test_database():
     data = request.get_json(silent=True) or {}
     ok, message = test_database_config(data.get('provider', ''))

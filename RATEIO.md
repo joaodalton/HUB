@@ -1,6 +1,7 @@
 Especificação Funcional – Sistema de Rateio Inteligente do HUB 
 
 
+> **Documentos relacionados:** [[ARCHITECTURE]] · [[VISAO]] · [[API_CONTRACTS]]
 
 
 Objetivo
@@ -8,31 +9,17 @@ O módulo de Rateio do HUB tem como objetivo automatizar todo o processo de dist
 O sistema deverá ser capaz de calcular automaticamente os percentuais de rateio, gerar os formulários exigidos pela Copel, organizar a documentação necessária e validar todas as informações antes do envio.
 
 Fluxo Geral
-Cadastro da Usina
-        │
-        ▼
-Estimativa da Produção
-        │
-        ▼
-Reserva Estratégica de Créditos
-        │
-        ▼
-Seleção das UCs Elegíveis
-        │
-        ▼
-Distribuição Inteligente
-        │
-        ▼
-Validação
-        │
-        ▼
-Geração do Formulário
-        │
-        ▼
-Organização dos Documentos
-        │
-        ▼
-Envio para a Concessionária
+```mermaid
+graph TD
+  A["Cadastro da Usina"] --> B["Estimativa da Produção"]
+  B --> C["Reserva Estratégica de Créditos"]
+  C --> D["Seleção das UCs Qualificadas"]
+  D --> E["Distribuição Inteligente"]
+  E --> F["Validação"]
+  F --> G["Geração do Formulário"]
+  G --> H["Organização dos Documentos"]
+  H --> I["Envio para a Concessionária"]
+```
 
 1. Cadastro da Usina
 Cada usina deverá possuir informações suficientes para permitir o cálculo automático da produção energética.
@@ -129,10 +116,13 @@ Tipo de cliente
 4. Estratégia de Distribuição
 O HUB deverá permitir que uma mesma UC seja atendida por diversas usinas.
 Exemplo:
-Cliente A
-Usina 1 → 40%
-Usina 2 → 35%
-Usina 3 → 25%
+```mermaid
+graph LR
+  ClienteA["Cliente A"]
+  ClienteA -->|40%| Usina1["Usina 1"]
+  ClienteA -->|35%| Usina2["Usina 2"]
+  ClienteA -->|25%| Usina3["Usina 3"]
+```
 Dessa forma, caso uma usina produza menos energia em determinado período, as demais poderão compensar essa diferença.
 Esse modelo reduz impactos tanto para o cliente quanto para o proprietário da usina.
 
@@ -344,4 +334,13 @@ O motor de geração identifica automaticamente quais categorias são exigidas p
 
 Considerações finais
 O módulo de Rateio do HUB não deve ser visto apenas como uma ferramenta para preencher formulários da concessionária. Seu principal valor está em atuar como um motor inteligente de gestão da geração distribuída, centralizando informações das usinas, clientes e documentos, aplicando regras configuráveis de distribuição, considerando a sazonalidade da produção, gerenciando reservas de créditos, validando automaticamente todos os cálculos e organizando a documentação necessária para envio. A geração dos formulários passa a ser apenas a etapa final de um processo muito mais amplo, automatizado e confiável, transformando o HUB em uma plataforma operacional para associações, cooperativas e empresas que administram geração distribuída.
+
+## Fluxo implementado (2026-08-29)
+
+- **Montar Rateio**: seleção da usina, reserva, qualificação, distribuição, competência e aprovação. A aprovação persiste `PlantConnection` com percentual manual e `RateioHistorico`.
+- **Gerar Formulário Copel**: lê somente conexões já aprovadas. Correções feitas na grade alteram apenas o PDF, sem modificar cliente ou UC.
+- **Pré-requisitos**: `Plant.uc`, CNPJ e Estatuto da empresa e um documento cujo nome/categoria contenha “termo” e “adesão” para cada beneficiário.
+- **Verificação**: termos ausentes bloqueiam a geração e mantêm uma única pendência crítica automática por usina. A pendência é resolvida na nova verificação quando não houver mais faltas.
+- **Arquivos finais**: formulário preenchido, termos mesclados, CNPJ e Estatuto. O envio à Copel permanece manual.
+- **Segurança**: arquivos do Drive só podem ser baixados da pasta raiz configurada para a empresa atual; falha em qualquer termo cancela a mesclagem inteira.
 

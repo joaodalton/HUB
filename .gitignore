@@ -1,5 +1,6 @@
 backend/credentials.json
 backend/venv/
+.venv/
 __pycache__/
 backend/.env
 frontend/.env
@@ -7,7 +8,33 @@ frontend/node_modules/
 frontend/dist/
 backend/database/*.db
 backend/database/*.db-journal
+backend/database/teste.txt
 processos.json
 backend/uploads/
-logs/ 
+logs/
 *.log
+tmp/
+output/
+.pytest_cache/
+backend/.pytest_cache/
+backend/debug_*.py
+backend/scripts/debug_*.py
+backend/scripts/testar_*.py
+.codex
+.obsidian/
+graphify-out/
+
+
+
+# Ignore Smart Environment folder
+.smart-env
+# Scripts de criação de issues (não reutilizados)
+create_issues.py
+create_issues_additional.py
+create_issues_batch2.py
+
+# Scripts de desenvolvimento local (mantidos no FS, não versionados)
+start-hub.sh
+test_hub.py
+# O diretório de testes é código versionado. Artefatos de execução (por
+# exemplo, .pytest_cache) continuam ignorados acima.

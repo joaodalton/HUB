@@ -14,7 +14,7 @@ invitation_routes = Blueprint('invitation_routes', __name__, url_prefix='/api/v1
 @invitation_routes.route('', methods=['GET'])
 @require_permission('invitations.read')
 def index():
-    return success_response(listar_convites(g.current_user.empresa_id))
+    return success_response(listar_convites(g.current_empresa_id))
 
 
 # POST /api/v1/convites -- cria um convite novo (autenticada, so owner/admin).
@@ -29,7 +29,7 @@ def store():
         return error_response('Email e papel sao obrigatorios.', 400)
 
     try:
-        convite, token = criar_convite(g.current_user.empresa_id, email, role, g.current_user.id)
+        convite, token = criar_convite(g.current_empresa_id, email, role, g.current_user.id)
     except ValueError as exc:
         return error_response(str(exc), 400)
 

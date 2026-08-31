@@ -3,6 +3,8 @@ import { createInput, createSelectField } from '../components/formFields';
 import { createDataTable } from '../components/DataTable';
 import { useToast } from '../hooks/useToast';
 import { createBaseLayout } from '../layouts/BaseLayout';
+import { getCurrentUser } from '../services/authService';
+import { getEmpresaAtual, updateEmpresaAtual, type EmpresaAtual, type EmpresaAtualUpdate } from '../services/empresaService';
 import { refreshSidebarBrand } from '../components/Sidebar';
 import {
   applyAppearanceSettings,
@@ -23,6 +25,15 @@ import {
 } from '../services/googleAccountService';
 import { formattedLogDate, getRecentLogs, type LogRow } from '../services/logsService';
 import { DEFAULT_RATEIO_CONFIG, getRateioConfig, saveRateioConfig, type RateioConfig } from '../services/rateioConfigService';
+import {
+  createApiCredential,
+  deleteApiCredential,
+  getApiCredentials,
+  updateApiCredential,
+  type ApiCredentialPayload,
+  type ApiCredentialProvider,
+  type ApiCredentialRow
+} from '../services/apiCredentialsService';
 
 type SettingsCategory = 'home' | 'geral' | 'database' | 'apis' | 'automations' | 'logs' | 'appearance';
 
@@ -38,7 +49,7 @@ const CATEGORIES: CategoryDefinition[] = [
   { key: 'home', label: 'Home', ready: true },
   { key: 'geral', label: 'Geral', ready: true },
   { key: 'database', label: 'Banco de Dados', ready: true },
-  { key: 'apis', label: 'APIs e Integrações', ready: false },
+  { key: 'apis', label: 'APIs e Integrações', ready: true },
   { key: 'automations', label: 'Automações', ready: false },
   { key: 'logs', label: 'Logs', ready: true },
   { key: 'appearance', label: 'Aparência', ready: true }
@@ -54,12 +65,22 @@ export function createSettingsPage(): HTMLElement {
   let logsLoaded = false;
   let rateioConfig: RateioConfig = DEFAULT_RATEIO_CONFIG;
   let rateioConfigLoaded = false;
+  let apiCredentials: ApiCredentialRow[] = [];
+  let apiCredentialsLoaded = false;
+  let apiCredentialsLoadError = false;
+  let empresaAtual: EmpresaAtual | null = null;
+  let empresaAtualLoaded = false;
+  let empresaAtualLoadError = false;
 
   renderContent();
   loadGoogleAccounts();
   refreshAppearance();
   loadRecentLogs();
   loadRateioConfig();
+  if (canManageSettings()) loadApiCredentials();
+  else apiCredentialsLoaded = true;
+  if (canManageSettings()) loadEmpresaAtual();
+  else empresaAtualLoaded = true;
 
   const layout = createBaseLayout({
     content,
@@ -149,6 +170,82 @@ export function createSettingsPage(): HTMLElement {
     }
   }
 
+
+  async function loadApiCredentials(): Promise<void> {
+    try {
+      apiCredentials = await getApiCredentials();
+      apiCredentialsLoadError = false;
+    } catch {
+      apiCredentials = [];
+      apiCredentialsLoadError = true;
+    } finally {
+      apiCredentialsLoaded = true;
+      renderContent();
+    }
+  }
+
+  async function loadEmpresaAtual(): Promise<void> {
+    try {
+      empresaAtual = await getEmpresaAtual();
+      empresaAtualLoadError = false;
+    } catch {
+      empresaAtual = null;
+      empresaAtualLoadError = true;
+    } finally {
+      empresaAtualLoaded = true;
+      renderContent();
+    }
+  }
+
+  async function handleSaveEmpresaAtual(data: EmpresaAtualUpdate): Promise<void> {
+    try {
+      empresaAtual = await updateEmpresaAtual(data);
+      toast.success('Dados da empresa atualizados.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar os dados da empresa.');
+      throw error;
+    } finally {
+      renderContent();
+    }
+  }
+
+  async function handleCreateApiCredential(data: Required<ApiCredentialPayload>): Promise<void> {
+    try {
+      apiCredentials = [...apiCredentials, await createApiCredential(data)];
+      toast.success('Integração adicionada.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível adicionar a integração.');
+      throw error;
+    } finally {
+      renderContent();
+    }
+  }
+
+  async function handleUpdateApiCredential(id: number, data: Pick<ApiCredentialPayload, 'nome' | 'segredo'>): Promise<void> {
+    try {
+      const updated = await updateApiCredential(id, data);
+      apiCredentials = apiCredentials.map((item) => item.id === id ? updated : item);
+      toast.success('Integração atualizada.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar a integração.');
+      throw error;
+    } finally {
+      renderContent();
+    }
+  }
+
+  async function handleDeleteApiCredential(id: number): Promise<void> {
+    try {
+      await deleteApiCredential(id);
+      apiCredentials = apiCredentials.filter((item) => item.id !== id);
+      toast.success('Integração removida.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível remover a integração.');
+    } finally {
+      renderContent();
+    }
+  }
+  
   function changeCategory(category: SettingsCategory): void {
     // Sai da aba Aparencia sem salvar -> descarta a pre-visualizacao de cor
     // pra nao deixar o tema "vazando" preview nao salvo pelo resto do app.
@@ -175,7 +272,17 @@ export function createSettingsPage(): HTMLElement {
         return createHomePanel(recentLogs, logsLoaded, () => changeCategory('logs'));
 
       case 'geral':
-        return createGeralPanel(rateioConfig, rateioConfigLoaded, handleSaveRateioConfig);
+        return createGeralPanel(
+          empresaAtual,
+          empresaAtualLoaded,
+          empresaAtualLoadError,
+          canManageSettings(),
+          loadEmpresaAtual,
+          handleSaveEmpresaAtual,
+          rateioConfig,
+          rateioConfigLoaded,
+          handleSaveRateioConfig
+        );
 
       case 'database':
         return createDatabasePanel({
@@ -183,6 +290,18 @@ export function createSettingsPage(): HTMLElement {
           onActivate: handleActivateAccount,
           onDisconnect: handleDisconnectAccount
         });
+
+      case 'apis':
+        return createApiCredentialsPanel(
+          apiCredentials,
+          apiCredentialsLoaded,
+          apiCredentialsLoadError,
+          canManageSettings(),
+          loadApiCredentials,
+          handleCreateApiCredential,
+          handleUpdateApiCredential,
+          handleDeleteApiCredential
+        );
 
       case 'logs':
         return createLogsPanel(recentLogs, logsLoaded);
@@ -255,15 +374,101 @@ function categoryMessage(category: SettingsCategory): string {
   }
 }
 
-// ---------- Geral (buffer padrão do motor de rateio) ----------
+// ---------- Geral ----------
 
 function createGeralPanel(
+  empresa: EmpresaAtual | null,
+  empresaLoaded: boolean,
+  empresaLoadError: boolean,
+  canManage: boolean,
+  onRetryEmpresa: () => Promise<void>,
+  onSaveEmpresa: (data: EmpresaAtualUpdate) => Promise<void>,
+  config: RateioConfig,
+  loaded: boolean,
+  onSave: (config: RateioConfig) => Promise<void>
+): HTMLElement {
+  const stack = createElement('div', { className: 'content-stack' });
+  if (!canManage) {
+    const denied = createElement('section', { className: 'settings-panel' });
+    denied.append(
+      createPanelHeader('Dados da Empresa', 'Informações cadastrais da empresa atual'),
+      createElement('p', { className: 'settings-hint', textContent: 'Seu perfil não tem permissão para visualizar ou alterar os dados da empresa.' })
+    );
+    stack.appendChild(denied);
+    return stack;
+  }
+
+  stack.append(
+    createEmpresaAtualPanel(empresa, empresaLoaded, empresaLoadError, onRetryEmpresa, onSaveEmpresa),
+    createRateioConfigPanel(config, loaded, onSave)
+  );
+  return stack;
+}
+
+function createEmpresaAtualPanel(
+  empresa: EmpresaAtual | null,
+  loaded: boolean,
+  loadError: boolean,
+  onRetry: () => Promise<void>,
+  onSave: (data: EmpresaAtualUpdate) => Promise<void>
+): HTMLElement {
+  const panel = createElement('section', { className: 'settings-panel' });
+  panel.appendChild(createPanelHeader('Dados da Empresa', 'Informações cadastrais da empresa atual. Slug e status não podem ser alterados aqui.'));
+
+  if (!loaded) {
+    panel.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Carregando dados da empresa...' }));
+    return panel;
+  }
+  if (loadError || !empresa) {
+    const retry = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Tentar novamente' });
+    retry.addEventListener('click', () => void onRetry());
+    panel.append(createElement('p', { className: 'settings-hint', textContent: 'Não foi possível carregar os dados da empresa.' }), retry);
+    return panel;
+  }
+
+  const form = createElement('form', { className: 'settings-form empresa-atual-form' });
+  const nome = createInput('Nome', 'text', empresa.nome, true);
+  const razaoSocial = createInput('Razão social', 'text', empresa.razaoSocial ?? '', false);
+  const cnpj = createInput('CNPJ', 'text', empresa.cnpj ?? '', false);
+  cnpj.input.inputMode = 'numeric';
+  cnpj.input.placeholder = 'Somente números';
+  const email = createInput('E-mail', 'email', empresa.email ?? '', false);
+  const telefone = createInput('Telefone', 'tel', empresa.telefone ?? '', false);
+  const actions = createElement('div', { className: 'form-actions' });
+  const submit = createElement('button', { type: 'submit', textContent: 'Salvar dados' });
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const nomeValue = nome.input.value.trim();
+    const cnpjValue = cnpj.input.value.replace(/\D/g, '');
+    const telefoneValue = telefone.input.value.trim();
+    if (!nomeValue) { nome.input.focus(); return; }
+    if (cnpjValue && cnpjValue.length !== 14) { cnpj.input.setCustomValidity('Informe os 14 dígitos do CNPJ.'); cnpj.input.reportValidity(); return; }
+    cnpj.input.setCustomValidity('');
+    if (!email.input.checkValidity()) { email.input.reportValidity(); return; }
+    if (telefoneValue && telefoneValue.replace(/\D/g, '').length < 8) { telefone.input.setCustomValidity('Informe um telefone válido.'); telefone.input.reportValidity(); return; }
+    telefone.input.setCustomValidity('');
+    submit.disabled = true;
+    submit.textContent = 'Salvando...';
+    try {
+      await onSave({ nome: nomeValue, razaoSocial: razaoSocial.input.value.trim(), cnpj: cnpjValue, email: email.input.value.trim(), telefone: telefoneValue });
+    } catch {
+      submit.disabled = false;
+      submit.textContent = 'Salvar dados';
+    }
+  });
+  actions.appendChild(submit);
+  form.append(nome.field, razaoSocial.field, cnpj.field, email.field, telefone.field, actions);
+  panel.appendChild(form);
+  return panel;
+}
+
+function createRateioConfigPanel(
   config: RateioConfig,
   loaded: boolean,
   onSave: (config: RateioConfig) => Promise<void>
 ): HTMLElement {
   const panel = createElement('section', { className: 'settings-panel' });
-  panel.appendChild(createPanelHeader('Geral', 'Regras padrão usadas pelo motor de rateio'));
+  panel.appendChild(createPanelHeader('Rateio', 'Regras padrão usadas pelo motor de rateio'));
 
   if (!loaded) {
     panel.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Carregando...' }));
@@ -321,6 +526,140 @@ function createGeralPanel(
   panel.append(body, actions);
 
   return panel;
+}
+
+// ---------- APIs e integrações ----------
+
+const API_PROVIDER_OPTIONS: Array<{ value: ApiCredentialProvider; label: string }> = [
+  { value: 'resend', label: 'Resend (e-mail)' },
+  { value: 'whatsapp', label: 'WhatsApp' },
+  { value: 'asaas', label: 'Asaas (financeiro)' },
+  { value: 'concessionaria', label: 'Concessionária' }
+];
+
+function createApiCredentialsPanel(
+  credentials: ApiCredentialRow[],
+  loaded: boolean,
+  loadError: boolean,
+  canManage: boolean,
+  onRetry: () => Promise<void>,
+  onCreate: (data: Required<ApiCredentialPayload>) => Promise<void>,
+  onUpdate: (id: number, data: Pick<ApiCredentialPayload, 'nome' | 'segredo'>) => Promise<void>,
+  onDelete: (id: number) => Promise<void>
+): HTMLElement {
+  const panel = createElement('section', { className: 'settings-panel' });
+  panel.appendChild(createPanelHeader('APIs e Integrações', 'Credenciais por empresa para serviços externos. O segredo nunca é exibido depois de salvo.'));
+
+  if (!canManage) {
+    panel.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Seu perfil não tem permissão para visualizar ou administrar credenciais de integração.' }));
+    return panel;
+  }
+
+  if (!loaded) {
+    panel.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Carregando integrações...' }));
+    return panel;
+  }
+
+  if (loadError) {
+    const message = createElement('p', { className: 'settings-hint', textContent: 'Não foi possível carregar as integrações.' });
+    const retry = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Tentar novamente' });
+    retry.addEventListener('click', () => void onRetry());
+    panel.append(message, retry);
+    return panel;
+  }
+
+  const list = createElement('div', { className: 'api-credentials-list' });
+  if (credentials.length === 0) {
+    list.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Nenhuma integração configurada ainda.' }));
+  } else {
+    credentials.forEach((credential) => list.appendChild(createApiCredentialCard(credential, onUpdate, onDelete)));
+  }
+  panel.appendChild(list);
+  panel.appendChild(createApiCredentialForm(onCreate));
+  return panel;
+}
+
+function createApiCredentialCard(
+  credential: ApiCredentialRow,
+  onUpdate: (id: number, data: Pick<ApiCredentialPayload, 'nome' | 'segredo'>) => Promise<void>,
+  onDelete: (id: number) => Promise<void>
+): HTMLElement {
+  const card = createElement('details', { className: 'api-credential-card' });
+  const summary = createElement('summary', { className: 'api-credential-summary' });
+  const provider = API_PROVIDER_OPTIONS.find((option) => option.value === credential.provider)?.label ?? credential.provider;
+  const status = createElement('span', { className: credential.configurada ? 'provider-badge success' : 'provider-badge warning', textContent: credential.configurada ? 'Configurada' : 'Sem segredo' });
+  const title = createElement('div', { className: 'api-credential-title' });
+  title.append(createElement('strong', { textContent: credential.nome }), createElement('span', { textContent: provider }));
+  summary.append(title, status);
+
+  const body = createElement('form', { className: 'settings-form api-credential-form' });
+  const providerField = createElement('label', { className: 'form-field' });
+  providerField.append(
+    createElement('span', { textContent: 'Provedor' }),
+    createElement('strong', { textContent: provider })
+  );
+  const nameField = createInput('Nome da integração', 'text', credential.nome, true);
+  const secretField = createInput('Novo segredo (opcional)', 'password', '', false);
+  secretField.input.autocomplete = 'new-password';
+  secretField.input.placeholder = 'Deixe em branco para manter o atual';
+  const hint = createElement('p', { className: 'settings-hint', textContent: 'Por segurança, o segredo configurado não pode ser consultado ou exibido. Informe outro valor somente para substituí-lo.' });
+  const actions = createElement('div', { className: 'form-actions' });
+  const save = createElement('button', { type: 'submit', textContent: 'Salvar alterações' });
+  const remove = createElement('button', { className: 'danger-button', type: 'button', textContent: 'Remover' });
+  body.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const nome = nameField.input.value.trim();
+    if (!nome) { nameField.input.focus(); return; }
+    save.disabled = true;
+    save.textContent = 'Salvando...';
+    try {
+      const segredo = secretField.input.value;
+      await onUpdate(credential.id, { nome, ...(segredo ? { segredo } : {}) });
+    } catch {
+      save.disabled = false;
+      save.textContent = 'Salvar alterações';
+    }
+  });
+  remove.addEventListener('click', async () => {
+    if (!window.confirm(`Remover a integração "${credential.nome}"?`)) return;
+    remove.disabled = true;
+    await onDelete(credential.id);
+    remove.disabled = false;
+  });
+  actions.append(save, remove);
+  body.append(providerField, nameField.field, secretField.field, hint, actions);
+  card.append(summary, body);
+  return card;
+}
+
+function createApiCredentialForm(onCreate: (data: Required<ApiCredentialPayload>) => Promise<void>): HTMLElement {
+  const form = createElement('form', { className: 'settings-form api-credential-form' });
+  form.appendChild(createElement('h3', { textContent: 'Adicionar integração' }));
+  const providerField = createSelectField('Provedor', 'resend', API_PROVIDER_OPTIONS);
+  const nameField = createInput('Nome da integração', 'text', '', true);
+  const secretField = createInput('Segredo de acesso', 'password', '', true);
+  secretField.input.autocomplete = 'new-password';
+  const hint = createElement('p', { className: 'settings-hint', textContent: 'O segredo é enviado apenas para ser protegido no servidor; ele não será listado, preenchido novamente nem gravado pelo navegador.' });
+  const actions = createElement('div', { className: 'form-actions' });
+  const submit = createElement('button', { type: 'submit', textContent: 'Adicionar' });
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const nome = nameField.input.value.trim();
+    const segredo = secretField.input.value;
+    if (!nome) { nameField.input.focus(); return; }
+    if (!segredo) { secretField.input.focus(); return; }
+    submit.disabled = true;
+    submit.textContent = 'Adicionando...';
+    try {
+      await onCreate({ provider: providerField.select.value as ApiCredentialProvider, nome, segredo });
+    } catch {
+      submit.disabled = false;
+      submit.textContent = 'Adicionar';
+    }
+  });
+  actions.appendChild(submit);
+  form.append(providerField.field, nameField.field, secretField.field, hint, actions);
+  return form;
 }
 
 function createComingSoonPanel(message: string): HTMLElement {
@@ -660,4 +999,9 @@ function createPanelHeader(eyebrowText: string, title: string, action?: HTMLElem
   if (action) header.appendChild(action);
 
   return header;
+}
+
+function canManageSettings(): boolean {
+  const role = getCurrentUser()?.role;
+  return role === 'owner' || role === 'admin';
 }

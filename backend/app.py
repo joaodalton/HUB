@@ -1,4 +1,5 @@
 import sentry_sdk
+import click
 from flask import Flask
 from flask_cors import CORS
 from sentry_sdk.integrations.flask import FlaskIntegration
@@ -28,6 +29,12 @@ def create_app() -> Flask:
     migrate.init_app(app, db)
     limiter.init_app(app)
 
+    @app.cli.command('purge-import-previews')
+    def purge_import_previews_command() -> None:
+        """Remove globalmente previews expirados, incluindo planos com PII."""
+        from services.import_service import purge_expirados
+        click.echo(f'Previews expirados removidos: {purge_expirados()}')
+
     from models.empresa import Empresa  # type: ignore
     from models.client import Client  # type: ignore
     from models.plant import Plant  # type: ignore
@@ -41,6 +48,11 @@ def create_app() -> Flask:
     from models.user import User  # type: ignore
     from models.invitation import Invitation  # type: ignore
     from models.rateio_historico import RateioHistorico  # type: ignore
+    from models.password_reset_token import PasswordResetToken  # type: ignore
+    from models.email_template import EmailTemplate  # type: ignore
+    from models.api_credential import ApiCredential  # type: ignore
+    from models.import_preview import ImportPreview  # type: ignore
+    from models.message_template import MessageTemplate  # type: ignore
 
     CORS(app, origins=[Config.FRONTEND_URL], supports_credentials=True)
 
@@ -58,9 +70,16 @@ def create_app() -> Flask:
     from routes.oauth_routes import oauth_routes
     from routes.log_routes import log_routes
     from routes.pendencia_routes import pendencia_routes
+    from routes.dashboard_routes import dashboard_routes
+    from routes.agenda_routes import agenda_routes
     from routes.user_routes import user_routes
     from routes.invitation_routes import invitation_routes
     from routes.rateio_routes import rateio_routes
+    from routes.platform_routes import platform_routes
+    from routes.email_template_routes import email_template_routes
+    from routes.api_credential_routes import api_credential_routes
+    from routes.import_routes import import_routes
+    from routes.message_template_routes import message_template_routes
 
     app.register_blueprint(health_routes)
     app.register_blueprint(auth_routes)
@@ -76,17 +95,30 @@ def create_app() -> Flask:
     app.register_blueprint(oauth_routes)
     app.register_blueprint(log_routes)
     app.register_blueprint(pendencia_routes)
+    app.register_blueprint(dashboard_routes)
+    app.register_blueprint(agenda_routes)
     app.register_blueprint(user_routes)
+    app.register_blueprint(email_template_routes)
+    app.register_blueprint(api_credential_routes)
+    app.register_blueprint(import_routes)
+    app.register_blueprint(message_template_routes)
     app.register_blueprint(invitation_routes)
     app.register_blueprint(rateio_routes)
+    app.register_blueprint(platform_routes)
 
     from utils.auth import register_auth_middleware
     register_auth_middleware(app, public_paths={
-        '/', '/api/v1/auth/login', '/api/v1/auth/bootstrap', '/api/v1/auth/logout',
+        '/', '/api/v1/auth/login', '/api/v1/auth/bootstrap',
         '/api/v1/auth/register', '/api/v1/auth/aceitar-convite',
         '/api/v1/convites/verificar',
-        '/api/v1/empresas/registro', '/api/v1/empresas/<string:slug>',
-        '/api/v1/oauth/google/authorize', '/api/v1/oauth/google/callback'
+        '/api/v1/empresas/registro',
+        '/api/v1/oauth/google/callback',
+        '/api/v1/auth/esqueci-senha', '/api/v1/auth/redefinir-senha'
+    }, public_path_prefixes={
+        # request.path e' o path LITERAL da requisicao (ex.: /api/v1/empresas/select),
+        # nunca a string do padrao de rota com <string:slug> -- por isso essa rota
+        # nunca cai no set exato acima. Prefixo dedicado, checado a parte.
+        '/api/v1/empresas/'
     })
 
     @app.after_request

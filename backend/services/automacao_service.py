@@ -133,44 +133,7 @@ def _verificar_ucs_sem_usina() -> int:
             })
             criados += 1
 
-    # Agora verifica: UCs que TINHAM conexão mas PERDERAM
-    # (foram desvinculadas manualmente ou via migração)
-    conexoes_ativas = PlantConnection.query.all()
-    for conexao in conexoes_ativas:
-        if not conexao.consumer_unit:
-            continue
-
-        uc = conexao.consumer_unit
-        cliente = uc.client
-
-        if not cliente:
-            continue
-
-        # Se a UC foi desvinculada (plant_id ficou null ou conexão foi deletada)
-        if conexao.plant_id is None:
-            if _ja_existe_pendencia_ativa(uc_id=uc.id, titulo_contem='sem usina'):
-                continue
-
-            if _cliente_cadastro_completo(cliente) and _cliente_tem_documentos_obrigatorios(cliente.id):
-                criar_alerta({
-                    'categoria': 'Usinas',
-                    'titulo': f'UC {uc.codigo} perdeu vínculo com usina',
-                    'descricao': (
-                        f'A Unidade Consumidora {uc.codigo} ({uc.apelido or "sem apelido"}) '
-                        f'do cliente {cliente.nome} perdeu a conexão com a usina.'
-                    ),
-                    'clienteId': cliente.id,
-                    'ucId': uc.id,
-                    'prioridade': 'alta',
-                    'metadados': {
-                        'motivo': 'desvinculacao',
-                        'desvinculadaEm': datetime.utcnow().isoformat(),
-                    }
-                })
-                criados += 1
-
     return criados
-
 
 def _verificar_clientes_sem_uc() -> int:
     """
@@ -240,7 +203,7 @@ def _verificar_campos_obrigatorios() -> int:
 
         campos_str = ', '.join(campos_faltando)
         criar_pendencia_alerta({
-            'categoria': 'Cadastro',
+            'categoria': 'UCs',
             'titulo': f'Falta {campos_str} do cliente {cliente.nome}',
             'descricao': (
                 f'O cliente {cliente.nome} está com os seguintes campos obrigatórios '

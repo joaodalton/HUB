@@ -6,6 +6,8 @@ from flask import g
 from extensions import db
 from models.plant import Plant
 
+def _plant(plant_id): return Plant.query.filter_by(id=plant_id, empresa_id=g.current_empresa_id).first()
+
 
 def list_plants() -> list[dict]:
     # Filtro automatico via TenantMixin (extensions.py)
@@ -15,7 +17,7 @@ def list_plants() -> list[dict]:
 
 def get_plant(plant_id: int) -> dict | None:
     # Filtro automatico via TenantMixin
-    plant = Plant.query.get(plant_id)
+    plant = _plant(plant_id)
     return plant.to_dict() if plant else None
 
 
@@ -53,7 +55,7 @@ def create_plant(data: dict) -> dict:
 
 
 def update_plant(plant_id: int, data: dict) -> dict | None:
-    plant = Plant.query.get(plant_id)
+    plant = _plant(plant_id)
     if not plant:
         return None
 
@@ -90,7 +92,7 @@ def update_plant(plant_id: int, data: dict) -> dict | None:
 
 
 def delete_plant(plant_id: int) -> bool:
-    plant = Plant.query.get(plant_id)
+    plant = _plant(plant_id)
     if not plant:
         return False
 

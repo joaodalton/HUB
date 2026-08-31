@@ -10,7 +10,10 @@
 @import './settings.css';
 @import './login.css';
 @import './agenda.css';
+@import './dashboard.css';
 @import './plants.css';
 @import './rateio.css';
 @import './pendencias.css';
+@import './importacoes.css';
+@import './templates.css';
 @import './shared.css';

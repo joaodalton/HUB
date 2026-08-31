@@ -1,10 +1,10 @@
 # backend/models/rateio_historico.py
 from datetime import datetime
 
-from extensions import db
+from extensions import db, TenantMixin
 
 
-class RateioHistorico(db.Model):
+class RateioHistorico(TenantMixin, db.Model):
     __tablename__ = 'rateio_historico'
 
     id = db.Column(db.Integer, primary_key=True)

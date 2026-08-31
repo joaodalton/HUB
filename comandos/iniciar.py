@@ -5,9 +5,10 @@ import time
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-PYTHON = BASE_DIR / "venv" / "Scripts" / "python.exe"
+PYTHON = BASE_DIR / "backend" / "venv" / "Scripts" / "python.exe"
 BACKEND = BASE_DIR / "backend" / "app.py"
 FRONTEND = BASE_DIR / "frontend"
+CREATE_NEW_CONSOLE = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
 
 
 def iniciar():
@@ -16,13 +17,22 @@ def iniciar():
     print("Iniciando HUB")
     print("=" * 40)
 
-    backend = subprocess.Popen(["cmd", "/k", str(PYTHON), "app.py"], cwd=BASE_DIR / "backend" )
+    python_executable = str(PYTHON) if PYTHON.exists() else "python"
+    backend = subprocess.Popen(
+        [python_executable, str(BACKEND)],
+        cwd=BASE_DIR / "backend",
+        creationflags=CREATE_NEW_CONSOLE
+    )
 
     print("✔ Backend iniciado")
 
     time.sleep(2)
 
-    frontend = subprocess.Popen(["cmd", "/k", "npm", "run", "dev"], cwd=BASE_DIR / "frontend")
+    frontend = subprocess.Popen(
+        ["npm.cmd", "run", "dev"],
+        cwd=FRONTEND,
+        creationflags=CREATE_NEW_CONSOLE
+    )
 
     print("✔ Frontend iniciado")
 

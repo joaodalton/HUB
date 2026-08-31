@@ -18,6 +18,7 @@ backend/.pytest_cache/
 backend/debug_*.py
 backend/scripts/debug_*.py
 backend/scripts/testar_*.py
+.codex
 
 
 

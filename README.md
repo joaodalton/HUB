@@ -1,4 +1,4 @@
-# APP HUB — Sistema de Operação Solar
+# HUB — Sistema de Operação Solar
 
 Consulte [SECURITY.md](SECURITY.md) para os controles de multi-tenancy, RBAC,
 sessões, Google Drive e o procedimento de migração de segurança.
@@ -28,7 +28,7 @@ sessões, Google Drive e o procedimento de migração de segurança.
 
 ## Visão Geral
 
-O APP HUB substitui planilhas, Google Drive fragmentado e processos manuais por uma interface única que centraliza:
+O HUB substitui planilhas, Google Drive fragmentado e processos manuais por uma interface única que centraliza:
 
 - **Clientes**: CPF/CNPJ, contatos, concessionárias, status operacional
 - **UCs**: código ANEEL, consumo, base tarifária, conexões com usinas
@@ -36,9 +36,9 @@ O APP HUB substitui planilhas, Google Drive fragmentado e processos manuais por 
 - **Documentos**: upload, organização por categorias, download em lote
 - **Configurações**: provedor de dados (Google Drive ou SQL), aparência, contas OAuth
 
-**Público-alvo**: operação single-user local (atualmente), com arquitetura preparada para deploy em servidor multi-usuário futuro.
+**Público-alvo**: empresas de energia solar que operam clientes, UCs, usinas e documentos em um ambiente cloud multi-tenant.
 
-**Empacotamento futuro**: `.exe` instalável via Tauri + PyInstaller (ver [VISAO.md](VISAO.md)).
+**Implantação**: backend no Render, banco PostgreSQL no Neon, frontend no Render e documentos no Google Drive. O HUB não tem plano de empacotamento desktop.
 
 ---
 
@@ -81,10 +81,6 @@ workspace/
 - **Python 3.9+** (backend)
 - **Node.js 18+** (frontend)
 - **Git** (controle de versão)
-
-Opcional para produção:
-- **Tauri CLI** (empacotamento desktop)
-- **PyInstaller** (build do backend)
 
 ---
 
@@ -223,7 +219,7 @@ curl -X POST http://localhost:8000/auth/bootstrap \
 - Organização por categorias (Termo de Adesão, RG, Contrato...)
 - Renomear, baixar, excluir
 - Filtro por cliente e/ou UC
-- Armazenamento local em `backend/uploads/`
+- Armazenamento de documentos no Google Drive (o caminho local `backend/uploads/` atende apenas arquivos legados)
 
 #### Categorias
 - CRUD de categorias de documentos
@@ -293,29 +289,14 @@ A API segue padrão RESTful com envelope de resposta consistente:
 
 ## Próximos Passos
 
-### V1.0 — Fechamento do Núcleo
-- [ ] Formulários expondo campos de negócio completos (telefone, endereço, CEP, contrato, marca do inversor...)
-- [ ] Empacotamento Tauri + PyInstaller (.exe instalável)
-- [ ] Migração completa para SQLite com path correto para produção
+### Entregas em curso
 
-### V1.5 — Refinamento Operacional
-- [ ] Módulo de Pendências
-- [ ] Dashboard com métricas reais
-- [ ] Agenda operacional funcional (boas-vindas, AVA, rateio, faturas)
-
-### V2.0 — Cobrança e Automação
-- [ ] Integração ASAAS (boletos)
-- [ ] Disparo automático de mensagens (WhatsApp API)
-
-### V3.0 — Rateio Automático
-- [ ] Regra de cálculo definida com usuário
-- [ ] Botão de rateio automático por usina
-- [ ] Importação de fatura e planilha de rateio
-
-### V4.0+ — Monitoramento e Automação
-- [ ] APIs de inversores (marca a definir)
-- [ ] Leitura automatizada de faturas (ML/robô)
-- [ ] Portal do cliente
+- [x] Dashboard operacional e Agenda derivada de Pendências
+- [x] Credenciais de integração cifradas por empresa
+- [ ] Importação em massa de Cliente/UC/Usina via planilha Excel
+- [ ] V1.5-B: empresa, convites e aceite de termos
+- [ ] V1.5-C: templates e comunicação WhatsApp
+- [ ] V2.0: financeiro, importação de boleto/fatura e notificações
 
 📋 **Roadmap detalhado em**: [PROGRESS.md](PROGRESS.md)
 
@@ -333,11 +314,10 @@ A API segue padrão RESTful com envelope de resposta consistente:
 
 ## Decisões de Arquitetura
 
-- **Single-user hoje, multi-usuário amanhã**: mesma API, muda apenas autenticação e path do banco.
-- **SQLite agora, Postgres depois**: SQLAlchemy abstrai a troca quando o volume justificar.
+- **Multi-tenant desde a base**: cada empresa acessa somente seus próprios dados, com autenticação e RBAC centralizados.
+- **PostgreSQL em produção, SQLite para testes locais**: migrations devem funcionar nos dois ambientes.
 - **Zero localStorage para dado de negócio**: tudo via API REST, `localStorage` só para preferências de UI.
 - **OAuth prioritário, service account como fallback**: segurança e flexibilidade para múltiplas contas.
-- **Tauri > Electron**: menor footprint, melhor performance, Rust sob o capô.
 
 ---
 
@@ -353,7 +333,7 @@ Este é um projeto focado em uso interno. Se encontrar bugs ou tiver sugestões:
 
 ## Licença
 
-Uso interno — Select Energia Solar.
+Produto cloud para operações de energia solar — Selec Energy.
 
 ---
 

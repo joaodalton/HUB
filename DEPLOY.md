@@ -1,4 +1,4 @@
-# APP HUB — Deploy e Infraestrutura
+# HUB — Deploy e Infraestrutura
 
 > Registro de como o HUB foi tirado do "só roda no meu PC" pra "roda na nuvem, 24h". Leia isso antes de mexer em qualquer coisa relacionada a banco, deploy ou variável de ambiente — economiza reconstruir o raciocínio do zero.
 > **Documentos relacionados:** [[ARCHITECTURE]] · [[VISAO]] · [[PROGRESS]]

@@ -1,4 +1,4 @@
-# APP HUB — Arquitetura (mapa de dependências)
+# HUB — Arquitetura (mapa de dependências)
 
 > **Documentos relacionados:** [[VISAO]] · [[PROGRESS]] · [[API_CONTRACTS]] · [[DEPLOY]] · [[RATEIO]] · [[PENDENCIAS]] · [[CONTRIBUTING]] · [[README]]
 

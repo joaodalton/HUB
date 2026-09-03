@@ -72,6 +72,32 @@ def update_empresa_atual(data: dict) -> dict | None:
     return _empresa_profile_dict(empresa)
 
 
+def update_empresa_platform(empresa_id: int, data: dict) -> dict | None:
+    allowed = _EMPRESA_PROFILE_FIELDS | {'status'}
+    if not data or set(data) - allowed:
+        raise ValueError('Campos nao permitidos para atualizacao da empresa.')
+    empresa = Empresa.query.filter_by(id=empresa_id).first()
+    if not empresa:
+        return None
+    if 'nome' in data:
+        empresa.nome = _validar_texto(data['nome'], 'Nome', 150, obrigatorio=True)
+    if 'razaoSocial' in data:
+        empresa.razao_social = _validar_texto(data['razaoSocial'], 'Razao social', 200)
+    if 'cnpj' in data:
+        empresa.cnpj = _validar_cnpj(data['cnpj'])
+    if 'email' in data:
+        empresa.email = _validar_email(data['email'])
+    if 'telefone' in data:
+        empresa.telefone = _validar_texto(data['telefone'], 'Telefone', 20)
+    if 'status' in data:
+        if data['status'] not in ('ativa', 'inativa', 'suspensa'):
+            raise ValueError('Status invalido.')
+        empresa.status = data['status']
+    db.session.commit()
+    LogService.info(acao='empresa_platform_update', mensagem=f'Empresa {empresa.id} atualizada pela plataforma', entidade='Empresa', entidade_id=empresa.id, metadados={'campos': sorted(data)})
+    return empresa.to_dict()
+
+
 def _validar_texto(valor, campo: str, limite: int, *, obrigatorio: bool = False) -> str | None:
     if valor is None:
         if obrigatorio:

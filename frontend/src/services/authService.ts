@@ -10,6 +10,8 @@ export type AuthUser = {
   mustChangePassword: boolean;
   empresaNome?: string | null;
   isPlatformAdmin?: boolean;
+  platformViewEmpresaId?: number | null;
+  platformViewEmpresaNome?: string | null;
 };
 
 type ApiResponse<T> = {

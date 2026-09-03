@@ -15,6 +15,7 @@ import { createEmpresasPage } from '../pages/EmpresasPage';
 import { createImportacoesPage } from '../pages/ImportacoesPage';
 import { createTemplatesPage } from '../pages/TemplatesPage';
 import { createChangePasswordPage } from '../pages/ChangePasswordPage';
+import { createFaturasPage } from '../pages/FaturasPage';
 import { ensureSession, getCurrentUser, isAuthenticated } from './authService';
 import { loadSettings } from './settingsService';
 
@@ -32,6 +33,7 @@ export function createRouter(root: HTMLElement) {
     { path: '/ucs', render: createUcsPage },
     { path: '/usinas', render: createPlantsPage },
     { path: '/rateio', render: createRateioPage },
+    { path: '/faturas', render: createFaturasPage },
     { path: '/pendencias', render: createPendenciasPage },
     { path: '/agenda', render: createAgendaPage },
     { path: '/usuarios', render: createUsersPage },

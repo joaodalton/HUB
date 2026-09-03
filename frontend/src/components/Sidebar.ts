@@ -43,7 +43,7 @@ const sections: SidebarSection[] = [
   {
     title: 'Financeiro',
     items: [
-      { label: 'Faturas', path: '/faturas', icon: 'faturas', enabled: false },
+      { label: 'Faturas', path: '/faturas', icon: 'faturas', enabled: true },
       { label: 'Pagamentos', path: '/pagamentos', icon: 'pagamentos', enabled: false },
       { label: 'Cobranças', path: '/cobrancas', icon: 'cobrancas', enabled: false }
     ]
@@ -155,6 +155,12 @@ function createUserCard(): HTMLElement {
   });
 
   text.append(name, role);
+  if (user?.platformViewEmpresaId) {
+    text.appendChild(createElement('span', {
+      className: 'sidebar-user-role',
+      textContent: `Visualizando: ${user.platformViewEmpresaNome ?? '—'}`
+    }));
+  }
   card.append(avatar, text);
   return card;
 }

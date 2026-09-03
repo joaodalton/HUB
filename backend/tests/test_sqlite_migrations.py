@@ -69,11 +69,15 @@ class SQLiteMigrationsTest(unittest.TestCase):
             try:
                 revision = connection.execute('SELECT version_num FROM alembic_version').fetchone()[0]
                 columns = {row[1] for row in connection.execute('PRAGMA table_info(api_credentials)')}
+                client_columns = {row[1] for row in connection.execute('PRAGMA table_info(clients)')}
+                fatura_columns = {row[1] for row in connection.execute('PRAGMA table_info(faturas)')}
                 preview_indexes = {row[1] for row in connection.execute("PRAGMA index_list('import_previews')")}
             finally:
                 connection.close()
-            self.assertEqual(revision, 'e6a8c0d2f4b6')
+            self.assertEqual(revision, 'f7b2c9d4e1a6')
             self.assertTrue({'empresa_id', 'provider', 'nome', 'segredo_encrypted'}.issubset(columns))
+            self.assertIn('asaas_customer_id', client_columns)
+            self.assertTrue({'empresa_id', 'client_id', 'consumer_unit_id', 'asaas_id', 'asaas_status'}.issubset(fatura_columns))
             self.assertIn('ix_import_previews_expires_at', preview_indexes)
         finally:
             database_path.unlink(missing_ok=True)

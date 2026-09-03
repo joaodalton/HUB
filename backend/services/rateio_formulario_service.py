@@ -75,7 +75,7 @@ def montar_tabela_formulario(plant_id: int) -> dict:
     linha pra geradora dentro da tabela, e um campo de texto separado no topo
     da pagina 1). termoAdesaoOk calculado por linha -- a tela de revisao usa
     isso pra mostrar aviso inline antes mesmo de tentar gerar o PDF."""
-    plant = Plant.query.get(plant_id)
+    plant = Plant.query.filter_by(id=plant_id, empresa_id=g.current_empresa_id).first()
     if not plant:
         raise ValueError('Usina nao encontrada.')
 

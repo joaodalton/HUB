@@ -53,8 +53,13 @@ def create_app() -> Flask:
     from models.api_credential import ApiCredential  # type: ignore
     from models.import_preview import ImportPreview  # type: ignore
     from models.message_template import MessageTemplate  # type: ignore
+    from models.fatura import Fatura  # type: ignore
 
-    CORS(app, origins=[Config.FRONTEND_URL], supports_credentials=True)
+    cors_origins = [Config.FRONTEND_URL]
+    if Config.DEBUG:
+        cors_origins.append('http://localhost:5173')
+        cors_origins.append('http://127.0.0.1:5173')
+    CORS(app, origins=cors_origins, supports_credentials=True)
 
     from routes.auth_routes import auth_routes
     from routes.config_routes import config_routes
@@ -80,6 +85,7 @@ def create_app() -> Flask:
     from routes.api_credential_routes import api_credential_routes
     from routes.import_routes import import_routes
     from routes.message_template_routes import message_template_routes
+    from routes.fatura_routes import fatura_routes, webhook_routes
 
     app.register_blueprint(health_routes)
     app.register_blueprint(auth_routes)
@@ -105,6 +111,8 @@ def create_app() -> Flask:
     app.register_blueprint(invitation_routes)
     app.register_blueprint(rateio_routes)
     app.register_blueprint(platform_routes)
+    app.register_blueprint(fatura_routes)
+    app.register_blueprint(webhook_routes)
 
     from utils.auth import register_auth_middleware
     register_auth_middleware(app, public_paths={
@@ -113,6 +121,7 @@ def create_app() -> Flask:
         '/api/v1/convites/verificar',
         '/api/v1/empresas/registro',
         '/api/v1/oauth/google/callback',
+        '/api/v1/webhooks/asaas',
         '/api/v1/auth/esqueci-senha', '/api/v1/auth/redefinir-senha'
     }, public_path_prefixes={
         # request.path e' o path LITERAL da requisicao (ex.: /api/v1/empresas/select),

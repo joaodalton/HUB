@@ -10,7 +10,7 @@ from models.empresa import Empresa
 from models.user import User
 from services.empresa_service import (
     criar_empresa_com_owner, get_empresa_atual, get_empresa_documentos,
-    set_empresa_documento, update_empresa_atual,
+    set_empresa_documento, update_empresa_atual, update_empresa_platform,
 )
 from services.permission_service import require_permission
 from utils.api_response import error_response, success_response
@@ -40,6 +40,31 @@ def index():
             'totalUsuarios': User.query.filter_by(empresa_id=empresa.id).count()
         })
     return success_response(result)
+
+
+@empresa_routes.route('', methods=['POST'])
+def criar():
+    denied = _require_platform_admin()
+    if denied:
+        return denied
+    try:
+        return success_response(criar_empresa_com_owner(request.get_json(silent=True) or {}), 'Empresa criada.', 201)
+    except ValueError as exc:
+        return error_response(str(exc), 400)
+
+
+@empresa_routes.route('/<int:empresa_id>', methods=['PUT'])
+def atualizar_qualquer(empresa_id: int):
+    denied = _require_platform_admin()
+    if denied:
+        return denied
+    try:
+        empresa = update_empresa_platform(empresa_id, request.get_json(silent=True) or {})
+    except ValueError as exc:
+        return error_response(str(exc), 400)
+    if not empresa:
+        return error_response('Empresa nao encontrada.', 404)
+    return success_response(empresa, 'Empresa atualizada.')
 
 
 # POST /api/v1/empresas/registro -- Cria empresa + owner na mesma transacao

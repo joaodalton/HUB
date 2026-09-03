@@ -867,7 +867,7 @@ export function createRateioPage(): HTMLElement {
       createElement('span', { className: 'eyebrow', textContent: 'Revisão do formulário' }),
       createElement('h2', { textContent: 'Formulário Copel — Rateio de Associação' })
     );
-    title.appendChild(titleText);
+    title.append(titleText, createElement('span', { className: 'status-badge tone-info', textContent: plant.nome }));
     panel.appendChild(title);
 
     if (formularioTabelaPlantId !== plant.id && !formularioTabelaCarregando) {
@@ -901,6 +901,16 @@ export function createRateioPage(): HTMLElement {
         }));
       }
 
+      const resumo = createElement('div', { className: 'rateio-funil-grid rateio-formulario-resumo' });
+      resumo.append(
+        createFormularioStat('UC geradora', tabelaAtual.ucGeradora ?? '-'),
+        createFormularioStat('UC âncora', tabelaAtual.ucAncora ?? '-'),
+        createFormularioStat('Beneficiárias', String(tabelaAtual.linhas.length)),
+        createFormularioStat('Total distribuído', `${formatNumber(tabelaAtual.somaPercentual)}%`)
+      );
+      panel.appendChild(resumo);
+      panel.appendChild(createElement('h3', { className: 'settings-subheading', textContent: 'Dados que irão no formulário' }));
+
       const table = createEditableTable<FormularioLinha>({
         columns: [
           { key: 'ordem', label: '#', align: 'right' },
@@ -921,10 +931,14 @@ export function createRateioPage(): HTMLElement {
       });
       panel.appendChild(table);
 
-      const somaRow = createElement('p', { className: 'settings-hint' });
-      somaRow.textContent = `Soma dos percentuais: ${formatNumber(tabelaAtual.somaPercentual)}%`;
-      somaRow.classList.toggle('rateio-total-excede', tabelaAtual.somaPercentual > 100);
-      panel.appendChild(somaRow);
+      const checks = createElement('div', { className: 'rateio-formulario-checks' });
+      checks.append(
+        createFormularioCheck(`Total: ${formatNumber(tabelaAtual.somaPercentual)}%`, tabelaAtual.somaPercentual <= 100),
+        createFormularioCheck('CNPJ e estatuto', Boolean(empresaDocumentos?.cnpj && empresaDocumentos?.estatuto)),
+        createFormularioCheck('Termos de adesão', formularioVerificacao?.ok === true, formularioVerificacao ? undefined : 'Verifique os documentos')
+      );
+      panel.appendChild(checks);
+      panel.appendChild(createElement('h3', { className: 'settings-subheading', textContent: 'Responsável pela assinatura' }));
 
       const responsavelFields = createElement('div', { className: 'form-grid' });
       responsavelFields.append(
@@ -1054,6 +1068,22 @@ export function createRateioPage(): HTMLElement {
     wrapper.appendChild(backLink);
     renderContent();
     return wrapper;
+  }
+
+  function createFormularioStat(label: string, value: string): HTMLElement {
+    const stat = createElement('div', { className: 'rateio-funil-stat' });
+    stat.append(
+      createElement('span', { className: 'rateio-funil-stat-label', textContent: label }),
+      createElement('strong', { className: 'rateio-funil-stat-value', textContent: value })
+    );
+    return stat;
+  }
+
+  function createFormularioCheck(label: string, ok: boolean, pendingLabel?: string): HTMLElement {
+    return createElement('span', {
+      className: ok ? 'status-badge tone-success' : pendingLabel ? 'status-badge tone-warning' : 'status-badge tone-danger',
+      textContent: pendingLabel ?? label
+    });
   }
 
   function createStatusBadge(status: string): HTMLElement {

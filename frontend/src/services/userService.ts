@@ -46,3 +46,8 @@ export async function setUserActive(id: number, ativo: boolean): Promise<UserRow
   });
   return response.data;
 }
+
+export async function updateUser(id: number, data: Partial<Pick<UserRow, 'nome' | 'email' | 'role'>>): Promise<UserRow> {
+  const response = await apiRequest<ApiResponse<UserRow>>(`/users/${id}`, { method: 'PUT', body: data });
+  return response.data;
+}

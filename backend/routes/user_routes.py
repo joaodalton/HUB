@@ -2,7 +2,7 @@
 from flask import Blueprint, g, request
 
 from services.permission_service import require_permission
-from services.user_service import create_user, list_users, set_user_active
+from services.user_service import create_user, list_users, set_user_active, update_user
 from utils.api_response import error_response, success_response
 
 
@@ -26,6 +26,18 @@ def store():
         return error_response(str(exc), 409)
 
     return success_response(user, 'Usuario criado.', 201)
+
+
+@user_routes.route('/<int:user_id>', methods=['PUT'])
+@require_permission('users.update')
+def update(user_id: int):
+    try:
+        user = update_user(user_id, request.get_json(silent=True) or {}, g.current_empresa_id)
+    except ValueError as exc:
+        return error_response(str(exc), 400)
+    if not user:
+        return error_response('Usuario nao encontrado.', 404)
+    return success_response(user, 'Usuario atualizado.')
 
 
 @user_routes.route('/<int:user_id>/ativo', methods=['PUT'])

@@ -16,6 +16,16 @@ export async function getEmpresas(): Promise<EmpresaRow[]> {
   return response.data;
 }
 
+export async function createEmpresa(data: { empresa: { nome: string; razao_social?: string; cnpj?: string; email?: string; telefone?: string }; owner: { nome: string; email: string; senha: string } }): Promise<{ empresa: EmpresaRow; owner: unknown }> {
+  const response = await apiRequest<ApiResponse<{ empresa: EmpresaRow; owner: unknown }>>('/empresas', { method: 'POST', body: data });
+  return response.data;
+}
+
+export async function updateEmpresaPlatform(id: number, data: Partial<EmpresaAtualUpdate> & { status?: string }): Promise<EmpresaRow> {
+  const response = await apiRequest<ApiResponse<EmpresaRow>>(`/empresas/${id}`, { method: 'PUT', body: data });
+  return response.data;
+}
+
 /** Campos editáveis da empresa atualmente autenticada; slug e status não fazem parte deste contrato. */
 export type EmpresaAtual = {
   nome: string;

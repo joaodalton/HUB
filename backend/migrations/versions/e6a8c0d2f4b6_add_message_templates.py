@@ -24,10 +24,10 @@ def upgrade():
         sa.UniqueConstraint('empresa_id', 'canal', 'chave', name='uq_message_templates_empresa_canal_chave'))
     op.create_index('ix_message_templates_empresa_id', 'message_templates', ['empresa_id'])
     op.execute("""INSERT INTO message_templates (empresa_id, canal, chave, nome, assunto, corpo, variaveis_permitidas, padrao, origem_chave, created_at, updated_at)
-        SELECT e.id, 'email', t.chave, t.nome, t.assunto, t.corpo, COALESCE(t.variaveis_disponiveis,''), 1, t.chave, t.created_at, t.updated_at FROM empresas e CROSS JOIN email_templates t""")
+        SELECT e.id, 'email', t.chave, t.nome, t.assunto, t.corpo, COALESCE(t.variaveis_disponiveis,''), true, t.chave, t.created_at, t.updated_at FROM empresas e CROSS JOIN email_templates t""")
 
 def downgrade():
-    changed = op.get_bind().execute(sa.text("""SELECT 1 FROM message_templates m WHERE m.canal <> 'email' OR m.padrao = 0 OR m.origem_chave IS NULL OR NOT EXISTS
+    changed = op.get_bind().execute(sa.text("""SELECT 1 FROM message_templates m WHERE m.canal <> 'email' OR m.padrao = false OR m.origem_chave IS NULL OR NOT EXISTS
         (SELECT 1 FROM email_templates e WHERE e.chave=m.origem_chave AND e.nome=m.nome AND e.assunto=m.assunto AND e.corpo=m.corpo AND COALESCE(e.variaveis_disponiveis,'')=m.variaveis_permitidas) LIMIT 1""")).scalar()
     if changed is not None: raise ValueError('Não é possível reverter: existem templates por empresa alterados ou criados.')
     op.drop_index('ix_message_templates_empresa_id', table_name='message_templates')

@@ -434,7 +434,7 @@ Controla qual provedor de dados o backend usa (Google Drive service-account, ou 
 
 ## OAuth Google (`/oauth/google`)
 
-Fluxo de autorização de usuário real (PKCE), complementar ao `credentials.json` de service account usado pelo Drive legado. Contas ficam salvas em `GoogleAccount`, refresh token criptografado (nunca exposto em nenhum `to_dict`).
+Fluxo de autorização de usuário real (PKCE). Depois de conectar e aprovar no Google, a conta ativa é usada diretamente, inclusive sua raiz do Drive — não há ID de pasta obrigatório. Contas ficam salvas em `GoogleAccount`, refresh token criptografado (nunca exposto em nenhum `to_dict`). Uma pasta raiz continua opcional para restringir o OAuth ou obrigatória para a service account compartilhada entre empresas.
 
 O callback registrado e `FRONTEND_URL` devem usar HTTPS absoluto sem credenciais ou fragmento em produção. HTTP só é permitido para `localhost`/loopback quando `FLASK_DEBUG=true` **e** `OAUTH_ALLOW_INSECURE_TRANSPORT=true` forem configurados explicitamente; a aplicação remove a exceção de transporte inseguro do OAuthlib em qualquer outro ambiente. A validação padrão de escopos do OAuthlib permanece ativa.
 
@@ -474,6 +474,32 @@ Body obrigatório: `{ "provider": "resend", "nome": "Principal", "segredo": "...
 ### `POST /api-credentials/<id>/testar`
 
 Executa somente um dry-run local: verifica que a cifra existe e pode ser lida, sem enviar segredo e sem fazer HTTP, e retorna `{ "ok": true, "modo": "dry-run", "provider": "..." }`.
+
+---
+
+## Faturas (`/faturas`)
+
+Todas as rotas autenticadas são isoladas pela empresa atual. `owner`, `admin` e `financial` podem emitir, sincronizar e cancelar; `operator` e `viewer` só leem. A credencial `provider='asaas'` é obtida da empresa atual e nunca retorna para o cliente.
+
+### `GET /faturas?clienteId=&ucId=&status=&competencia=` · `GET /faturas/<id>`
+
+Lista ou consulta o espelho local da cobrança ASAAS. IDs de outra empresa retornam 404.
+
+### `POST /faturas`
+
+Emite boleto ASAAS. Body: `{ "clienteId": 1, "ucId": 2, "valor": 284.90, "mesVencimento": "2026-10-05", "competencia": "2026-09" }`. Cliente e UC precisam pertencer à empresa e a UC precisa pertencer ao cliente. A Fatura só é gravada após retorno bem-sucedido do ASAAS.
+
+### `POST /faturas/<id>/sincronizar` · `POST /faturas/<id>/cancelar`
+
+Consulta ou cancela a cobrança no ASAAS e atualiza o espelho local; não há edição ou exclusão física.
+
+### `GET /faturas/resumo`
+
+Retorna contagens locais por `pending`, `received`, `overdue` e `canceled`.
+
+### `POST /webhooks/asaas`
+
+Pública. Exige o header `asaas-access-token` igual a `ASAAS_WEBHOOK_TOKEN`; processa o objeto `payment` idempotentemente pelo `asaas_id` e atualiza somente a fatura correspondente.
 
 ---
 

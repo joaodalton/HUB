@@ -16,6 +16,15 @@ Em conflito, a instrução explícita do usuário prevalece; caso contrário, `V
 
 Não declarar uma tarefa concluída sem evidência de validação em `PROGRESS.md`.
 
+## Orquestração em ondas
+
+Use os perfis em `.codex/agents/` conforme o domínio: backend, frontend,
+revisão de backend/frontend, revisão geral ou segurança. Só paralelize tarefas
+quando elas não dependem uma da outra e os conjuntos de arquivos são disjuntos.
+Para cada tarefa, declare `Files:` e `Depends-on:`; se houver dúvida, execute
+em série. Implementadores não fazem commit em paralelo: o orquestrador integra
+e valida uma tarefa por vez; revisões somente de leitura podem ocorrer juntas.
+
 ## Autonomia e pontos que exigem decisão do usuário
 
 O agente decide padrões técnicos, UX, textos, testes e migrations reversíveis.

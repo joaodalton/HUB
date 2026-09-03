@@ -49,6 +49,8 @@ Existem **dois ambientes completamente separados**, cada um com seu próprio ban
 | `GOOGLE_DRIVE_SCOPES` | `https://www.googleapis.com/auth/drive` (acesso completo) | **Não usar `drive.readonly`** — upload de documento (desde a troca pra Drive) precisa de escrita; a busca legada precisa listar arquivo que já existia antes do HUB, o que o escopo restrito `drive.file` não permite |
 | `GOOGLE_DRIVE_ROOT_FOLDER_ID` | ID da pasta no Drive (pega da URL) | Opcional — vazio, os documentos vão pra raiz da conta conectada (funciona, só fica bagunçado) |
 | `FRONTEND_URL` | URL do frontend publicado no Render | Alimenta CORS (Etapa 4) e o redirect pós-OAuth |
+| `ASAAS_API_BASE_URL` | `https://api-sandbox.asaas.com/v3` no Sandbox | Produção usa a URL v3 do ASAAS de produção |
+| `ASAAS_WEBHOOK_TOKEN` | Token forte compartilhado configurado em cada webhook ASAAS | Validado no header `asaas-access-token`; nunca usar uma API key aqui |
 
 `OAUTH_ALLOW_INSECURE_TRANSPORT` não deve ser configurada no Render. Ela só serve para OAuth local via HTTP e só tem efeito junto de `FLASK_DEBUG=true`, `GOOGLE_OAUTH_REDIRECT_URI` e `FRONTEND_URL` em `localhost`/loopback; produção falha fechada se callback ou frontend não forem URLs HTTPS absolutas, sem credenciais ou fragmentos.
 

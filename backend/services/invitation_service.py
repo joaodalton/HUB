@@ -108,6 +108,18 @@ def listar_convites(empresa_id: int) -> list[dict]:
     return [c.to_dict() for c in convites]
 
 
+def revogar_convite(convite_id: int, empresa_id: int) -> dict | None:
+    convite = Invitation.query.filter_by(id=convite_id, empresa_id=empresa_id).first()
+    if not convite:
+        return None
+    if convite.status != 'pending':
+        raise ValueError('Somente convites pendentes podem ser revogados.')
+    convite.status = 'revoked'
+    db.session.commit()
+    LogService.info(acao='convite_revogado', mensagem=f'Convite revogado para {convite.email}', entidade='Invitation', metadados={'invitationId': convite.id, 'empresaId': empresa_id})
+    return convite.to_dict()
+
+
 def _buscar_convite_valido(token_cru: str) -> Invitation:
     token_hash = hashlib.sha256(token_cru.encode()).hexdigest()
     convite = Invitation.query.filter_by(token_hash=token_hash).first()

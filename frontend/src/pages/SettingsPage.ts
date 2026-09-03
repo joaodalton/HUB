@@ -836,7 +836,7 @@ function createGoogleAccountsSection(
   if (accounts.length === 0) {
     section.appendChild(createElement('p', {
       className: 'settings-hint',
-      textContent: 'Nenhuma conta conectada ainda. "Conectar nova conta" leva pro login real do Google -- sem precisar compartilhar pasta manualmente.'
+      textContent: 'Nenhuma conta conectada ainda. Conecte, aprove no Google e use os arquivos da conta: não é preciso informar ID de pasta.'
     }));
     return section;
   }

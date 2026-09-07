@@ -18,6 +18,7 @@ export type SearchPanelEvents = {
 export function createSearchPanel(events: SearchPanelEvents): {
   element: HTMLElement;
   updateTypeOptions: (types: string[]) => void;
+  updateFilterCounts: (counts: Record<FilterKey, number>) => void;
 } {
   const panel = createElement('section', { className: 'search-panel' });
 
@@ -42,6 +43,7 @@ export function createSearchPanel(events: SearchPanelEvents): {
   row.append(input, button);
 
   const filterRow = createElement('div', { className: 'filter-row' });
+  const filterButtons = new Map<FilterKey, HTMLButtonElement>();
   filterRow.setAttribute('aria-label', 'Filtros de busca');
 
   filters.forEach(({ key, label: filterLabel }) => {
@@ -58,6 +60,7 @@ export function createSearchPanel(events: SearchPanelEvents): {
     });
 
     filterRow.appendChild(chip);
+    filterButtons.set(key, chip);
   });
 
   // Filtro dinamico: as opcoes de "Tipo" nao sao uma lista fixa no codigo -- sao
@@ -111,5 +114,12 @@ export function createSearchPanel(events: SearchPanelEvents): {
     typeSelect.value = types.includes(previousValue) ? previousValue : 'todos';
   }
 
-  return { element: panel, updateTypeOptions };
+  function updateFilterCounts(counts: Record<FilterKey, number>): void {
+    filters.forEach(({ key, label: filterLabel }) => {
+      const button = filterButtons.get(key);
+      if (button) button.textContent = `${filterLabel} ${counts[key]}`;
+    });
+  }
+
+  return { element: panel, updateTypeOptions, updateFilterCounts };
 }

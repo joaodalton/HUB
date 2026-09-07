@@ -192,6 +192,13 @@
 .log-level-warning { color: var(--warning); background: var(--warning-bg); border-color: var(--warning-border); }
 .log-level-error { color: var(--danger); background: var(--danger-bg); border-color: var(--danger-border); }
 
+.log-entity-chart { display: grid; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--border-deep); border-radius: var(--radius-card); background: var(--panel-deep); }
+.log-entity-row { display: grid; grid-template-columns: minmax(100px, 180px) 1fr auto; align-items: center; gap: var(--space-2); font-size: 12px; color: var(--text-dim); }
+.log-entity-bar { height: 8px; border-radius: 999px; background: var(--accent-secondary); }
+.log-drawer-content { display: grid; gap: var(--space-2); }
+.log-drawer-content h3 { margin: var(--space-2) 0 0; font-size: 14px; }
+.log-metadata { margin: 0; padding: var(--space-2); overflow: auto; border: 1px solid var(--border-deep); border-radius: var(--radius-input); background: var(--bg-deep); color: var(--text-dim); font: 12px var(--font-mono); }
+
 /* ---------- Provedor de banco de dados ---------- */
 
 .database-provider-stack { display: grid; gap: 12px; }

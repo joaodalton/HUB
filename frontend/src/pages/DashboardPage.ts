@@ -1,5 +1,5 @@
-import { createDashboardCards, type DashboardMetric } from '../components/DashboardCards';
 import { createIcon } from '../components/Icon';
+import { createIconStatCard, type IconStatCardProps } from '../components/IconStatCard';
 import { createElement } from '../dom';
 import { useGlobalLoading } from '../hooks/useGlobalLoading';
 import { createBaseLayout } from '../layouts/BaseLayout';
@@ -58,11 +58,11 @@ export function createDashboardPage(): HTMLElement {
       return;
     }
 
-    const operationalMetrics: DashboardMetric[] = [
-      { label: 'Pendências abertas', value: String(resumo.pendencias.abertas), tone: 'warning', icon: 'pending', onClick: () => navigate('/pendencias') },
-      { label: 'Pendências vencidas', value: String(resumo.pendencias.vencidas), tone: resumo.pendencias.vencidas > 0 ? 'danger' : 'success', icon: 'pending', onClick: () => navigate('/pendencias') },
-      { label: 'Vencem em 7 dias', value: String(resumo.pendencias.vencendoEm7Dias), tone: resumo.pendencias.vencendoEm7Dias > 0 ? 'warning' : 'success', icon: 'agenda', onClick: () => navigate('/agenda') },
-      { label: 'Concluídas no mês', value: String(resumo.pendencias.resolvidasNoMes), tone: 'success', icon: 'check', onClick: () => navigate('/pendencias') }
+    const operationalMetrics: IconStatCardProps[] = [
+      { label: 'Pendências abertas', value: String(resumo.pendencias.abertas), chipColor: 'amber', icon: 'pending', onClick: () => navigate('/pendencias') },
+      { label: 'Pendências vencidas', value: String(resumo.pendencias.vencidas), chipColor: resumo.pendencias.vencidas > 0 ? 'red' : 'green', icon: 'pending', onClick: () => navigate('/pendencias') },
+      { label: 'Vencem em 7 dias', value: String(resumo.pendencias.vencendoEm7Dias), chipColor: resumo.pendencias.vencendoEm7Dias > 0 ? 'amber' : 'green', icon: 'agenda', onClick: () => navigate('/agenda') },
+      { label: 'Concluídas no mês', value: String(resumo.pendencias.resolvidasNoMes), chipColor: 'green', icon: 'check', onClick: () => navigate('/pendencias') }
     ];
 
     const entityMetrics = [
@@ -76,20 +76,66 @@ export function createDashboardPage(): HTMLElement {
     summary.append(
       createElement('span', { className: 'dashboard-updated', textContent: `Atualizado ${formatDateTime(resumo.geradoEm)}` }),
       createElement('h2', { textContent: 'Operação' }),
-      createDashboardCards(operationalMetrics),
+      createStatGrid(operationalMetrics),
       createElement('h2', { textContent: 'Cadastros' }),
-      createDashboardCards(entityMetrics)
+      createStatGrid(entityMetrics),
+      createStatusCharts(resumo)
     );
 
     content.replaceChildren(summary, createQueue(resumo.pendencias.fila));
   }
 }
 
-function metricForEntity(label: string, data: DashboardContagem, icon: DashboardMetric['icon'], path: string): DashboardMetric {
+function metricForEntity(label: string, data: DashboardContagem, icon: IconStatCardProps['icon'], path: string): IconStatCardProps {
   if (!data.disponivel) {
-    return { label: `${label} sem permissão`, value: '—', tone: 'neutral', icon };
+    return { label: `${label} sem permissão`, value: '—', chipColor: 'purple', icon };
   }
-  return { label, value: String(data.total ?? 0), icon, onClick: () => navigate(path) };
+  return { label, value: String(data.total ?? 0), chipColor: 'blue', icon, onClick: () => navigate(path) };
+}
+
+function createStatGrid(metrics: IconStatCardProps[]): HTMLElement {
+  const grid = createElement('section', { className: 'metric-grid' });
+  metrics.forEach((metric) => grid.appendChild(createIconStatCard(metric)));
+  return grid;
+}
+
+function createStatusCharts(resumo: DashboardResumo): HTMLElement {
+  const grid = createElement('section', { className: 'dashboard-status-grid' });
+  [
+    ['Status dos clientes', resumo.clientes],
+    ['Status das usinas', resumo.usinas]
+  ].forEach(([title, data]) => {
+    const chart = createStatusChart(title as string, data as DashboardContagem);
+    if (chart) grid.appendChild(chart);
+  });
+  return grid;
+}
+
+function createStatusChart(title: string, data: DashboardContagem): HTMLElement | null {
+  const entries = Object.entries(data.porStatus ?? {}).filter(([, count]) => count > 0);
+  if (!data.disponivel || entries.length === 0) return null;
+
+  const colors = ['var(--accent-secondary)', 'var(--success-vivid)', 'var(--warning-vivid)', 'var(--danger-vivid)', 'var(--chip-purple-fg)'];
+  const total = entries.reduce((sum, [, count]) => sum + count, 0);
+  let offset = 0;
+  const stops = entries.map(([, count], index) => {
+    const end = offset + (count / total) * 100;
+    const stop = `${colors[index % colors.length]} ${offset}% ${end}%`;
+    offset = end;
+    return stop;
+  });
+  const panel = createElement('section', { className: 'dashboard-status-chart' });
+  const donut = createElement('span', { className: 'dashboard-donut' });
+  donut.style.background = `conic-gradient(${stops.join(', ')})`;
+  donut.appendChild(createElement('span', { textContent: String(total) }));
+  const legend = createElement('div', { className: 'dashboard-status-legend' });
+  entries.forEach(([status, count], index) => {
+    const item = createElement('span', { textContent: `${status}: ${count}` });
+    item.style.setProperty('--status-color', colors[index % colors.length]);
+    legend.appendChild(item);
+  });
+  panel.append(createElement('h2', { textContent: title }), donut, legend);
+  return panel;
 }
 
 function createQueue(items: DashboardPendencia[]): HTMLElement {

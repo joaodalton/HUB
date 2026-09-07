@@ -505,6 +505,12 @@ Pública. Exige o header `asaas-access-token` igual a `ASAAS_WEBHOOK_TOKEN`; pro
 
 ## Importações (`/importacoes`)
 
+`GET /importacoes/modelo` é público (sem login) e baixa `HUB_Modelo_Importacao.xlsx`, sem cadastros de exemplo. O arquivo versionado em `backend/templates/` define os cabeçalhos, estilos e listas; o download preserva `Instrucoes`, `Clientes`, `UCs` e `Usinas`, com preenchimento a partir da linha 2.
+
+`GET /importacoes/exportar` requer `imports.preview` e exporta somente a empresa autenticada, usando o mesmo modelo e todos os campos nele previstos, incluindo nascimento. Strings são gravadas como texto, nunca como fórmulas. Não é backup completo: campos fora do modelo e conexões de rateio não são exportados.
+
+O preview aceita a aba auxiliar `Instrucoes` (não importada), os cabeçalhos exatos do modelo inclusive `(opcional)`, além dos nomes legados. Linhas vazias são ignoradas. Dias de emissão devem ser inteiros de 1 a 31. Importação continua somente criação: reimportar dados existentes causa conflito; UCs referenciam CPF de cliente criado no mesmo arquivo.
+
 `POST /importacoes/preview` recebe `arquivo` (CSV UTF-8 com `tipo=clientes|ucs|usinas`, ou XLSX com abas `Clientes`, `UCs`, `Usinas`) e requer `imports.preview`. Não cria entidades: persiste um plano tenant/user-scoped com hash e TTL de 20 minutos. Planos expirados, que podem conter PII, são removidos antes de preview/confirmação e pela rotina global `flask purge-import-previews`. Limites: 10 MB, 10 mil linhas, 80 colunas, células de até 2.000 caracteres e três abas; fórmulas/injeção de planilha (`=`, `+`, `-`, `@`), XLSM e ZIP suspeito são rejeitados. A auditoria registra somente empresa, usuário, hash, contagens e resultado — nunca conteúdo de células.
 
 `POST /importacoes/<previewId>/confirmar` requer `imports.commit`, revalida empresa, usuário, expiração e replay e cria Clientes, UCs e Usinas numa única transação. Qualquer conflito/erro faz rollback total. Esta versão é somente criação e não cria conexões UC–usina.

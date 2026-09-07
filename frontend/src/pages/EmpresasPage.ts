@@ -6,7 +6,8 @@ import { useToast } from '../hooks/useToast';
 import { createIcon } from '../components/Icon';
 import { createBaseLayout } from '../layouts/BaseLayout';
 import { createEmpresa, getEmpresaAtual, getEmpresaDocumentos, getEmpresas, updateEmpresaPlatform, type EmpresaAtual, type EmpresaDocumentos, type EmpresaRow } from '../services/empresaService';
-import { enterEmpresa } from '../services/platformService';
+import { getCurrentUser, refreshCurrentUser } from '../services/authService';
+import { entrarNaEmpresa, sairDaVisualizacao } from '../services/platformService';
 import { getDashboardResumo, type DashboardResumo } from '../services/dashboardService';
 
 export function createEmpresasPage(): HTMLElement {
@@ -63,7 +64,18 @@ export function createEmpresasPage(): HTMLElement {
     newButton.append(createIcon('plus'), document.createTextNode('Nova Empresa'));
     newButton.addEventListener('click', () => document.body.appendChild(createEmpresaModal(async data => { await createEmpresa(data); toast.success('Empresa criada.'); await load(); })));
 
-    toolbar.append(searchInput, spacer, newButton);
+    toolbar.append(searchInput, spacer);
+
+    const viewingEmpresaNome = getCurrentUser()?.platformViewEmpresaNome;
+    if (viewingEmpresaNome) {
+      const exitButton = createElement('button', { className: 'secondary-button button-with-icon', type: 'button' });
+      exitButton.append(createIcon('login'), document.createTextNode(`Sair de "${viewingEmpresaNome}"`));
+      exitButton.title = 'Voltar para a sua empresa';
+      exitButton.addEventListener('click', () => void handleSair());
+      toolbar.appendChild(exitButton);
+    }
+
+    toolbar.appendChild(newButton);
 
     const tableHolder = createElement('div');
 
@@ -163,7 +175,7 @@ export function createEmpresasPage(): HTMLElement {
     viewButton.setAttribute('aria-label', `Visualizar ${empresa.nome}`);
     viewButton.addEventListener('click', (event) => {
       event.stopPropagation();
-      void openDetail(empresa);
+      void handleEntrar(empresa);
     });
 
     const editButton = createElement('button', { className: 'icon-button neutral', type: 'button' });
@@ -229,13 +241,41 @@ export function createEmpresasPage(): HTMLElement {
   async function openDetail(empresa: EmpresaRow): Promise<void> {
     loading.show();
     try {
-      await enterEmpresa(empresa.id);
+      await entrarNaEmpresa(empresa.id);
       const [atual, documentos, resumo] = await Promise.all([
         getEmpresaAtual(), getEmpresaDocumentos(), getDashboardResumo()
       ]);
       content.replaceChildren(renderDetail(empresa, atual, documentos, resumo));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Não foi possível abrir a empresa.');
+    } finally {
+      loading.hide();
+    }
+  }
+
+  async function handleEntrar(empresa: EmpresaRow): Promise<void> {
+    loading.show();
+    try {
+      await entrarNaEmpresa(empresa.id);
+      await refreshCurrentUser();
+      window.history.pushState({}, '', '/dashboard');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    } catch {
+      toast.error('Não foi possível entrar na empresa.');
+    } finally {
+      loading.hide();
+    }
+  }
+
+  async function handleSair(): Promise<void> {
+    loading.show();
+    try {
+      await sairDaVisualizacao();
+      await refreshCurrentUser();
+      toast.success('Você voltou para a sua empresa.');
+      await load();
+    } catch {
+      toast.error('Não foi possível sair da visualização.');
     } finally {
       loading.hide();
     }

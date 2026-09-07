@@ -113,4 +113,44 @@ class ImportacoesTest(IsolatedTestRuntime, unittest.TestCase):
    self.assertIsNone(Client.query.filter_by(cpf='12345678906').first())
    self.assertEqual(LogEntry.query.filter_by(acao='import_confirm_failed', entidade_id=pid).one().metadados['resultado'],'falha')
 
+ def test_z_standard_template_public_download_import_and_export(self):
+  from openpyxl import load_workbook
+  from services.import_service import TEMPLATE_PATH, _validate
+  client = self.app.test_client()
+  response = client.get('/api/v1/importacoes/modelo')
+  self.assertEqual(response.status_code, 200)
+  blank = load_workbook(io.BytesIO(response.data))
+  self.assertEqual(blank.sheetnames, ['Instrucoes', 'Clientes', 'UCs', 'Usinas'])
+  for name in ('Clientes', 'UCs', 'Usinas'):
+   self.assertTrue(all(cell.value is None for cell in blank[name][2]))
+  self.assertEqual(client.get('/api/v1/importacoes/exportar').status_code, 401)
+  self.assertEqual(client.get('/api/v1/importacoes/exportar', headers={'Authorization':'Bearer '+self._token(self.viewer)}).status_code, 403)
+  # O arquivo real enviado pelo usuario cobre todos os campos opcionais.
+  workbook = load_workbook(TEMPLATE_PATH)
+  output = io.BytesIO(); workbook.save(output)
+  rows = _read_file(output.getvalue(), 'modelo.xlsx', None)
+  plan, errors = _validate(rows)
+  self.assertEqual(errors, [])
+  self.assertEqual(plan['clientes'][0]['dataNascimento'], '1990-05-20')
+  self.assertEqual(plan['ucs'][0]['apelido'], 'Casa')
+  self.assertEqual(plan['usinas'][0]['numModulos'], '180')
+  response = client.post('/api/v1/importacoes/preview', headers={'Authorization':'Bearer '+self._token(self.a)}, data={'arquivo':(io.BytesIO(output.getvalue()), 'modelo.xlsx')})
+  self.assertEqual(response.status_code, 201)
+  self.assertEqual(self._commit(self.a, response.json['data']['previewId']).status_code, 200)
+  exported = client.get('/api/v1/importacoes/exportar', headers={'Authorization':'Bearer '+self._token(self.a)})
+  self.assertEqual(exported.status_code, 200)
+  exported_rows = _read_file(exported.data, 'export.xlsx', None)
+  exported_client = next(row for row in exported_rows['clientes'] if row['cpf'] == '12345678900')
+  self.assertEqual(exported_client['dataNascimento'], '1990-05-20')
+  self.assertEqual(exported_rows['ucs'][0]['clienteCpf'], '12345678900')
+  self.assertEqual(exported_rows['ucs'][0]['apelido'], 'Casa')
+  self.assertEqual(exported_rows['ucs'][0]['consumo'], 450.5)
+  self.assertEqual(exported_rows['usinas'][0]['numModulos'], 180)
+  self.assertEqual(exported_rows['usinas'][0]['producaoMediaManual'], 9500)
+  self.assertEqual(exported_rows['usinas'][0]['concessionaria'], 'Copel')
+  other = client.get('/api/v1/importacoes/exportar', headers={'Authorization':'Bearer '+self._token(self.b)})
+  self.assertTrue(all(not entries for entries in _read_file(other.data, 'export.xlsx', None).values()))
+  rows['ucs'][0]['diaEmissaoFatura'] = '1.5'
+  self.assertTrue(_validate(rows)[1])
+
 if __name__=='__main__': unittest.main()

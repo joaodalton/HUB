@@ -1,4 +1,4 @@
-import { apiRequest, apiUpload } from './apiClient';
+import { apiBlob, apiRequest, apiUpload } from './apiClient';
 
 type ApiResponse<T> = { success: boolean; message: string; data: T };
 
@@ -36,4 +36,8 @@ export async function criarPreviaImportacao(arquivo: File, tipoCsv?: 'clientes' 
 export async function confirmarImportacao(importacaoId: number): Promise<ImportacaoResultado> {
   const response = await apiRequest<ApiResponse<ImportacaoResultado>>(`/importacoes/${encodeURIComponent(importacaoId)}/confirmar`, { method: 'POST' });
   return response.data;
+}
+
+export function exportarImportacao(): Promise<Blob> {
+  return apiBlob('/importacoes/exportar');
 }

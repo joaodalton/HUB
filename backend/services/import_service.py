@@ -2,6 +2,8 @@ import csv, hashlib, io, zipfile
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from xml.etree.ElementTree import ParseError
+from pathlib import Path
+from copy import copy
 
 from flask import g
 
@@ -14,7 +16,75 @@ from models.plant import Plant
 
 MAX_BYTES, MAX_ROWS, TTL_MINUTES, MAX_COLUMNS, MAX_CELL_CHARS = 10 * 1024 * 1024, 10_000, 20, 80, 2_000
 SHEETS = {'Clientes': 'clientes', 'UCs': 'ucs', 'Usinas': 'usinas'}
+TEMPLATE_PATH = Path(__file__).resolve().parents[1] / 'templates' / 'HUB_Modelo_Importacao.xlsx'
 REQUIRED = {'clientes': {'nome', 'cpf', 'email'}, 'ucs': {'clienteCpf', 'codigo'}, 'usinas': {'nome', 'uc', 'kwPico'}}
+HEADER_ALIASES = {
+    'clientes': {
+        'Cliente_ID': None, 'Cliente_Nome': 'nome', 'Cliente_CPF': 'cpf',
+        'Cliente_Email': 'email', 'Cliente_Telefone': 'telefone',
+        'Cliente_Nascimento': 'dataNascimento', 'Cliente_Nascimento (opcional)': 'dataNascimento',
+        'Cliente_concessionaria': 'concessionaria', 'Cliente_concessionaria (opcional)': 'concessionaria',
+    },
+    'ucs': {
+        'Cliente_ID': None, 'UC_ClienteCPF': 'clienteCpf', 'UC_CPF/CNPJ': 'documento',
+        'UC_Nome': 'apelido', 'UC_Codigo': 'codigo', 'UC_Consumo': 'consumo',
+        'UC_Base Tarifaria': 'baseTarifaria', 'UC_Ligação': 'tipoLigacao',
+        'UC_concessionaria': 'concessionaria', 'UC_Desconto': 'desconto',
+        'UC_Emissão': 'diaEmissaoFatura', 'UC_DiaEmissaoFatura': 'diaEmissaoFatura',
+    },
+    'usinas': {
+        'Usina_ID': None, 'Usina_Nome': 'nome', 'Usina_UC': 'uc',
+        'Usina_MarcaInversor': 'marcaInversor', 'Usina_Telefone': 'telefoneProprietario',
+        'Usina_Email': 'emailProprietario', 'Usina_Cidade': 'cidade', 'Usina_Cidade ': 'cidade',
+        'Usina_UF': 'uf', 'Usina_UF (opcional)': 'uf', 'Usina_Endereço': 'endereco',
+        'Usina_Endereço (opcional)': 'endereco', 'Usina_NumeroModulos': 'numModulos',
+        'Usina_PotenicaMedia': 'producaoMediaManual', 'Usina_ProducaoMediaKWh': 'producaoMediaManual',
+        'Usina_KWPico': 'kwPico', 'Usina_DiaEmissao': 'diaEmissaoUsina',
+        'Usina_Emissão': 'diaEmissaoUsina', 'Usina_Status': 'status',
+        'Usina_Status (opcional)': 'status', 'Usina_Responsavel': 'responsavel',
+        'Usina_Responsavel (opcional)': 'responsavel',
+    },
+}
+
+STANDARD_FIELDS = {
+    'clientes': ['nome', 'cpf', 'email', 'telefone', 'dataNascimento', 'concessionaria'],
+    'ucs': ['clienteCpf', 'codigo', 'apelido', 'documento', 'consumo', 'baseTarifaria', 'tipoLigacao', 'concessionaria', 'desconto', 'diaEmissaoFatura'],
+    'usinas': ['nome', 'uc', 'kwPico', 'marcaInversor', 'telefoneProprietario', 'emailProprietario', 'cidade', 'uf', 'endereco', 'numModulos', 'producaoMediaManual', 'diaEmissaoUsina', 'status', 'responsavel', 'concessionaria'],
+}
+
+def _aliases(kind):
+    from openpyxl import load_workbook
+    with TEMPLATE_PATH.open('rb') as source:
+        workbook = load_workbook(source, read_only=True)
+        try:
+            sheet = next(name for name, value in SHEETS.items() if value == kind)
+            headers = next(workbook[sheet].values)
+            return {**HEADER_ALIASES[kind], **dict(zip(headers, STANDARD_FIELDS[kind]))}
+        finally:
+            workbook.close()
+
+def modelo_workbook():
+    from openpyxl import load_workbook
+    workbook = load_workbook(TEMPLATE_PATH)
+    for name in SHEETS:
+        sheet = workbook[name]
+        for cell in sheet[2]: cell.value = None
+        sheet.freeze_panes = 'A2'
+        for validation in sheet.data_validations.dataValidation:
+            column = str(validation.sqref).split('3:')[0]
+            validation.sqref = f'{column}2:{column}{MAX_ROWS + 1}'
+            validation.showErrorMessage = True
+            validation.errorTitle = 'Valor inválido'
+            validation.error = 'Escolha uma opção da lista.'
+    workbook['Instrucoes']['A5'] = '2. Preencha os cadastros a partir da linha 2; mantenha os cabeçalhos da linha 1.'
+    return workbook
+
+def _workbook_bytes(workbook):
+    output = io.BytesIO()
+    workbook.save(output)
+    workbook.close()
+    output.seek(0)
+    return output
 
 
 def criar_preview(file_storage, tipo_csv: str | None) -> dict:
@@ -42,6 +112,26 @@ def criar_preview(file_storage, tipo_csv: str | None) -> dict:
     return {'previewId': preview.id, 'expiraEm': preview.expires_at.isoformat(), 'contagens': {k: len(v) for k,v in plan.items()}, 'erros': errors}
 
 
+def exportar_workbook(empresa_id: int) -> io.BytesIO:
+    workbook = modelo_workbook()
+    models = {'Clientes': Client, 'UCs': ConsumerUnit, 'Usinas': Plant}
+    for name, model in models.items():
+        sheet = workbook[name]
+        fields = STANDARD_FIELDS[SHEETS[name]]
+        records = model.query.filter_by(empresa_id=empresa_id).order_by(model.id).all()
+        for index, record in enumerate(records, 2):
+            data = record.to_dict()
+            if name == 'UCs':
+                data['clienteCpf'] = record.client.cpf if record.client and record.client.empresa_id == empresa_id else ''
+            for column, field in enumerate(fields, 1):
+                cell = sheet.cell(index, column, data.get(field))
+                cell._style = copy(sheet.cell(2, column)._style)
+                if isinstance(cell.value, str):
+                    cell.data_type = 's'
+                    cell.number_format = '@'
+    return _workbook_bytes(workbook)
+
+
 def confirmar(preview_id: int) -> dict | None:
     purge_expirados(empresa_id=g.current_empresa_id)
     preview = ImportPreview.query.filter_by(id=preview_id, empresa_id=g.current_empresa_id, created_by_id=g.current_user.id).first()
@@ -59,16 +149,16 @@ def confirmar(preview_id: int) -> dict | None:
             cpf = _digits(row['cpf'])
             if Client.query.filter(Client.empresa_id == g.current_empresa_id, Client.cpf == cpf).first():
                 raise ValueError('Cliente duplicado no banco.')
-            client = Client(empresa_id=g.current_empresa_id, nome=row['nome'], cpf=cpf, email=row['email'], telefone=row.get('telefone'), concessionaria=row.get('concessionaria') or 'Copel')
+            client = Client(empresa_id=g.current_empresa_id, nome=row['nome'], cpf=cpf, email=row['email'], telefone=row.get('telefone'), concessionaria=row.get('concessionaria') or 'Copel', data_nascimento=_date(row.get('dataNascimento')))
             db.session.add(client); db.session.flush(); clients[cpf] = client
         for row in plan['ucs']:
             cpf = _digits(row['clienteCpf']); client = clients.get(cpf)
             if not client: raise ValueError('UC referencia cliente ausente no mesmo arquivo.')
             if ConsumerUnit.query.filter(ConsumerUnit.empresa_id == g.current_empresa_id, ConsumerUnit.client_id == client.id, ConsumerUnit.codigo == row['codigo']).first(): raise ValueError('UC duplicada no banco.')
-            db.session.add(ConsumerUnit(empresa_id=g.current_empresa_id, client_id=client.id, codigo=row['codigo'], consumo=_number(row.get('consumo')), concessionaria=row.get('concessionaria')))
+            db.session.add(ConsumerUnit(empresa_id=g.current_empresa_id, client_id=client.id, codigo=row['codigo'], apelido=row.get('apelido'), documento=row.get('documento'), consumo=_number(row.get('consumo')), base_tarifaria=row.get('baseTarifaria') or 'B1', tipo_ligacao=row.get('tipoLigacao') or 'Monofasico', desconto=row.get('desconto'), dia_emissao_fatura=_integer(row.get('diaEmissaoFatura')), concessionaria=row.get('concessionaria')))
         for row in plan['usinas']:
             if Plant.query.filter(Plant.empresa_id == g.current_empresa_id, Plant.nome == row['nome'], Plant.uc == row['uc']).first(): raise ValueError('Usina duplicada no banco.')
-            db.session.add(Plant(empresa_id=g.current_empresa_id, nome=row['nome'], uc=row['uc'], kw_pico=_number(row['kwPico']), concessionaria=row.get('concessionaria')))
+            db.session.add(Plant(empresa_id=g.current_empresa_id, nome=row['nome'], uc=row['uc'], kw_pico=_number(row['kwPico']), marca_inversor=row.get('marcaInversor'), telefone_proprietario=row.get('telefoneProprietario'), email_proprietario=row.get('emailProprietario'), cidade=row.get('cidade'), uf=row.get('uf'), endereco=row.get('endereco'), num_modulos=_integer(row.get('numModulos')), producao_media_manual=_number(row.get('producaoMediaManual')), dia_emissao_usina=_integer(row.get('diaEmissaoUsina')), status=row.get('status') or 'Implantacao', responsavel=row.get('responsavel'), concessionaria=row.get('concessionaria')))
         preview.status = 'consumido'
         _audit('import_confirmed', preview, 'sucesso')
         db.session.commit()
@@ -122,10 +212,20 @@ def _read_file(content, filename, tipo_csv):
         workbook = load_workbook(io.BytesIO(content), read_only=True, data_only=False)
     except (zipfile.BadZipFile, InvalidFileException, ParseError, OSError, KeyError, ValueError) as exc:
         raise ValueError('XLSX inválido.') from exc
-    if set(workbook.sheetnames) - set(SHEETS): raise ValueError('XLSX contém aba não permitida.')
+    sheet_map = SHEETS
+    if set(workbook.sheetnames) == {'Página1'}:
+        header_row = next(workbook['Página1'].iter_rows(max_row=1, values_only=False), None)
+        headers = {str(cell.value or '').strip() for cell in (header_row or [])}
+        candidates = [kind for kind, aliases in HEADER_ALIASES.items() if REQUIRED[kind].issubset({aliases.get(header, header) for header in headers})]
+        if len(candidates) != 1:
+            raise ValueError('XLSX deve usar as abas Clientes, UCs e Usinas ou um arquivo único identificável.')
+        sheet_map = {'Página1': candidates[0]}
+    elif set(workbook.sheetnames) - set(SHEETS) - {'Instrucoes'}:
+        raise ValueError('XLSX contém aba não permitida.')
     result, total_rows = {}, 0
     try:
-        for sheet, kind in SHEETS.items():
+        for sheet, kind in sheet_map.items():
+            aliases = _aliases(kind)
             if sheet not in workbook.sheetnames: result[kind] = []; continue
             iterator = workbook[sheet].iter_rows(values_only=False)
             header_row = next(iterator, None)
@@ -137,7 +237,8 @@ def _read_file(content, filename, tipo_csv):
                 total_rows += 1
                 if total_rows > MAX_ROWS: raise ValueError('Máximo de 10 mil linhas.')
                 if any(_unsafe_cell(c.value) or len(str(c.value or '')) > MAX_CELL_CHARS for c in row): raise ValueError('Fórmulas ou célula excessiva não são permitidas.')
-                result[kind].append({headers[i]: cell.value for i, cell in enumerate(row) if i < len(headers)})
+                if all(c.value is None or str(c.value).strip() == '' for c in row): continue
+                result[kind].append({aliases.get(headers[i], headers[i]): cell.value for i, cell in enumerate(row) if i < len(headers) and aliases.get(headers[i], headers[i])})
     except (ParseError, OSError, KeyError, zipfile.BadZipFile, InvalidFileException) as exc:
         raise ValueError('XLSX inválido.') from exc
     finally:
@@ -150,9 +251,22 @@ def _validate(rows):
     errors, plan = [], {k: [] for k in REQUIRED}
     seen = set()
     for kind, entries in rows.items():
+        aliases = _aliases(kind)
         for index, raw in enumerate(entries, 2):
-            clean = {k: str(v).strip() if v is not None else '' for k,v in raw.items()}
+            clean = {aliases.get(k, k): str(v).strip() if v is not None else '' for k,v in raw.items() if aliases.get(k, k)}
             missing = [f for f in REQUIRED[kind] if not clean.get(f)]
+            try:
+                for field in ('consumo', 'kwPico', 'producaoMediaManual'):
+                    if clean.get(field): _number(clean[field])
+                for field in ('diaEmissaoFatura', 'diaEmissaoUsina', 'numModulos'):
+                    if clean.get(field):
+                        value = _integer(clean[field])
+                        if value < 0 or (field.startswith('dia') and not 1 <= value <= 31):
+                            raise ValueError(f'{field} fora do intervalo permitido.')
+                if clean.get('dataNascimento'): _date(clean['dataNascimento'])
+            except ValueError as exc:
+                errors.append({'tipo': kind, 'linha': index, 'erro': str(exc)})
+                continue
             if missing: errors.append({'tipo': kind, 'linha': index, 'erro': f'Campos obrigatórios: {", ".join(missing)}'}); continue
             if kind == 'clientes':
                 clean['cpf'] = _digits(clean['cpf']); key=(kind,clean['cpf'])
@@ -167,8 +281,21 @@ def _validate(rows):
     return plan, errors
 
 def _digits(value): return ''.join(c for c in str(value) if c.isdigit())
+def _date(value):
+    if not value: return None
+    try: return datetime.fromisoformat(str(value)).date()
+    except ValueError as exc: raise ValueError('Data inválida.') from exc
+def _integer(value):
+    if not value: return None
+    number = _number(value)
+    if number != number.to_integral_value(): raise ValueError('Número inteiro inválido.')
+    return int(number)
 def _number(value):
-    try: return Decimal(str(value).replace(',', '.'))
+    if value is None or str(value).strip() == '': return None
+    try:
+        number = Decimal(str(value).replace(',', '.'))
+        if not number.is_finite(): raise ValueError('Número inválido.')
+        return number
     except InvalidOperation as exc: raise ValueError('Número inválido.') from exc
 
 

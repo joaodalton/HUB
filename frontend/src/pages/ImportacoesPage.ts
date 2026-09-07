@@ -5,9 +5,11 @@ import { useGlobalLoading } from '../hooks/useGlobalLoading';
 import { useToast } from '../hooks/useToast';
 import { createBaseLayout } from '../layouts/BaseLayout';
 import { getCurrentUser } from '../services/authService';
+import { config } from '../services/config';
 import {
   confirmarImportacao,
   criarPreviaImportacao,
+  exportarImportacao,
   type ImportacaoPrevia,
   type ImportacaoProblema,
   type ImportacaoResultado
@@ -46,7 +48,7 @@ export function createImportacoesPage(): HTMLElement {
         createElement('strong', { textContent: 'Acesso não permitido' }),
         createElement('span', { textContent: 'Seu perfil não tem permissão para importar cadastros.' })
       );
-      content.replaceChildren(denied);
+      content.replaceChildren(createTemplateGuide(), denied);
       return;
     }
 
@@ -67,6 +69,9 @@ export function createImportacoesPage(): HTMLElement {
       createImportacaoHeader('Enviar planilha', 'Envie um arquivo Excel com as três abas esperadas. O HUB valida tudo antes de criar os cadastros.'),
       createTemplateGuide()
     );
+    const exportButton = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Exportar cadastros atuais' });
+    exportButton.addEventListener('click', () => void downloadExport());
+    panel.appendChild(exportButton);
     const form = createElement('form', { className: 'importacao-form' });
     const fileField = createElement('label', { className: 'upload-dropzone importacao-dropzone' });
     const fileInput = createElement('input');
@@ -145,9 +150,12 @@ export function createImportacoesPage(): HTMLElement {
 
   function createTemplateGuide(): HTMLElement {
     const guide = createElement('section', { className: 'importacao-template-guide' });
+    const download = createElement('a', { className: 'secondary-button', textContent: 'Baixar modelo padrão (.xlsx)' });
+    download.href = `${config.apiBaseUrl}${config.apiPrefix}/importacoes/modelo`;
+    guide.append(download, createElement('p', { textContent: 'Modelo vazio com instruções. Preencha a partir da linha 2. Vincule cada UC ao CPF de um cliente na mesma planilha. A importação cria novos cadastros; não atualiza os existentes.' }));
     guide.append(createElement('h2', { textContent: 'Formato esperado' }), createElement('p', { textContent: 'No XLSX, use as abas Clientes, UCs e Usinas. CSV UTF-8 aceita somente uma delas por arquivo; selecione o tipo acima.' }));
     const list = createElement('ol');
-    ['Clientes — obrigatórios: nome, cpf e email; opcionais: telefone e concessionaria.', 'UCs — obrigatórios: clienteCpf e codigo; opcionais: consumo e concessionaria.', 'Usinas — obrigatórios: nome, uc e kwPico; opcional: concessionaria.'].forEach((item) => list.appendChild(createElement('li', { textContent: item })));
+    ['Clientes — obrigatórios: Cliente_Nome, Cliente_CPF e Cliente_Email.', 'UCs — obrigatórios: UC_ClienteCPF e UC_Codigo.', 'Usinas — obrigatórios: Usina_Nome, Usina_UC e Usina_KWPico. Os demais campos estão identificados como opcionais no modelo.'].forEach((item) => list.appendChild(createElement('li', { textContent: item })));
     guide.appendChild(list);
     return guide;
   }
@@ -193,6 +201,23 @@ export function createImportacoesPage(): HTMLElement {
       busy = false;
       loading.hide();
       render();
+    }
+  }
+
+  async function downloadExport(): Promise<void> {
+    loading.show();
+    try {
+      const blob = await exportarImportacao();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'hub-clientes-ucs-usinas.xlsx';
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error('Não foi possível exportar os cadastros.');
+    } finally {
+      loading.hide();
     }
   }
 

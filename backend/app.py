@@ -116,7 +116,7 @@ def create_app() -> Flask:
 
     from utils.auth import register_auth_middleware
     register_auth_middleware(app, public_paths={
-        '/', '/api/v1/auth/login', '/api/v1/auth/bootstrap',
+        '/', '/api/v1/auth/login', '/api/v1/auth/bootstrap', '/api/v1/importacoes/modelo',
         '/api/v1/auth/register', '/api/v1/auth/aceitar-convite',
         '/api/v1/convites/verificar',
         '/api/v1/empresas/registro',

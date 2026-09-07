@@ -449,7 +449,7 @@ function createEmpresaAtualPanel(
   onRetry: () => Promise<void>,
   onSave: (data: EmpresaAtualUpdate) => Promise<void>
 ): HTMLElement {
-  const panel = createElement('section', { className: 'settings-panel' });
+  const panel = createElement('section', { className: 'settings-panel empresa-atual-panel' });
   panel.appendChild(createPanelHeader('Dados da Empresa', 'Informações cadastrais da empresa atual. Slug e status não podem ser alterados aqui.'));
 
   if (!loaded) {
@@ -504,7 +504,7 @@ function createRateioConfigPanel(
   loaded: boolean,
   onSave: (config: RateioConfig) => Promise<void>
 ): HTMLElement {
-  const panel = createElement('section', { className: 'settings-panel' });
+  const panel = createElement('section', { className: 'settings-panel rateio-config-panel' });
   panel.appendChild(createPanelHeader('Rateio', 'Regras padrão usadas pelo motor de rateio'));
 
   if (!loaded) {

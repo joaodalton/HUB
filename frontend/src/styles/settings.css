@@ -256,6 +256,23 @@
 .integration-card .secondary-button { justify-self: start; }
 .integration-editor { display: grid; gap: var(--space-3); margin-top: var(--space-4); }
 
+/* ---------- Geral ---------- */
+
+.empresa-atual-panel,
+.rateio-config-panel {
+  border-color: var(--border-deep);
+  background: var(--panel-deep);
+}
+
+.empresa-atual-panel .panel-title,
+.rateio-config-panel .panel-title {
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border-deep);
+}
+
+.empresa-atual-panel .settings-form,
+.rateio-config-panel .settings-form { max-width: 620px; }
+
 .api-credentials-list { display: grid; gap: 10px; margin-bottom: 22px; }
 
 .api-credential-card {

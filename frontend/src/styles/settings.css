@@ -227,6 +227,28 @@
 
 /* ---------- APIs e integrações ---------- */
 
+.integration-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-3);
+}
+
+.integration-card {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border-deep);
+  border-radius: var(--radius-card);
+  background: var(--panel-deep);
+}
+
+.integration-card-heading { display: flex; align-items: center; gap: var(--space-2); color: var(--text); }
+.integration-card-heading .icon { width: 20px; height: 20px; color: var(--accent-secondary); }
+.integration-card p { min-height: 34px; margin: 0; color: var(--text-dim); font-size: 12px; line-height: 1.4; }
+.integration-card .provider-badge { justify-self: start; }
+.integration-card .secondary-button { justify-self: start; }
+.integration-editor { display: grid; gap: var(--space-3); margin-top: var(--space-4); }
+
 .api-credentials-list { display: grid; gap: 10px; margin-bottom: 22px; }
 
 .api-credential-card {

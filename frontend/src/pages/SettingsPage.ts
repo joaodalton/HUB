@@ -1,6 +1,8 @@
 import { createElement } from '../dom';
 import { createInput, createSelectField } from '../components/formFields';
 import { createDataTable } from '../components/DataTable';
+import { createIntegrationCard } from '../components/IntegrationCard';
+import type { IconName } from '../components/Icon';
 import { useToast } from '../hooks/useToast';
 import { createBaseLayout } from '../layouts/BaseLayout';
 import { getCurrentUser } from '../services/authService';
@@ -563,11 +565,11 @@ function createRateioConfigPanel(
 
 // ---------- APIs e integrações ----------
 
-const API_PROVIDER_OPTIONS: Array<{ value: ApiCredentialProvider; label: string }> = [
-  { value: 'resend', label: 'Resend (e-mail)' },
-  { value: 'whatsapp', label: 'WhatsApp' },
-  { value: 'asaas', label: 'Asaas (financeiro)' },
-  { value: 'concessionaria', label: 'Concessionária' }
+const API_PROVIDER_OPTIONS: Array<{ value: ApiCredentialProvider; label: string; descricao: string; icon: IconName }> = [
+  { value: 'resend', label: 'Resend (e-mail)', descricao: 'Envio de e-mails transacionais.', icon: 'mensagens' },
+  { value: 'whatsapp', label: 'WhatsApp', descricao: 'Comunicação com clientes via WhatsApp.', icon: 'mensagens' },
+  { value: 'asaas', label: 'Asaas (financeiro)', descricao: 'Cobranças e faturas da empresa.', icon: 'cobrancas' },
+  { value: 'concessionaria', label: 'Concessionária', descricao: 'Credenciais de serviços das concessionárias.', icon: 'plants' }
 ];
 
 function createApiCredentialsPanel(
@@ -601,14 +603,32 @@ function createApiCredentialsPanel(
     return panel;
   }
 
-  const list = createElement('div', { className: 'api-credentials-list' });
-  if (credentials.length === 0) {
-    list.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Nenhuma integração configurada ainda.' }));
-  } else {
-    credentials.forEach((credential) => list.appendChild(createApiCredentialCard(credential, onUpdate, onDelete)));
-  }
-  panel.appendChild(list);
-  panel.appendChild(createApiCredentialForm(onCreate));
+  const grid = createElement('div', { className: 'integration-card-grid' });
+  const editor = createElement('div', { className: 'integration-editor' });
+  editor.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Selecione uma integração para configurar suas credenciais.' }));
+
+  API_PROVIDER_OPTIONS.forEach((provider) => {
+    const providerCredentials = credentials.filter((credential) => credential.provider === provider.value);
+    grid.appendChild(createIntegrationCard({
+      nome: provider.label,
+      descricao: provider.descricao,
+      icon: provider.icon,
+      status: providerCredentials.some((credential) => credential.configurada) ? 'conectado' : 'nao_configurado',
+      onConfigurar: () => {
+        if (providerCredentials.length === 0) {
+          editor.replaceChildren(createApiCredentialForm(onCreate, provider.value));
+          return;
+        }
+        const cards = providerCredentials.map((credential) => {
+          const card = createApiCredentialCard(credential, onUpdate, onDelete) as HTMLDetailsElement;
+          card.open = true;
+          return card;
+        });
+        editor.replaceChildren(...cards);
+      }
+    }));
+  });
+  panel.append(grid, editor);
   return panel;
 }
 
@@ -665,10 +685,10 @@ function createApiCredentialCard(
   return card;
 }
 
-function createApiCredentialForm(onCreate: (data: Required<ApiCredentialPayload>) => Promise<void>): HTMLElement {
+function createApiCredentialForm(onCreate: (data: Required<ApiCredentialPayload>) => Promise<void>, provider = 'resend'): HTMLElement {
   const form = createElement('form', { className: 'settings-form api-credential-form' });
   form.appendChild(createElement('h3', { textContent: 'Adicionar integração' }));
-  const providerField = createSelectField('Provedor', 'resend', API_PROVIDER_OPTIONS);
+  const providerField = createSelectField('Provedor', provider, API_PROVIDER_OPTIONS);
   const nameField = createInput('Nome da integração', 'text', '', true);
   const secretField = createInput('Segredo de acesso', 'password', '', true);
   secretField.input.autocomplete = 'new-password';

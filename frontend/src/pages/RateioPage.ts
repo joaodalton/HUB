@@ -5,6 +5,7 @@
 // cria as PlantConnection novas com o % escolhido -- ver renderConcluido()
 // no fim do arquivo.
 import { createElement } from '../dom';
+import { createIconStatCard } from '../components/IconStatCard';
 import { createIcon } from '../components/Icon';
 import { useGlobalLoading } from '../hooks/useGlobalLoading';
 import { useToast } from '../hooks/useToast';
@@ -360,12 +361,12 @@ export function createRateioPage(): HTMLElement {
   }
 
   function createProducaoStat(label: string, value: string, tone: 'neutral' | 'warning' | 'success'): HTMLElement {
-    const card = createElement('article', { className: `rateio-producao-stat tone-${tone}` });
-    card.append(
-      createElement('span', { className: 'rateio-producao-stat-label', textContent: label }),
-      createElement('strong', { className: 'rateio-producao-stat-value', textContent: value })
-    );
-    return card;
+    return createIconStatCard({
+      label,
+      value,
+      icon: tone === 'warning' ? 'pending' : tone === 'success' ? 'check' : 'plants',
+      chipColor: tone === 'warning' ? 'amber' : tone === 'success' ? 'green' : 'blue'
+    });
   }
 
   function createReservaField(plant: PlantRow): HTMLElement {

@@ -5,6 +5,7 @@ import { useGlobalLoading } from '../hooks/useGlobalLoading';
 import { useToast } from '../hooks/useToast';
 import { createBaseLayout } from '../layouts/BaseLayout';
 import { createDataTable } from '../components/DataTable';
+import { createIconStatCard } from '../components/IconStatCard';
 import { createInvitation, getInvitations, revokeInvitation, type InvitationRow } from '../services/invitationService';
 import { getCurrentUser } from '../services/authService';
 import { createUser, getUsers, setUserActive, updateUser, type UserPayload, type UserRole, type UserRow } from '../services/userService';
@@ -54,7 +55,10 @@ export function createUsersPage(): HTMLElement {
       empty.append(createIcon('clients', 'empty-state-icon'), createElement('p', { textContent: 'Nenhum usuário encontrado' }), createElement('span', { textContent: 'Crie o primeiro acesso direto para esta empresa.' }));
       panel.appendChild(empty);
     } else panel.appendChild(createUsersTable(users, handleSetActive, handleEdit));
-    content.replaceChildren(tabs, pageActions, panel);
+    const metrics = activeTab === 'users'
+      ? createUserMetrics(users)
+      : createInvitationMetrics(invitations);
+    content.replaceChildren(tabs, metrics, pageActions, panel);
   }
 
   async function loadUsers(): Promise<void> {
@@ -87,6 +91,25 @@ export function createUsersPage(): HTMLElement {
   async function handleInvite(data: { email: string; role: Exclude<UserRole, 'owner'> }): Promise<void> { await createInvitation(data); toast.success('Convite criado.'); await loadInvitations(); }
   async function handleRevoke(invite: InvitationRow): Promise<void> { if (!window.confirm(`Revogar convite para ${invite.email}?`)) return; await revokeInvitation(invite.id); toast.success('Convite revogado.'); await loadInvitations(); }
   async function handleResend(invite: InvitationRow): Promise<void> { await createInvitation({ email: invite.email, role: invite.role as Exclude<UserRole, 'owner'> }); toast.success('Novo convite criado.'); await loadInvitations(); }
+}
+
+function createUserMetrics(users: UserRow[]): HTMLElement {
+  const grid = createElement('section', { className: 'metric-grid' });
+  grid.append(
+    createIconStatCard({ icon: 'clients', chipColor: 'blue', value: String(users.length), label: 'Usuários' }),
+    createIconStatCard({ icon: 'check', chipColor: 'green', value: String(users.filter((user) => user.status === 'ativo').length), label: 'Acessos ativos' }),
+    createIconStatCard({ icon: 'lock', chipColor: 'purple', value: String(users.filter((user) => user.role === 'owner' || user.role === 'admin').length), label: 'Administradores' })
+  );
+  return grid;
+}
+
+function createInvitationMetrics(invitations: InvitationRow[]): HTMLElement {
+  const grid = createElement('section', { className: 'metric-grid' });
+  grid.append(
+    createIconStatCard({ icon: 'mensagens', chipColor: 'blue', value: String(invitations.length), label: 'Convites' }),
+    createIconStatCard({ icon: 'pending', chipColor: 'amber', value: String(invitations.filter((invite) => invite.status === 'pending').length), label: 'Pendentes' })
+  );
+  return grid;
 }
 
 function createInvitationsTable(rows: InvitationRow[], onRevoke: (row: InvitationRow) => Promise<void>, onResend: (row: InvitationRow) => Promise<void>): HTMLElement {

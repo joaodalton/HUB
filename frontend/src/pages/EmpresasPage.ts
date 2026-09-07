@@ -4,6 +4,7 @@ import { createInput } from '../components/formFields';
 import { useGlobalLoading } from '../hooks/useGlobalLoading';
 import { useToast } from '../hooks/useToast';
 import { createIcon } from '../components/Icon';
+import { createIconStatCard } from '../components/IconStatCard';
 import { createBaseLayout } from '../layouts/BaseLayout';
 import { createEmpresa, getEmpresaAtual, getEmpresaDocumentos, getEmpresas, updateEmpresaPlatform, type EmpresaAtual, type EmpresaDocumentos, type EmpresaRow } from '../services/empresaService';
 import { getCurrentUser, refreshCurrentUser } from '../services/authService';
@@ -132,7 +133,7 @@ export function createEmpresasPage(): HTMLElement {
     }
 
     refresh();
-    fragment.append(toolbar, tableHolder);
+    fragment.append(toolbar, createEmpresaMetrics(empresas), tableHolder);
     return fragment;
   }
 
@@ -328,6 +329,16 @@ export function createEmpresasPage(): HTMLElement {
     detail.append(back, header, panels, tabs);
     return detail;
   }
+}
+
+function createEmpresaMetrics(empresas: EmpresaRow[]): HTMLElement {
+  const grid = createElement('section', { className: 'metric-grid' });
+  grid.append(
+    createIconStatCard({ icon: 'plants', chipColor: 'blue', value: String(empresas.length), label: 'Empresas' }),
+    createIconStatCard({ icon: 'check', chipColor: 'green', value: String(empresas.filter((empresa) => empresa.status === 'ativa').length), label: 'Empresas ativas' }),
+    createIconStatCard({ icon: 'clients', chipColor: 'purple', value: String(empresas.reduce((total, empresa) => total + empresa.totalUsuarios, 0)), label: 'Usuários' })
+  );
+  return grid;
 }
 
 function createDetailField(label: string, value: string): HTMLElement {

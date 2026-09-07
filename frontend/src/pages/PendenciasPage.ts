@@ -1,6 +1,6 @@
 // frontend/src/pages/PendenciasPage.ts
 import { createElement } from '../dom';
-import { createDashboardCards, type DashboardMetric } from '../components/DashboardCards';
+import { createIconStatCard, type IconStatCardProps } from '../components/IconStatCard';
 import { createDataTable } from '../components/DataTable';
 import { createInfoField } from '../components/ClientDetailView';
 import { createIcon } from '../components/Icon';
@@ -246,13 +246,12 @@ export function createPendenciasPage(): HTMLElement {
     return fragment;
 
     function createStatCards(): HTMLElement {
-      const metrics: DashboardMetric[] = [
+      const metrics: IconStatCardProps[] = [
         {
           label: 'Pendências',
           value: String(resumo.pendencias),
-          tone: 'warning',
+          chipColor: 'amber',
           icon: 'pending',
-          active: tipoFilter === 'pendencia',
           onClick: () => {
             tipoFilter = tipoFilter === 'pendencia' ? null : 'pendencia';
             refresh();
@@ -261,9 +260,8 @@ export function createPendenciasPage(): HTMLElement {
         {
           label: 'Alertas',
           value: String(resumo.alertas),
-          tone: 'warning',
+          chipColor: 'amber',
           icon: 'cobrancas',
-          active: tipoFilter === 'alerta',
           onClick: () => {
             tipoFilter = tipoFilter === 'alerta' ? null : 'alerta';
             refresh();
@@ -272,9 +270,8 @@ export function createPendenciasPage(): HTMLElement {
         {
           label: 'Erros',
           value: String(resumo.erros),
-          tone: 'danger',
+          chipColor: 'red',
           icon: 'x',
-          active: tipoFilter === 'erro',
           onClick: () => {
             tipoFilter = tipoFilter === 'erro' ? null : 'erro';
             refresh();
@@ -282,7 +279,9 @@ export function createPendenciasPage(): HTMLElement {
         }
       ];
 
-      return createDashboardCards(metrics);
+      const grid = createElement('section', { className: 'metric-grid' });
+      metrics.forEach((metric) => grid.appendChild(createIconStatCard(metric)));
+      return grid;
     }
 
     function createPendenciasTable(): HTMLElement {

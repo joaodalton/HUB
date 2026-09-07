@@ -39,8 +39,8 @@
 }
 
 .agenda-mode-switch button.active {
-  background: var(--accent-bg);
-  color: var(--accent);
+  background: var(--accent-secondary-bg);
+  color: var(--accent-secondary);
   font-weight: 700;
 }
 
@@ -186,13 +186,13 @@
 }
 
 .agenda-dot.tone-warning {
-  background: var(--warning);
-  box-shadow: 0 0 4px var(--warning);
+  background: var(--warning-vivid);
+  box-shadow: 0 0 4px var(--warning-vivid);
 }
 
 .agenda-dot.tone-danger {
-  background: var(--danger);
-  box-shadow: 0 0 4px var(--danger);
+  background: var(--danger-vivid);
+  box-shadow: 0 0 4px var(--danger-vivid);
 }
 
 .agenda-dot.tone-neutral {

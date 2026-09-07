@@ -1,7 +1,7 @@
-import { createDashboardCards } from '../components/DashboardCards';
 import { createDataTable } from '../components/DataTable';
 import { createInfoField } from '../components/ClientDetailView';
 import { createIcon } from '../components/Icon';
+import { createIconStatCard, type IconStatCardProps } from '../components/IconStatCard';
 import { createUcCard } from '../components/UcCard';
 import { createElement } from '../dom';
 import { useGlobalLoading } from '../hooks/useGlobalLoading';
@@ -12,7 +12,6 @@ import { getAvailablePlants, type PlantRow } from '../services/plantService';
 import {
   createUc,
   deleteUc,
-  getUcMetrics,
   getUcs,
   type UcPayload,
   type UcRow,
@@ -30,6 +29,7 @@ export function createUcsPage(): HTMLElement {
   let availablePlants: PlantRow[] = [];
   let selectedUcId: number | null = null;
   let loadError = false;
+  let quickFilter: 'all' | 'without-plant' | 'contract-expiring' = 'all';
 
   const layout = createBaseLayout({
     content,
@@ -75,7 +75,7 @@ export function createUcsPage(): HTMLElement {
 
     pageActions.append(spacer, newUcButton);
 
-    const rows: UcTableRow[] = ucs.map((uc) => ({
+    const rows: UcTableRow[] = ucs.filter(matchesQuickFilter).map((uc) => ({
       ...uc,
       cliente: uc.clienteNome ?? '-',
       usina: uc.conexoes.length > 0 ? uc.conexoes.map((conexao) => conexao.usina).join(', ') : 'Nenhuma'
@@ -101,7 +101,7 @@ export function createUcsPage(): HTMLElement {
       ]
     });
 
-    const blocks = [createDashboardCards(getUcMetrics(ucs)), pageActions, table];
+    const blocks = [createStatCards(), createQuickFilters(), pageActions, table];
 
     if (!selectedUc) {
       content.replaceChildren(...blocks);
@@ -116,6 +116,40 @@ export function createUcsPage(): HTMLElement {
     const wrapper = createElement('div', { className: 'list-detail-grid' });
     wrapper.append(listColumn, createUcDetailPanel(selectedUc));
     content.replaceChildren(wrapper);
+  }
+
+  function createStatCards(): HTMLElement {
+    const metrics: IconStatCardProps[] = [
+      { label: 'Total de UCs', value: String(ucs.length), chipColor: 'blue', icon: 'ucs' },
+      { label: 'Com usina', value: String(ucs.filter((uc) => uc.conexoes.length > 0).length), chipColor: 'green', icon: 'plants' },
+      { label: 'Sem usina', value: String(ucs.filter((uc) => uc.conexoes.length === 0).length), chipColor: 'amber', icon: 'pending' }
+    ];
+    const grid = createElement('section', { className: 'metric-grid' });
+    metrics.forEach((metric) => grid.appendChild(createIconStatCard(metric)));
+    return grid;
+  }
+
+  function createQuickFilters(): HTMLElement {
+    const filters = createElement('div', { className: 'filter-row uc-quick-filters' });
+    [
+      ['Todas', 'all'],
+      ['Sem usina', 'without-plant'],
+      ['Contrato vencendo', 'contract-expiring']
+    ].forEach(([label, value]) => {
+      const button = createElement('button', { className: quickFilter === value ? 'filter-chip active' : 'filter-chip', textContent: label, type: 'button' });
+      button.addEventListener('click', () => {
+        quickFilter = value as typeof quickFilter;
+        renderContent();
+      });
+      filters.appendChild(button);
+    });
+    return filters;
+  }
+
+  function matchesQuickFilter(uc: UcRow): boolean {
+    if (quickFilter === 'without-plant') return uc.conexoes.length === 0;
+    if (quickFilter === 'contract-expiring') return isContractExpiring(uc.terminoContrato);
+    return true;
   }
 
   // So-leitura -- reaproveita createInfoField (mesmo helper que
@@ -243,4 +277,15 @@ function formatUcDate(value: string | null): string {
   if (!value) return 'Não informado';
   const [year, month, day] = value.split('-');
   return `${day}/${month}/${year}`;
+}
+
+function isContractExpiring(value: string | null): boolean {
+  if (!value) return false;
+  const [year, month, day] = value.split('-').map(Number);
+  const end = new Date(year, month - 1, day);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const deadline = new Date(today);
+  deadline.setDate(deadline.getDate() + 30);
+  return end >= today && end <= deadline;
 }

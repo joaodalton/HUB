@@ -539,7 +539,16 @@ export function createRateioPage(): HTMLElement {
     const summary = createElement('div', { className: 'rateio-funil-grid' });
     const energiaStat = createFunilStat('Energia distribuída', '—');
     const saldoStat = createFunilStat('Saldo restante', '—');
-    summary.append(energiaStat, saldoStat);
+    const donutStat = createElement('article', { className: 'rateio-distribuicao-summary' });
+    const donut = createElement('span', { className: 'rateio-summary-donut' });
+    const donutValue = createElement('strong');
+    donut.appendChild(donutValue);
+    donutStat.append(
+      donut,
+      createElement('span', { className: 'rateio-funil-stat-label', textContent: 'Resumo do rateio' }),
+      createElement('span', { className: 'rateio-summary-caption' })
+    );
+    summary.append(energiaStat, saldoStat, donutStat);
     panel.appendChild(summary);
 
     const list = createElement('div', { className: 'rateio-distribuicao-list' });
@@ -597,6 +606,10 @@ export function createRateioPage(): HTMLElement {
       energiaStat.querySelector('strong')!.textContent = `${formatNumber(energiaDistribuida)} kWh`;
       saldoStat.querySelector('strong')!.textContent = `${formatNumber(saldoRestante)} kWh`;
       saldoStat.classList.toggle('tone-danger', saldoRestante < 0);
+      const percentualExibido = Math.min(Math.max(percentualTotal, 0), 100);
+      donut.style.background = `conic-gradient(var(--accent-secondary) 0 ${percentualExibido}%, var(--panel-deep-soft) ${percentualExibido}% 100%)`;
+      donutValue.textContent = `${formatNumber(percentualTotal)}%`;
+      donutStat.querySelector('.rateio-summary-caption')!.textContent = `${formatNumber(percentualExibido)}% distribuído`;
     }
 
     recalcSummary();

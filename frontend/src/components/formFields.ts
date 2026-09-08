@@ -71,3 +71,11 @@ export function createSelectField(
   field.append(text, select);
   return { field, select };
 }
+
+export function createFormSection(title: string, ...fields: HTMLElement[]): HTMLElement {
+  const section = createElement('section', { className: 'form-section' });
+  const grid = createElement('div', { className: 'form-grid' });
+  grid.append(...fields);
+  section.append(createElement('h3', { textContent: title }), grid);
+  return section;
+}

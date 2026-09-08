@@ -1,6 +1,6 @@
 import { createElement } from '../dom';
 import { createClientDocumentsPanel } from './ClientDocumentsPanel';
-import { createCheckboxField, createInput, createSelect } from './formFields';
+import { createCheckboxField, createFormSection, createInput, createSelect } from './formFields';
 import { createPlantConnections, createTariffSelect } from './PlantConnectionsField';
 import { concessionarias, type ClientRow, type ClientUc } from '../services/clientsService';
 import type { PlantRow } from '../services/plantService';
@@ -51,7 +51,6 @@ export function createClientCard({
     textContent: 'Fechar',
     type: 'button'
   });
-  const fields = createElement('div', { className: 'form-grid' });
   const nome = createInput('Nome', 'text', client?.nome ?? '', true);
   const cpf = createInput('CPF', 'text', client?.cpf ?? '', true);
   const telefone = createInput('Telefone', 'tel', client?.telefone ?? '', false);
@@ -65,7 +64,6 @@ export function createClientCard({
 
   titleText.append(eyebrow, heading);
   header.append(titleText, closeButton);
-  fields.append(nome.field, cpf.field, telefone.field, email.field, dataNascimento.field, concessionaria.field);
   actions.appendChild(saveButton);
 
   if (isEditing && onDelete) {
@@ -109,7 +107,13 @@ export function createClientCard({
     });
   });
 
-  left.append(header, fields, documentsPanel, actions);
+  left.append(
+    header,
+    createFormSection('Dados principais', nome.field, cpf.field, telefone.field, email.field, dataNascimento.field),
+    createFormSection('Concessionária', concessionaria.field),
+    documentsPanel,
+    actions
+  );
   panel.appendChild(left);
 
   panel.appendChild(ucPanel);

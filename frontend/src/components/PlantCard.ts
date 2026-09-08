@@ -1,5 +1,5 @@
 import { createElement } from '../dom';
-import { createInput, createSelect } from './formFields';
+import { createFormSection, createInput, createSelect } from './formFields';
 import type { PlantRow } from '../services/plantService';
 
 export type PlantFormData = {
@@ -43,7 +43,6 @@ export function createPlantCard({ plant, onSave, onCancel, onDelete }: PlantCard
     textContent: 'Fechar',
     type: 'button'
   });
-  const fields = createElement('div', { className: 'form-grid' });
   const nome = createInput('Nome', 'text', plant?.nome ?? '', true);
   const uc = createInput('UC', 'text', plant?.uc ?? '', true);
   const kwPico = createInput('kW pico', 'number', plant?.kwPico ?? '', true);
@@ -92,24 +91,6 @@ export function createPlantCard({ plant, onSave, onCancel, onDelete }: PlantCard
 
   titleText.append(eyebrow, heading);
   header.append(titleText, closeButton);
-  fields.append(
-    nome.field,
-    uc.field,
-    kwPico.field,
-    status.field,
-    percentualDisponivel.field,
-    marcaInversor.field,
-    telefoneProprietario.field,
-    emailProprietario.field,
-    cidade.field,
-    uf.field,
-    endereco.field,
-    dataAtivacao.field,
-    responsavel.field,
-    numModulos.field,
-    producaoMediaManual.field,
-    diaEmissaoUsina.field
-  );
   actions.appendChild(saveButton);
 
   if (plant && onDelete) {
@@ -157,7 +138,13 @@ export function createPlantCard({ plant, onSave, onCancel, onDelete }: PlantCard
     });
   });
 
-  form.append(header, fields, actions);
+  form.append(
+    header,
+    createFormSection('Dados principais', nome.field, uc.field, status.field, dataAtivacao.field),
+    createFormSection('Características técnicas', kwPico.field, numModulos.field, marcaInversor.field, percentualDisponivel.field, producaoMediaManual.field, diaEmissaoUsina.field),
+    createFormSection('Informações adicionais', telefoneProprietario.field, emailProprietario.field, cidade.field, uf.field, endereco.field, responsavel.field),
+    actions
+  );
   panel.appendChild(form);
   overlay.appendChild(panel);
 

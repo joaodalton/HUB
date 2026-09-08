@@ -1,5 +1,5 @@
 import { createIcon } from '../components/Icon';
-import { createInput, createSelectField } from '../components/formFields';
+import { createFormSection, createInput, createSelectField } from '../components/formFields';
 import { createElement } from '../dom';
 import { useGlobalLoading } from '../hooks/useGlobalLoading';
 import { useToast } from '../hooks/useToast';
@@ -178,7 +178,6 @@ function createUserModal(onCreate: (data: UserPayload) => Promise<void>): HTMLEl
   const close = createElement('button', { className: 'icon-button', type: 'button', title: 'Fechar' }); close.appendChild(createIcon('x'));
   header.append(title, close);
   const explanation = createElement('p', { className: 'settings-hint', textContent: 'Defina uma senha temporária segura. A pessoa deverá alterá-la no primeiro acesso; ela não será exibida novamente pelo HUB.' });
-  const fields = createElement('div', { className: 'form-grid' });
   const nome = createInput('Nome', 'text', '', true);
   const email = createInput('E-mail', 'email', '', true);
   const senha = createInput('Senha temporária', 'password', '', true); senha.input.minLength = 6;
@@ -186,7 +185,7 @@ function createUserModal(onCreate: (data: UserPayload) => Promise<void>): HTMLEl
   const actions = createElement('div', { className: 'form-actions' });
   const cancel = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Cancelar' });
   const submit = createElement('button', { type: 'submit', textContent: 'Criar usuário' });
-  actions.append(cancel, submit); fields.append(nome.field, email.field, senha.field, role.field); form.append(header, explanation, fields, actions); panel.appendChild(form); overlay.appendChild(panel);
+  actions.append(cancel, submit); form.append(header, explanation, createFormSection('Informações pessoais', nome.field, email.field), createFormSection('Acesso e permissões', role.field, senha.field), actions); panel.appendChild(form); overlay.appendChild(panel);
   const closeModal = () => overlay.remove(); close.addEventListener('click', closeModal); cancel.addEventListener('click', closeModal); overlay.addEventListener('click', (event) => { if (event.target === overlay) closeModal(); });
   form.addEventListener('submit', async (event) => {
     event.preventDefault(); if (!form.reportValidity()) return; submit.disabled = true; submit.textContent = 'Criando...';

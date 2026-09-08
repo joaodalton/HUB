@@ -273,6 +273,24 @@
 .empresa-atual-panel .settings-form,
 .rateio-config-panel .settings-form { max-width: 620px; }
 
+.appearance-panel {
+  border-color: var(--border-deep);
+  background: var(--panel-deep);
+}
+
+.appearance-panel .panel-title {
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border-deep);
+}
+
+.appearance-panel .logo-row,
+.appearance-panel .color-field-grid {
+  padding: var(--space-3);
+  border: 1px solid var(--border-deep);
+  border-radius: var(--radius);
+  background: var(--panel-deep-soft);
+}
+
 .api-credentials-list { display: grid; gap: 10px; margin-bottom: 22px; }
 
 .api-credential-card {

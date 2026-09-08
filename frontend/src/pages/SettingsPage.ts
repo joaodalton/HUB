@@ -960,7 +960,7 @@ function createAppearancePanel(
   notify: (message: string) => void,
   notifyError: (message: string) => void
 ): HTMLElement {
-  const panel = createElement('section', { className: 'settings-panel' });
+  const panel = createElement('section', { className: 'settings-panel appearance-panel' });
   const header = createPanelHeader('Aparência', 'Identidade visual e preferências do HUB');
 
   if (!loaded) {

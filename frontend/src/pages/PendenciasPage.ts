@@ -4,7 +4,7 @@ import { createIconStatCard, type IconStatCardProps } from '../components/IconSt
 import { createDataTable } from '../components/DataTable';
 import { createInfoField } from '../components/ClientDetailView';
 import { createIcon } from '../components/Icon';
-import { createInput, createSelect } from '../components/formFields';
+import { createFormSection, createInput, createSelect } from '../components/formFields';
 import { useGlobalLoading } from '../hooks/useGlobalLoading';
 import { useToast } from '../hooks/useToast';
 import { createBaseLayout } from '../layouts/BaseLayout';
@@ -609,7 +609,6 @@ export function createPendenciasPage(): HTMLElement {
     const eyebrow = createElement('span', { className: 'eyebrow', textContent: pendencia ? 'Pendência' : 'Nova pendência' });
     const heading = createElement('h2', { textContent: pendencia ? pendencia.titulo : 'Cadastrar pendência' });
     const closeButton = createElement('button', { className: 'secondary-button', textContent: 'Fechar', type: 'button' });
-    const fields = createElement('div', { className: 'form-grid' });
 
     const titulo = createInput('Título', 'text', pendencia?.titulo ?? '', true);
     const categoria = createCategoriaField(pendencia?.categoria ?? CATEGORIAS_POR_TIPO.pendencia[0]);
@@ -632,16 +631,6 @@ export function createPendenciasPage(): HTMLElement {
 
     titleText.append(eyebrow, heading);
     header.append(titleText, closeButton);
-    fields.append(
-      titulo.field,
-      categoria.field,
-      prioridade.field,
-      prazo.field,
-      descricao,
-      clienteField.field,
-      ucField.field,
-      usinaField.field
-    );
     actions.appendChild(saveButton);
 
     closeButton.addEventListener('click', () => overlay.remove());
@@ -691,7 +680,12 @@ export function createPendenciasPage(): HTMLElement {
       }
     });
 
-    form.append(header, fields, actions);
+    form.append(
+      header,
+      createFormSection('Informações principais', titulo.field, categoria.field, prioridade.field, prazo.field, descricao),
+      createFormSection('Relacionamento', clienteField.field, ucField.field, usinaField.field),
+      actions
+    );
     panel.appendChild(form);
     overlay.appendChild(panel);
     document.body.appendChild(overlay);

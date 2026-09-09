@@ -259,6 +259,29 @@ def require_permission(*permissions: str) -> Callable:
         return wrapper
     return decorator
 
+
+def require_quota(recurso: str) -> Callable:
+    """Bloqueia somente criacao quando a empresa atingiu a cota contratada."""
+    def decorator(f: Callable) -> Callable:
+        @wraps(f)
+        def wrapper(*args, **kwargs) -> Response | None:
+            if not hasattr(g, 'current_user') or not g.current_user:
+                return error_response('Autenticacao obrigatoria.', 401)
+
+            from services.quota_service import verificar_cota
+            permitido, uso_atual, limite = verificar_cota(g.current_empresa_id, recurso)
+            if not permitido:
+                return error_response(
+                    f'Limite do plano atingido para {recurso} ({uso_atual}/{limite}). '
+                    'Fale com o suporte para ajustar seu plano.',
+                    403,
+                    code='QUOTA_EXCEEDED',
+                    details={'recurso': recurso, 'uso': uso_atual, 'limite': limite},
+                )
+            return f(*args, **kwargs)
+        return wrapper
+    return decorator
+
 def require_role(*roles: str) -> Callable:
     """
     Decorador que exige um dos roles especificados.

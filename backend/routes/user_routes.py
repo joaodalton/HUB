@@ -1,7 +1,7 @@
 # backend/routes/user_routes.py
 from flask import Blueprint, g, request
 
-from services.permission_service import require_permission
+from services.permission_service import require_permission, require_quota
 from services.user_service import create_user, list_users, set_user_active, update_user
 from utils.api_response import error_response, success_response
 
@@ -17,6 +17,7 @@ def index():
 
 @user_routes.route('', methods=['POST'])
 @require_permission('users.create')
+@require_quota('usuarios')
 def store():
     data = request.get_json(silent=True) or {}
 

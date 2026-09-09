@@ -54,6 +54,8 @@ def create_app() -> Flask:
     from models.import_preview import ImportPreview  # type: ignore
     from models.message_template import MessageTemplate  # type: ignore
     from models.fatura import Fatura  # type: ignore
+    from models.assinatura import Assinatura  # type: ignore
+    from models.limite_contratado import LimiteContratado  # type: ignore
 
     cors_origins = [Config.FRONTEND_URL]
     if Config.DEBUG:

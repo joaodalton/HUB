@@ -4,6 +4,7 @@ import { createInfoField } from '../components/ClientDetailView';
 import { createIcon } from '../components/Icon';
 import { createIconStatCard, type IconStatCardProps } from '../components/IconStatCard';
 import { createPlantCard, type PlantFormData } from '../components/PlantCard';
+import { createImportacoesModal } from '../components/ImportacoesModal';
 import { createPlantDistribuicaoModal, type PlantDistribuicaoModalUc } from '../components/PlantDistribuicaoModal';
 import { createElement } from '../dom';
 import { useGlobalLoading } from '../hooks/useGlobalLoading';
@@ -137,12 +138,14 @@ export function createPlantsPage(): HTMLElement {
     const newPlantButton = createElement('button', { className: 'button-with-icon', type: 'button' });
     newPlantButton.append(createIcon('plus'), document.createTextNode('Nova Usina'));
     newPlantButton.addEventListener('click', () => openPlantEditor(null));
+    const importButton = createElement('button', { className: 'secondary-button', textContent: 'Importação/exportação', type: 'button' });
+    importButton.addEventListener('click', () => document.body.appendChild(createImportacoesModal(() => void loadPlants())));
 
     const archiveButton = createElement('button', { className: 'secondary-button', textContent: 'Arquivo ▾', type: 'button' });
     archiveButton.disabled = true;
     archiveButton.title = 'Importacao/exportacao em planilha -- em breve';
 
-    toolbar.append(searchInput, spacer, newPlantButton, archiveButton);
+    toolbar.append(searchInput, spacer, importButton, newPlantButton, archiveButton);
 
     const statsHolder = createElement('div');
     const tableHolder = createElement('div');

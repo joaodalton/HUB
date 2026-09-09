@@ -10,7 +10,7 @@
 }
 
 .importacao-form { display: grid; gap: var(--space-3); max-width: 620px; }
-.importacao-dropzone { min-height: 122px; justify-content: center; text-align: center; cursor: pointer; }
+.importacao-dropzone { align-self: stretch; width: 100%; height: auto; min-height: 122px; padding: var(--space-3); justify-content: center; text-align: center; cursor: pointer; }
 .importacao-dropzone input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .importacao-file-name { overflow-wrap: anywhere; }
 
@@ -39,6 +39,8 @@
 .importacao-error { margin: 0; color: var(--danger); font-size: 13px; }
 .importacao-success-icon { width: 48px; height: 48px; color: var(--success); }
 .importacao-result { max-width: 980px; }
+.importacoes-modal-card { width: min(100%, 1040px); max-height: 90vh; overflow: auto; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-modal); box-shadow: var(--shadow-xl); }
+.importacoes-modal-card > .content-stack { padding: var(--space-4); }
 
 @media (max-width: 900px) { .importacao-summary-grid { grid-template-columns: repeat(3, minmax(100px, 1fr)); } }
 @media (max-width: 560px) { .importacao-panel { padding: var(--space-3); } .importacao-summary-grid { grid-template-columns: repeat(2, minmax(100px, 1fr)); } }

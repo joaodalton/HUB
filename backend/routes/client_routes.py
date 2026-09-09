@@ -7,7 +7,7 @@ from services.client_service import (
     list_clients,
     update_client
 )
-from services.permission_service import require_permission
+from services.permission_service import require_permission, require_quota
 from utils.api_response import error_response, success_response
 
 
@@ -33,6 +33,7 @@ def show(client_id: int):
 
 @client_routes.route('', methods=['POST'])
 @require_permission('clients.create')
+@require_quota('clientes')
 def store():
     data = request.get_json(silent=True) or {}
 

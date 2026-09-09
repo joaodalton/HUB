@@ -4,6 +4,7 @@ import { createClientDocumentsPanel } from '../components/ClientDocumentsPanel';
 import { createDashboardCards } from '../components/DashboardCards';
 import { createDataTable } from '../components/DataTable';
 import { createDetailDrawer } from '../components/DetailDrawer';
+import { createImportacoesModal } from '../components/ImportacoesModal';
 import { createElement } from '../dom';
 import { useGlobalLoading } from '../hooks/useGlobalLoading';
 import { useToast } from '../hooks/useToast';
@@ -56,6 +57,7 @@ export function createClientsPage(): HTMLElement {
  function renderContent(): void {
     const pageActions = createElement('div', { className: 'page-actions' });
     const newClientButton = createElement('button', { textContent: 'Novo cliente', type: 'button' });
+    const importButton = createElement('button', { className: 'secondary-button', textContent: 'Importação/exportação', type: 'button' });
     const table = createDataTable<ClientRow>({
       title: 'Clientes cadastrados',
       eyebrow: 'Listagem',
@@ -80,8 +82,9 @@ export function createClientsPage(): HTMLElement {
       isCreating = true;
       renderContent();
     });
+    importButton.addEventListener('click', () => document.body.appendChild(createImportacoesModal(() => void loadClients())));
 
-    pageActions.appendChild(newClientButton);
+    pageActions.append(importButton, newClientButton);
 
     if (isCreating || selectedClient) {
       blocks.push(createClientEditor());

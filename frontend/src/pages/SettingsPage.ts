@@ -520,6 +520,10 @@ function createRateioConfigPanel(
   habilitadoInput.checked = config.bufferHabilitado;
   habilitado.append(habilitadoInput, createElement('span', { textContent: 'Aplicar buffer de segurança no consumo por padrão' }));
 
+  const exigirCnpj = createToggle('Exigir CNPJ da empresa para gerar o formulário', config.documentoCnpjObrigatorio);
+  const exigirEstatuto = createToggle('Exigir estatuto da empresa para gerar o formulário', config.documentoEstatutoObrigatorio);
+  const exigirTermos = createToggle('Exigir Termos de Adesão das beneficiárias para gerar PDF e Excel', config.termosAdesaoObrigatorios);
+
   const percentual = createElement('label', { className: 'form-field' });
   const percentualLabel = createElement('span', { textContent: 'Percentual do buffer (%)' });
   const percentualInput = createElement('input');
@@ -545,7 +549,10 @@ function createRateioConfigPanel(
 
     await onSave({
       bufferHabilitado: habilitadoInput.checked,
-      bufferPercentual: Number(percentualInput.value) || 0
+      bufferPercentual: Number(percentualInput.value) || 0,
+      documentoCnpjObrigatorio: exigirCnpj.checked,
+      documentoEstatutoObrigatorio: exigirEstatuto.checked,
+      termosAdesaoObrigatorios: exigirTermos.checked
     });
 
     saveButton.disabled = false;
@@ -555,10 +562,22 @@ function createRateioConfigPanel(
   resetButton.addEventListener('click', async () => {
     habilitadoInput.checked = DEFAULT_RATEIO_CONFIG.bufferHabilitado;
     percentualInput.value = String(DEFAULT_RATEIO_CONFIG.bufferPercentual);
+    exigirCnpj.checked = DEFAULT_RATEIO_CONFIG.documentoCnpjObrigatorio;
+    exigirEstatuto.checked = DEFAULT_RATEIO_CONFIG.documentoEstatutoObrigatorio;
+    exigirTermos.checked = DEFAULT_RATEIO_CONFIG.termosAdesaoObrigatorios;
     await onSave(DEFAULT_RATEIO_CONFIG);
   });
 
-  body.append(habilitado, percentual, hint);
+  body.append(
+    habilitado,
+    percentual,
+    hint,
+    createElement('p', { className: 'settings-subheading', textContent: 'Documentos do formulário Copel' }),
+    exigirCnpj.field,
+    exigirEstatuto.field,
+    exigirTermos.field,
+    createElement('p', { className: 'settings-hint', textContent: 'Desative apenas para testes internos. Com a regra desligada, a geração de PDF e Excel não bloqueia pela ausência do documento.' })
+  );
   actions.append(saveButton, resetButton);
   panel.append(body, actions);
 
@@ -632,6 +651,15 @@ function createApiCredentialsPanel(
   });
   panel.append(grid, editor);
   return panel;
+}
+
+function createToggle(label: string, checked: boolean): { field: HTMLElement; checked: boolean } {
+  const field = createElement('label', { className: 'form-field form-field-checkbox' });
+  const input = createElement('input');
+  input.type = 'checkbox';
+  input.checked = checked;
+  field.append(input, createElement('span', { textContent: label }));
+  return { field, get checked() { return input.checked; }, set checked(value: boolean) { input.checked = value; } };
 }
 
 function createApiCredentialCard(

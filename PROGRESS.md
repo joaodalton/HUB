@@ -1,5 +1,13 @@
 # HUB — Progresso
 
+- [x] Configurações → Geral → Rateio agora permite desativar temporariamente, por empresa, as exigências de CNPJ, estatuto e Termos de Adesão para testar a geração de PDF/XLSX sem anexos. O padrão continua seguro (todas ligadas); soma de percentuais, UC geradora e responsável permanecem obrigatórios.
+
+- [x] Refatoração estrutural da tela de Rateio: `RateioPage.ts` passou de 1.159 para 67 linhas; wizard, formulário Copel e utilitários foram separados por responsabilidade em `frontend/src/pages/rateio/`, todos abaixo de 350 linhas. A regra de qualidade voltou a validar `RateioPage.ts`. Evidência: build e lint do frontend aprovados em 2026-09-09.
+
+- [x] Sprint A — Planos, Assinatura e enforcement de cota: catálogo Starter em arquivo, Assinatura/LimiteContratado e migration com backfill vitalício para empresa 1; POST de Cliente/UC/Usina/Usuário bloqueia somente acima da cota, com fail-open sem assinatura. Evidência: testes de cota, migrations SQLite e regressão backend aprovados.
+
+- [x] Sprint — Rateio 100% funcional: validação final de percentuais, falha de Drive controlada, saída XLSX baseada no modelo CSV oficial da Copel e expansão automática da tabela para qualquer quantidade de beneficiárias.
+
 - [x] Modelo padrão de importação/exportação adotado a partir de `HUB_Modelo_Importacao.xlsx`. Download público `/api/v1/importacoes/modelo` sem exemplos, botão em Importações inclusive para perfis sem permissão de importar; exportação autenticada usa as mesmas abas, cabeçalhos, estilos e listas. Campos opcionais mapeados, linhas vazias ignoradas e dias inteiros validados. Evidência: 10 testes de `tests.test_importacoes` passaram (arquivo real, download anônimo, RBAC, duas empresas, preview/commit/export); `npm.cmd --prefix frontend run build` passou. Sem deploy nesta entrega.
 
 > Leia `VISAO.md` primeiro. Este arquivo é o estado atual, atualizado a cada tarefa concluída.

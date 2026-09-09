@@ -20,7 +20,25 @@ from models.document import Document
 from models.empresa import Empresa
 from models.pendencia import Pendencia
 from models.plant import Plant
+from models.setting import Setting
 from services.pendencia_service import criar_pendencia_manual
+
+
+REGRAS_DOCUMENTOS_PADRAO = {
+    'documentoCnpjObrigatorio': True,
+    'documentoEstatutoObrigatorio': True,
+    'termosAdesaoObrigatorios': True,
+}
+
+
+def get_regras_documentos_rateio() -> dict:
+    """Retorna as exigencias documentais da empresa para gerar o rateio."""
+    settings = {setting.chave: setting.valor for setting in Setting.query.all()}
+    return {
+        'documentoCnpjObrigatorio': settings.get('rateioExigirDocumentoCnpj') != 'false',
+        'documentoEstatutoObrigatorio': settings.get('rateioExigirDocumentoEstatuto') != 'false',
+        'termosAdesaoObrigatorios': settings.get('rateioExigirTermosAdesao') != 'false',
+    }
 
 
 def _normalizar(texto: str | None) -> str:
@@ -60,12 +78,6 @@ def buscar_termo_adesao(client_id: int | None, consumer_unit_id: int | None) -> 
 
 def _tem_termo_adesao(client_id: int | None, consumer_unit_id: int | None) -> bool:
     return buscar_termo_adesao(client_id, consumer_unit_id) is not None
-
-
-# Formulario oficial (paginas 1-2) so tem 24 linhas de beneficiarias -- passar
-# disso nao cabe no PDF. Bloqueado explicitamente em vez de estourar silenciosamente
-# na hora do overlay (Sprint 4).
-MAX_LINHAS_BENEFICIARIAS = 24
 
 
 def montar_tabela_formulario(plant_id: int) -> dict:
@@ -126,9 +138,9 @@ def montar_tabela_formulario(plant_id: int) -> dict:
         'empresaEmail': empresa.email,
         'documentoCnpjOk': empresa.documento_cnpj_id is not None,
         'documentoEstatutoOk': empresa.documento_estatuto_id is not None,
+        'regrasDocumentos': get_regras_documentos_rateio(),
         'linhas': linhas,
         'somaPercentual': soma_percentual,
-        'excedeLimiteLinhas': len(linhas) > MAX_LINHAS_BENEFICIARIAS
     }
 
 

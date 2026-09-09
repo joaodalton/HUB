@@ -71,14 +71,43 @@ class SQLiteMigrationsTest(unittest.TestCase):
                 columns = {row[1] for row in connection.execute('PRAGMA table_info(api_credentials)')}
                 client_columns = {row[1] for row in connection.execute('PRAGMA table_info(clients)')}
                 fatura_columns = {row[1] for row in connection.execute('PRAGMA table_info(faturas)')}
+                assinatura_columns = {row[1] for row in connection.execute('PRAGMA table_info(assinaturas)')}
                 preview_indexes = {row[1] for row in connection.execute("PRAGMA index_list('import_previews')")}
             finally:
                 connection.close()
-            self.assertEqual(revision, 'f7b2c9d4e1a6')
+            self.assertEqual(revision, 'a8f3c1d7e4b2')
             self.assertTrue({'empresa_id', 'provider', 'nome', 'segredo_encrypted'}.issubset(columns))
             self.assertIn('asaas_customer_id', client_columns)
             self.assertTrue({'empresa_id', 'client_id', 'consumer_unit_id', 'asaas_id', 'asaas_status'}.issubset(fatura_columns))
+            self.assertTrue({'empresa_id', 'plano_chave', 'tipo', 'status'}.issubset(assinatura_columns))
             self.assertIn('ix_import_previews_expires_at', preview_indexes)
+        finally:
+            database_path.unlink(missing_ok=True)
+
+    def test_subscription_backfill_marks_only_empresa_one_as_vitalicia(self):
+        handle = tempfile.NamedTemporaryFile(suffix='.db', delete=False)
+        handle.close()
+        database_path = Path(handle.name)
+        try:
+            upgraded = self._flask(database_path, 'upgrade', 'f7b2c9d4e1a6')
+            self.assertEqual(upgraded.returncode, 0, upgraded.stdout + upgraded.stderr)
+            connection = sqlite3.connect(database_path)
+            try:
+                connection.execute("INSERT INTO empresas (nome, slug, status) VALUES ('Empresa 2', 'empresa-2', 'ativa')")
+                connection.commit()
+            finally:
+                connection.close()
+
+            upgraded = self._flask(database_path, 'upgrade')
+            self.assertEqual(upgraded.returncode, 0, upgraded.stdout + upgraded.stderr)
+            connection = sqlite3.connect(database_path)
+            try:
+                assinaturas = connection.execute(
+                    'SELECT empresa_id, tipo, status FROM assinaturas ORDER BY empresa_id'
+                ).fetchall()
+            finally:
+                connection.close()
+            self.assertEqual(assinaturas, [(1, 'vitalicio', 'ativa'), (2, 'trial', 'trial')])
         finally:
             database_path.unlink(missing_ok=True)
 

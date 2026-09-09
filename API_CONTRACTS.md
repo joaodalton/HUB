@@ -1,5 +1,9 @@
 # HUB — Contratos de API
 
+## Limite de plano
+
+Os `POST /clients`, `POST /ucs`, `POST /plants` e `POST /users` retornam `403` com `code: "QUOTA_EXCEEDED"` quando a empresa autenticada atingiu a cota. `details` contém `recurso`, `uso` e `limite`.
+
 
 > **Documentos relacionados:** [[ARCHITECTURE]] · [[VISAO]] · [[RATEIO]]
 > Se um endpoint mudar, atualize este arquivo no mesmo commit — é a regra combinada em `PROGRESS.md`.
@@ -371,10 +375,14 @@ Body: `{ "plantId": number }`. Confere Termo de Adesão de cada UC beneficiária
 
 ### `POST /rateio/formulario/gerar-pdf`
 Body: `{ "plantId": number, "responsavelNome": string, "responsavelCpf": string }`. Gera o Formulário Copel (Associações) preenchido por overlay em cima do template oficial (`backend/assets/formulario_copel_associacao.pdf`). **Resposta binária** (`application/pdf`, `Content-Disposition: attachment`), não passa pelo envelope `success_response`.
-Bloqueia com 400 se: faltar Termo de Adesão de alguma UC beneficiária, ou a usina tiver mais de 24 UCs beneficiárias (limite do formulário oficial).
+Bloqueia com 400 se: faltar pré-requisito, Termo de Adesão de alguma UC beneficiária ou a soma dos percentuais exceder 100%. Beneficiárias adicionais seguem em páginas de continuação. Falha de infraestrutura do Drive retorna 503 com mensagem acionável.
+
+### `POST /rateio/formulario/gerar-excel`
+Body: `{ "plantId": number, "responsavelNome": string, "responsavelCpf": string, "linhas"?: [...] }`. Gera o Formulário Copel em XLSX a partir do modelo CSV oficial em `backend/assets`; `linhas` preserva as edições somente visuais feitas na revisão. **Resposta binária** (`application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`). Expande a tabela para qualquer quantidade de beneficiárias e mantém a validação de soma máxima de 100%.
 
 ### `POST /rateio/formulario/gerar-termos`
 Body: `{ "plantId": number }`. Baixa do Google Drive o Termo de Adesão de cada UC beneficiária (mesma ordem alfabética da tabela) e mescla num PDF único. **Resposta binária** (`application/pdf`). Bloqueia com 400 nas mesmas condições da rota acima.
+Se o Google Drive/OAuth estiver indisponível, retorna 503 com mensagem clara; isso não invalida um formulário PDF já gerado.
 
 CNPJ e Estatuto **não têm rota própria** — são `Document` normais (ver `GET /empresas/documentos` e `GET /documents/<id>/download`), cadastrados uma vez em Configurações.
 
@@ -400,6 +408,8 @@ Armazenamento livre chave/valor. Hoje só usado pela tela de Aparência (`themeC
 `google_drive_root_folder_id` é a pasta raiz exclusiva da empresa autenticada para busca e documentos. Ao alterar essa chave, o cache do Drive da empresa é invalidado.
 
 ### `PUT /settings` — Body: `{ "chave": "valor", ... }` (uma ou mais chaves). Cria ou atualiza cada uma. `data` = objeto completo atualizado, igual ao `GET`.
+
+As chaves de Rateio são tenant-scoped: `rateioBufferHabilitado`, `rateioBufferPercentual`, `rateioExigirDocumentoCnpj`, `rateioExigirDocumentoEstatuto` e `rateioExigirTermosAdesao`. As três últimas usam `"true"` por padrão; em `"false"`, a geração de formulário PDF/XLSX não bloqueia pela ausência do respectivo documento. A mesclagem de Termos continua exigindo arquivos reais, pois precisa baixá-los do Drive.
 
 ---
 

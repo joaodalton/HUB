@@ -19,7 +19,7 @@ type ImportacaoStage = 'selecionar' | 'previa' | 'resultado';
 type TipoCsv = 'clientes' | 'ucs' | 'usinas';
 type ProblemaRow = ImportacaoProblema & { local: string };
 
-export function createImportacoesPage(): HTMLElement {
+export function createImportacoesContent(onImported?: () => void): HTMLElement {
   const content = createElement('section', { className: 'content-stack' });
   const loading = useGlobalLoading();
   const toast = useToast();
@@ -32,13 +32,8 @@ export function createImportacoesPage(): HTMLElement {
   let uploadError = '';
   let confirmError = '';
 
-  const layout = createBaseLayout({
-    content,
-    eyebrow: 'Gestão',
-    title: 'Importação em massa'
-  });
   render();
-  return layout;
+  return content;
 
   function render(): void {
     if (!canImport()) {
@@ -229,6 +224,7 @@ export function createImportacoesPage(): HTMLElement {
     try {
       resultado = await confirmarImportacao(id);
       stage = 'resultado';
+      onImported?.();
       toast.success('Importação concluída.');
     } catch (error) {
       confirmError = error instanceof Error ? error.message : 'Não foi possível confirmar a importação.';
@@ -248,6 +244,14 @@ export function createImportacoesPage(): HTMLElement {
     confirmError = '';
     render();
   }
+}
+
+export function createImportacoesPage(): HTMLElement {
+  return createBaseLayout({
+    content: createImportacoesContent(),
+    eyebrow: 'Gestão',
+    title: 'Importação em massa'
+  });
 }
 
 function canImport(): boolean {

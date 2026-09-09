@@ -73,7 +73,6 @@ export default defineConfig([
         {
           max: 350,
           ignore: [
-            "src/pages/RateioPage.ts",
             "src/pages/SettingsPage.ts",
             "src/pages/PendenciasPage.ts",
             "src/pages/PlantsPage.ts",

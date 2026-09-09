@@ -2,6 +2,7 @@ import { createDataTable } from '../components/DataTable';
 import { createInfoField } from '../components/ClientDetailView';
 import { createIcon } from '../components/Icon';
 import { createIconStatCard, type IconStatCardProps } from '../components/IconStatCard';
+import { createImportacoesModal } from '../components/ImportacoesModal';
 import { createUcCard } from '../components/UcCard';
 import { createElement } from '../dom';
 import { useGlobalLoading } from '../hooks/useGlobalLoading';
@@ -63,6 +64,7 @@ export function createUcsPage(): HTMLElement {
     spacer.style.flex = '1 0 auto';
     spacer.style.minWidth = '0';
     const newUcButton = createElement('button', { className: 'button-with-icon', type: 'button' });
+    const importButton = createElement('button', { className: 'secondary-button', textContent: 'Importação/exportação', type: 'button' });
     newUcButton.append(createIcon('plus'), document.createTextNode('Nova UC'));
 
     newUcButton.addEventListener('click', () => {
@@ -72,8 +74,9 @@ export function createUcsPage(): HTMLElement {
       }
       openUcEditor(null);
     });
+    importButton.addEventListener('click', () => document.body.appendChild(createImportacoesModal(() => void loadAll())));
 
-    pageActions.append(spacer, newUcButton);
+    pageActions.append(spacer, importButton, newUcButton);
 
     const rows: UcTableRow[] = ucs.filter(matchesQuickFilter).map((uc) => ({
       ...uc,

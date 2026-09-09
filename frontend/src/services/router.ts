@@ -12,7 +12,6 @@ import { createSettingsPage } from '../pages/SettingsPage';
 import { createUcsPage } from '../pages/UcsPage';
 import { createUsersPage } from '../pages/UsersPage';
 import { createEmpresasPage } from '../pages/EmpresasPage';
-import { createImportacoesPage } from '../pages/ImportacoesPage';
 import { createTemplatesPage } from '../pages/TemplatesPage';
 import { createChangePasswordPage } from '../pages/ChangePasswordPage';
 import { createFaturasPage } from '../pages/FaturasPage';
@@ -38,7 +37,6 @@ export function createRouter(root: HTMLElement) {
     { path: '/agenda', render: createAgendaPage },
     { path: '/usuarios', render: createUsersPage },
     { path: '/empresas', render: createEmpresasPage },
-    { path: '/importacoes', render: createImportacoesPage },
     { path: '/templates', render: createTemplatesPage },
     { path: '/trocar-senha', render: createChangePasswordPage },
     { path: '/configuracoes', render: createSettingsPage }

@@ -98,6 +98,7 @@ A seção abaixo é escrita sozinha toda vez que você roda `python hub.py inici
 graph TD
   subgraph models["models"]
     models_api_credential["models.api_credential"]
+    models_assinatura["models.assinatura"]
     models_category["models.category"]
     models_client["models.client"]
     models_consumer_unit["models.consumer_unit"]
@@ -109,6 +110,7 @@ graph TD
     models_google_account["models.google_account"]
     models_import_preview["models.import_preview"]
     models_invitation["models.invitation"]
+    models_limite_contratado["models.limite_contratado"]
     models_log_entry["models.log_entry"]
     models_message_template["models.message_template"]
     models_password_reset_token["models.password_reset_token"]
@@ -177,6 +179,7 @@ graph TD
     services_pendencia_service["services.pendencia_service"]
     services_permission_service["services.permission_service"]
     services_plant_service["services.plant_service"]
+    services_quota_service["services.quota_service"]
     services_rateio_formulario_service["services.rateio_formulario_service"]
     services_rateio_pdf_service["services.rateio_pdf_service"]
     services_rateio_service["services.rateio_service"]
@@ -193,6 +196,7 @@ graph TD
   app --> config
   app --> extensions
   app --> models_api_credential
+  app --> models_assinatura
   app --> models_category
   app --> models_client
   app --> models_consumer_unit
@@ -203,6 +207,7 @@ graph TD
   app --> models_google_account
   app --> models_import_preview
   app --> models_invitation
+  app --> models_limite_contratado
   app --> models_log_entry
   app --> models_message_template
   app --> models_password_reset_token
@@ -240,6 +245,7 @@ graph TD
   app --> utils_auth
   models_api_credential --> extensions
   models_api_credential --> utils_crypto
+  models_assinatura --> extensions
   models_category --> extensions
   models_client --> extensions
   models_consumer_unit --> extensions
@@ -251,6 +257,7 @@ graph TD
   models_google_account --> utils_crypto
   models_import_preview --> extensions
   models_invitation --> extensions
+  models_limite_contratado --> extensions
   models_log_entry --> extensions
   models_message_template --> extensions
   models_password_reset_token --> extensions
@@ -471,9 +478,16 @@ graph TD
   services_pendencia_service --> models_plant
   services_pendencia_service --> models_user
   services_pendencia_service --> services_log_service
+  services_permission_service --> services_quota_service
   services_permission_service --> utils_api_response
   services_plant_service --> extensions
   services_plant_service --> models_plant
+  services_quota_service --> models_assinatura
+  services_quota_service --> models_client
+  services_quota_service --> models_consumer_unit
+  services_quota_service --> models_limite_contratado
+  services_quota_service --> models_plant
+  services_quota_service --> models_user
   services_rateio_formulario_service --> extensions
   services_rateio_formulario_service --> models_consumer_unit
   services_rateio_formulario_service --> models_document
@@ -525,6 +539,7 @@ graph TD
     components_ErrorBoundary["components/ErrorBoundary"]
     components_Header["components/Header"]
     components_Icon["components/Icon"]
+    components_IconStatCard["components/IconStatCard"]
     components_Loading["components/Loading"]
     components_PlantCard["components/PlantCard"]
     components_PlantConnectionsField["components/PlantConnectionsField"]
@@ -615,6 +630,7 @@ graph TD
   components_DocumentLinkModal --> services_clientsService
   components_DocumentLinkModal --> services_documentsService
   components_ErrorBoundary --> components_Toast
+  components_IconStatCard --> components_Icon
   components_PlantCard --> components_formFields
   components_PlantCard --> services_plantService
   components_PlantConnectionsField --> services_clientsService
@@ -654,8 +670,8 @@ graph TD
   pages_ClientsPage --> layouts_BaseLayout
   pages_ClientsPage --> services_clientsService
   pages_ClientsPage --> services_plantService
-  pages_DashboardPage --> components_DashboardCards
   pages_DashboardPage --> components_Icon
+  pages_DashboardPage --> components_IconStatCard
   pages_DashboardPage --> hooks_useGlobalLoading
   pages_DashboardPage --> layouts_BaseLayout
   pages_DashboardPage --> services_dashboardService
@@ -676,6 +692,7 @@ graph TD
   pages_EmpresasPage --> hooks_useGlobalLoading
   pages_EmpresasPage --> hooks_useToast
   pages_EmpresasPage --> layouts_BaseLayout
+  pages_EmpresasPage --> services_authService
   pages_EmpresasPage --> services_dashboardService
   pages_EmpresasPage --> services_empresaService
   pages_EmpresasPage --> services_platformService
@@ -696,6 +713,7 @@ graph TD
   pages_ImportacoesPage --> hooks_useToast
   pages_ImportacoesPage --> layouts_BaseLayout
   pages_ImportacoesPage --> services_authService
+  pages_ImportacoesPage --> services_config
   pages_ImportacoesPage --> services_importacoesService
   pages_LoginPage --> components_Icon
   pages_LoginPage --> components_Sidebar
@@ -717,9 +735,9 @@ graph TD
   pages_PendenciasPage --> services_ucsService
   pages_PlaceholderPage --> layouts_BaseLayout
   pages_PlantsPage --> components_ClientDetailView
-  pages_PlantsPage --> components_DashboardCards
   pages_PlantsPage --> components_DataTable
   pages_PlantsPage --> components_Icon
+  pages_PlantsPage --> components_IconStatCard
   pages_PlantsPage --> components_PlantCard
   pages_PlantsPage --> components_PlantDistribuicaoModal
   pages_PlantsPage --> hooks_useGlobalLoading

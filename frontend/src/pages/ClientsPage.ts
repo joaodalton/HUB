@@ -1,7 +1,10 @@
 import { createClientCard, type ClientFormData } from '../components/ClientCard';
-import { createClientDetailView } from '../components/ClientDetailView';
+import { createClientDetailView, createClientPlantsPanel, createClientUcPanel } from '../components/ClientDetailView';
+import { createClientDocumentsPanel } from '../components/ClientDocumentsPanel';
 import { createDashboardCards } from '../components/DashboardCards';
 import { createDataTable } from '../components/DataTable';
+import { createDetailDrawer } from '../components/DetailDrawer';
+import { createImportacoesModal } from '../components/ImportacoesModal';
 import { createElement } from '../dom';
 import { useGlobalLoading } from '../hooks/useGlobalLoading';
 import { useToast } from '../hooks/useToast';
@@ -25,7 +28,6 @@ export function createClientsPage(): HTMLElement {
  let selectedClient: ClientRow | null = null;
   let viewingClient: ClientRow | null = null;
   let isCreating = false;
-  let isEditModalOpen = false;
   let loadError = false;
 
   const layout = createBaseLayout({
@@ -53,13 +55,9 @@ export function createClientsPage(): HTMLElement {
   }
 
  function renderContent(): void {
-    if (viewingClient) {
-      renderDetailView();
-      return;
-    }
-
     const pageActions = createElement('div', { className: 'page-actions' });
     const newClientButton = createElement('button', { textContent: 'Novo cliente', type: 'button' });
+    const importButton = createElement('button', { className: 'secondary-button', textContent: 'Importação/exportação', type: 'button' });
     const table = createDataTable<ClientRow>({
       title: 'Clientes cadastrados',
       eyebrow: 'Listagem',
@@ -84,8 +82,9 @@ export function createClientsPage(): HTMLElement {
       isCreating = true;
       renderContent();
     });
+    importButton.addEventListener('click', () => document.body.appendChild(createImportacoesModal(() => void loadClients())));
 
-    pageActions.appendChild(newClientButton);
+    pageActions.append(importButton, newClientButton);
 
     if (isCreating || selectedClient) {
       blocks.push(createClientEditor());
@@ -93,6 +92,7 @@ export function createClientsPage(): HTMLElement {
 
     blocks.push(table);
     content.replaceChildren(...blocks);
+    if (viewingClient) content.appendChild(createClientDrawer(viewingClient));
   }
 
   function createClientEditor(): HTMLElement {
@@ -104,14 +104,12 @@ export function createClientsPage(): HTMLElement {
       onCancel: () => {
         selectedClient = null;
         isCreating = false;
-        isEditModalOpen = false;
         renderContent();
       },
       onSave: async (data) => {
         await saveClient(data);
         selectedClient = null;
         isCreating = false;
-        isEditModalOpen = false;
         await loadClients();
 
         // Se estava editando o cliente que a pagina de detalhes esta mostrando,
@@ -142,30 +140,22 @@ export function createClientsPage(): HTMLElement {
     });
   }
 
-  function renderDetailView(): void {
-    if (!viewingClient) return;
-
-    const blocks: HTMLElement[] = [
-      createClientDetailView({
-        client: viewingClient,
-        onBack: () => {
-          viewingClient = null;
-          renderContent();
-        },
-        onEdit: () => {
-          selectedClient = viewingClient;
-          isEditModalOpen = true;
-          renderContent();
-        },
-        onDelete: () => handleDeleteFromDetail(viewingClient!)
-      })
-    ];
-
-    if (isEditModalOpen) {
-      blocks.push(createClientEditor());
-    }
-
-    content.replaceChildren(...blocks);
+  function createClientDrawer(client: ClientRow): HTMLElement {
+    const openEditor = () => {
+      selectedClient = client;
+      viewingClient = null;
+      renderContent();
+    };
+    return createDetailDrawer({
+      title: client.nome,
+      onClose: () => { viewingClient = null; renderContent(); },
+      tabs: [
+        { label: 'Visão geral', content: createClientDetailView({ client, onEdit: openEditor, onDelete: () => handleDeleteFromDetail(client) }) },
+        { label: 'UCs', content: createClientUcPanel(client, openEditor) },
+        { label: 'Usinas', content: createClientPlantsPanel(client) },
+        { label: 'Documentos', content: createClientDocumentsPanel(client.id) }
+      ]
+    });
   }
 
   async function handleDeleteFromDetail(client: ClientRow): Promise<void> {

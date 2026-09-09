@@ -33,8 +33,16 @@ from services.log_service import LogService
 from services.settings_service import get_all_settings
 
 
+def _plant(plant_id: int):
+    return Plant.query.filter_by(id=plant_id, empresa_id=g.current_empresa_id).first()
+
+
+def _uc(uc_id: int):
+    return ConsumerUnit.query.filter_by(id=uc_id, empresa_id=g.current_empresa_id).first()
+
+
 def preview_rateio(plant_id: int | None = None) -> list[dict]:
-    plants = [Plant.query.get(plant_id)] if plant_id else Plant.query.all()
+    plants = [_plant(plant_id)] if plant_id else Plant.query.all()
     plants = [p for p in plants if p]
     return [_calcular_usina(plant) for plant in plants]
 
@@ -44,7 +52,7 @@ def funil_qualificacao(plant_id: int) -> dict:
     'Qualificado' = passou na checagem de janela de leitura. Cada UC também
     já vem com o percentual que ela CONSUMIRIA se fosse conectada agora,
     pra montar a lista de seleção sem precisar de uma segunda chamada."""
-    plant = Plant.query.get(plant_id)
+    plant = _plant(plant_id)
     if not plant:
         raise ValueError('Usina nao encontrada.')
 
@@ -100,7 +108,7 @@ def aplicar_rateio(competencia: str, plant_id: int | None = None) -> list[dict]:
     resultados = preview_rateio(plant_id)
 
     for resultado in resultados:
-        plant = Plant.query.get(resultado['plantId'])
+        plant = _plant(resultado['plantId'])
 
         for uc_resultado in resultado['ucs']:
             connection = PlantConnection.query.filter_by(
@@ -151,7 +159,7 @@ def confirmar_selecao(plant_id: int, competencia: str, selecoes: list[dict]) -> 
     """
     _validar_competencia(competencia)
 
-    plant = Plant.query.get(plant_id)
+    plant = _plant(plant_id)
     if not plant:
         raise ValueError('Usina nao encontrada.')
 
@@ -184,7 +192,7 @@ def confirmar_selecao(plant_id: int, competencia: str, selecoes: list[dict]) -> 
     # validations, pra nao introduzir um segundo formato de erro).
     ucs_nao_qualificadas = []
     for uc_id in selecoes_por_uc:
-        uc = ConsumerUnit.query.get(uc_id)
+        uc = _uc(uc_id)
         if not uc:
             raise ValueError(f'UC id={uc_id} nao encontrada.')
 
@@ -225,7 +233,7 @@ def confirmar_selecao(plant_id: int, competencia: str, selecoes: list[dict]) -> 
     resultado_ucs = []
 
     for uc_id, percentual in selecoes_por_uc.items():
-        uc = ConsumerUnit.query.get(uc_id)
+        uc = _uc(uc_id)
 
         if not uc:
             raise ValueError(f'UC id={uc_id} nao encontrada.')
@@ -294,7 +302,7 @@ def atualizar_distribuicao(plant_id: int, atualizacoes: list[dict]) -> dict:
     humana explícita). Valida que a soma de TODAS as conexões da usina
     depois do update (as editadas + as que não foram tocadas) não passa de
     100% -- se passar, nada é gravado (tudo ou nada)."""
-    plant = Plant.query.get(plant_id)
+    plant = _plant(plant_id)
     if not plant:
         raise ValueError('Usina nao encontrada.')
 

@@ -59,6 +59,34 @@ def create_user(data: dict, empresa_id: int) -> dict:
     return user.to_dict()
 
 
+def update_user(user_id: int, data: dict, empresa_id: int) -> dict | None:
+    user = User.query.filter_by(id=user_id, empresa_id=empresa_id).first()
+    if not user:
+        return None
+    if 'nome' in data:
+        user.nome = (data['nome'] or '').strip()
+        if not user.nome:
+            raise ValueError('Nome nao pode ser vazio.')
+    if 'email' in data:
+        email = (data['email'] or '').strip().lower()
+        if not email:
+            raise ValueError('Email nao pode ser vazio.')
+        if User.query.filter(db.func.lower(User.email) == email, User.id != user.id).first():
+            raise ValueError('Ja existe um usuario com esse email.')
+        user.email = email
+    if 'role' in data:
+        if user.role == 'owner':
+            raise ValueError('Nao e possivel alterar o papel do owner.')
+        if data['role'] not in VALID_ROLES:
+            raise ValueError(f'Papel invalido. Use um de: {", ".join(sorted(VALID_ROLES))}.')
+        user.role = data['role']
+    if not data or set(data) - {'nome', 'email', 'role'}:
+        raise ValueError('Campos nao permitidos para atualizacao do usuario.')
+    db.session.commit()
+    LogService.info(acao='update', mensagem=f'Usuario {user.email} atualizado', entidade='User', metadados={'userId': user.id, 'empresaId': empresa_id})
+    return user.to_dict()
+
+
 def register_with_code(data: dict, provided_code: str, empresa_id: int) -> dict:
     """Auto-cadastro publico (tela de login) -- so funciona se SIGNUP_CODE
     estiver configurado E o codigo mandado bater. SEMPRE cria 'viewer', nunca

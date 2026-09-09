@@ -7,11 +7,17 @@ import { apiRequest } from './apiClient';
 export type RateioConfig = {
   bufferHabilitado: boolean;
   bufferPercentual: number;
+  documentoCnpjObrigatorio: boolean;
+  documentoEstatutoObrigatorio: boolean;
+  termosAdesaoObrigatorios: boolean;
 };
 
 export const DEFAULT_RATEIO_CONFIG: RateioConfig = {
   bufferHabilitado: false,
-  bufferPercentual: 15
+  bufferPercentual: 15,
+  documentoCnpjObrigatorio: true,
+  documentoEstatutoObrigatorio: true,
+  termosAdesaoObrigatorios: true
 };
 
 type ApiResponse<T> = {
@@ -30,7 +36,10 @@ export async function saveRateioConfig(config: RateioConfig): Promise<RateioConf
     method: 'PUT',
     body: {
       rateioBufferHabilitado: String(config.bufferHabilitado),
-      rateioBufferPercentual: String(config.bufferPercentual)
+      rateioBufferPercentual: String(config.bufferPercentual),
+      rateioExigirDocumentoCnpj: String(config.documentoCnpjObrigatorio),
+      rateioExigirDocumentoEstatuto: String(config.documentoEstatutoObrigatorio),
+      rateioExigirTermosAdesao: String(config.termosAdesaoObrigatorios)
     }
   });
   return config;
@@ -41,6 +50,9 @@ function mergeWithDefaults(stored: Record<string, string>): RateioConfig {
     bufferHabilitado: stored.rateioBufferHabilitado === 'true',
     bufferPercentual: stored.rateioBufferPercentual
       ? Number(stored.rateioBufferPercentual)
-      : DEFAULT_RATEIO_CONFIG.bufferPercentual
+      : DEFAULT_RATEIO_CONFIG.bufferPercentual,
+    documentoCnpjObrigatorio: stored.rateioExigirDocumentoCnpj !== 'false',
+    documentoEstatutoObrigatorio: stored.rateioExigirDocumentoEstatuto !== 'false',
+    termosAdesaoObrigatorios: stored.rateioExigirTermosAdesao !== 'false'
   };
 }

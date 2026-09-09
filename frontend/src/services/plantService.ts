@@ -19,6 +19,7 @@ export type PlantRow = {
   responsavel: string;
   concessionaria: string | null;
   numModulos: number | null;
+  producaoMensal: Record<string, number>;
   producaoMedia: number | null;
   producaoMediaManual: number | null;
   reservaPercentual: number;

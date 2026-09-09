@@ -222,19 +222,19 @@ def get_drive_service() -> GoogleDriveService:
     if empresa_id in _drive_service_cache:
         return _drive_service_cache[empresa_id]
 
-    root_folder_id = _resolve_tenant_root_folder_id()
-
     credentials = _build_oauth_credentials()
-
-    if credentials is None:
+    uses_oauth = credentials is not None
+    if not uses_oauth:
         credentials = _build_service_account_credentials()
+
+    root_folder_id = _resolve_tenant_root_folder_id(allow_account_root=uses_oauth)
 
     service = GoogleDriveService(credentials, root_folder_id)
     _drive_service_cache[empresa_id] = service
     return service
 
 
-def _resolve_tenant_root_folder_id() -> str:
+def _resolve_tenant_root_folder_id(*, allow_account_root: bool = False) -> str:
     from models.empresa import Empresa
     from models.setting import Setting
 
@@ -244,6 +244,11 @@ def _resolve_tenant_root_folder_id() -> str:
 
     if Empresa.query.count() == 1 and Config.GOOGLE_DRIVE_ROOT_FOLDER_ID:
         return Config.GOOGLE_DRIVE_ROOT_FOLDER_ID
+
+    # OAuth pertence a uma única empresa. Sem pasta configurada, a raiz dessa
+    # conta é o escopo natural; service accounts continuam exigindo um limite.
+    if allow_account_root:
+        return ''
 
     raise RuntimeError(
         'Pasta raiz do Google Drive nao configurada para esta empresa. '

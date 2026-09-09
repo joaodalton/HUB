@@ -21,13 +21,18 @@ export type FormularioTabela = {
   empresaEmail: string | null;
   documentoCnpjOk: boolean;
   documentoEstatutoOk: boolean;
+  regrasDocumentos: {
+    documentoCnpjObrigatorio: boolean;
+    documentoEstatutoObrigatorio: boolean;
+    termosAdesaoObrigatorios: boolean;
+  };
   linhas: FormularioLinha[];
   somaPercentual: number;
-  excedeLimiteLinhas: boolean;
 };
 
 export type VerificarDocumentosResultado = {
   ok: boolean;
+  exigido?: boolean;
   faltando: Array<{ clienteId: number | null; ucId: number | null; nome: string }>;
 };
 
@@ -46,7 +51,7 @@ export async function verificarDocumentosFormulario(plantId: number): Promise<Ve
   return response.data;
 }
 
-// As 2 funcoes abaixo baixam PDF binario -- nao usam apiRequest (que espera
+// As funcoes abaixo baixam arquivos binarios -- nao usam apiRequest (que espera
 // JSON), seguem o mesmo padrao de apiBlob usado em documentsService.ts.
 async function baixarPdf(path: string, body: unknown): Promise<Blob> {
   return apiBlob(path, { method: 'POST', body });
@@ -63,4 +68,13 @@ export function gerarFormularioPdf(
 
 export function gerarTermosAdesaoPdf(plantId: number): Promise<Blob> {
   return baixarPdf('/rateio/formulario/gerar-termos', { plantId });
+}
+
+export function gerarFormularioExcel(
+  plantId: number,
+  responsavelNome: string,
+  responsavelCpf: string,
+  linhas: FormularioLinha[]
+): Promise<Blob> {
+  return baixarPdf('/rateio/formulario/gerar-excel', { plantId, responsavelNome, responsavelCpf, linhas });
 }

@@ -39,6 +39,13 @@ SETTINGS_KEYS_WHITELIST = frozenset({
     'custom_css',
     'google_drive_root_folder_id',
 
+    # === RATEIO ===
+    'rateioBufferHabilitado',
+    'rateioBufferPercentual',
+    'rateioExigirDocumentoCnpj',
+    'rateioExigirDocumentoEstatuto',
+    'rateioExigirTermosAdesao',
+
     # === EMAIL ===
     'resend_api_key',
     'email_from',

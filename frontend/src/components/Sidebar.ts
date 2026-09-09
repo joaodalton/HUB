@@ -36,14 +36,13 @@ const sections: SidebarSection[] = [
       { label: 'Usinas', path: '/usinas', icon: 'plants', enabled: true },
       { label: 'UCs', path: '/ucs', icon: 'ucs', enabled: true },
       { label: 'Rateio', path: '/rateio', icon: 'rateio', enabled: true },
-      { label: 'Documentos', path: '/documentos', icon: 'documents', enabled: true },
-      { label: 'Importações', path: '/importacoes', icon: 'upload', enabled: true }
+      { label: 'Documentos', path: '/documentos', icon: 'documents', enabled: true }
     ]
   },
   {
     title: 'Financeiro',
     items: [
-      { label: 'Faturas', path: '/faturas', icon: 'faturas', enabled: false },
+      { label: 'Faturas', path: '/faturas', icon: 'faturas', enabled: true },
       { label: 'Pagamentos', path: '/pagamentos', icon: 'pagamentos', enabled: false },
       { label: 'Cobranças', path: '/cobrancas', icon: 'cobrancas', enabled: false }
     ]
@@ -155,6 +154,12 @@ function createUserCard(): HTMLElement {
   });
 
   text.append(name, role);
+  if (user?.platformViewEmpresaId) {
+    text.appendChild(createElement('span', {
+      className: 'sidebar-user-role',
+      textContent: `Visualizando: ${user.platformViewEmpresaNome ?? '—'}`
+    }));
+  }
   card.append(avatar, text);
   return card;
 }

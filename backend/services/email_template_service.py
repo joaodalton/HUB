@@ -51,7 +51,7 @@ def _contem_conteudo_proibido(texto: str) -> bool:
     return bool(_DANGEROUS_TAG_PATTERN.search(texto))
 
 
-def ensure_seeded() -> None:
+def ensure_seeded(*, commit: bool = True) -> None:
     """Cria no banco qualquer template padrão que ainda não exista. Chamado
     sob demanda (não no boot da app) -- não precisa de migration de dado,
     o próprio uso normal (tela ou envio de e-mail) semeia sozinho."""
@@ -69,7 +69,8 @@ def ensure_seeded() -> None:
             variaveis_disponiveis=dados['variaveis_disponiveis']
         ))
 
-    db.session.commit()
+    if commit:
+        db.session.commit()
 
 
 def list_templates() -> list[dict]:

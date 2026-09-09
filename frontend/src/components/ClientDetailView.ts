@@ -1,34 +1,18 @@
 import { createElement, statusTone } from '../dom';
-import { createClientDocumentsPanel } from './ClientDocumentsPanel';
 import type { ClientRow, ClientUc } from '../services/clientsService';
 
 type ClientDetailViewOptions = {
   client: ClientRow;
-  onBack: () => void;
   onEdit: () => void;
   onDelete: () => void;
 };
 
 // Abas sem backend ainda (Financeiro = V3.0, Agenda real = V1.5, Historico/Observacoes/Logs
 // nem tem model hoje) -- visiveis mas desabilitadas, so como referencia visual.
-const upcomingTabs = ['Financeiro', 'Histórico', 'Agenda', 'Observações', 'Logs'];
-
-export function createClientDetailView({ client, onBack, onEdit, onDelete }: ClientDetailViewOptions): HTMLElement {
+export function createClientDetailView({ client, onEdit, onDelete }: ClientDetailViewOptions): HTMLElement {
   const wrapper = createElement('section', { className: 'client-detail-view' });
 
-  const backLink = createElement('a', { className: 'detail-back-link', textContent: '\u2190 Clientes' });
-  backLink.href = '#';
-  backLink.addEventListener('click', (event) => {
-    event.preventDefault();
-    onBack();
-  });
-
-  const columns = createElement('div', { className: 'detail-columns' });
-  // "+ Nova UC" reaproveita o modal de edicao (que ja sabe adicionar UC) em vez
-  // de construir um fluxo novo so pra isso.
-  columns.append(createInfoPanel(client), createUcSection(client, onEdit));
-
-  wrapper.append(backLink, createHeader(client, onEdit, onDelete), columns, createTabsPanel(client));
+  wrapper.append(createHeader(client, onEdit, onDelete), createInfoPanel(client));
 
   return wrapper;
 }
@@ -73,7 +57,7 @@ function createInfoPanel(client: ClientRow): HTMLElement {
   return panel;
 }
 
-function createUcSection(client: ClientRow, onAddUc: () => void): HTMLElement {
+export function createClientUcPanel(client: ClientRow, onAddUc: () => void): HTMLElement {
   const section = createElement('aside', { className: 'detail-uc-section' });
   const header = createElement('div', { className: 'panel-title' });
   const titleText = createElement('div');
@@ -98,6 +82,20 @@ function createUcSection(client: ClientRow, onAddUc: () => void): HTMLElement {
   client.ucs.forEach((uc) => list.appendChild(createUcViewCard(uc)));
   section.appendChild(list);
 
+  return section;
+}
+
+export function createClientPlantsPanel(client: ClientRow): HTMLElement {
+  const section = createElement('section', { className: 'detail-uc-section' });
+  const plants = [...new Set(client.ucs.flatMap((uc) => uc.conexoes.map((connection) => connection.usina)))];
+  section.appendChild(createElement('span', { className: 'eyebrow', textContent: 'Usinas vinculadas' }));
+  if (plants.length === 0) {
+    section.appendChild(createElement('p', { className: 'empty-state small', textContent: 'Nenhuma usina vinculada ainda.' }));
+    return section;
+  }
+  const list = createElement('div', { className: 'uc-editor-list' });
+  plants.forEach((plant) => list.appendChild(createElement('div', { className: 'detail-info-field', textContent: plant })));
+  section.appendChild(list);
   return section;
 }
 
@@ -159,20 +157,3 @@ export function createInfoField(label: string, value: string): HTMLElement {
   return field;
 }
 
-function createTabsPanel(client: ClientRow): HTMLElement {
-  const panel = createElement('section', { className: 'detail-tabs-panel' });
-  const tabs = createElement('div', { className: 'detail-tabs' });
-  const documentsTab = createElement('button', { className: 'detail-tab active', textContent: 'Documentos', type: 'button' });
-
-  tabs.appendChild(documentsTab);
-
-  upcomingTabs.forEach((label) => {
-    const tab = createElement('button', { className: 'detail-tab disabled', textContent: label, type: 'button' });
-    tab.disabled = true;
-    tab.title = 'Em breve';
-    tabs.appendChild(tab);
-  });
-
-  panel.append(tabs, createClientDocumentsPanel(client.id));
-  return panel;
-}

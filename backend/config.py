@@ -47,6 +47,11 @@ class Config:
     # Pra onde redirecionar de volta depois do callback do Google (a SPA do frontend, nao o backend).
     FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
 
+    # ASAAS por empresa: a API key fica em ApiCredential cifrada. Estes dois
+    # valores são infraestrutura, compartilhados por todas as empresas.
+    ASAAS_API_BASE_URL = os.getenv('ASAAS_API_BASE_URL', 'https://api-sandbox.asaas.com/v3')
+    ASAAS_WEBHOOK_TOKEN = os.getenv('ASAAS_WEBHOOK_TOKEN', '')
+
     SQL_DRIVER = os.getenv('SQL_DRIVER', '')
 
     SQL_HOST = os.getenv('SQL_HOST', '')

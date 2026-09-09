@@ -17,6 +17,7 @@ class Client(TenantMixin, db.Model):
     concessionaria = db.Column(db.String(50), nullable=False, default='Copel')
     status = db.Column(db.String(30), nullable=False, default='Esperando usina')
     data_nascimento = db.Column(db.Date, nullable=True)
+    asaas_customer_id = db.Column(db.String(100), nullable=True, index=True)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

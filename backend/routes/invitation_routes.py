@@ -2,7 +2,7 @@
 from flask import Blueprint, g, request
 
 from config import Config
-from services.invitation_service import criar_convite, listar_convites, verificar_convite
+from services.invitation_service import criar_convite, listar_convites, revogar_convite, verificar_convite
 from services.permission_service import require_permission
 from utils.api_response import error_response, success_response
 
@@ -37,6 +37,18 @@ def store():
     # resposta pra quem convidou copiar e mandar na mao.
     convite['link'] = f'{Config.FRONTEND_URL}/aceitar-convite?token={token}'
     return success_response(convite, 'Convite criado.', 201)
+
+
+@invitation_routes.route('/<int:convite_id>/revogar', methods=['POST'])
+@require_permission('invitations.revoke')
+def revogar(convite_id: int):
+    try:
+        convite = revogar_convite(convite_id, g.current_empresa_id)
+    except ValueError as exc:
+        return error_response(str(exc), 400)
+    if not convite:
+        return error_response('Convite nao encontrado.', 404)
+    return success_response(convite, 'Convite revogado.')
 
 
 # GET /api/v1/convites/verificar?token=... -- PUBLICA. Usada pela tela de aceite

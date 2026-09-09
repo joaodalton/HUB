@@ -9,7 +9,7 @@ from services.plant_service import (
     update_plant
 )
 from services.uc_service import remove_connection
-from services.permission_service import require_permission
+from services.permission_service import require_permission, require_quota
 from utils.api_response import error_response, success_response
 
 
@@ -33,6 +33,7 @@ def show(plant_id: int):
 
 @plant_routes.route('', methods=['POST'])
 @require_permission('plants.create')
+@require_quota('usinas')
 def store():
     data = request.get_json(silent=True) or {}
     if not data.get('nome', '').strip():

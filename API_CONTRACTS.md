@@ -1,5 +1,9 @@
 # HUB — Contratos de API
 
+## Limite de plano
+
+Os `POST /clients`, `POST /ucs`, `POST /plants` e `POST /users` retornam `403` com `code: "QUOTA_EXCEEDED"` quando a empresa autenticada atingiu a cota. `details` contém `recurso`, `uso` e `limite`.
+
 
 > **Documentos relacionados:** [[ARCHITECTURE]] · [[VISAO]] · [[RATEIO]]
 > Se um endpoint mudar, atualize este arquivo no mesmo commit — é a regra combinada em `PROGRESS.md`.
@@ -371,10 +375,14 @@ Body: `{ "plantId": number }`. Confere Termo de Adesão de cada UC beneficiária
 
 ### `POST /rateio/formulario/gerar-pdf`
 Body: `{ "plantId": number, "responsavelNome": string, "responsavelCpf": string }`. Gera o Formulário Copel (Associações) preenchido por overlay em cima do template oficial (`backend/assets/formulario_copel_associacao.pdf`). **Resposta binária** (`application/pdf`, `Content-Disposition: attachment`), não passa pelo envelope `success_response`.
-Bloqueia com 400 se: faltar Termo de Adesão de alguma UC beneficiária, ou a usina tiver mais de 24 UCs beneficiárias (limite do formulário oficial).
+Bloqueia com 400 se: faltar pré-requisito, Termo de Adesão de alguma UC beneficiária ou a soma dos percentuais exceder 100%. Beneficiárias adicionais seguem em páginas de continuação. Falha de infraestrutura do Drive retorna 503 com mensagem acionável.
+
+### `POST /rateio/formulario/gerar-excel`
+Body: `{ "plantId": number, "responsavelNome": string, "responsavelCpf": string, "linhas"?: [...] }`. Gera o Formulário Copel em XLSX a partir do modelo CSV oficial em `backend/assets`; `linhas` preserva as edições somente visuais feitas na revisão. **Resposta binária** (`application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`). Expande a tabela para qualquer quantidade de beneficiárias e mantém a validação de soma máxima de 100%.
 
 ### `POST /rateio/formulario/gerar-termos`
 Body: `{ "plantId": number }`. Baixa do Google Drive o Termo de Adesão de cada UC beneficiária (mesma ordem alfabética da tabela) e mescla num PDF único. **Resposta binária** (`application/pdf`). Bloqueia com 400 nas mesmas condições da rota acima.
+Se o Google Drive/OAuth estiver indisponível, retorna 503 com mensagem clara; isso não invalida um formulário PDF já gerado.
 
 CNPJ e Estatuto **não têm rota própria** — são `Document` normais (ver `GET /empresas/documentos` e `GET /documents/<id>/download`), cadastrados uma vez em Configurações.
 
@@ -400,6 +408,8 @@ Armazenamento livre chave/valor. Hoje só usado pela tela de Aparência (`themeC
 `google_drive_root_folder_id` é a pasta raiz exclusiva da empresa autenticada para busca e documentos. Ao alterar essa chave, o cache do Drive da empresa é invalidado.
 
 ### `PUT /settings` — Body: `{ "chave": "valor", ... }` (uma ou mais chaves). Cria ou atualiza cada uma. `data` = objeto completo atualizado, igual ao `GET`.
+
+As chaves de Rateio são tenant-scoped: `rateioBufferHabilitado`, `rateioBufferPercentual`, `rateioExigirDocumentoCnpj`, `rateioExigirDocumentoEstatuto` e `rateioExigirTermosAdesao`. As três últimas usam `"true"` por padrão; em `"false"`, a geração de formulário PDF/XLSX não bloqueia pela ausência do respectivo documento. A mesclagem de Termos continua exigindo arquivos reais, pois precisa baixá-los do Drive.
 
 ---
 
@@ -434,7 +444,7 @@ Controla qual provedor de dados o backend usa (Google Drive service-account, ou 
 
 ## OAuth Google (`/oauth/google`)
 
-Fluxo de autorização de usuário real (PKCE), complementar ao `credentials.json` de service account usado pelo Drive legado. Contas ficam salvas em `GoogleAccount`, refresh token criptografado (nunca exposto em nenhum `to_dict`).
+Fluxo de autorização de usuário real (PKCE). Depois de conectar e aprovar no Google, a conta ativa é usada diretamente, inclusive sua raiz do Drive — não há ID de pasta obrigatório. Contas ficam salvas em `GoogleAccount`, refresh token criptografado (nunca exposto em nenhum `to_dict`). Uma pasta raiz continua opcional para restringir o OAuth ou obrigatória para a service account compartilhada entre empresas.
 
 O callback registrado e `FRONTEND_URL` devem usar HTTPS absoluto sem credenciais ou fragmento em produção. HTTP só é permitido para `localhost`/loopback quando `FLASK_DEBUG=true` **e** `OAUTH_ALLOW_INSECURE_TRANSPORT=true` forem configurados explicitamente; a aplicação remove a exceção de transporte inseguro do OAuthlib em qualquer outro ambiente. A validação padrão de escopos do OAuthlib permanece ativa.
 
@@ -477,7 +487,39 @@ Executa somente um dry-run local: verifica que a cifra existe e pode ser lida, s
 
 ---
 
+## Faturas (`/faturas`)
+
+Todas as rotas autenticadas são isoladas pela empresa atual. `owner`, `admin` e `financial` podem emitir, sincronizar e cancelar; `operator` e `viewer` só leem. A credencial `provider='asaas'` é obtida da empresa atual e nunca retorna para o cliente.
+
+### `GET /faturas?clienteId=&ucId=&status=&competencia=` · `GET /faturas/<id>`
+
+Lista ou consulta o espelho local da cobrança ASAAS. IDs de outra empresa retornam 404.
+
+### `POST /faturas`
+
+Emite boleto ASAAS. Body: `{ "clienteId": 1, "ucId": 2, "valor": 284.90, "mesVencimento": "2026-10-05", "competencia": "2026-09" }`. Cliente e UC precisam pertencer à empresa e a UC precisa pertencer ao cliente. A Fatura só é gravada após retorno bem-sucedido do ASAAS.
+
+### `POST /faturas/<id>/sincronizar` · `POST /faturas/<id>/cancelar`
+
+Consulta ou cancela a cobrança no ASAAS e atualiza o espelho local; não há edição ou exclusão física.
+
+### `GET /faturas/resumo`
+
+Retorna contagens locais por `pending`, `received`, `overdue` e `canceled`.
+
+### `POST /webhooks/asaas`
+
+Pública. Exige o header `asaas-access-token` igual a `ASAAS_WEBHOOK_TOKEN`; processa o objeto `payment` idempotentemente pelo `asaas_id` e atualiza somente a fatura correspondente.
+
+---
+
 ## Importações (`/importacoes`)
+
+`GET /importacoes/modelo` é público (sem login) e baixa `HUB_Modelo_Importacao.xlsx`, sem cadastros de exemplo. O arquivo versionado em `backend/templates/` define os cabeçalhos, estilos e listas; o download preserva `Instrucoes`, `Clientes`, `UCs` e `Usinas`, com preenchimento a partir da linha 2.
+
+`GET /importacoes/exportar` requer `imports.preview` e exporta somente a empresa autenticada, usando o mesmo modelo e todos os campos nele previstos, incluindo nascimento. Strings são gravadas como texto, nunca como fórmulas. Não é backup completo: campos fora do modelo e conexões de rateio não são exportados.
+
+O preview aceita a aba auxiliar `Instrucoes` (não importada), os cabeçalhos exatos do modelo inclusive `(opcional)`, além dos nomes legados. Linhas vazias são ignoradas. Dias de emissão devem ser inteiros de 1 a 31. Importação continua somente criação: reimportar dados existentes causa conflito; UCs referenciam CPF de cliente criado no mesmo arquivo.
 
 `POST /importacoes/preview` recebe `arquivo` (CSV UTF-8 com `tipo=clientes|ucs|usinas`, ou XLSX com abas `Clientes`, `UCs`, `Usinas`) e requer `imports.preview`. Não cria entidades: persiste um plano tenant/user-scoped com hash e TTL de 20 minutos. Planos expirados, que podem conter PII, são removidos antes de preview/confirmação e pela rotina global `flask purge-import-previews`. Limites: 10 MB, 10 mil linhas, 80 colunas, células de até 2.000 caracteres e três abas; fórmulas/injeção de planilha (`=`, `+`, `-`, `@`), XLSM e ZIP suspeito são rejeitados. A auditoria registra somente empresa, usuário, hash, contagens e resultado — nunca conteúdo de células.
 

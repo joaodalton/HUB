@@ -1,6 +1,10 @@
 import { createElement } from '../dom';
 import { createInput, createSelectField } from '../components/formFields';
 import { createDataTable } from '../components/DataTable';
+import { createDetailDrawer } from '../components/DetailDrawer';
+import { createIconStatCard, type IconStatCardProps } from '../components/IconStatCard';
+import { createIntegrationCard } from '../components/IntegrationCard';
+import type { IconName } from '../components/Icon';
 import { useToast } from '../hooks/useToast';
 import { createBaseLayout } from '../layouts/BaseLayout';
 import { getCurrentUser } from '../services/authService';
@@ -445,7 +449,7 @@ function createEmpresaAtualPanel(
   onRetry: () => Promise<void>,
   onSave: (data: EmpresaAtualUpdate) => Promise<void>
 ): HTMLElement {
-  const panel = createElement('section', { className: 'settings-panel' });
+  const panel = createElement('section', { className: 'settings-panel empresa-atual-panel' });
   panel.appendChild(createPanelHeader('Dados da Empresa', 'Informações cadastrais da empresa atual. Slug e status não podem ser alterados aqui.'));
 
   if (!loaded) {
@@ -500,7 +504,7 @@ function createRateioConfigPanel(
   loaded: boolean,
   onSave: (config: RateioConfig) => Promise<void>
 ): HTMLElement {
-  const panel = createElement('section', { className: 'settings-panel' });
+  const panel = createElement('section', { className: 'settings-panel rateio-config-panel' });
   panel.appendChild(createPanelHeader('Rateio', 'Regras padrão usadas pelo motor de rateio'));
 
   if (!loaded) {
@@ -515,6 +519,10 @@ function createRateioConfigPanel(
   habilitadoInput.type = 'checkbox';
   habilitadoInput.checked = config.bufferHabilitado;
   habilitado.append(habilitadoInput, createElement('span', { textContent: 'Aplicar buffer de segurança no consumo por padrão' }));
+
+  const exigirCnpj = createToggle('Exigir CNPJ da empresa para gerar o formulário', config.documentoCnpjObrigatorio);
+  const exigirEstatuto = createToggle('Exigir estatuto da empresa para gerar o formulário', config.documentoEstatutoObrigatorio);
+  const exigirTermos = createToggle('Exigir Termos de Adesão das beneficiárias para gerar PDF e Excel', config.termosAdesaoObrigatorios);
 
   const percentual = createElement('label', { className: 'form-field' });
   const percentualLabel = createElement('span', { textContent: 'Percentual do buffer (%)' });
@@ -541,7 +549,10 @@ function createRateioConfigPanel(
 
     await onSave({
       bufferHabilitado: habilitadoInput.checked,
-      bufferPercentual: Number(percentualInput.value) || 0
+      bufferPercentual: Number(percentualInput.value) || 0,
+      documentoCnpjObrigatorio: exigirCnpj.checked,
+      documentoEstatutoObrigatorio: exigirEstatuto.checked,
+      termosAdesaoObrigatorios: exigirTermos.checked
     });
 
     saveButton.disabled = false;
@@ -551,10 +562,22 @@ function createRateioConfigPanel(
   resetButton.addEventListener('click', async () => {
     habilitadoInput.checked = DEFAULT_RATEIO_CONFIG.bufferHabilitado;
     percentualInput.value = String(DEFAULT_RATEIO_CONFIG.bufferPercentual);
+    exigirCnpj.checked = DEFAULT_RATEIO_CONFIG.documentoCnpjObrigatorio;
+    exigirEstatuto.checked = DEFAULT_RATEIO_CONFIG.documentoEstatutoObrigatorio;
+    exigirTermos.checked = DEFAULT_RATEIO_CONFIG.termosAdesaoObrigatorios;
     await onSave(DEFAULT_RATEIO_CONFIG);
   });
 
-  body.append(habilitado, percentual, hint);
+  body.append(
+    habilitado,
+    percentual,
+    hint,
+    createElement('p', { className: 'settings-subheading', textContent: 'Documentos do formulário Copel' }),
+    exigirCnpj.field,
+    exigirEstatuto.field,
+    exigirTermos.field,
+    createElement('p', { className: 'settings-hint', textContent: 'Desative apenas para testes internos. Com a regra desligada, a geração de PDF e Excel não bloqueia pela ausência do documento.' })
+  );
   actions.append(saveButton, resetButton);
   panel.append(body, actions);
 
@@ -563,11 +586,11 @@ function createRateioConfigPanel(
 
 // ---------- APIs e integrações ----------
 
-const API_PROVIDER_OPTIONS: Array<{ value: ApiCredentialProvider; label: string }> = [
-  { value: 'resend', label: 'Resend (e-mail)' },
-  { value: 'whatsapp', label: 'WhatsApp' },
-  { value: 'asaas', label: 'Asaas (financeiro)' },
-  { value: 'concessionaria', label: 'Concessionária' }
+const API_PROVIDER_OPTIONS: Array<{ value: ApiCredentialProvider; label: string; descricao: string; icon: IconName }> = [
+  { value: 'resend', label: 'Resend (e-mail)', descricao: 'Envio de e-mails transacionais.', icon: 'mensagens' },
+  { value: 'whatsapp', label: 'WhatsApp', descricao: 'Comunicação com clientes via WhatsApp.', icon: 'mensagens' },
+  { value: 'asaas', label: 'Asaas (financeiro)', descricao: 'Cobranças e faturas da empresa.', icon: 'cobrancas' },
+  { value: 'concessionaria', label: 'Concessionária', descricao: 'Credenciais de serviços das concessionárias.', icon: 'plants' }
 ];
 
 function createApiCredentialsPanel(
@@ -601,15 +624,42 @@ function createApiCredentialsPanel(
     return panel;
   }
 
-  const list = createElement('div', { className: 'api-credentials-list' });
-  if (credentials.length === 0) {
-    list.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Nenhuma integração configurada ainda.' }));
-  } else {
-    credentials.forEach((credential) => list.appendChild(createApiCredentialCard(credential, onUpdate, onDelete)));
-  }
-  panel.appendChild(list);
-  panel.appendChild(createApiCredentialForm(onCreate));
+  const grid = createElement('div', { className: 'integration-card-grid' });
+  const editor = createElement('div', { className: 'integration-editor' });
+  editor.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Selecione uma integração para configurar suas credenciais.' }));
+
+  API_PROVIDER_OPTIONS.forEach((provider) => {
+    const providerCredentials = credentials.filter((credential) => credential.provider === provider.value);
+    grid.appendChild(createIntegrationCard({
+      nome: provider.label,
+      descricao: provider.descricao,
+      icon: provider.icon,
+      status: providerCredentials.some((credential) => credential.configurada) ? 'conectado' : 'nao_configurado',
+      onConfigurar: () => {
+        if (providerCredentials.length === 0) {
+          editor.replaceChildren(createApiCredentialForm(onCreate, provider.value));
+          return;
+        }
+        const cards = providerCredentials.map((credential) => {
+          const card = createApiCredentialCard(credential, onUpdate, onDelete) as HTMLDetailsElement;
+          card.open = true;
+          return card;
+        });
+        editor.replaceChildren(...cards);
+      }
+    }));
+  });
+  panel.append(grid, editor);
   return panel;
+}
+
+function createToggle(label: string, checked: boolean): { field: HTMLElement; checked: boolean } {
+  const field = createElement('label', { className: 'form-field form-field-checkbox' });
+  const input = createElement('input');
+  input.type = 'checkbox';
+  input.checked = checked;
+  field.append(input, createElement('span', { textContent: label }));
+  return { field, get checked() { return input.checked; }, set checked(value: boolean) { input.checked = value; } };
 }
 
 function createApiCredentialCard(
@@ -665,10 +715,10 @@ function createApiCredentialCard(
   return card;
 }
 
-function createApiCredentialForm(onCreate: (data: Required<ApiCredentialPayload>) => Promise<void>): HTMLElement {
+function createApiCredentialForm(onCreate: (data: Required<ApiCredentialPayload>) => Promise<void>, provider = 'resend'): HTMLElement {
   const form = createElement('form', { className: 'settings-form api-credential-form' });
   form.appendChild(createElement('h3', { textContent: 'Adicionar integração' }));
-  const providerField = createSelectField('Provedor', 'resend', API_PROVIDER_OPTIONS);
+  const providerField = createSelectField('Provedor', provider, API_PROVIDER_OPTIONS);
   const nameField = createInput('Nome da integração', 'text', '', true);
   const secretField = createInput('Segredo de acesso', 'password', '', true);
   secretField.input.autocomplete = 'new-password';
@@ -739,11 +789,20 @@ function createLogRow(log: LogRow): HTMLElement {
 // ---------- Logs ----------
 
 function createLogsPanel(logs: LogRow[], loaded: boolean): HTMLElement {
-  return createDataTable<LogRow & { dataFormatada: string }>({
+  const stack = createElement('section', { className: 'content-stack' });
+  const metrics: IconStatCardProps[] = [
+    { label: 'Informações', value: String(logs.filter((log) => log.nivel === 'info').length), chipColor: 'blue', icon: 'dashboard' },
+    { label: 'Alertas', value: String(logs.filter((log) => log.nivel === 'warning').length), chipColor: 'amber', icon: 'pending' },
+    { label: 'Erros', value: String(logs.filter((log) => log.nivel === 'error').length), chipColor: 'red', icon: 'x' }
+  ];
+  const cards = createElement('section', { className: 'metric-grid' });
+  metrics.forEach((metric) => cards.appendChild(createIconStatCard(metric)));
+  const table = createDataTable<LogRow & { dataFormatada: string }>({
     title: 'Logs do sistema',
     eyebrow: 'Histórico',
     rows: logs.map((log) => ({ ...log, dataFormatada: formattedLogDate(log) })),
     emptyMessage: loaded ? 'Nenhum log registrado ainda.' : 'Carregando logs...',
+    onRowClick: (log) => openLogDrawer(log),
     columns: [
       { key: 'dataFormatada', label: 'Data/Hora' },
       { key: 'nivel', label: 'Nível' },
@@ -751,6 +810,52 @@ function createLogsPanel(logs: LogRow[], loaded: boolean): HTMLElement {
       { key: 'mensagem', label: 'Mensagem' }
     ]
   });
+  stack.append(cards, createLogEntityChart(logs), table);
+  return stack;
+}
+
+function createLogEntityChart(logs: LogRow[]): HTMLElement {
+  const counts = logs.reduce<Record<string, number>>((result, log) => {
+    const entity = log.entidade || 'Sem entidade';
+    result[entity] = (result[entity] ?? 0) + 1;
+    return result;
+  }, {});
+  const entries = Object.entries(counts);
+  const max = Math.max(...entries.map(([, count]) => count), 1);
+  const panel = createElement('section', { className: 'log-entity-chart' });
+  panel.appendChild(createPanelHeader('Logs por módulo', 'Distribuição por entidade nos registros carregados'));
+  if (entries.length === 0) {
+    panel.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Nenhum registro para agrupar.' }));
+    return panel;
+  }
+  entries.forEach(([entity, count]) => {
+    const row = createElement('div', { className: 'log-entity-row' });
+    const bar = createElement('span', { className: 'log-entity-bar' });
+    bar.style.width = `${(count / max) * 100}%`;
+    row.append(createElement('span', { textContent: entity }), bar, createElement('strong', { textContent: String(count) }));
+    panel.appendChild(row);
+  });
+  return panel;
+}
+
+function openLogDrawer(log: LogRow): void {
+  const content = createElement('div', { className: 'log-drawer-content' });
+  const metadata = createElement('pre', { className: 'log-metadata' });
+  metadata.textContent = JSON.stringify(log.metadados ?? {}, null, 2);
+  content.append(
+    createElement('p', { textContent: log.mensagem || log.acao }),
+    createElement('span', { className: 'settings-hint', textContent: formattedLogDate(log) }),
+    createElement('h3', { textContent: 'Metadados' }),
+    metadata
+  );
+  const badge = createElement('span', { className: `log-level log-level-${log.nivel}`, textContent: log.nivel });
+  const drawer = createDetailDrawer({
+    title: log.acao,
+    badge,
+    tabs: [{ label: 'Detalhes', content }],
+    onClose: () => drawer.remove()
+  });
+  document.body.appendChild(drawer);
 }
 
 // ---------- Banco de dados ----------
@@ -836,7 +941,7 @@ function createGoogleAccountsSection(
   if (accounts.length === 0) {
     section.appendChild(createElement('p', {
       className: 'settings-hint',
-      textContent: 'Nenhuma conta conectada ainda. "Conectar nova conta" leva pro login real do Google -- sem precisar compartilhar pasta manualmente.'
+      textContent: 'Nenhuma conta conectada ainda. Conecte, aprove no Google e use os arquivos da conta: não é preciso informar ID de pasta.'
     }));
     return section;
   }
@@ -883,7 +988,7 @@ function createAppearancePanel(
   notify: (message: string) => void,
   notifyError: (message: string) => void
 ): HTMLElement {
-  const panel = createElement('section', { className: 'settings-panel' });
+  const panel = createElement('section', { className: 'settings-panel appearance-panel' });
   const header = createPanelHeader('Aparência', 'Identidade visual e preferências do HUB');
 
   if (!loaded) {

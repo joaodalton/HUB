@@ -1,9 +1,10 @@
 // frontend/src/pages/PlantsPage.ts
-import { createDashboardCards, type DashboardMetric } from '../components/DashboardCards';
 import { createDataTable } from '../components/DataTable';
 import { createInfoField } from '../components/ClientDetailView';
 import { createIcon } from '../components/Icon';
+import { createIconStatCard, type IconStatCardProps } from '../components/IconStatCard';
 import { createPlantCard, type PlantFormData } from '../components/PlantCard';
+import { createImportacoesModal } from '../components/ImportacoesModal';
 import { createPlantDistribuicaoModal, type PlantDistribuicaoModalUc } from '../components/PlantDistribuicaoModal';
 import { createElement } from '../dom';
 import { useGlobalLoading } from '../hooks/useGlobalLoading';
@@ -130,10 +131,6 @@ export function createPlantsPage(): HTMLElement {
       refresh();
     });
 
-    const filtersButton = createElement('button', { className: 'secondary-button', textContent: 'Filtros', type: 'button' });
-    filtersButton.disabled = true;
-    filtersButton.title = 'Em breve';
-
     const spacer = createElement('div');
     spacer.style.flex = '1 0 auto';
     spacer.style.minWidth = '0';
@@ -141,61 +138,58 @@ export function createPlantsPage(): HTMLElement {
     const newPlantButton = createElement('button', { className: 'button-with-icon', type: 'button' });
     newPlantButton.append(createIcon('plus'), document.createTextNode('Nova Usina'));
     newPlantButton.addEventListener('click', () => openPlantEditor(null));
+    const importButton = createElement('button', { className: 'secondary-button', textContent: 'Importação/exportação', type: 'button' });
+    importButton.addEventListener('click', () => document.body.appendChild(createImportacoesModal(() => void loadPlants())));
 
     const archiveButton = createElement('button', { className: 'secondary-button', textContent: 'Arquivo ▾', type: 'button' });
     archiveButton.disabled = true;
     archiveButton.title = 'Importacao/exportacao em planilha -- em breve';
 
-    toolbar.append(searchInput, filtersButton, spacer, newPlantButton, archiveButton);
+    toolbar.append(searchInput, spacer, importButton, newPlantButton, archiveButton);
 
     const statsHolder = createElement('div');
     const tableHolder = createElement('div');
 
     function refresh(): void {
-      statsHolder.replaceChildren(createStatCards());
+      statsHolder.replaceChildren(createStatCards(), createStatusFilters());
       tableHolder.replaceChildren(createPlantsTable());
     }
 
     function createStatCards(): HTMLElement {
-      const summary = getPlantStatusSummary(plants);
-      const metrics: DashboardMetric[] = [
-        {
-          label: 'Ativas',
-          value: String(summary.ativas),
-          tone: 'success',
-          icon: 'plants',
-          active: statusFilter === 'Online',
-          onClick: () => {
-            statusFilter = statusFilter === 'Online' ? null : 'Online';
-            refresh();
-          }
-        },
-        {
-          label: 'Em Implantação',
-          value: String(summary.emImplantacao),
-          tone: 'warning',
-          icon: 'pending',
-          active: statusFilter === 'Implantacao',
-          onClick: () => {
-            statusFilter = statusFilter === 'Implantacao' ? null : 'Implantacao';
-            refresh();
-          }
-        },
-        {
-          label: 'Manutenção',
-          value: String(summary.manutencao),
-          tone: 'danger',
-          icon: 'settings',
-          active: statusFilter === 'Manutencao',
-          onClick: () => {
-            statusFilter = statusFilter === 'Manutencao' ? null : 'Manutencao';
-            refresh();
-          }
-        },
-        { label: 'Total', value: String(summary.total), tone: 'neutral', icon: 'documents' }
+      const totalPotencia = plants.reduce((sum, plant) => sum + Number(plant.kwPico || 0), 0);
+      const totalUcs = plants.reduce((sum, plant) => sum + connectedUcs(plant.id).length, 0);
+      const ocupacaoMedia = plants.length
+        ? plants.reduce((sum, plant) => sum + (100 - plant.percentualDisponivel), 0) / plants.length
+        : 0;
+      const geracaoEstimada = plants.reduce((sum, plant) => sum + (plant.producaoMedia ?? 0), 0);
+      const metrics: IconStatCardProps[] = [
+        { label: 'Potência total', value: `${formatValue(totalPotencia)} kWp`, chipColor: 'blue', icon: 'plants' },
+        { label: 'Ocupação média', value: `${formatValue(ocupacaoMedia)}%`, chipColor: 'amber', icon: 'rateio' },
+        { label: 'UCs vinculadas', value: String(totalUcs), chipColor: 'green', icon: 'ucs' },
+        { label: 'Geração estimada', value: `${formatValue(geracaoEstimada)} kWh`, chipColor: 'purple', icon: 'agenda' }
       ];
+      const grid = createElement('section', { className: 'metric-grid' });
+      metrics.forEach((metric) => grid.appendChild(createIconStatCard(metric)));
+      return grid;
+    }
 
-      return createDashboardCards(metrics);
+    function createStatusFilters(): HTMLElement {
+      const summary = getPlantStatusSummary(plants);
+      const filters = createElement('div', { className: 'plant-status-filters' });
+      [
+        ['Todas', null, summary.total],
+        ['Ativas', 'Online', summary.ativas],
+        ['Em implantação', 'Implantacao', summary.emImplantacao],
+        ['Manutenção', 'Manutencao', summary.manutencao]
+      ].forEach(([label, status, count]) => {
+        const button = createElement('button', { className: statusFilter === status ? 'filter-chip active' : 'filter-chip', textContent: `${label} ${count}`, type: 'button' });
+        button.addEventListener('click', () => {
+          statusFilter = status as string | null;
+          refresh();
+        });
+        filters.appendChild(button);
+      });
+      return filters;
     }
 
     function createPlantsTable(): HTMLElement {
@@ -355,7 +349,7 @@ export function createPlantsPage(): HTMLElement {
     const occupancy = createElement('div', { className: 'plant-summary-occupancy' });
     occupancy.append(createSummaryRow('% Ocupação', `${occupied}%`), createOccupancyBar(occupied));
 
-    panel.append(eyebrow, rows, occupancy);
+    panel.append(eyebrow, rows, occupancy, createMonthlyProductionChart(plant));
     return panel;
   }
 
@@ -539,10 +533,28 @@ function createStatusDotLabel(label: string, tone: PlantStatusTone): HTMLElement
 
 function createOccupancyBar(percent: number): HTMLElement {
   const track = createElement('div', { className: 'occupancy-bar-track' });
-  const fill = createElement('div', { className: 'occupancy-bar-fill' });
+  const fill = createElement('div', { className: percent > 85 ? 'occupancy-bar-fill warning' : 'occupancy-bar-fill success' });
   fill.style.width = `${percent}%`;
   track.appendChild(fill);
   return track;
+}
+
+function createMonthlyProductionChart(plant: PlantRow): HTMLElement {
+  const values = Object.entries(plant.producaoMensal);
+  if (!values.some(([, value]) => value > 0)) return createElement('span');
+
+  const max = Math.max(...values.map(([, value]) => value), 1);
+  const chart = createElement('section', { className: 'plant-production-chart' });
+  const bars = createElement('div', { className: 'plant-production-bars' });
+  values.forEach(([month, value]) => {
+    const bar = createElement('span', { className: 'plant-production-bar', title: `${month}: ${formatValue(value)} kWh` });
+    bar.style.height = `${Math.max(6, (value / max) * 100)}%`;
+    const column = createElement('div', { className: 'plant-production-column' });
+    column.append(bar, createElement('small', { textContent: month.slice(0, 3).toUpperCase() }));
+    bars.appendChild(column);
+  });
+  chart.append(createElement('span', { className: 'eyebrow', textContent: 'Geração mensal' }), bars);
+  return chart;
 }
 
 function createSummaryRow(label: string, value: string): HTMLElement {
@@ -555,6 +567,10 @@ function plantLocationLabel(plant: PlantRow): string {
   if (plant.cidade && plant.uf) return `${plant.cidade}/${plant.uf}`;
   if (plant.cidade) return plant.cidade;
   return '-';
+}
+
+function formatValue(value: number): string {
+  return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 }).format(value);
 }
 
 function normalize(value: string): string {

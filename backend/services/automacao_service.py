@@ -13,6 +13,8 @@ ou via botão "Verificar agora"), sem necessidade de scheduler.
 """
 from datetime import datetime, timedelta
 
+from flask import g
+
 from extensions import db
 from models.client import Client
 from models.consumer_unit import ConsumerUnit, PlantConnection
@@ -356,7 +358,9 @@ def resolver_pendencias_resolvidas():
         if not pendencia.consumer_unit_id:
             continue
 
-        uc = ConsumerUnit.query.get(pendencia.consumer_unit_id)
+        uc = ConsumerUnit.query.filter_by(
+            id=pendencia.consumer_unit_id, empresa_id=g.current_empresa_id
+        ).first()
         if not uc:
             continue
 
@@ -387,7 +391,9 @@ def resolver_pendencias_resolvidas():
         if not pendencia.client_id:
             continue
 
-        cliente = Client.query.get(pendencia.client_id)
+        cliente = Client.query.filter_by(
+            id=pendencia.client_id, empresa_id=g.current_empresa_id
+        ).first()
         if not cliente:
             continue
 
@@ -421,7 +427,9 @@ def resolver_pendencias_resolvidas():
         if not pendencia.client_id:
             continue
 
-        cliente = Client.query.get(pendencia.client_id)
+        cliente = Client.query.filter_by(
+            id=pendencia.client_id, empresa_id=g.current_empresa_id
+        ).first()
         if not cliente:
             continue
 

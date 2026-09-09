@@ -192,6 +192,13 @@
 .log-level-warning { color: var(--warning); background: var(--warning-bg); border-color: var(--warning-border); }
 .log-level-error { color: var(--danger); background: var(--danger-bg); border-color: var(--danger-border); }
 
+.log-entity-chart { display: grid; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--border-deep); border-radius: var(--radius-card); background: var(--panel-deep); }
+.log-entity-row { display: grid; grid-template-columns: minmax(100px, 180px) 1fr auto; align-items: center; gap: var(--space-2); font-size: 12px; color: var(--text-dim); }
+.log-entity-bar { height: 8px; border-radius: 999px; background: var(--accent-secondary); }
+.log-drawer-content { display: grid; gap: var(--space-2); }
+.log-drawer-content h3 { margin: var(--space-2) 0 0; font-size: 14px; }
+.log-metadata { margin: 0; padding: var(--space-2); overflow: auto; border: 1px solid var(--border-deep); border-radius: var(--radius-input); background: var(--bg-deep); color: var(--text-dim); font: 12px var(--font-mono); }
+
 /* ---------- Provedor de banco de dados ---------- */
 
 .database-provider-stack { display: grid; gap: 12px; }
@@ -226,6 +233,63 @@
 .provider-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
 /* ---------- APIs e integrações ---------- */
+
+.integration-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-3);
+}
+
+.integration-card {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border-deep);
+  border-radius: var(--radius-card);
+  background: var(--panel-deep);
+}
+
+.integration-card-heading { display: flex; align-items: center; gap: var(--space-2); color: var(--text); }
+.integration-card-heading .icon { width: 20px; height: 20px; color: var(--accent-secondary); }
+.integration-card p { min-height: 34px; margin: 0; color: var(--text-dim); font-size: 12px; line-height: 1.4; }
+.integration-card .provider-badge { justify-self: start; }
+.integration-card .secondary-button { justify-self: start; }
+.integration-editor { display: grid; gap: var(--space-3); margin-top: var(--space-4); }
+
+/* ---------- Geral ---------- */
+
+.empresa-atual-panel,
+.rateio-config-panel {
+  border-color: var(--border-deep);
+  background: var(--panel-deep);
+}
+
+.empresa-atual-panel .panel-title,
+.rateio-config-panel .panel-title {
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border-deep);
+}
+
+.empresa-atual-panel .settings-form,
+.rateio-config-panel .settings-form { max-width: 620px; }
+
+.appearance-panel {
+  border-color: var(--border-deep);
+  background: var(--panel-deep);
+}
+
+.appearance-panel .panel-title {
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border-deep);
+}
+
+.appearance-panel .logo-row,
+.appearance-panel .color-field-grid {
+  padding: var(--space-3);
+  border: 1px solid var(--border-deep);
+  border-radius: var(--radius);
+  background: var(--panel-deep-soft);
+}
 
 .api-credentials-list { display: grid; gap: 10px; margin-bottom: 22px; }
 

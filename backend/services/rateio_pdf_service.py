@@ -24,7 +24,7 @@ from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfgen import canvas
 
 from services.rateio_formulario_service import (
-    MAX_LINHAS_BENEFICIARIAS,
+    REGRAS_DOCUMENTOS_PADRAO,
     buscar_termo_adesao,
     montar_tabela_formulario,
     verificar_termos_adesao,
@@ -104,6 +104,11 @@ CAMPO_DATA_ANO = {'x': 143.0, 'top': 282.0}
 
 FONT_NAME = 'Helvetica'
 FONT_SIZE = 9
+LINHAS_POR_PAGINA_CONTINUACAO = 24
+
+
+class DriveUnavailableError(RuntimeError):
+    """Falha de infraestrutura ao acessar arquivos do Google Drive."""
 
 
 def _y_for_reportlab(top_pdfplumber: float) -> float:
@@ -144,15 +149,101 @@ def _formatar_percentual(valor: float) -> str:
 
 def _validar_pre_requisitos(tabela: dict) -> None:
     faltando = []
+    regras = {**REGRAS_DOCUMENTOS_PADRAO, **tabela.get('regrasDocumentos', {})}
     if not tabela.get('ucGeradora'):
         faltando.append('UC da usina')
-    if not tabela.get('documentoCnpjOk'):
+    if regras['documentoCnpjObrigatorio'] and not tabela.get('documentoCnpjOk'):
         faltando.append('CNPJ da empresa')
-    if not tabela.get('documentoEstatutoOk'):
+    if regras['documentoEstatutoObrigatorio'] and not tabela.get('documentoEstatutoOk'):
         faltando.append('Estatuto da empresa')
     if faltando:
         raise ValueError(f'Pre-requisitos faltando: {", ".join(faltando)}.')
 
+
+def validar_tabela_formulario(tabela: dict) -> None:
+    """Valida os dados finais usados em qualquer documento do rateio."""
+    _validar_pre_requisitos(tabela)
+
+    soma_percentual = round(sum(float(linha.get('percentual') or 0) for linha in tabela['linhas']), 2)
+    if soma_percentual > 100.0:
+        raise ValueError(
+            f'Soma dos percentuais desta usina e {soma_percentual}% -- excede 100%. Ajuste antes de gerar.'
+        )
+
+
+def validar_termos_adesao_obrigatorios(tabela: dict, plant_id: int) -> None:
+    regras = {**REGRAS_DOCUMENTOS_PADRAO, **tabela.get('regrasDocumentos', {})}
+    if not regras['termosAdesaoObrigatorios']:
+        return
+
+    verificacao = verificar_termos_adesao(plant_id)
+    if not verificacao['ok']:
+        nomes = ', '.join(item['nome'] for item in verificacao['faltando'])
+        raise ValueError(f'Termo de Adesao faltando para: {nomes}. Geracao bloqueada.')
+
+
+def aplicar_linhas_override(tabela: dict, linhas_override: list[dict] | None) -> None:
+    if linhas_override is None:
+        return
+    if not isinstance(linhas_override, list):
+        raise ValueError('Linhas de revisao invalidas.')
+
+    overrides_por_uc = {
+        item.get('ucId'): item for item in linhas_override
+        if isinstance(item, dict) and item.get('ucId') is not None
+    }
+    for linha in tabela['linhas']:
+        override = overrides_por_uc.get(linha['ucId'])
+        if not override:
+            continue
+        for campo in ('nome', 'documento', 'ucIdentificacao'):
+            if campo in override:
+                linha[campo] = str(override[campo] or '').strip()
+        if 'percentual' in override:
+            try:
+                percentual = float(override['percentual'])
+            except (TypeError, ValueError) as exc:
+                raise ValueError('Percentual visual invalido no formulario.') from exc
+            if percentual < 0 or percentual > 100:
+                raise ValueError('Percentual visual deve estar entre 0 e 100.')
+            linha['percentual'] = percentual
+
+
+def _gerar_paginas_continuacao(linhas: list[dict]) -> list:
+    """Cria páginas extras de beneficiárias antes do rodapé do formulário."""
+    if not linhas:
+        return []
+
+    output = io.BytesIO()
+    c = canvas.Canvas(output, pagesize=(PAGE_WIDTH, PAGE_HEIGHT))
+    for inicio in range(0, len(linhas), LINHAS_POR_PAGINA_CONTINUACAO):
+        bloco = linhas[inicio:inicio + LINHAS_POR_PAGINA_CONTINUACAO]
+        c.setFont('Helvetica-Bold', 12)
+        c.drawString(48, PAGE_HEIGHT - 48, 'Formulário Copel - Continuação de unidades beneficiárias')
+        c.setFont(FONT_NAME, 8)
+        cabecalhos = ('#', 'Nome do titular', 'CPF/CNPJ', 'UC beneficiária', '%')
+        colunas = (48, 82, 350, 520, 740, 794)
+        y_topo = PAGE_HEIGHT - 72
+        altura = 19
+        for indice, cabecalho in enumerate(cabecalhos):
+            c.drawString(colunas[indice] + 3, y_topo - 13, cabecalho)
+        for linha_idx, linha in enumerate(bloco, start=1):
+            y = y_topo - altura * linha_idx
+            valores = (
+                str(linha['ordem']), linha['nome'] or '', linha['documento'] or '',
+                linha['ucIdentificacao'] or '', _formatar_percentual(linha['percentual']),
+            )
+            for indice, valor in enumerate(valores):
+                _draw_text(c, colunas[indice] + 3, PAGE_HEIGHT - y + 13, valor, max_width=colunas[indice + 1] - colunas[indice] - 6)
+        for linha_idx in range(len(bloco) + 2):
+            y = y_topo - altura * linha_idx
+            c.line(colunas[0], y, colunas[-1], y)
+        for coluna in colunas:
+            c.line(coluna, y_topo, coluna, y_topo - altura * (len(bloco) + 1))
+        c.showPage()
+    c.save()
+    output.seek(0)
+    return PdfReader(output).pages
 
 def gerar_formulario_pdf(
     plant_id: int,
@@ -170,41 +261,12 @@ def gerar_formulario_pdf(
         )
 
     tabela = montar_tabela_formulario(plant_id)
-    _validar_pre_requisitos(tabela)
 
-    if linhas_override is not None:
-        if not isinstance(linhas_override, list):
-            raise ValueError('Linhas de revisao invalidas.')
-        overrides_por_uc = {
-            item.get('ucId'): item for item in linhas_override
-            if isinstance(item, dict) and item.get('ucId') is not None
-        }
-        for linha in tabela['linhas']:
-            override = overrides_por_uc.get(linha['ucId'])
-            if not override:
-                continue
-            for campo in ('nome', 'documento', 'ucIdentificacao'):
-                if campo in override:
-                    linha[campo] = str(override[campo] or '').strip()
-            if 'percentual' in override:
-                try:
-                    percentual = float(override['percentual'])
-                except (TypeError, ValueError) as exc:
-                    raise ValueError('Percentual visual invalido no formulario.') from exc
-                if percentual < 0 or percentual > 100:
-                    raise ValueError('Percentual visual deve estar entre 0 e 100.')
-                linha['percentual'] = percentual
+    aplicar_linhas_override(tabela, linhas_override)
 
-    if tabela['excedeLimiteLinhas']:
-        raise ValueError(
-            f'Esta usina tem {len(tabela["linhas"])} UCs beneficiarias, mas o '
-            f'formulario da Copel so suporta {MAX_LINHAS_BENEFICIARIAS}.'
-        )
+    validar_tabela_formulario(tabela)
 
-    verificacao = verificar_termos_adesao(plant_id)
-    if not verificacao['ok']:
-        nomes = ', '.join(item['nome'] for item in verificacao['faltando'])
-        raise ValueError(f'Termo de Adesao faltando para: {nomes}. Geracao bloqueada.')
+    validar_termos_adesao_obrigatorios(tabela, plant_id)
 
     reader_template = PdfReader(str(TEMPLATE_PATH))
     num_paginas = len(reader_template.pages)
@@ -262,8 +324,11 @@ def gerar_formulario_pdf(
 
     for pagina_idx in range(num_paginas):
         pagina_base = reader_template.pages[pagina_idx]
-        pagina_base.merge_page(reader_overlay.pages[pagina_idx])
         writer.add_page(pagina_base)
+        writer.pages[-1].merge_page(reader_overlay.pages[pagina_idx])
+        if pagina_idx == 1:
+            for pagina_continuacao in _gerar_paginas_continuacao(tabela['linhas'][24:]):
+                writer.add_page(pagina_continuacao)
 
     output_buffer = io.BytesIO()
     writer.write(output_buffer)
@@ -276,7 +341,7 @@ def gerar_termos_adesao_pdf(plant_id: int) -> bytes:
     algum -- mesma checagem que gerar_formulario_pdf, pra nao gerar um PDF
     incompleto sem avisar."""
     tabela = montar_tabela_formulario(plant_id)
-    _validar_pre_requisitos(tabela)
+    validar_tabela_formulario(tabela)
 
     verificacao = verificar_termos_adesao(plant_id)
     if not verificacao['ok']:
@@ -295,7 +360,7 @@ def gerar_termos_adesao_pdf(plant_id: int) -> bytes:
         try:
             file_bytes = drive.download_file(documento.storage_ref)
         except Exception as exc:
-            raise ValueError(f'Nao foi possivel baixar o Termo de Adesao de {linha["nome"]}.') from exc
+            raise DriveUnavailableError(f'Nao foi possivel baixar o Termo de Adesao de {linha["nome"]}.') from exc
 
         try:
             reader = PdfReader(io.BytesIO(file_bytes))

@@ -1,10 +1,29 @@
 # HUB — Progresso
 
+- [x] Configurações → Geral → Rateio agora permite desativar temporariamente, por empresa, as exigências de CNPJ, estatuto e Termos de Adesão para testar a geração de PDF/XLSX sem anexos. O padrão continua seguro (todas ligadas); soma de percentuais, UC geradora e responsável permanecem obrigatórios.
+
+- [x] Refatoração estrutural da tela de Rateio: `RateioPage.ts` passou de 1.159 para 67 linhas; wizard, formulário Copel e utilitários foram separados por responsabilidade em `frontend/src/pages/rateio/`, todos abaixo de 350 linhas. A regra de qualidade voltou a validar `RateioPage.ts`. Evidência: build e lint do frontend aprovados em 2026-09-09.
+
+- [x] Sprint A — Planos, Assinatura e enforcement de cota: catálogo Starter em arquivo, Assinatura/LimiteContratado e migration com backfill vitalício para empresa 1; POST de Cliente/UC/Usina/Usuário bloqueia somente acima da cota, com fail-open sem assinatura. Evidência: testes de cota, migrations SQLite e regressão backend aprovados.
+
+- [x] Sprint — Rateio 100% funcional: validação final de percentuais, falha de Drive controlada, saída XLSX baseada no modelo CSV oficial da Copel e expansão automática da tabela para qualquer quantidade de beneficiárias.
+
+- [x] Modelo padrão de importação/exportação adotado a partir de `HUB_Modelo_Importacao.xlsx`. Download público `/api/v1/importacoes/modelo` sem exemplos, botão em Importações inclusive para perfis sem permissão de importar; exportação autenticada usa as mesmas abas, cabeçalhos, estilos e listas. Campos opcionais mapeados, linhas vazias ignoradas e dias inteiros validados. Evidência: 10 testes de `tests.test_importacoes` passaram (arquivo real, download anônimo, RBAC, duas empresas, preview/commit/export); `npm.cmd --prefix frontend run build` passou. Sem deploy nesta entrega.
+
 > Leia `VISAO.md` primeiro. Este arquivo é o estado atual, atualizado a cada tarefa concluída.
 > **Documentos relacionados:** `VISAO.md` · `ARCHITECTURE.md` · `API_CONTRACTS.md` · `CONTRIBUTING.md`
 > Regra: pegue a primeira tarefa `[ ]` de cima pra baixo. Não pule.
 
-Última atualização: 2026-08-31 — base multi-tenant auditada, V1.5-A concluída e ciclo de acesso de usuários endurecido.
+Última atualização: 2026-09-02 — correções de runtime, visualização de empresas, convites e fundação do Financeiro ASAAS Sandbox.
+
+- 2026-09-02: Corrigida a migration `e6a8c0d2f4b6` para PostgreSQL (`true/false` em coluna booleana), aplicada até o head no banco de desenvolvimento; migrations SQLite e modelo Fatura passaram nos testes.
+- 2026-09-02: Convites passaram a gerar link HTTPS com `FRONTEND_URL=https://hub-frontend-fnm6.onrender.com`; CORS local mantém `localhost` e `127.0.0.1` somente em debug. Investigado e corrigido o `Failed to fetch` do login: havia processo Flask antigo ocupando a porta e o backend foi reiniciado com a sintaxe atual.
+- 2026-09-02: Empresas ganharam detalhe administrativo com impersonation, cadastro, documentos, uso/limites, edição, suspensão/reativação e atalho para Usuários; `UsersPage` ganhou edição e aba de Convites com revogação/reenvio.
+- 2026-09-02: Financeiro ASAAS preparado em Sandbox: `Client.asaas_customer_id`, `Fatura` tenant-aware, cliente ASAAS por credencial da empresa, emissão/listagem/detalhe/sincronização/cancelamento/resumo, webhook autenticado e tela Faturas/modal. Falta homologação externa com uma conta/chave Sandbox por empresa.
+
+- 2026-09-01: OAuth Google passa a usar a raiz da conta conectada sem exigir ID de pasta; a pasta permanece como limite opcional no OAuth e obrigatório no fallback de service account.
+
+- 2026-09-01: Rateio, formulário Copel e resolução automática de pendências passaram a buscar Usina/UC/Cliente por `id` e `empresa_id`; regressão cobre IDs da Empresa B já presentes no identity map durante operação da Empresa A.
 
 - 2026-08-31: busca de documentos corrigida para configuração multi-tenant: Configurações > Banco de Dados salva a pasta raiz do Google Drive por empresa e invalida o cache ao alterar; o frontend mostra o motivo real do 503.
 
@@ -45,6 +64,7 @@
 - [x] `GET/PUT /settings` — configuração chave/valor (hoje usado só por Aparência).
 - [x] **`GET /config/database` + `POST /config/database/{provider,google-drive,sql,test}`** — tela de "Banco de dados" em Configurações escolhe entre Google Drive (service account) e SQL (cadastro de credencial pronto, driver real ainda não plugado), persistido no `.env` via `dotenv`.
 - [x] **OAuth 2.0 do Google completo** (`oauth_routes.py` + `services/oauth_service.py`) — fluxo de autorização com PKCE, múltiplas contas (`GoogleAccount`, refresh token criptografado no banco), `GET/POST/DELETE /oauth/google/accounts...`. `drive_service.py` já prioriza a conta OAuth ativa e só cai pro `credentials.json` de service account se não houver conta conectada ou o refresh falhar — sem duplicidade entre os dois caminhos.
+- [x] **OAuth Google sem ID de pasta:** após login e consentimento, o Drive usa a raiz da conta OAuth da própria empresa. A pasta raiz segue opcional para organizar/restringir OAuth e obrigatória apenas no fallback por service account compartilhada.
 - [x] `drive_routes.py` não derruba mais o backend se `credentials.json` não existir — erro controlado (503) em vez de crash.
 - [x] **`GET/POST/PUT/DELETE /pendencias`** + `GET /pendencias/resumo` + `POST /pendencias/<id>/{resolver,cancelar,reabrir}` + `POST /pendencias/<id>/comentarios` + `POST /pendencias/verificar` + `GET /pendencias/regras` (`pendencia_routes.py` + `pendencia_service.py` + `automacao_service.py`). Criação manual (`POST /pendencias`) sempre força `tipo='pendencia'` — `alerta`/`erro` só nascem via automação. Motor de automação implementa 4 regras: UC sem usina, cliente sem UC, campos obrigatórios faltando, documentos obrigatórios faltando — com resolução automática quando a situação é corrigida.
 - [x] `GET /logs` ganhou filtro opcional `entidade`/`entidadeId` (usado pra timeline de uma Pendência específica). `LogService` passou a gravar `entidade_id` de verdade (coluna existia desde sempre, nunca tinha sido preenchida).
@@ -103,7 +123,8 @@
 - [x] **Troca obrigatória de senha:** contas com `must_change_password` só acessam identidade, logout e `POST /auth/alterar-senha`; a troca confirma a senha atual, valida a nova, limpa a flag, revoga o token anterior e renova o cookie. Cobertura direta inclui bloqueio de API, falhas de validação, auditoria redigida e desbloqueio (2026-08-31).
 
 ## V2.0 — Cobrança e automação de mensagens
-- [ ] Integração ASAAS (boleto).
+- [ ] Integração ASAAS (boleto). **Pronto quando:** cada empresa emite/lista/cancela/sincroniza faturas com sua própria credencial ASAAS Sandbox cifrada; Cliente guarda o `asaas_customer_id`; webhook público autenticado atualiza status sem cruzar tenants; tela Faturas consome todas as rotas.
+  Implementação local concluída e validada (migration, isolamento, rotas e build); pendente somente teste ponta a ponta contra conta ASAAS Sandbox real.
 - [ ] Integração WhatsApp pra disparo automático dos eventos da Agenda.
 - [ ] Cobranças automáticas.
 

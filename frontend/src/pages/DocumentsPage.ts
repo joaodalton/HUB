@@ -2,6 +2,7 @@ import { createDocumentLinkModal } from '../components/DocumentLinkModal';
 import { createReservedPanel } from '../components/ReservedPanel';
 import { createResultsPanel } from '../components/ResultsList';
 import { createSearchPanel } from '../components/SearchPanel';
+import { createIconStatCard, type IconStatCardProps } from '../components/IconStatCard';
 import { createElement } from '../dom';
 import { useGlobalLoading } from '../hooks/useGlobalLoading';
 import { useToast } from '../hooks/useToast';
@@ -9,6 +10,7 @@ import { createBaseLayout } from '../layouts/BaseLayout';
 import { getClients, type ClientRow } from '../services/clientsService';
 import { fileTypeLabel, isFolder, matchesDateRange, matchesFilter, matchesType } from '../services/documentRules';
 import { downloadReservedZip, searchDriveItems } from '../services/driveService';
+import { getDocuments, type DocumentRow } from '../services/documentsService';
 import type { DriveItem, FilterKey } from '../types';
 
 export function createDocumentsPage(): HTMLElement {
@@ -18,6 +20,7 @@ export function createDocumentsPage(): HTMLElement {
   let dateTo = '';
   let currentResults: DriveItem[] = [];
   let clients: ClientRow[] = [];
+  let documents: DocumentRow[] = [];
   const reservedItems = new Map<string, DriveItem>();
   const loading = useGlobalLoading();
   const toast = useToast();
@@ -53,15 +56,19 @@ export function createDocumentsPage(): HTMLElement {
   });
 
   const workspace = createElement('section', { className: 'workspace' });
+  const content = createElement('section', { className: 'content-stack' });
+  const statsHolder = createElement('div');
   const mainColumn = createElement('section', { className: 'main-column' });
 
   mainColumn.append(searchPanel.element, resultsPanel.element);
   workspace.append(mainColumn, reservedPanel.element);
+  content.append(statsHolder, workspace);
   renderReserved();
   loadClients();
+  void loadDocumentStats();
 
   return createBaseLayout({
-    content: workspace,
+    content,
     eyebrow: 'Central de documentos',
     title: 'Busque, separe e abra arquivos do Drive'
   });
@@ -71,6 +78,22 @@ export function createDocumentsPage(): HTMLElement {
       clients = await getClients();
     } catch {
       clients = [];
+    }
+  }
+
+  async function loadDocumentStats(): Promise<void> {
+    try {
+      documents = await getDocuments();
+      const categories = new Set(documents.map((document) => document.categoria || 'Sem categoria'));
+      const metrics: IconStatCardProps[] = [
+        { label: 'Total de documentos', value: String(documents.length), chipColor: 'blue', icon: 'documents' },
+        { label: 'Categorias usadas', value: String(categories.size), chipColor: 'purple', icon: 'templates' }
+      ];
+      const grid = createElement('section', { className: 'metric-grid' });
+      metrics.forEach((metric) => grid.appendChild(createIconStatCard(metric)));
+      statsHolder.replaceChildren(grid);
+    } catch {
+      statsHolder.replaceChildren();
     }
   }
 
@@ -88,6 +111,12 @@ export function createDocumentsPage(): HTMLElement {
     try {
       currentResults = await searchDriveItems(term);
       searchPanel.updateTypeOptions(Array.from(new Set(currentResults.map(fileTypeLabel))));
+      searchPanel.updateFilterCounts({
+        todos: currentResults.length,
+        pastas: currentResults.filter((item) => matchesFilter(item, 'pastas')).length,
+        imagens: currentResults.filter((item) => matchesFilter(item, 'imagens')).length,
+        termo: currentResults.filter((item) => matchesFilter(item, 'termo')).length
+      });
       renderResults();
     } catch (error) {
       currentResults = [];

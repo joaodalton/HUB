@@ -2,7 +2,7 @@
 from flask import Blueprint, request
 
 from services.uc_service import create_uc, delete_uc, get_uc, list_ucs, update_uc
-from services.permission_service import require_permission
+from services.permission_service import require_permission, require_quota
 from utils.api_response import error_response, success_response
 
 
@@ -28,6 +28,7 @@ def show(uc_id: int):
 
 @uc_routes.route('', methods=['POST'])
 @require_permission('consumer_units.create')
+@require_quota('ucs')
 def store():
     data = request.get_json(silent=True) or {}
 

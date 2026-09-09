@@ -21,6 +21,8 @@ from services.client_service import create_client, delete_client, update_client
 from services.document_service import delete_document
 from services.pendencia_service import criar_pendencia_manual
 from services.plant_service import delete_plant, update_plant
+from services.rateio_formulario_service import montar_tabela_formulario
+from services.rateio_service import confirmar_selecao, preview_rateio
 from services.settings_service import get_all_settings, update_settings
 from services.uc_service import delete_uc, sync_connections, update_uc
 try:
@@ -43,8 +45,9 @@ class TenantServiceLookupsTest(IsolatedTestRuntime, unittest.TestCase):
             db.session.flush()
             client_a = Client(empresa_id=1, nome='A', cpf='12345678900', email='a@x.test')
             client_b = Client(empresa_id=2, nome='B', cpf='12345678901', email='b@x.test')
+            plant_a = Plant(empresa_id=1, nome='A', uc='UC-A', kw_pico=1)
             plant_b = Plant(empresa_id=2, nome='B', uc='UC-B', kw_pico=1)
-            db.session.add_all([client_a, client_b, plant_b])
+            db.session.add_all([client_a, client_b, plant_a, plant_b])
             db.session.flush()
             uc_a = ConsumerUnit(empresa_id=1, client_id=client_a.id, codigo='UC-A')
             uc_b = ConsumerUnit(empresa_id=2, client_id=client_b.id, codigo='UC-B')
@@ -52,7 +55,8 @@ class TenantServiceLookupsTest(IsolatedTestRuntime, unittest.TestCase):
             db.session.add_all([uc_a, uc_b, document_b])
             db.session.commit()
             cls.client_a, cls.client_b = client_a.id, client_b.id
-            cls.plant_b, cls.uc_a, cls.uc_b, cls.document_b = plant_b.id, uc_a.id, uc_b.id, document_b.id
+            cls.plant_a, cls.plant_b = plant_a.id, plant_b.id
+            cls.uc_a, cls.uc_b, cls.document_b = uc_a.id, uc_b.id, document_b.id
 
     @classmethod
     def tearDownClass(cls):
@@ -108,6 +112,22 @@ class TenantServiceLookupsTest(IsolatedTestRuntime, unittest.TestCase):
         with self.app.test_request_context('/'):
             g.current_empresa_id = 2
             self.assertNotIn('google_drive_root_folder_id', get_all_settings())
+
+    def test_rateio_foreign_ids_are_rejected_even_when_identity_mapped(self):
+        with self.app.test_request_context('/'):
+            g.current_empresa_id = 2
+            Plant.query.filter_by(id=self.plant_b).first()
+            ConsumerUnit.query.filter_by(id=self.uc_b).first()
+
+            g.current_empresa_id = 1
+            self.assertEqual(preview_rateio(self.plant_b), [])
+            with self.assertRaisesRegex(ValueError, 'Usina nao encontrada'):
+                montar_tabela_formulario(self.plant_b)
+            with self.assertRaisesRegex(ValueError, f'UC id={self.uc_b} nao encontrada'):
+                confirmar_selecao(
+                    self.plant_a, '2026-09', [{'ucId': self.uc_b, 'percentual': 10}]
+                )
+            self.assertEqual(PlantConnection.query.filter_by(plant_id=self.plant_a).count(), 0)
 
 
 if __name__ == '__main__':

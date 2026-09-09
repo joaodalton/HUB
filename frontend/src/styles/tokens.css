@@ -72,4 +72,26 @@
 
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+
+  --bg-deep: #0e1720;
+  --panel-deep: #101c24;
+  --panel-deep-soft: #16232f;
+  --border-deep: #24384a;
+  --accent-secondary: #158dfd;
+  --accent-secondary-bg: rgba(21, 141, 253, 0.12);
+  --accent-secondary-border: rgba(21, 141, 253, 0.28);
+  --success-vivid: #22c58e;
+  --warning-vivid: #f5b942;
+  --danger-vivid: #e05a5a;
+  --info-vivid: #4fc3f7;
+  --chip-blue-bg: #08304f;
+  --chip-blue-fg: #4fc3f7;
+  --chip-green-bg: #0d3327;
+  --chip-green-fg: #22c58e;
+  --chip-amber-bg: #3a2d10;
+  --chip-amber-fg: #f5b942;
+  --chip-red-bg: #3a1414;
+  --chip-red-fg: #e05a5a;
+  --chip-purple-bg: #241a3d;
+  --chip-purple-fg: #a78bfa;
 }

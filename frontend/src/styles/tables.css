@@ -134,6 +134,34 @@
   transform: translateY(0);
 }
 
+/* ---------- Icon Stat Card ---------- */
+.icon-stat-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 85px;
+  padding: var(--space-3);
+  border: 1px solid var(--border-deep);
+  border-radius: var(--radius-card);
+  background: var(--panel-deep);
+  box-shadow: var(--shadow-sm);
+}
+
+.icon-stat-card strong,
+.icon-stat-content { display: grid; gap: 4px; }
+.icon-stat-card strong { color: var(--text); font-size: 24px; font-variant-numeric: tabular-nums; }
+.icon-stat-label, .icon-stat-trend { color: var(--text-dim); font-size: 12px; }
+.icon-stat-trend { color: var(--success-vivid); }
+.icon-stat-chip { display: grid; place-items: center; width: 40px; height: 40px; border-radius: var(--radius-input); flex: 0 0 40px; }
+.icon-stat-chip .icon { width: 18px; height: 18px; }
+.icon-stat-chip-blue { background: var(--chip-blue-bg); color: var(--chip-blue-fg); }
+.icon-stat-chip-green { background: var(--chip-green-bg); color: var(--chip-green-fg); }
+.icon-stat-chip-amber { background: var(--chip-amber-bg); color: var(--chip-amber-fg); }
+.icon-stat-chip-red { background: var(--chip-red-bg); color: var(--chip-red-fg); }
+.icon-stat-chip-purple { background: var(--chip-purple-bg); color: var(--chip-purple-fg); }
+.icon-stat-card-interactive { cursor: pointer; font: inherit; text-align: left; }
+.icon-stat-card-interactive:hover { border-color: var(--accent-secondary-border); box-shadow: var(--shadow-md); transform: translateY(-2px); }
+
 /* ---------- Data Panel / Table ---------- */
 .data-panel-scroll {
   display: flex;

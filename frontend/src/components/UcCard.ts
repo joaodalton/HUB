@@ -1,5 +1,5 @@
 import { createElement } from '../dom';
-import { createCheckboxField, createInput } from './formFields';
+import { createCheckboxField, createFormSection, createInput } from './formFields';
 import { createPlantConnections, createTariffSelect } from './PlantConnectionsField';
 import type { ClientRow, PlantConnection } from '../services/clientsService';
 import type { PlantRow } from '../services/plantService';
@@ -29,7 +29,6 @@ export function createUcCard({ uc, clients, availablePlants, onSave, onCancel, o
     textContent: 'Fechar',
     type: 'button'
   });
-  const fields = createElement('div', { className: 'form-grid' });
 
   const cliente = createClientSelect(clients, uc?.clienteId);
   const codigo = createInput('UC', 'text', uc?.codigo ?? '', true);
@@ -65,26 +64,6 @@ export function createUcCard({ uc, clients, availablePlants, onSave, onCancel, o
 
   titleText.append(eyebrow, heading);
   header.append(titleText, closeButton);
-  fields.append(
-    cliente.field,
-    codigo.field,
-    codigoAneel.field,
-    apelido.field,
-    documento.field,
-    endereco.field,
-    cep.field,
-    concessionaria.field,
-    consumo.field,
-    baseTarifaria.field,
-    desconto.field,
-    tipoLigacao.field,
-    geracaoPropria.field,
-    diaEmissaoFatura.field,
-    inicioContrato.field,
-    terminoContrato.field,
-    carenciaMeses.field,
-    percentualDescontoCarencia.field
-  );
   actions.appendChild(saveButton);
 
   if (uc && onDelete) {
@@ -143,7 +122,14 @@ export function createUcCard({ uc, clients, availablePlants, onSave, onCancel, o
     });
   });
 
-  form.append(header, fields, plantArea, actions);
+  form.append(
+    header,
+    createFormSection('Dados da UC', cliente.field, codigo.field, codigoAneel.field, apelido.field, documento.field, concessionaria.field),
+    createFormSection('Endereço e consumo', endereco.field, cep.field, consumo.field, baseTarifaria.field, desconto.field, tipoLigacao.field, geracaoPropria.field, diaEmissaoFatura.field),
+    createFormSection('Contrato', inicioContrato.field, terminoContrato.field, carenciaMeses.field, percentualDescontoCarencia.field),
+    plantArea,
+    actions
+  );
   panel.appendChild(form);
   overlay.appendChild(panel);
 

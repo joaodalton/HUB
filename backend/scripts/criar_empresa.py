@@ -20,8 +20,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app import create_app
 from config import Config
 from extensions import db
+from models.assinatura import Assinatura
 from models.empresa import Empresa
-from services.invitation_service import criar_convite
+from models.invitation import Invitation
+from services.invitation_service import _enviar_email_convite, criar_convite
+from services.log_service import LogService
 
 
 def main() -> None:
@@ -40,20 +43,30 @@ def main() -> None:
 
         from services.email_template_service import ensure_seeded
         from services.message_template_service import seed_for_empresa
-        ensure_seeded()
+        ensure_seeded(commit=False)
         empresa = Empresa(nome=args.nome, slug=args.slug, status='ativa')
         db.session.add(empresa)
         db.session.flush()
         seed_for_empresa(empresa.id, commit=False)
+        db.session.add(Assinatura(
+            empresa_id=empresa.id,
+            plano_chave='starter',
+            tipo='trial',
+            status='trial',
+            trial_expira_em=None,
+        ))
 
         try:
-            _, token = criar_convite(empresa.id, args.owner_email, 'owner', invited_by_id=None)
+            convite_data, token = criar_convite(empresa.id, args.owner_email, 'owner', invited_by_id=None, commit=False)
         except ValueError as exc:
             db.session.rollback()
             print(f'ERRO: {exc}')
             sys.exit(1)
 
         db.session.commit()
+        convite = Invitation.query.filter_by(id=convite_data['id']).one()
+        LogService.info(acao='convite_criado', mensagem=f'Convite criado para {convite.email} (papel "{convite.role}")', entidade='Invitation', metadados={'invitationId': convite.id, 'empresaId': empresa.id})
+        _enviar_email_convite(convite, token)
 
         link = f'{Config.FRONTEND_URL}/aceitar-convite?token={token}'
         print(f'Empresa "{empresa.nome}" criada (id={empresa.id}, slug={empresa.slug}).')

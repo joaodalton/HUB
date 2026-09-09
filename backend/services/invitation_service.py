@@ -32,7 +32,7 @@ def _gerar_token() -> tuple[str, str]:
     return token_cru, token_hash
 
 
-def criar_convite(empresa_id: int, email: str, role: str, invited_by_id: int | None) -> tuple[dict, str]:
+def criar_convite(empresa_id: int, email: str, role: str, invited_by_id: int | None, *, commit: bool = True) -> tuple[dict, str]:
     """Retorna (convite.to_dict(), token_cru) -- o token cru so existe nesse
     retorno, nunca e persistido nem logado (so o hash fica salvo)."""
     email = email.strip().lower()
@@ -106,6 +106,21 @@ def _enviar_email_convite(convite: Invitation, token_cru: str) -> None:
 def listar_convites(empresa_id: int) -> list[dict]:
     convites = Invitation.query.filter_by(empresa_id=empresa_id).order_by(Invitation.created_at.desc()).all()
     return [c.to_dict() for c in convites]
+
+
+def revogar_convite(convite_id: int, empresa_id: int) -> dict | None:
+    convite = Invitation.query.filter_by(id=convite_id, empresa_id=empresa_id).first()
+    if not convite:
+        return None
+    if convite.status != 'pending':
+        raise ValueError('Somente convites pendentes podem ser revogados.')
+    convite.status = 'revoked'
+    db.session.flush()
+    if not commit:
+        return convite.to_dict(), token_cru
+    db.session.commit()
+    LogService.info(acao='convite_revogado', mensagem=f'Convite revogado para {convite.email}', entidade='Invitation', metadados={'invitationId': convite.id, 'empresaId': empresa_id})
+    return convite.to_dict()
 
 
 def _buscar_convite_valido(token_cru: str) -> Invitation:

@@ -39,7 +39,8 @@ export function createRouter(root: HTMLElement) {
     { path: '/empresas', render: createEmpresasPage },
     { path: '/templates', render: createTemplatesPage },
     { path: '/trocar-senha', render: createChangePasswordPage },
-    { path: '/configuracoes', render: createSettingsPage }
+    { path: '/configuracoes', render: createSettingsPage },
+    { path: '/integracoes', render: createSettingsPage }
   ];
 
   let appearanceLoaded = false;

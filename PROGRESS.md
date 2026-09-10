@@ -10,6 +10,7 @@
 
 - [x] Modelo padrão de importação/exportação adotado a partir de `HUB_Modelo_Importacao.xlsx`. Download público `/api/v1/importacoes/modelo` sem exemplos, botão em Importações inclusive para perfis sem permissão de importar; exportação autenticada usa as mesmas abas, cabeçalhos, estilos e listas. Campos opcionais mapeados, linhas vazias ignoradas e dias inteiros validados. Evidência: 10 testes de `tests.test_importacoes` passaram (arquivo real, download anônimo, RBAC, duas empresas, preview/commit/export); `npm.cmd --prefix frontend run build` passou. Sem deploy nesta entrega.
 - [x] UX de Importação: a seleção do arquivo agora aceita arrastar e soltar, reaproveitando o mesmo preview e confirmação já validados. Evidência: `npx.cmd tsc --noEmit` e `npm.cmd run build` passaram em 2026-09-09.
+- [x] Atalho de Integrações: a sidebar abre diretamente as credenciais já existentes por empresa, sem adicionar provedor ou chamada externa. Evidência: `npx.cmd tsc --noEmit` e `npm.cmd run build` passaram em 2026-09-09.
 
 > Leia `VISAO.md` primeiro. Este arquivo é o estado atual, atualizado a cada tarefa concluída.
 > **Documentos relacionados:** `VISAO.md` · `ARCHITECTURE.md` · `API_CONTRACTS.md` · `CONTRIBUTING.md`

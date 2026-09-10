@@ -64,7 +64,7 @@ const CATEGORIES: CategoryDefinition[] = [
 export function createSettingsPage(): HTMLElement {
   const content = createElement('section', { className: 'content-stack' });
   const toast = useToast();
-  let activeCategory: SettingsCategory = 'home';
+  let activeCategory: SettingsCategory = window.location.pathname === '/integracoes' ? 'apis' : 'home';
   let googleAccounts: GoogleAccountRow[] = [];
   let appearanceLoaded = false;
   let recentLogs: LogRow[] = [];

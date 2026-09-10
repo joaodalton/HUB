@@ -11,6 +11,7 @@
 
 .importacao-form { display: grid; gap: var(--space-3); max-width: 620px; }
 .importacao-dropzone { align-self: stretch; width: 100%; height: auto; min-height: 122px; padding: var(--space-3); justify-content: center; text-align: center; cursor: pointer; }
+.importacao-dropzone.dragging { border-color: var(--accent-secondary); color: var(--accent-secondary); background: var(--accent-secondary-bg); }
 .importacao-dropzone input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .importacao-file-name { overflow-wrap: anywhere; }
 

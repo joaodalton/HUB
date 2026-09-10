@@ -75,10 +75,22 @@ export function createImportacoesContent(onImported?: () => void): HTMLElement {
     fileInput.required = true;
     const selectedLabel = createElement('span', { className: 'importacao-file-name', textContent: arquivo?.name ?? 'Escolher planilha Excel (.xlsx) ou CSV' });
     fileField.append(createIcon('upload'), selectedLabel, fileInput);
-    fileInput.addEventListener('change', () => {
-      arquivo = fileInput.files?.[0] ?? null;
+
+    function selectFile(file: File | null): void {
+      arquivo = file;
       uploadError = '';
       selectedLabel.textContent = arquivo?.name ?? 'Escolher planilha Excel (.xlsx) ou CSV';
+    }
+
+    fileInput.addEventListener('change', () => {
+      selectFile(fileInput.files?.[0] ?? null);
+    });
+    fileField.addEventListener('dragover', (event) => { event.preventDefault(); fileField.classList.add('dragging'); });
+    fileField.addEventListener('dragleave', () => fileField.classList.remove('dragging'));
+    fileField.addEventListener('drop', (event) => {
+      event.preventDefault();
+      fileField.classList.remove('dragging');
+      selectFile(event.dataTransfer?.files[0] ?? null);
     });
     const csvTypeField = createElement('label', { className: 'form-field' });
     csvTypeField.appendChild(createElement('span', { textContent: 'Tipo do CSV (obrigatório apenas para CSV)' }));

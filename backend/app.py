@@ -56,6 +56,7 @@ def create_app() -> Flask:
     from models.fatura import Fatura  # type: ignore
     from models.assinatura import Assinatura  # type: ignore
     from models.limite_contratado import LimiteContratado  # type: ignore
+    from models.whatsapp import WhatsappIntegration, WhatsappConversation, WhatsappMessage  # type: ignore
 
     cors_origins = [Config.FRONTEND_URL]
     if Config.DEBUG:
@@ -88,6 +89,7 @@ def create_app() -> Flask:
     from routes.import_routes import import_routes
     from routes.message_template_routes import message_template_routes
     from routes.fatura_routes import fatura_routes, webhook_routes
+    from routes.whatsapp_routes import whatsapp_routes, whatsapp_webhook_routes
 
     app.register_blueprint(health_routes)
     app.register_blueprint(auth_routes)
@@ -115,6 +117,8 @@ def create_app() -> Flask:
     app.register_blueprint(platform_routes)
     app.register_blueprint(fatura_routes)
     app.register_blueprint(webhook_routes)
+    app.register_blueprint(whatsapp_routes)
+    app.register_blueprint(whatsapp_webhook_routes)
 
     from utils.auth import register_auth_middleware
     register_auth_middleware(app, public_paths={
@@ -124,6 +128,7 @@ def create_app() -> Flask:
         '/api/v1/empresas/registro',
         '/api/v1/oauth/google/callback',
         '/api/v1/webhooks/asaas',
+        '/api/v1/webhooks/whatsapp',
         '/api/v1/auth/esqueci-senha', '/api/v1/auth/redefinir-senha'
     }, public_path_prefixes={
         # request.path e' o path LITERAL da requisicao (ex.: /api/v1/empresas/select),

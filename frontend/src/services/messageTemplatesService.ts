@@ -11,6 +11,11 @@ export type MessageTemplateRow = {
   chave: string;
   variaveisPermitidas: string[];
   padrao: boolean;
+  metaStatus?: 'draft' | 'pending' | 'approved' | 'rejected' | null;
+  metaCategory?: 'MARKETING' | 'UTILITY' | 'AUTHENTICATION' | null;
+  metaTemplateId?: string | null;
+  metaRejectionReason?: string | null;
+  metaSubmittedAt?: string | null;
 };
 
 type ApiResponse<T> = { success: boolean; message: string; data: T };
@@ -22,6 +27,7 @@ export type MessageTemplateInput = {
   assunto?: string;
   corpo: string;
   variaveisPermitidas?: string[];
+  metaCategory?: 'MARKETING' | 'UTILITY' | 'AUTHENTICATION';
 };
 
 export async function getMessageTemplates(canal?: TemplateCanal): Promise<MessageTemplateRow[]> {

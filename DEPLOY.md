@@ -51,6 +51,9 @@ Existem **dois ambientes completamente separados**, cada um com seu próprio ban
 | `FRONTEND_URL` | URL do frontend publicado no Render | Alimenta CORS (Etapa 4) e o redirect pós-OAuth |
 | `ASAAS_API_BASE_URL` | `https://api-sandbox.asaas.com/v3` no Sandbox | Produção usa a URL v3 do ASAAS de produção |
 | `ASAAS_WEBHOOK_TOKEN` | Token forte compartilhado configurado em cada webhook ASAAS | Validado no header `asaas-access-token`; nunca usar uma API key aqui |
+| `META_APP_SECRET` | App Secret da aplicação Meta do HUB | Valida `X-Hub-Signature-256` no webhook WhatsApp; nunca vai ao frontend ou banco por empresa |
+| `META_WEBHOOK_VERIFY_TOKEN` | Valor secreto escolhido ao configurar o callback Meta | Usado apenas no desafio `GET /api/v1/webhooks/whatsapp` |
+| `META_GRAPH_API_BASE_URL` / `META_GRAPH_API_VERSION` | Endpoint e versão Graph API em uso | Atualizar a versão de forma controlada conforme ciclo da Meta |
 
 `OAUTH_ALLOW_INSECURE_TRANSPORT` não deve ser configurada no Render. Ela só serve para OAuth local via HTTP e só tem efeito junto de `FLASK_DEBUG=true`, `GOOGLE_OAUTH_REDIRECT_URI` e `FRONTEND_URL` em `localhost`/loopback; produção falha fechada se callback ou frontend não forem URLs HTTPS absolutas, sem credenciais ou fragmentos.
 

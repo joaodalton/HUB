@@ -72,6 +72,8 @@ Restrito a `owner`/`admin` (`settings.read`/`settings.update`).
 
 Templates por empresa com `canal` `email` ou `whatsapp`. Listagem/consulta exigem `settings.read`; criação, edição, exclusão, restauração e `POST /message-templates/<id>/preview` exigem `settings.update`. Preview só renderiza localmente, sem enviar mensagens. Variáveis aceitas: `nome`, `link`, `papel`, `empresa`; HTML livre, placeholders desconhecidos/malformados e links não HTTPS absolutos são rejeitados.
 
+Templates WhatsApp também retornam `metaStatus` (`draft`, `pending`, `approved`, `rejected`), `metaCategory`, `metaTemplateId`, motivo de rejeição e data de submissão. Alterar corpo, chave ou categoria volta o item para `draft`: a edição local nunca altera silenciosamente um template já aprovado pela Meta.
+
 ---
 
 ## Clientes (`/clients`)
@@ -468,6 +470,24 @@ Sem body. Remove a conta do banco (**não revoga** o acesso do lado do Google �
 ## Credenciais de API (`/api-credentials`)
 
 Credenciais de integrações pertencem à empresa autenticada e requerem `settings.read` para consulta ou `settings.update` para alteração. Providers iniciais: `resend`, `whatsapp`, `asaas` e `concessionaria`. O segredo é criptografado com `SECRET_ENCRYPTION_KEY` antes de persistir e **nunca** aparece em resposta, erro ou auditoria.
+
+## WhatsApp Meta Cloud API (`/whatsapp`)
+
+Uma integração Meta Cloud API por empresa. O token permanente fica somente em `ApiCredential` cifrada; `phoneNumberId` é globalmente único e identifica a empresa receptora do webhook.
+
+### `GET|PUT|DELETE /whatsapp/integracao`
+
+Consulta, salva ou remove a integração da empresa. `PUT` exige `settings.update`, com `{ phoneNumberId, businessAccountId, accessToken? , displayPhoneNumber?, enabled? }`; `accessToken` é obrigatório no primeiro cadastro e nunca retorna. `POST /whatsapp/integracao/testar` consulta a Meta sob ação explícita do usuário e atualiza somente os dados públicos do número.
+
+### Conversas e mensagens
+
+`GET /whatsapp/conversas` e `GET /whatsapp/conversas/<id>/mensagens` exigem `messages.read`; IDs de outra empresa retornam `404`. `POST /whatsapp/conversas` e `POST /whatsapp/conversas/<id>/mensagens` exigem `messages.send`; o segundo envia texto à Meta e registra `queued`, `sent` ou `failed` no histórico local.
+
+### Templates Meta e webhook
+
+`POST /whatsapp/templates/<id>/submeter` envia somente template WhatsApp `draft` ou `rejected` para aprovação da Meta. `POST /whatsapp/templates/sincronizar` reflete os status remotos. Ambos exigem `settings.update`.
+
+`GET /webhooks/whatsapp` responde ao desafio de verificação com `META_WEBHOOK_VERIFY_TOKEN`. `POST /webhooks/whatsapp` é público, mas exige `X-Hub-Signature-256` validado por HMAC SHA-256 com `META_APP_SECRET`; mensagens e recibos são idempotentes pelo ID da Meta e resolvidos pelo `phone_number_id`, antes de persistir no tenant correto.
 
 ### `GET /api-credentials`
 

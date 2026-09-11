@@ -10,6 +10,7 @@ from models.log_entry import LogEntry
 from models.message_template import MessageTemplate
 
 CHANNELS = frozenset({'email', 'whatsapp'})
+META_CATEGORIES = frozenset({'MARKETING', 'UTILITY', 'AUTHENTICATION'})
 ALLOWED_VARIABLES = frozenset({'nome', 'link', 'papel', 'empresa'})
 KEY = re.compile(r'^[a-z][a-z0-9_-]{0,49}$')
 PLACEHOLDER = re.compile(r'{{\s*([^{}\s]+)\s*}}')
@@ -39,8 +40,15 @@ def create(data):
 def update(template_id, data):
     item = get_template(template_id)
     if not item: return None
+    previous = (item.corpo, item.chave, item.meta_category)
     values = _validate({**item.to_dict(), **data}, creating=False)
     for key, value in values.items(): setattr(item, key, value)
+    if item.canal == 'whatsapp' and previous != (item.corpo, item.chave, item.meta_category):
+        # Uma edicao local nao altera o template ja aprovado na Meta.
+        item.meta_status = 'draft'
+        item.meta_template_id = None
+        item.meta_rejection_reason = None
+        item.meta_submitted_at = None
     _audit('message_template_update', item); _commit_conflict()
     return item.to_dict()
 
@@ -113,7 +121,13 @@ def _validate(data, creating):
     if not isinstance(variables, list) or len(variables) > len(ALLOWED_VARIABLES) or len(set(variables)) != len(variables) or set(variables) - ALLOWED_VARIABLES: raise ValueError('Variáveis permitidas inválidas.')
     found = set(PLACEHOLDER.findall(body)) | set(PLACEHOLDER.findall(subject))
     if found - set(variables) or _malformed_placeholder(body) or _malformed_placeholder(subject) or '<' in body or '>' in body or '<' in subject or '>' in subject: raise ValueError('Corpo, assunto ou variáveis inválidos.')
-    return {'canal': channel, 'chave': key, 'nome': name, 'assunto': subject, 'corpo': body, 'variaveis_permitidas': ','.join(variables)}
+    category = None
+    if channel == 'whatsapp':
+        category = str(data.get('metaCategory') or 'UTILITY').upper()
+        if category not in META_CATEGORIES:
+            raise ValueError('Categoria Meta invalida.')
+    return {'canal': channel, 'chave': key, 'nome': name, 'assunto': subject, 'corpo': body,
+            'variaveis_permitidas': ','.join(variables), 'meta_category': category}
 
 
 def _channel(value):

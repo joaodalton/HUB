@@ -15,6 +15,7 @@ import { createEmpresasPage } from '../pages/EmpresasPage';
 import { createTemplatesPage } from '../pages/TemplatesPage';
 import { createChangePasswordPage } from '../pages/ChangePasswordPage';
 import { createFaturasPage } from '../pages/FaturasPage';
+import { createMessagesPage } from '../pages/MessagesPage';
 import { ensureSession, getCurrentUser, isAuthenticated } from './authService';
 import { loadSettings } from './settingsService';
 
@@ -38,6 +39,7 @@ export function createRouter(root: HTMLElement) {
     { path: '/usuarios', render: createUsersPage },
     { path: '/empresas', render: createEmpresasPage },
     { path: '/templates', render: createTemplatesPage },
+    { path: '/mensagens', render: createMessagesPage },
     { path: '/trocar-senha', render: createChangePasswordPage },
     { path: '/configuracoes', render: createSettingsPage }
   ];

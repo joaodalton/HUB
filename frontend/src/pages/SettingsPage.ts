@@ -40,6 +40,10 @@ import {
   type ApiCredentialProvider,
   type ApiCredentialRow
 } from '../services/apiCredentialsService';
+import {
+  deleteWhatsappIntegration, getWhatsappIntegration, saveWhatsappIntegration, testWhatsappIntegration,
+  type WhatsappIntegration, type WhatsappIntegrationInput,
+} from '../services/whatsappService';
 
 type SettingsCategory = 'home' | 'geral' | 'database' | 'apis' | 'automations' | 'logs' | 'appearance';
 
@@ -74,6 +78,8 @@ export function createSettingsPage(): HTMLElement {
   let apiCredentials: ApiCredentialRow[] = [];
   let apiCredentialsLoaded = false;
   let apiCredentialsLoadError = false;
+  let whatsappIntegration: WhatsappIntegration | null = null;
+  let whatsappIntegrationLoaded = false;
   let empresaAtual: EmpresaAtual | null = null;
   let empresaAtualLoaded = false;
   let empresaAtualLoadError = false;
@@ -88,6 +94,8 @@ export function createSettingsPage(): HTMLElement {
   loadDriveRootFolder();
   if (canManageSettings()) loadApiCredentials();
   else apiCredentialsLoaded = true;
+  if (canManageSettings()) loadWhatsappIntegration();
+  else whatsappIntegrationLoaded = true;
   if (canManageSettings()) loadEmpresaAtual();
   else empresaAtualLoaded = true;
 
@@ -217,6 +225,31 @@ export function createSettingsPage(): HTMLElement {
     }
   }
 
+  async function loadWhatsappIntegration(): Promise<void> {
+    try { whatsappIntegration = await getWhatsappIntegration(); }
+    catch { whatsappIntegration = null; }
+    finally { whatsappIntegrationLoaded = true; renderContent(); }
+  }
+
+  async function handleSaveWhatsappIntegration(input: WhatsappIntegrationInput): Promise<void> {
+    try { whatsappIntegration = await saveWhatsappIntegration(input); toast.success('WhatsApp Meta Cloud API configurado.'); }
+    catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível salvar a integração WhatsApp.'); throw error; }
+    finally { renderContent(); }
+  }
+
+  async function handleTestWhatsappIntegration(): Promise<void> {
+    try { whatsappIntegration = await testWhatsappIntegration(); toast.success('Conexão com a Meta confirmada.'); }
+    catch (error) { toast.error(error instanceof Error ? error.message : 'A Meta não confirmou a conexão.'); }
+    finally { renderContent(); }
+  }
+
+  async function handleDeleteWhatsappIntegration(): Promise<void> {
+    if (!window.confirm('Remover a integração WhatsApp desta empresa? O histórico de mensagens será preservado.')) return;
+    try { await deleteWhatsappIntegration(); whatsappIntegration = null; toast.success('Integração WhatsApp removida.'); }
+    catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível remover a integração.'); }
+    finally { renderContent(); }
+  }
+
   async function loadEmpresaAtual(): Promise<void> {
     try {
       empresaAtual = await getEmpresaAtual();
@@ -337,7 +370,12 @@ export function createSettingsPage(): HTMLElement {
           loadApiCredentials,
           handleCreateApiCredential,
           handleUpdateApiCredential,
-          handleDeleteApiCredential
+          handleDeleteApiCredential,
+          whatsappIntegration,
+          whatsappIntegrationLoaded,
+          handleSaveWhatsappIntegration,
+          handleTestWhatsappIntegration,
+          handleDeleteWhatsappIntegration
         );
 
       case 'logs':
@@ -588,7 +626,6 @@ function createRateioConfigPanel(
 
 const API_PROVIDER_OPTIONS: Array<{ value: ApiCredentialProvider; label: string; descricao: string; icon: IconName }> = [
   { value: 'resend', label: 'Resend (e-mail)', descricao: 'Envio de e-mails transacionais.', icon: 'mensagens' },
-  { value: 'whatsapp', label: 'WhatsApp', descricao: 'Comunicação com clientes via WhatsApp.', icon: 'mensagens' },
   { value: 'asaas', label: 'Asaas (financeiro)', descricao: 'Cobranças e faturas da empresa.', icon: 'cobrancas' },
   { value: 'concessionaria', label: 'Concessionária', descricao: 'Credenciais de serviços das concessionárias.', icon: 'plants' }
 ];
@@ -601,7 +638,12 @@ function createApiCredentialsPanel(
   onRetry: () => Promise<void>,
   onCreate: (data: Required<ApiCredentialPayload>) => Promise<void>,
   onUpdate: (id: number, data: Pick<ApiCredentialPayload, 'nome' | 'segredo'>) => Promise<void>,
-  onDelete: (id: number) => Promise<void>
+  onDelete: (id: number) => Promise<void>,
+  whatsapp: WhatsappIntegration | null,
+  whatsappLoaded: boolean,
+  onSaveWhatsapp: (input: WhatsappIntegrationInput) => Promise<void>,
+  onTestWhatsapp: () => Promise<void>,
+  onDeleteWhatsapp: () => Promise<void>
 ): HTMLElement {
   const panel = createElement('section', { className: 'settings-panel' });
   panel.appendChild(createPanelHeader('APIs e Integrações', 'Credenciais por empresa para serviços externos. O segredo nunca é exibido depois de salvo.'));
@@ -649,8 +691,49 @@ function createApiCredentialsPanel(
       }
     }));
   });
+  grid.appendChild(createIntegrationCard({
+    nome: 'WhatsApp Meta Cloud API', descricao: 'Número, token permanente e aprovação de templates por empresa.', icon: 'mensagens',
+    status: whatsapp?.configured ? 'conectado' : 'nao_configurado',
+    onConfigurar: () => editor.replaceChildren(createWhatsappIntegrationForm(whatsapp, whatsappLoaded, onSaveWhatsapp, onTestWhatsapp, onDeleteWhatsapp))
+  }));
   panel.append(grid, editor);
   return panel;
+}
+
+function createWhatsappIntegrationForm(
+  integration: WhatsappIntegration | null,
+  loaded: boolean,
+  onSave: (input: WhatsappIntegrationInput) => Promise<void>,
+  onTest: () => Promise<void>,
+  onDelete: () => Promise<void>
+): HTMLElement {
+  const form = createElement('form', { className: 'settings-form api-credential-form' });
+  form.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Use o token permanente do usuário de sistema da Meta. Ele é cifrado e nunca volta para esta tela.' }));
+  if (!loaded) { form.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Carregando configuração WhatsApp...' })); return form; }
+  const phoneId = createInput('Phone Number ID', 'text', integration?.phoneNumberId ?? '', true);
+  const wabaId = createInput('WhatsApp Business Account ID', 'text', integration?.businessAccountId ?? '', true);
+  const display = createInput('Número exibido (opcional)', 'text', integration?.displayPhoneNumber ?? '', false);
+  const token = createInput(integration ? 'Novo token permanente (opcional)' : 'Token permanente', 'password', '', !integration);
+  token.input.autocomplete = 'new-password';
+  const enabled = createToggle('Ativar integração para esta empresa', integration?.enabled ?? true);
+  const actions = createElement('div', { className: 'form-actions' });
+  const save = createElement('button', { type: 'submit', textContent: 'Salvar WhatsApp' });
+  actions.appendChild(save);
+  if (integration) {
+    const test = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Testar conexão' });
+    test.addEventListener('click', () => void onTest());
+    const remove = createElement('button', { className: 'danger-button', type: 'button', textContent: 'Desconectar' });
+    remove.addEventListener('click', () => void onDelete());
+    actions.append(test, remove);
+  }
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const input: WhatsappIntegrationInput = { phoneNumberId: phoneId.input.value.trim(), businessAccountId: wabaId.input.value.trim(), displayPhoneNumber: display.input.value.trim(), enabled: enabled.checked };
+    if (token.input.value.trim()) input.accessToken = token.input.value.trim();
+    void onSave(input);
+  });
+  form.append(phoneId.field, wabaId.field, display.field, token.field, enabled.field, actions);
+  return form;
 }
 
 function createToggle(label: string, checked: boolean): { field: HTMLElement; checked: boolean } {

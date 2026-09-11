@@ -73,6 +73,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         'imports.preview',
         'imports.commit',
         'faturas.read', 'faturas.create',
+        'messages.read', 'messages.send',
     },
     'admin': {
         # Empresa
@@ -130,6 +131,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         'imports.preview',
         'imports.commit',
         'faturas.read', 'faturas.create',
+        'messages.read', 'messages.send',
     },
     'operator': {
         # Empresa - leitura
@@ -167,6 +169,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         'rateios.update',
         'imports.preview',
         'imports.commit',
+        'messages.read', 'messages.send',
     },
     'financial': {
         # Empresa - leitura
@@ -208,6 +211,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         # Categories
         'categories.read',
         'faturas.read',
+        'messages.read',
     },
 }
 

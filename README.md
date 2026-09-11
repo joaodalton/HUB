@@ -296,7 +296,8 @@ A API segue padrão RESTful com envelope de resposta consistente:
 - [x] Importação em massa de Cliente/UC/Usina via planilha Excel
 - [ ] V1.5-B: empresa, convites e aceite de termos
 - [x] Templates tenant-scoped de e-mail e WhatsApp, com pré-visualização local
-- [ ] Comunicação WhatsApp (inbox e envio) — depende da decisão de provedor
+- [x] Comunicação WhatsApp via Meta Cloud API: configuração tenant-scoped, inbox, envio de texto, webhook assinado e templates submetidos à aprovação Meta
+- [ ] Disparos automáticos de WhatsApp por eventos da Agenda — depende de definir os gatilhos de negócio
 - [ ] V2.0: financeiro, importação de boleto/fatura e notificações
 
 📋 **Roadmap detalhado em**: [PROGRESS.md](PROGRESS.md)

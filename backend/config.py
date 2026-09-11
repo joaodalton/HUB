@@ -52,6 +52,13 @@ class Config:
     ASAAS_API_BASE_URL = os.getenv('ASAAS_API_BASE_URL', 'https://api-sandbox.asaas.com/v3')
     ASAAS_WEBHOOK_TOKEN = os.getenv('ASAAS_WEBHOOK_TOKEN', '')
 
+    # Meta App e assinatura do webhook sao infraestrutura do HUB. O token de
+    # acesso de cada numero fica cifrado por empresa em ApiCredential.
+    META_APP_SECRET = os.getenv('META_APP_SECRET', '')
+    META_WEBHOOK_VERIFY_TOKEN = os.getenv('META_WEBHOOK_VERIFY_TOKEN', '')
+    META_GRAPH_API_BASE_URL = os.getenv('META_GRAPH_API_BASE_URL', 'https://graph.facebook.com')
+    META_GRAPH_API_VERSION = os.getenv('META_GRAPH_API_VERSION', 'v23.0')
+
     SQL_DRIVER = os.getenv('SQL_DRIVER', '')
 
     SQL_HOST = os.getenv('SQL_HOST', '')

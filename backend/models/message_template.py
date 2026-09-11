@@ -19,6 +19,11 @@ class MessageTemplate(TenantMixin, db.Model):
     variaveis_permitidas = db.Column(db.String(255), nullable=False, default='')
     padrao = db.Column(db.Boolean, nullable=False, default=False)
     origem_chave = db.Column(db.String(50), nullable=True)
+    meta_status = db.Column(db.String(20), nullable=False, default='draft')
+    meta_category = db.Column(db.String(20), nullable=True)
+    meta_template_id = db.Column(db.String(100), nullable=True)
+    meta_rejection_reason = db.Column(db.String(500), nullable=True)
+    meta_submitted_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -27,7 +32,12 @@ class MessageTemplate(TenantMixin, db.Model):
                 'assunto': self.assunto if self.canal == 'email' else None, 'corpo': self.corpo,
                 'variaveisPermitidas': _variables(self.variaveis_permitidas), 'padrao': self.padrao,
                 'origemChave': self.origem_chave, 'criadoEm': self.created_at.isoformat() if self.created_at else None,
-                'atualizadoEm': self.updated_at.isoformat() if self.updated_at else None}
+                'atualizadoEm': self.updated_at.isoformat() if self.updated_at else None,
+                'metaStatus': self.meta_status if self.canal == 'whatsapp' else None,
+                'metaCategory': self.meta_category if self.canal == 'whatsapp' else None,
+                'metaTemplateId': self.meta_template_id if self.canal == 'whatsapp' else None,
+                'metaRejectionReason': self.meta_rejection_reason if self.canal == 'whatsapp' else None,
+                'metaSubmittedAt': self.meta_submitted_at.isoformat() if self.meta_submitted_at else None}
 
 
 def _variables(value: str) -> list[str]:

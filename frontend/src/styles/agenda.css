@@ -1,14 +1,14 @@
 /* ============================================================
    HUB — Agenda
    Calendario mensal real (estilo Google Calendar): grid de dias,
-   navegacao de mes, painel lateral com os itens do dia selecionado.
-   Dados vem de Pendencia.prazo -- sem model novo.
+   navegacao de mes e painel abaixo com os itens do dia selecionado.
+   Pendências são projeções e eventos têm estado próprio.
    ============================================================ */
 
 /* ---------- Agenda Layout ---------- */
 .agenda-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
+  grid-template-columns: minmax(0, 1fr);
   gap: 20px;
   align-items: start;
 }
@@ -48,12 +48,7 @@
 .agenda-list-panel { display: grid; gap: var(--space-3); }
 .agenda-list-day { position: static; max-height: none; }
 .agenda-state { min-height: 220px; }
-
-@media (max-width: 1000px) {
-  .agenda-layout {
-    grid-template-columns: 1fr;
-  }
-}
+.agenda-create-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
 
 /* ---------- Agenda Calendar ---------- */
 .agenda-calendar {
@@ -199,6 +194,8 @@
   background: var(--text-faint);
 }
 
+.agenda-dot.event { background: var(--accent-secondary); }
+
 /* ---------- Agenda Day Count ---------- */
 .agenda-day-count {
   position: absolute;
@@ -210,7 +207,7 @@
   font-family: var(--font-mono);
 }
 
-/* ---------- Agenda Day Panel (Lateral) ---------- */
+/* ---------- Agenda Day Panel (abaixo do calendario) ---------- */
 .agenda-day-panel {
   display: flex;
   flex-direction: column;
@@ -220,11 +217,8 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-sm);
-  position: sticky;
-  top: 20px;
-  max-height: calc(100vh - 40px);
-  max-height: calc(100dvh - 40px);
-  overflow-y: auto;
+  position: static;
+  max-height: none;
 }
 
 .agenda-day-panel h3 {
@@ -305,14 +299,26 @@
   padding: 3px 8px;
 }
 
-/* ---------- Responsive ---------- */
-@media (max-width: 1000px) {
-  .agenda-day-panel {
-    position: static;
-    max-height: none;
-  }
+.agenda-item-actions {
+  grid-column: 2 / -1;
+  display: flex;
+  gap: var(--space-2);
 }
 
+.agenda-composer {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  padding: var(--space-3);
+  margin-bottom: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-input);
+  background: var(--panel-soft);
+}
+
+.agenda-composer h4, .agenda-composer .form-actions { grid-column: 1 / -1; margin: 0; }
+
+/* ---------- Responsive ---------- */
 @media (max-width: 640px) {
   .agenda-toolbar { align-items: stretch; }
 
@@ -321,6 +327,12 @@
   .agenda-mode-switch button { flex: 1; }
 
   .agenda-month-nav { width: 100%; justify-content: space-between; }
+
+  .agenda-create-actions { width: 100%; }
+
+  .agenda-create-actions button { flex: 1; }
+
+  .agenda-composer { grid-template-columns: 1fr; }
 
   .agenda-period-label { min-width: 0; }
 

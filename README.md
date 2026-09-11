@@ -291,7 +291,7 @@ A API segue padrão RESTful com envelope de resposta consistente:
 
 ### Entregas em curso
 
-- [x] Dashboard operacional e Agenda derivada de Pendências
+- [x] Dashboard operacional e Agenda com Pendências sincronizadas e eventos próprios
 - [x] Credenciais de integração cifradas por empresa
 - [x] Importação em massa de Cliente/UC/Usina via planilha Excel
 - [ ] V1.5-B: empresa, convites e aceite de termos

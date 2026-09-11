@@ -74,16 +74,18 @@ class SQLiteMigrationsTest(unittest.TestCase):
                 assinatura_columns = {row[1] for row in connection.execute('PRAGMA table_info(assinaturas)')}
                 whatsapp_integration_columns = {row[1] for row in connection.execute('PRAGMA table_info(whatsapp_integrations)')}
                 whatsapp_message_columns = {row[1] for row in connection.execute('PRAGMA table_info(whatsapp_messages)')}
+                agenda_event_columns = {row[1] for row in connection.execute('PRAGMA table_info(agenda_events)')}
                 preview_indexes = {row[1] for row in connection.execute("PRAGMA index_list('import_previews')")}
             finally:
                 connection.close()
-            self.assertEqual(revision, 'g1a9d2e6f4c8')
+            self.assertEqual(revision, 'h2b7c1d9e4f6')
             self.assertTrue({'empresa_id', 'provider', 'nome', 'segredo_encrypted'}.issubset(columns))
             self.assertIn('asaas_customer_id', client_columns)
             self.assertTrue({'empresa_id', 'client_id', 'consumer_unit_id', 'asaas_id', 'asaas_status'}.issubset(fatura_columns))
             self.assertTrue({'empresa_id', 'plano_chave', 'tipo', 'status'}.issubset(assinatura_columns))
             self.assertTrue({'empresa_id', 'api_credential_id', 'phone_number_id', 'business_account_id'}.issubset(whatsapp_integration_columns))
             self.assertTrue({'empresa_id', 'conversation_id', 'direction', 'status'}.issubset(whatsapp_message_columns))
+            self.assertTrue({'empresa_id', 'titulo', 'inicio', 'status'}.issubset(agenda_event_columns))
             self.assertIn('ix_import_previews_expires_at', preview_indexes)
         finally:
             database_path.unlink(missing_ok=True)

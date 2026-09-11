@@ -332,7 +332,7 @@ Requer `pendencias.read`. Retorna o resumo operacional calculado em tempo real, 
 
 ### `GET /agenda?inicio=YYYY-MM-DD&fim=YYYY-MM-DD&visao=dia|semana|mes`
 
-Requer `pendencias.read`. Agenda nao possui tabela nem CRUD proprio: nesta fase cada item e uma visao em tempo real de uma `Pendencia` **aberta** que tem `prazo`. Assim, editar prazo ou reabrir a pendencia de origem aparece na proxima consulta; resolver ou cancelar a remove imediatamente, sem sincronizacao manual ou duplicacao de estado.
+Requer `pendencias.read`. A resposta combina projeções de `Pendencia` **aberta** com `prazo` e eventos manuais `AgendaEvent` abertos. Pendências não são copiadas: criar, editar prazo, reabrir, resolver ou cancelar em `/pendencias` aparece na próxima consulta da Agenda. Eventos são o único estado próprio da Agenda e são sempre filtrados pela empresa autenticada.
 
 `inicio` e `fim` sao opcionais, mas devem ser enviados juntos e cobrir no maximo 93 dias-calendario (diferença máxima de 92 dias). Sem intervalo explicito, `visao` define o periodo atual (`mes` e o default; `dia` e hoje; `semana` vai de domingo a sabado). Datas usam `YYYY-MM-DD` e os limites sao inclusivos. O resultado e ordenado por prazo e limitado a 500 itens.
 
@@ -341,17 +341,25 @@ Requer `pendencias.read`. Agenda nao possui tabela nem CRUD proprio: nesta fase 
   "data": {
     "visao": "mes", "inicio": "2026-08-01", "fim": "2026-08-31",
     "itens": [{
-      "fonte": "pendencia", "pendenciaId": 1,
+      "fonte": "pendencia", "pendenciaId": 1, "eventoId": null,
       "id": 1, "titulo": "Enviar fatura", "tipo": "pendencia",
       "prioridade": "alta", "prazo": "2026-08-31T14:00:00",
-      "status": "aberta", "clienteId": 2,
+      "status": "aberta", "descricao": null, "fim": null, "clienteId": 2,
       "ucId": null, "usinaId": null, "documentoId": null
     }]
   }
 }
 ```
 
-O item e uma projeção mínima para calendário/lista: não inclui descrição, comentários, responsável/e-mail, metadados ou timestamps. Nesta versao nao ha eventos manuais, financeiro ou rateio; novas fontes deverao ser adicionadas como consultas derivadas, nunca por uma tabela de eventos duplicada.
+Para evento, `fonte` e `tipo` são `"evento"`, `eventoId` e `id` são o ID de `AgendaEvent`, `prazo` é o início e `fim` pode ser nulo. Financeiro e Rateio ainda são fontes futuras derivadas, sem duplicação do estado de origem.
+
+### `POST /agenda/eventos`
+
+Requer `pendencias.create` e aceita no máximo 30 requisições/minuto. Corpo: `{ "titulo": string, "inicio": "YYYY-MM-DDTHH:mm", "categoria"?: string, "descricao"?: string, "fim"?: "YYYY-MM-DDTHH:mm" }`. `titulo`, `inicio` e `categoria` (padrão `Operacional`) são obrigatórios; `fim` não pode ser anterior a `inicio`. Retorna o evento criado com `201`.
+
+### `PUT /agenda/eventos/:id` e `DELETE /agenda/eventos/:id`
+
+Requerem respectivamente `pendencias.update` e `pendencias.delete`, também limitados a 30 requisições/minuto. `PUT` usa o mesmo corpo do POST e substitui os campos do evento. `DELETE` cancela o evento (não o exclui fisicamente). IDs de outra empresa retornam `404`.
 
 ---
 

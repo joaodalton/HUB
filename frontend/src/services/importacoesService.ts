@@ -38,6 +38,8 @@ export async function confirmarImportacao(importacaoId: number): Promise<Importa
   return response.data;
 }
 
-export function exportarImportacao(): Promise<Blob> {
-  return apiBlob('/importacoes/exportar');
+export function exportarImportacao(tipos: Array<'clientes' | 'ucs' | 'usinas'>): Promise<Blob> {
+  const query = new URLSearchParams();
+  tipos.forEach((tipo) => query.append('tipo', tipo));
+  return apiBlob(`/importacoes/exportar?${query}`);
 }

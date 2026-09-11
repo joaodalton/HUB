@@ -51,6 +51,7 @@ STANDARD_FIELDS = {
     'ucs': ['clienteCpf', 'codigo', 'apelido', 'documento', 'consumo', 'baseTarifaria', 'tipoLigacao', 'concessionaria', 'desconto', 'diaEmissaoFatura'],
     'usinas': ['nome', 'uc', 'kwPico', 'marcaInversor', 'telefoneProprietario', 'emailProprietario', 'cidade', 'uf', 'endereco', 'numModulos', 'producaoMediaManual', 'diaEmissaoUsina', 'status', 'responsavel', 'concessionaria'],
 }
+EXPORT_TYPES = frozenset(STANDARD_FIELDS)
 
 def _aliases(kind):
     from openpyxl import load_workbook
@@ -112,10 +113,16 @@ def criar_preview(file_storage, tipo_csv: str | None) -> dict:
     return {'previewId': preview.id, 'expiraEm': preview.expires_at.isoformat(), 'contagens': {k: len(v) for k,v in plan.items()}, 'erros': errors}
 
 
-def exportar_workbook(empresa_id: int) -> io.BytesIO:
+def exportar_workbook(empresa_id: int, tipos: set[str] | None = None) -> io.BytesIO:
+    tipos = tipos or EXPORT_TYPES
+    if not tipos <= EXPORT_TYPES:
+        raise ValueError('Tipos de exportação inválidos.')
     workbook = modelo_workbook()
     models = {'Clientes': Client, 'UCs': ConsumerUnit, 'Usinas': Plant}
     for name, model in models.items():
+        if SHEETS[name] not in tipos:
+            workbook.remove(workbook[name])
+            continue
         sheet = workbook[name]
         fields = STANDARD_FIELDS[SHEETS[name]]
         records = model.query.filter_by(empresa_id=empresa_id).order_by(model.id).all()
@@ -129,6 +136,8 @@ def exportar_workbook(empresa_id: int) -> io.BytesIO:
                 if isinstance(cell.value, str):
                     cell.data_type = 's'
                     cell.number_format = '@'
+    if tipos != EXPORT_TYPES:
+        workbook.remove(workbook['Instrucoes'])
     return _workbook_bytes(workbook)
 
 

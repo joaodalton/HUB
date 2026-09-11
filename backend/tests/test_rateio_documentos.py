@@ -96,6 +96,7 @@ class RateioDocumentosTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertEqual(sheet['B41'].value, 'Ana')
         self.assertEqual(sheet['E42'].value, 1)
         self.assertEqual(sheet['C72'].value, 'Associacao A')
+        self.assertIn('A42:D42', {str(range_) for range_ in sheet.merged_cells.ranges})
 
     def test_excel_is_valid_and_contains_rateio_data(self):
         with patch('services.rateio_excel_service.montar_tabela_formulario', return_value=_tabela()):
@@ -114,6 +115,7 @@ class RateioDocumentosTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertEqual(sheet['E41'].value, 0.55)
         self.assertEqual(sheet['C71'].value, 'Associacao A')
         self.assertEqual(sheet['C75'].value, 'Responsavel')
+        self.assertIn('A1:E1', {str(range_) for range_ in sheet.merged_cells.ranges})
 
     def test_document_requirements_can_be_disabled_for_internal_testing(self):
         tabela = _tabela()

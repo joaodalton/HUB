@@ -14,7 +14,11 @@ import { formatNumber, round2 } from './shared';
 type GeneratedFiles = { formulario?: string; termos?: string; excel?: string };
 type Verification = { ok: boolean; exigido?: boolean; faltando: Array<{ clienteId: number | null; ucId: number | null; nome: string }> };
 
-export type RateioFormularioView = { element: HTMLElement; selectPlant: (plantId: number | null) => void };
+export type RateioFormularioView = {
+  element: HTMLElement;
+  selectPlant: (plantId: number | null) => void;
+  refresh: () => void;
+};
 
 export function createRateioFormularioView(getPlants: () => PlantRow[]): RateioFormularioView {
   const element = createElement('section', { className: 'content-stack' }); const toast = useToast();
@@ -29,7 +33,7 @@ export function createRateioFormularioView(getPlants: () => PlantRow[]): RateioF
   let responsavelNome = ''; let responsavelCpf = '';
   getEmpresaDocumentos().then((documents) => { companyDocuments = documents; render(); }).catch(() => { companyDocuments = null; });
   render();
-  return { element, selectPlant };
+  return { element, selectPlant, refresh: render };
   function selectPlant(plantId: number | null): void {
     selectedPlantId = plantId; resetForm(); render();
   }

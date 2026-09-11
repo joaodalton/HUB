@@ -158,6 +158,10 @@ def create_drive_document(data: dict) -> dict:
     if not drive_file_id:
         raise ValueError('Arquivo do Google Drive nao informado.')
 
+    drive_item = get_drive_service().get_authorized_item(drive_file_id)
+    if drive_item.get('mimeType') == 'application/vnd.google-apps.folder':
+        raise ValueError('Pastas nao podem ser vinculadas como documento.')
+
     document = Document(
         empresa_id=g.current_empresa_id,
         nome=(data.get('nome') or '').strip() or 'Documento do Drive',

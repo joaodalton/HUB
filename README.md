@@ -240,7 +240,7 @@ curl -X POST http://localhost:8000/auth/bootstrap \
 - Fallback para `credentials.json` se não houver OAuth
 
 #### Google Drive (Legado)
-- Busca de arquivos e pastas (`GET /search?q=`)
+- Busca e navegação por arquivos e pastas (`GET /search?q=` e `GET /folders/<folderId>`)
 - Download em lote (`POST /download-zip`)
 - Integração transparente via conta OAuth ativa ou service account
 
@@ -281,6 +281,7 @@ A API segue padrão RESTful com envelope de resposta consistente:
 | GET/POST | `/config/database/*` | Configuração de provedor de dados |
 | GET/POST/DELETE | `/oauth/google/*` | Contas Google OAuth |
 | GET | `/search` | Busca no Google Drive |
+| GET | `/folders/<folderId>` | Lista o conteúdo de uma pasta do Drive |
 | POST | `/download-zip` | Download em lote do Drive |
 
 📄 **Contrato completo em**: [API_CONTRACTS.md](API_CONTRACTS.md)

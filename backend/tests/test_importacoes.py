@@ -148,6 +148,12 @@ class ImportacoesTest(IsolatedTestRuntime, unittest.TestCase):
   self.assertEqual(exported_rows['usinas'][0]['numModulos'], 180)
   self.assertEqual(exported_rows['usinas'][0]['producaoMediaManual'], 9500)
   self.assertEqual(exported_rows['usinas'][0]['concessionaria'], 'Copel')
+  usinas = client.get('/api/v1/importacoes/exportar?tipo=usinas', headers={'Authorization':'Bearer '+self._token(self.a)})
+  self.assertEqual(usinas.status_code, 200)
+  usinas_workbook = load_workbook(io.BytesIO(usinas.data))
+  self.assertEqual(usinas_workbook.sheetnames, ['Usinas'])
+  self.assertEqual(_read_file(usinas.data, 'usinas.xlsx', None)['usinas'][0]['nome'], 'Usina Central')
+  self.assertEqual(client.get('/api/v1/importacoes/exportar?tipo=invalido', headers={'Authorization':'Bearer '+self._token(self.a)}).status_code, 400)
   other = client.get('/api/v1/importacoes/exportar', headers={'Authorization':'Bearer '+self._token(self.b)})
   self.assertTrue(all(not entries for entries in _read_file(other.data, 'export.xlsx', None).values()))
   rows['ucs'][0]['diaEmissaoFatura'] = '1.5'

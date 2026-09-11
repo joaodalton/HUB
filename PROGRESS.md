@@ -6,11 +6,13 @@
 
 - [x] Sprint A — Planos, Assinatura e enforcement de cota: catálogo Starter em arquivo, Assinatura/LimiteContratado e migration com backfill vitalício para empresa 1; POST de Cliente/UC/Usina/Usuário bloqueia somente acima da cota, com fail-open sem assinatura. Evidência: testes de cota, migrations SQLite e regressão backend aprovados.
 
-- [x] Sprint — Rateio 100% funcional: validação final de percentuais, falha de Drive controlada, saída XLSX baseada no modelo CSV oficial da Copel e expansão automática da tabela para qualquer quantidade de beneficiárias.
+- [x] Sprint — Rateio 100% funcional: validação final de percentuais, falha de Drive controlada, saída XLSX baseada no modelo oficial XLSX da Copel e expansão automática da tabela para qualquer quantidade de beneficiárias.
 
 - [x] Modelo padrão de importação/exportação adotado a partir de `HUB_Modelo_Importacao.xlsx`. Download público `/api/v1/importacoes/modelo` sem exemplos, botão em Importações inclusive para perfis sem permissão de importar; exportação autenticada usa as mesmas abas, cabeçalhos, estilos e listas. Campos opcionais mapeados, linhas vazias ignoradas e dias inteiros validados. Evidência: 10 testes de `tests.test_importacoes` passaram (arquivo real, download anônimo, RBAC, duas empresas, preview/commit/export); `npm.cmd --prefix frontend run build` passou. Sem deploy nesta entrega.
+- 2026-09-10: Exportação em massa permite filtrar Clientes, UCs e Usinas; o XLSX contém somente as abas marcadas, inclusive uma única aba `Usinas` quando essa for a escolha. Evidência: 10 testes de `tests.test_importacoes` e o build do frontend passaram.
 - [x] UX de Importação: a seleção do arquivo agora aceita arrastar e soltar, reaproveitando o mesmo preview e confirmação já validados. Evidência: `npx.cmd tsc --noEmit` e `npm.cmd run build` passaram em 2026-09-09.
 - [x] Atalho de Integrações: a sidebar abre diretamente as credenciais já existentes por empresa, sem adicionar provedor ou chamada externa. Evidência: `npx.cmd tsc --noEmit` e `npm.cmd run build` passaram em 2026-09-09.
+- 2026-09-10: Documentos agora permite abrir pastas do Drive, voltar ao resultado da busca e reservar/vincular arquivos internos. A API valida toda a cadeia até a raiz da empresa antes de listar, vincular ou baixar itens aninhados. Evidência: build do frontend aprovado; teste unitário do backend adicionado, pendente porque o `venv` local aponta para um Python sem acesso.
 
 > Leia `VISAO.md` primeiro. Este arquivo é o estado atual, atualizado a cada tarefa concluída.
 > **Documentos relacionados:** `VISAO.md` · `ARCHITECTURE.md` · `API_CONTRACTS.md` · `CONTRIBUTING.md`

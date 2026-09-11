@@ -517,7 +517,7 @@ Pública. Exige o header `asaas-access-token` igual a `ASAAS_WEBHOOK_TOKEN`; pro
 
 `GET /importacoes/modelo` é público (sem login) e baixa `HUB_Modelo_Importacao.xlsx`, sem cadastros de exemplo. O arquivo versionado em `backend/templates/` define os cabeçalhos, estilos e listas; o download preserva `Instrucoes`, `Clientes`, `UCs` e `Usinas`, com preenchimento a partir da linha 2.
 
-`GET /importacoes/exportar` requer `imports.preview` e exporta somente a empresa autenticada, usando o mesmo modelo e todos os campos nele previstos, incluindo nascimento. Strings são gravadas como texto, nunca como fórmulas. Não é backup completo: campos fora do modelo e conexões de rateio não são exportados.
+`GET /importacoes/exportar` requer `imports.preview` e exporta somente a empresa autenticada, usando o mesmo modelo e todos os campos nele previstos, incluindo nascimento. Strings são gravadas como texto, nunca como fórmulas. Sem filtro, inclui as abas `Instrucoes`, `Clientes`, `UCs` e `Usinas`; `?tipo=clientes`, `?tipo=ucs` e `?tipo=usinas` podem ser combinados e retornam somente as abas selecionadas. Não é backup completo: campos fora do modelo e conexões de rateio não são exportados.
 
 O preview aceita a aba auxiliar `Instrucoes` (não importada), os cabeçalhos exatos do modelo inclusive `(opcional)`, além dos nomes legados. Linhas vazias são ignoradas. Dias de emissão devem ser inteiros de 1 a 31. Importação continua somente criação: reimportar dados existentes causa conflito; UCs referenciam CPF de cliente criado no mesmo arquivo.
 
@@ -558,8 +558,11 @@ Erros: 400 (sem arquivo / tipo inválido), 503 (Google Drive indisponível).
 Usa a conta OAuth ativa se houver uma; cai pro `credentials.json` de service account se não. Prefixo real: `/api/v1/drive` (`drive_routes.py`, `url_prefix='/api/v1/drive'`).
 
 ### `GET /drive/search?q=texto`
-Retorna array cru do Google (não passa pelo envelope `success_response`): `[{ id, name, mimeType, webViewLink, iconLink, modifiedTime }, ...]`. Busca só PDFs e pastas.
+Retorna array cru do Google (não passa pelo envelope `success_response`): `[{ id, name, mimeType, webViewLink, iconLink, modifiedTime }, ...]`. Busca os arquivos e pastas permitidos pela raiz configurada da empresa; OAuth sem raiz configurada usa o escopo da conta conectada.
 Erro (503): `{ "error": "Google Drive nao configurado: ..." }` se não houver credencial válida (nem OAuth nem service account).
+
+### `GET /drive/folders/<folderId>`
+Retorna os arquivos e subpastas diretos da pasta selecionada, no mesmo formato de `/drive/search`. Requer `documents.read`; uma pasta fora da raiz da empresa é tratada como inexistente (404), inclusive quando é acessível por outra empresa.
 
 ### `POST /download-zip`
 Body: `{ "ids": string[] }` (IDs de arquivo do Drive). Retorna o **binário do ZIP** direto (`application/zip`, `hub-reservados.zip`), não JSON. Pastas na lista são ignoradas e listadas num `pastas-nao-baixadas.txt` dentro do ZIP. Erro 400 se `ids` vazio, 503 se Drive não configurado.

@@ -1,4 +1,5 @@
 import { createDataTable } from '../components/DataTable';
+import { createCheckboxField } from '../components/formFields';
 import { createIcon } from '../components/Icon';
 import { createElement } from '../dom';
 import { useGlobalLoading } from '../hooks/useGlobalLoading';
@@ -31,6 +32,7 @@ export function createImportacoesContent(onImported?: () => void): HTMLElement {
   let busy = false;
   let uploadError = '';
   let confirmError = '';
+  const tiposExportacao = new Set<TipoCsv>(['clientes', 'ucs', 'usinas']);
 
   render();
   return content;
@@ -64,9 +66,27 @@ export function createImportacoesContent(onImported?: () => void): HTMLElement {
       createImportacaoHeader('Enviar planilha', 'Envie um arquivo Excel com as três abas esperadas. O HUB valida tudo antes de criar os cadastros.'),
       createTemplateGuide()
     );
-    const exportButton = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Exportar cadastros atuais' });
-    exportButton.addEventListener('click', () => void downloadExport());
-    panel.appendChild(exportButton);
+    const exportPanel = createElement('section', { className: 'importacao-export' });
+    exportPanel.append(createElement('h2', { textContent: 'Exportar cadastros atuais' }), createElement('p', { textContent: 'Escolha os tipos que deseja incluir no arquivo.' }));
+    const exportFilters = createElement('div', { className: 'importacao-export-filters' });
+    const exportButton = createElement('button', { className: 'secondary-button', type: 'button' });
+    ([['clientes', 'Clientes'], ['ucs', 'UCs'], ['usinas', 'Usinas']] as Array<[TipoCsv, string]>).forEach(([tipo, label]) => {
+      const field = createCheckboxField(label, tiposExportacao.has(tipo));
+      field.input.addEventListener('change', () => {
+        if (field.input.checked) tiposExportacao.add(tipo);
+        else tiposExportacao.delete(tipo);
+        updateExportButton();
+      });
+      exportFilters.appendChild(field.field);
+    });
+    function updateExportButton(): void {
+      exportButton.disabled = tiposExportacao.size === 0;
+      exportButton.textContent = tiposExportacao.size === 1 ? 'Exportar cadastro selecionado' : 'Exportar cadastros selecionados';
+    }
+    updateExportButton();
+    exportButton.addEventListener('click', () => void downloadExport(Array.from(tiposExportacao)));
+    exportPanel.append(exportFilters, exportButton);
+    panel.appendChild(exportPanel);
     const form = createElement('form', { className: 'importacao-form' });
     const fileField = createElement('label', { className: 'upload-dropzone importacao-dropzone' });
     const fileInput = createElement('input');
@@ -211,14 +231,14 @@ export function createImportacoesContent(onImported?: () => void): HTMLElement {
     }
   }
 
-  async function downloadExport(): Promise<void> {
+  async function downloadExport(tipos: TipoCsv[]): Promise<void> {
     loading.show();
     try {
-      const blob = await exportarImportacao();
+      const blob = await exportarImportacao(tipos);
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = 'hub-clientes-ucs-usinas.xlsx';
+      link.download = `hub-${tipos.join('-')}.xlsx`;
       link.click();
       URL.revokeObjectURL(url);
     } catch {

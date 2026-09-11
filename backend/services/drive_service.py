@@ -51,6 +51,56 @@ class GoogleDriveService:
 
         return results.get('files', [])
 
+    def list_folder(self, folder_id: str) -> list[dict]:
+        try:
+            metadata = self.get_authorized_item(folder_id)
+        except ValueError as exc:
+            raise ValueError('Pasta nao encontrada.') from exc
+
+        if metadata.get('mimeType') != 'application/vnd.google-apps.folder':
+            raise ValueError('Pasta nao encontrada.')
+
+        mime_filter = ' or '.join(f"mimeType='{mime}'" for mime in self._SEARCHABLE_MIME_TYPES)
+        results = self.client.files().list(
+            q=f"'{folder_id}' in parents and ({mime_filter}) and trashed=false",
+            fields="files(id, name, mimeType, webViewLink, iconLink, modifiedTime)",
+            pageSize=50
+        ).execute()
+        return results.get('files', [])
+
+    def get_authorized_item(self, item_id: str) -> dict:
+        try:
+            metadata = self.client.files().get(
+                fileId=item_id,
+                fields='id, name, mimeType, parents'
+            ).execute()
+        except Exception as exc:
+            raise ValueError('Arquivo do Google Drive nao encontrado.') from exc
+
+        if not self._is_within_root(item_id, metadata.get('parents', [])):
+            raise ValueError('Arquivo do Google Drive nao encontrado.')
+        return metadata
+
+    def _is_within_root(self, item_id: str, parents: list[str]) -> bool:
+        if not self.root_folder_id or item_id == self.root_folder_id:
+            return True
+
+        pending = list(parents)
+        visited = {item_id}
+        while pending:
+            parent_id = pending.pop()
+            if parent_id == self.root_folder_id:
+                return True
+            if parent_id in visited:
+                continue
+            visited.add(parent_id)
+            try:
+                metadata = self.client.files().get(fileId=parent_id, fields='id, parents').execute()
+            except Exception:
+                return False
+            pending.extend(metadata.get('parents', []))
+        return False
+
     def create_reserved_zip(self, file_ids: list[str]) -> io.BytesIO:
         zip_buffer = io.BytesIO()
         used_names: set[str] = set()
@@ -58,13 +108,7 @@ class GoogleDriveService:
 
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
             for file_id in file_ids:
-                metadata = self.client.files().get(
-                    fileId=file_id,
-                    fields="id, name, mimeType, parents"
-                ).execute()
-
-                if self.root_folder_id and self.root_folder_id not in metadata.get('parents', []):
-                    raise ValueError('Arquivo fora da pasta autorizada para esta empresa.')
+                metadata = self.get_authorized_item(file_id)
 
                 if metadata.get('mimeType') == 'application/vnd.google-apps.folder':
                     skipped.append(metadata.get('name', file_id))
@@ -93,13 +137,7 @@ class GoogleDriveService:
 
     def download_file(self, file_id: str) -> bytes:
         """Baixa somente arquivos pertencentes a pasta raiz do tenant atual."""
-        metadata = self.client.files().get(
-            fileId=file_id,
-            fields="id, name, mimeType, parents"
-        ).execute()
-
-        if self.root_folder_id and self.root_folder_id not in metadata.get('parents', []):
-            raise ValueError('Arquivo fora da pasta autorizada para esta empresa.')
+        metadata = self.get_authorized_item(file_id)
         if metadata.get('mimeType') == 'application/vnd.google-apps.folder':
             raise ValueError('Pastas nao podem ser baixadas como documento.')
 

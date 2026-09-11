@@ -9,7 +9,7 @@ import { useToast } from '../hooks/useToast';
 import { createBaseLayout } from '../layouts/BaseLayout';
 import { getClients, type ClientRow } from '../services/clientsService';
 import { fileTypeLabel, isFolder, matchesDateRange, matchesFilter, matchesType } from '../services/documentRules';
-import { downloadReservedZip, searchDriveItems } from '../services/driveService';
+import { downloadReservedZip, listDriveFolder, searchDriveItems } from '../services/driveService';
 import { getDocuments, type DocumentRow } from '../services/documentsService';
 import type { DriveItem, FilterKey } from '../types';
 
@@ -19,6 +19,8 @@ export function createDocumentsPage(): HTMLElement {
   let dateFrom = '';
   let dateTo = '';
   let currentResults: DriveItem[] = [];
+  let folderStack: DriveItem[] = [];
+  let searchTerm = '';
   let clients: ClientRow[] = [];
   let documents: DocumentRow[] = [];
   const reservedItems = new Map<string, DriveItem>();
@@ -27,7 +29,9 @@ export function createDocumentsPage(): HTMLElement {
 
   const resultsPanel = createResultsPanel({
     isReserved: (item) => reservedItems.has(item.id),
-    onToggleReserved: toggleReserved
+    onToggleReserved: toggleReserved,
+    onOpenFolder: openFolder,
+    onBackFolder: openParentFolder
   });
 
   const reservedPanel = createReservedPanel({
@@ -98,6 +102,9 @@ export function createDocumentsPage(): HTMLElement {
   }
 
   async function runSearch(term: string): Promise<void> {
+    searchTerm = term;
+    folderStack = [];
+    resultsPanel.setFolderName(null);
     if (!term) {
       currentResults = [];
       resultsPanel.setMessage('Digite algo para iniciar a busca.');
@@ -110,14 +117,7 @@ export function createDocumentsPage(): HTMLElement {
 
     try {
       currentResults = await searchDriveItems(term);
-      searchPanel.updateTypeOptions(Array.from(new Set(currentResults.map(fileTypeLabel))));
-      searchPanel.updateFilterCounts({
-        todos: currentResults.length,
-        pastas: currentResults.filter((item) => matchesFilter(item, 'pastas')).length,
-        imagens: currentResults.filter((item) => matchesFilter(item, 'imagens')).length,
-        termo: currentResults.filter((item) => matchesFilter(item, 'termo')).length
-      });
-      renderResults();
+      updateResults();
     } catch (error) {
       currentResults = [];
       const message = error instanceof Error ? error.message : 'Nao foi possivel pesquisar documentos.';
@@ -126,6 +126,59 @@ export function createDocumentsPage(): HTMLElement {
     } finally {
       loading.hide();
     }
+  }
+
+  async function openFolder(folder: DriveItem): Promise<void> {
+    resultsPanel.setLoading();
+    loading.show();
+
+    try {
+      currentResults = await listDriveFolder(folder.id);
+      folderStack.push(folder);
+      resultsPanel.setFolderName(folder.name);
+      updateResults();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Nao foi possivel abrir a pasta.';
+      resultsPanel.setMessage(message);
+      toast.error(message);
+    } finally {
+      loading.hide();
+    }
+  }
+
+  function openParentFolder(): void {
+    folderStack.pop();
+    if (folderStack.length === 0) {
+      void runSearch(searchTerm);
+      return;
+    }
+
+    const parent = folderStack[folderStack.length - 1];
+    resultsPanel.setLoading();
+    loading.show();
+    void listDriveFolder(parent.id)
+      .then((items) => {
+        currentResults = items;
+        resultsPanel.setFolderName(parent.name);
+        updateResults();
+      })
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : 'Nao foi possivel abrir a pasta.';
+        resultsPanel.setMessage(message);
+        toast.error(message);
+      })
+      .finally(() => loading.hide());
+  }
+
+  function updateResults(): void {
+    searchPanel.updateTypeOptions(Array.from(new Set(currentResults.map(fileTypeLabel))));
+    searchPanel.updateFilterCounts({
+      todos: currentResults.length,
+      pastas: currentResults.filter((item) => matchesFilter(item, 'pastas')).length,
+      imagens: currentResults.filter((item) => matchesFilter(item, 'imagens')).length,
+      termo: currentResults.filter((item) => matchesFilter(item, 'termo')).length
+    });
+    renderResults();
   }
 
   function renderResults(): void {

@@ -22,7 +22,13 @@ def preview():
 @import_routes.route('/exportar', methods=['GET'])
 @require_permission('imports.preview')
 def exportar():
-    return send_file(exportar_workbook(g.current_empresa_id), as_attachment=True, download_name='hub-clientes-ucs-usinas.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    tipos = set(request.args.getlist('tipo')) or None
+    try:
+        workbook = exportar_workbook(g.current_empresa_id, tipos)
+    except ValueError as exc:
+        return error_response(str(exc), 400)
+    sufixo = '-'.join(sorted(tipos)) if tipos else 'clientes-ucs-usinas'
+    return send_file(workbook, as_attachment=True, download_name=f'hub-{sufixo}.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 @import_routes.route('/<int:preview_id>/confirmar', methods=['POST'])
 @limiter.limit('5 per minute')
 @require_permission('imports.commit')

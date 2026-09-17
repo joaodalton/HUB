@@ -18,6 +18,8 @@ from models.client import Client
 from models.consumer_unit import ConsumerUnit
 from models.empresa import Empresa
 from models.fatura import Fatura
+from models.user import User
+from utils.auth import generate_token
 try:
     from .support import IsolatedTestRuntime
 except ImportError:
@@ -43,9 +45,14 @@ class FaturaModelTest(IsolatedTestRuntime, unittest.TestCase):
             db.session.flush()
             fatura_a = Fatura(empresa_id=1, client_id=client_a.id, consumer_unit_id=uc_a.id, concessionaria='Copel', competencia='2026-09', valor=Decimal('10.00'), mes_vencimento=date(2026, 9, 10), asaas_id='pay_same')
             fatura_b = Fatura(empresa_id=2, client_id=client_b.id, consumer_unit_id=uc_b.id, concessionaria='Copel', competencia='2026-09', valor=Decimal('20.00'), mes_vencimento=date(2026, 9, 10), asaas_id='pay_same')
-            db.session.add_all([fatura_a, fatura_b])
+            users = [
+                User(empresa_id=1, nome=role.title(), email=f'fatura-{role}@example.test', password_hash='x', role=role)
+                for role in ('owner', 'admin', 'financial', 'operator', 'viewer')
+            ]
+            db.session.add_all([fatura_a, fatura_b, *users])
             db.session.commit()
             cls.fatura_a, cls.fatura_b = fatura_a.id, fatura_b.id
+            cls.user_ids = {user.role: user.id for user in users}
 
     @classmethod
     def tearDownClass(cls):
@@ -63,6 +70,34 @@ class FaturaModelTest(IsolatedTestRuntime, unittest.TestCase):
             g.current_empresa_id = 1
             self.assertIsNone(Fatura.query.filter_by(id=self.fatura_b).first())
             self.assertEqual(Fatura.query.filter_by(id=self.fatura_a).first().asaas_id, 'pay_same')
+
+    def test_legacy_rows_remain_readable_without_invented_workflow(self):
+        response = self._request('owner', f'/api/v1/faturas/{self.fatura_a}')
+        self.assertEqual(response.status_code, 200)
+        row = response.json['data']
+        self.assertEqual(row['asaasId'], 'pay_same')
+        self.assertEqual(row['valor'], 10)
+        for field in ('statusInterno', 'externalReference', 'paymentProvider'):
+            self.assertIsNone(row[field])
+
+    def _request(self, role: str, path: str, method: str = 'GET', body: dict | None = None):
+        with self.app.app_context():
+            token = generate_token(self.user_ids[role])
+        return self.app.test_client().open(path, method=method, headers={'Authorization': f'Bearer {token}'}, json=body)
+
+    def test_operator_and_viewer_are_read_only_for_faturas(self):
+        for role in ('operator', 'viewer'):
+            self.assertEqual(self._request(role, '/api/v1/faturas').status_code, 200)
+            self.assertEqual(self._request(role, f'/api/v1/faturas/{self.fatura_a}').status_code, 200)
+            self.assertEqual(self._request(role, '/api/v1/faturas', 'POST', {}).status_code, 403)
+            self.assertEqual(self._request(role, f'/api/v1/faturas/{self.fatura_a}/sincronizar', 'POST').status_code, 403)
+            self.assertEqual(self._request(role, f'/api/v1/faturas/{self.fatura_a}/cancelar', 'POST').status_code, 403)
+
+    def test_financial_roles_keep_fatura_mutation_permission(self):
+        for role in ('owner', 'admin', 'financial'):
+            self.assertEqual(self._request(role, '/api/v1/faturas', 'POST', {}).status_code, 400)
+            self.assertEqual(self._request(role, f'/api/v1/faturas/{self.fatura_a}/sincronizar', 'POST').status_code, 503)
+            self.assertEqual(self._request(role, f'/api/v1/faturas/{self.fatura_a}/cancelar', 'POST').status_code, 503)
 
 
 if __name__ == '__main__':

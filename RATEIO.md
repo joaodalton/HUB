@@ -338,9 +338,9 @@ O módulo de Rateio do HUB não deve ser visto apenas como uma ferramenta para p
 ## Fluxo implementado (2026-08-29)
 
 - **Montar Rateio**: seleção da usina, reserva, qualificação, distribuição, competência e aprovação. A aprovação persiste `PlantConnection` com percentual manual e `RateioHistorico`.
-- **Gerar Formulário Copel**: lê somente conexões já aprovadas. Correções feitas na grade alteram apenas o PDF, sem modificar cliente ou UC.
+- **Gerar Formulário Copel**: lê somente conexões já aprovadas. Correções feitas na grade alteram apenas o XLSX, sem modificar cliente ou UC; a associação ocupa a linha 1 (0%) e beneficiárias começam na linha 2.
 - **Pré-requisitos**: `Plant.uc`, CNPJ e Estatuto da empresa e um documento cujo nome/categoria contenha “termo” e “adesão” para cada beneficiário.
 - **Verificação**: termos ausentes bloqueiam a geração e mantêm uma única pendência crítica automática por usina. A pendência é resolvida na nova verificação quando não houver mais faltas.
-- **Arquivos finais**: formulário preenchido, termos mesclados, CNPJ e Estatuto. O envio à Copel permanece manual.
+- **Arquivos finais**: formulário XLSX preenchido, termos mesclados, CNPJ e Estatuto. O envio à Copel permanece manual.
 - **Segurança**: arquivos do Drive só podem ser baixados da pasta raiz configurada para a empresa atual; falha em qualquer termo cancela a mesclagem inteira.
 

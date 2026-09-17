@@ -19,7 +19,7 @@ class CredentialConflictError(ValueError):
 def listar() -> list[dict]:
     credentials = (
         ApiCredential.query
-        .filter(ApiCredential.empresa_id == g.current_empresa_id)
+        .filter(ApiCredential.empresa_id == g.current_empresa_id, ApiCredential.interna.is_(False))
         .order_by(ApiCredential.provider.asc(), ApiCredential.nome.asc(), ApiCredential.id.asc())
         .all()
     )
@@ -27,7 +27,7 @@ def listar() -> list[dict]:
 
 
 def obter(credential_id: int) -> ApiCredential | None:
-    return ApiCredential.query.filter_by(id=credential_id, empresa_id=g.current_empresa_id).first()
+    return ApiCredential.query.filter_by(id=credential_id, empresa_id=g.current_empresa_id, interna=False).first()
 
 
 def criar(data: dict) -> dict:
@@ -106,6 +106,11 @@ def testar(credential_id: int) -> dict | None:
         raise RuntimeError('Credencial indisponivel para teste local.') from exc
     except ValueError as exc:
         raise ValueError('Credencial indisponivel para teste local.') from exc
+    if credential.provider == 'asaas' and not credential.nome.startswith('webhook_token'):
+        from services.asaas_client import AsaasClient
+        AsaasClient(g.current_empresa_id).testar_conexao()
+        _audit('api_credential_test_asaas', credential)
+        return {'ok': True, 'modo': 'asaas-api', 'provider': credential.provider}
     _audit('api_credential_test_dry_run', credential)
     return {'ok': True, 'modo': 'dry-run', 'provider': credential.provider}
 

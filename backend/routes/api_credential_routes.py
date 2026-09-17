@@ -2,6 +2,7 @@ from flask import Blueprint, request
 
 from extensions import limiter
 from services.api_credential_service import CredentialConflictError, atualizar, criar, excluir, listar, obter, testar
+from services.asaas_client import AsaasError
 from services.permission_service import require_permission
 from utils.api_response import error_response, success_response
 
@@ -79,10 +80,13 @@ def destroy(credential_id: int):
 def test(credential_id: int):
     try:
         resultado = testar(credential_id)
+    except AsaasError as exc:
+        return error_response(str(exc), 503)
     except RuntimeError:
         return error_response('Servico de criptografia indisponivel. Tente novamente mais tarde.', 503)
     except ValueError:
         return error_response('Credencial indisponivel para teste local.', 400)
     if not resultado:
         return error_response('Credencial nao encontrada.', 404)
-    return success_response(resultado, 'Teste local concluido; nenhuma chamada externa foi realizada.')
+    message = 'Conexao com a API do ASAAS confirmada.' if resultado['modo'] == 'asaas-api' else 'Teste local concluido; nenhuma chamada externa foi realizada.'
+    return success_response(resultado, message)

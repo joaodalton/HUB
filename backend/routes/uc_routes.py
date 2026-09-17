@@ -1,8 +1,8 @@
 # backend/routes/uc_routes.py
 from flask import Blueprint, request
 
-from services.uc_service import create_uc, delete_uc, get_uc, list_ucs, update_uc
-from services.permission_service import require_permission, require_quota
+from services.uc_service import create_uc, delete_uc, get_concessionaria_password, get_uc, list_ucs, update_uc
+from services.permission_service import require_permission, require_quota, require_role
 from utils.api_response import error_response, success_response
 
 
@@ -24,6 +24,21 @@ def show(uc_id: int):
         return error_response('UC nao encontrada.', 404)
 
     return success_response(uc)
+
+
+@uc_routes.route('/<int:uc_id>/senha-concessionaria', methods=['GET'])
+@require_role('owner', 'admin')
+def reveal_concessionaria_password(uc_id: int):
+    try:
+        result = get_concessionaria_password(uc_id)
+    except RuntimeError:
+        return error_response('Servico de criptografia indisponivel. Tente novamente mais tarde.', 503)
+
+    if result is None:
+        return error_response('UC nao encontrada.', 404)
+    if not result:
+        return error_response('Senha da concessionaria nao cadastrada para esta UC.', 404)
+    return success_response(result)
 
 
 @uc_routes.route('', methods=['POST'])

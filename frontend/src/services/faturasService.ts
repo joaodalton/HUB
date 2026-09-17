@@ -15,7 +15,10 @@ export type FaturaRow = {
   valor: string | number;
   mesVencimento: string;
   origem: 'manual' | 'automatica';
-  asaasId: string;
+  asaasId: string | null;
+  statusInterno: 'aguardando_emissao' | 'emitida' | 'erro_emissao' | 'cancelada' | null;
+  paymentProvider: string | null;
+  externalReference: string | null;
   asaasStatus: FaturaStatus;
   boletoUrl: string | null;
   linhaDigitavel: string | null;

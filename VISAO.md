@@ -177,7 +177,7 @@ O motor de cálculo (`backend/services/rateio_service.py`) já existe e está em
 
 - [ ] **Suporte às 8 maiores concessionárias do Brasil** (além de Copel — lista final a confirmar com o João, mas referência de mercado: CPFL, Enel, Light, Cemig, Coelba/Neoenergia, Celesc, Equatorial, Energisa). Isso significa generalizar o que hoje é específico da Copel:
   - `rateio_formulario_service.py`/`rateio_pdf_service.py` viram estratégia por concessionária (cada uma tem seu próprio layout de formulário e regras de anexo) — provável introduzir um "adapter" por concessionária em vez de um service monolítico.
-  - Template de PDF por concessionária (hoje só existe `formulario_copel_associacao.pdf` em `backend/assets/`) — cada concessionária nova precisa do próprio arquivo oficial versionado.
+  - Modelo oficial de formulário por concessionária (hoje a Copel usa `formulario_copel_rateio.xlsx` em `backend/assets/`) — cada concessionária nova precisa do próprio arquivo oficial versionado.
   - Regras de qualificação/janela de leitura (`_checar_qualificacao`) podem variar por concessionária, não só por usina/UC como hoje.
   - `ConsumerUnit.concessionaria` e `Plant.concessionaria` já existem como campo livre — vira enum fechado alinhado à lista suportada, mantendo compatibilidade com dado já cadastrado.
 - [ ] Modelo "por prioridade" (hoje só "por porcentagem" está implementado — decisão de negócio já tomada de focar em porcentagem primeiro; prioridade pode não valer a pena generalizar por concessionária ao mesmo tempo — avaliar depois da V3.0-A).

@@ -10,6 +10,7 @@ export type UcRow = {
   codigoAneel: string | null;
   apelido: string;
   documento: string | null;
+  senhaConcessionariaConfigurada?: boolean;
   endereco: string | null;
   cep: string | null;
   concessionaria: string | null;
@@ -45,6 +46,7 @@ export type UcPayload = {
   terminoContrato: string | null;
   carenciaMeses: number | null;
   percentualDescontoCarencia: string | null;
+  senhaConcessionaria?: string;
   conexoes: Array<{ plantId: number; percentual: string }>;
 };
 
@@ -94,4 +96,9 @@ export function getUcMetrics(ucs: UcRow[]) {
     },
     { label: 'Geracao propria', value: String(ucs.filter((uc) => uc.geracaoPropria).length) }
   ];
+}
+
+export async function getConcessionariaPassword(ucId: number): Promise<string> {
+  const response = await apiRequest<ApiResponse<{ senhaConcessionaria: string }>>(`/ucs/${ucId}/senha-concessionaria`);
+  return response.data.senhaConcessionaria;
 }

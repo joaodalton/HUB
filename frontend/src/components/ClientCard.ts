@@ -1,4 +1,5 @@
 import { createElement } from '../dom';
+import { createConcessionariaPasswordField } from './ConcessionariaPasswordField';
 import { createClientDocumentsPanel } from './ClientDocumentsPanel';
 import { createCheckboxField, createFormSection, createInput, createSelect } from './formFields';
 import { createPlantConnections, createTariffSelect } from './PlantConnectionsField';
@@ -184,6 +185,9 @@ function createUcEditor(uc: ClientUc, availablePlants: PlantRow[], onRemove: () 
   const codigoAneel = createInput('Codigo ANEEL', 'text', uc.codigoAneel ?? '', false);
   const apelido = createInput('Subnome', 'text', uc.apelido, false);
   const documento = createInput('CPF/CNPJ da UC', 'text', uc.documento ?? '', false);
+  const senhaConcessionaria = createConcessionariaPasswordField(uc);
+  senhaConcessionaria.input.autocomplete = 'new-password';
+  senhaConcessionaria.input.placeholder = 'Identificador automático: CPF/CNPJ da UC';
   const endereco = createInput('Endereco', 'text', uc.endereco ?? '', false);
   const cep = createInput('CEP', 'text', uc.cep ?? '', false);
   const concessionariaUc = createInput('Concessionaria', 'text', uc.concessionaria ?? '', false);
@@ -219,6 +223,7 @@ function createUcEditor(uc: ClientUc, availablePlants: PlantRow[], onRemove: () 
     summaryMeta.textContent = uc.apelido || 'Mais informacoes';
   });
   documento.input.addEventListener('input', () => { uc.documento = documento.input.value || null; });
+  senhaConcessionaria.input.addEventListener('input', () => { uc.senhaConcessionaria = senhaConcessionaria.input.value || undefined; });
   endereco.input.addEventListener('input', () => { uc.endereco = endereco.input.value || null; });
   cep.input.addEventListener('input', () => { uc.cep = cep.input.value || null; });
   concessionariaUc.input.addEventListener('input', () => { uc.concessionaria = concessionariaUc.input.value || null; });
@@ -251,6 +256,7 @@ function createUcEditor(uc: ClientUc, availablePlants: PlantRow[], onRemove: () 
     codigoAneel.field,
     apelido.field,
     documento.field,
+    senhaConcessionaria.field,
     endereco.field,
     cep.field,
     concessionariaUc.field,

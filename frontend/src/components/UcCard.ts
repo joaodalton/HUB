@@ -1,4 +1,5 @@
 import { createElement } from '../dom';
+import { createConcessionariaPasswordField } from './ConcessionariaPasswordField';
 import { createCheckboxField, createFormSection, createInput } from './formFields';
 import { createPlantConnections, createTariffSelect } from './PlantConnectionsField';
 import type { ClientRow, PlantConnection } from '../services/clientsService';
@@ -35,6 +36,9 @@ export function createUcCard({ uc, clients, availablePlants, onSave, onCancel, o
   const codigoAneel = createInput('Codigo ANEEL', 'text', uc?.codigoAneel ?? '', false);
   const apelido = createInput('Subnome', 'text', uc?.apelido ?? '', false);
   const documento = createInput('CPF/CNPJ da UC', 'text', uc?.documento ?? '', false);
+  const senhaConcessionaria = createConcessionariaPasswordField(uc ?? { id: '' });
+  senhaConcessionaria.input.autocomplete = 'new-password';
+  senhaConcessionaria.input.placeholder = 'Identificador automático: CPF/CNPJ da UC';
   const endereco = createInput('Endereco', 'text', uc?.endereco ?? '', false);
   const cep = createInput('CEP', 'text', uc?.cep ?? '', false);
   const concessionaria = createInput('Concessionaria', 'text', uc?.concessionaria ?? '', false);
@@ -105,6 +109,7 @@ export function createUcCard({ uc, clients, availablePlants, onSave, onCancel, o
       codigoAneel: codigoAneel.input.value.trim() || null,
       apelido: apelido.input.value.trim(),
       documento: documento.input.value.trim() || null,
+      senhaConcessionaria: senhaConcessionaria.input.value || undefined,
       endereco: endereco.input.value.trim() || null,
       cep: cep.input.value.trim() || null,
       concessionaria: concessionaria.input.value.trim() || null,
@@ -124,7 +129,7 @@ export function createUcCard({ uc, clients, availablePlants, onSave, onCancel, o
 
   form.append(
     header,
-    createFormSection('Dados da UC', cliente.field, codigo.field, codigoAneel.field, apelido.field, documento.field, concessionaria.field),
+    createFormSection('Dados da UC', cliente.field, codigo.field, codigoAneel.field, apelido.field, documento.field, senhaConcessionaria.field, concessionaria.field),
     createFormSection('Endereço e consumo', endereco.field, cep.field, consumo.field, baseTarifaria.field, desconto.field, tipoLigacao.field, geracaoPropria.field, diaEmissaoFatura.field),
     createFormSection('Contrato', inicioContrato.field, terminoContrato.field, carenciaMeses.field, percentualDescontoCarencia.field),
     plantArea,

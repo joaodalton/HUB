@@ -27,6 +27,14 @@ Os `POST /clients`, `POST /ucs`, `POST /plants` e `POST /users` retornam `403` c
 
 ---
 
+## Saúde
+
+### `GET /` — pública
+Liveness do processo. Retorna `200` enquanto a aplicação estiver executando; não consulta serviços externos.
+
+### `GET /ready` — pública
+Readiness do banco. Executa uma consulta mínima e retorna `200` com `database: "ok"`; se o banco estiver indisponível, retorna `503` sem detalhes internos.
+
 ## Auth (`/auth`)
 
 ### `POST /auth/bootstrap` — pública
@@ -138,18 +146,22 @@ CRUD avulso — a mesma lógica de campos e conexões (`apply_uc_fields`/`sync_c
 }
 ```
 `tipoLigacao` é sempre um de `Monofasico | Bifasico | Trifasico`. Datas de contrato em `YYYY-MM-DD`.
+`senhaConcessionariaConfigurada` indica se existe senha salva para a UC; a senha não aparece nas respostas comuns.
 
 ### `GET /ucs/<id>`
 `data` = `ConsumerUnit`. 404 se não existir.
 
+### `GET /ucs/<id>/senha-concessionaria`
+Restrita a `owner`/`admin` (ou administrador da plataforma). Revela sob demanda `{ "senhaConcessionaria": string }` para a UC da empresa atual; não entra em listagens nem nos endpoints normais de Cliente/UC. Cada revelação é auditada sem registrar a senha. Retorna 404 se a UC ou a senha não existir.
+
 ### `POST /ucs`
-Body obrigatório: `clienteId` (precisa existir), `codigo` (não-vazio). Todos os outros campos do objeto acima são opcionais/aceitos. `conexoes: [{ plantId, percentual }]` — omitir a chave = nenhuma conexão criada.
+Body obrigatório: `clienteId` (precisa existir), `codigo` (não-vazio). Todos os outros campos do objeto acima são opcionais/aceitos. `conexoes: [{ plantId, percentual }]` — omitir a chave = nenhuma conexão criada. `senhaConcessionaria` é opcional, exige `documento` e é salva por CPF/CNPJ: UCs com o mesmo documento compartilham a credencial cifrada; documentos diferentes usam credenciais separadas.
 
 Sucesso (201): `data` = `ConsumerUnit`.
 Erros: 400 (cliente/código faltando), 409 (`ValueError` do service — cliente informado não existe).
 
 ### `PUT /ucs/<id>`
-Mesmo formato de body, todos os campos opcionais (só atualiza o que vier). Se enviar `clienteId` diferente do atual, move a UC pro outro cliente (404 se o novo cliente não existir → vira erro 409 na prática, ver código). Se a chave `conexoes` **não** vier no body, as conexões existentes são mantidas; se vier (mesmo vazia `[]`), substitui tudo.
+Mesmo formato de body, todos os campos opcionais (só atualiza o que vier). Se enviar `clienteId` diferente do atual, move a UC pro outro cliente (404 se o novo cliente não existir → vira erro 409 na prática, ver código). Se a chave `conexoes` **não** vier no body, as conexões existentes são mantidas; se vier (mesmo vazia `[]`), substitui tudo. `senhaConcessionaria` segue a mesma regra de identificação por CPF/CNPJ do `POST`.
 
 Sucesso: `data` = `ConsumerUnit`. 404 se a UC não existir.
 
@@ -227,6 +239,50 @@ Erros: 400 (sem arquivo / sem categoria), 409 (cliente, UC ou categoria informad
 ### `DELETE /documents/<id>` — apaga registro **e** arquivo físico do disco. 404 se não existir.
 
 ### `GET /documents/<id>/download` — retorna o arquivo (`send_file`, `as_attachment`). 404 se o documento ou o arquivo em disco não existir.
+
+---
+
+## Faturas originais da concessionária
+
+### `POST /clients/<clientId>/invoices/upload` — **multipart/form-data**
+
+Requer `faturas.create` (`owner`, `admin` ou `financial`). Campo `arquivo` obrigatório; nesta versão aceita exatamente um PDF por chamada. O tenant vem da autenticação e o Cliente precisa pertencer a ele. Nenhum `empresaId` ou UC é aceito do request.
+
+Valida extensão `.pdf`, MIME `application/pdf`, magic bytes `%PDF`, integridade, ausência de criptografia, tamanho e páginas antes de persistir. Limites: `FATURA_CONCESSIONARIA_MAX_BYTES` (default 10 MiB) e `FATURA_CONCESSIONARIA_MAX_PAGES` (default 10).
+
+Sucesso novo (201) ou idempotente por `empresa_id + SHA-256` (200):
+
+```json
+{
+  "success": true,
+  "message": "Fatura recebida.",
+  "data": {
+    "duplicate": false,
+    "invoiceId": 123,
+    "invoice": { "id": 123, "statusExtracao": "recebida", "statusValidacao": "pendente" }
+  }
+}
+```
+
+Na duplicidade, `duplicate` é `true`, `invoiceId` aponta para o registro mais antigo e nenhum novo `Document` é criado. Erros controlados usam `error` e `code`: `INVALID_FILE_TYPE`, `INVALID_PDF`, `PDF_ENCRYPTED`, `FILE_TOO_LARGE`, `PDF_TOO_MANY_PAGES`, `CLIENT_NOT_FOUND` ou `DOCUMENT_STORAGE_UNAVAILABLE`.
+
+Não há PUT para `FaturaConcessionaria`; o PDF e o registro-fonte são imutáveis.
+
+Após processamento interno F7, o mesmo objeto `invoice` pode apresentar status
+de extração/validação independentes, identidade do parser, vínculo UC validado
+e snapshots. `dadosBrutosExtraidos` contém ParsedInvoice; `dadosNormalizados`
+contém `{ "invoice": InvoiceNormalized, "validation": InvoiceValidationResult }`.
+Nos snapshots, Decimal é string exata e datas são ISO; cada campo documental
+mantém status/source/confidence/warnings. Colunas numéricas escalares podem
+continuar null: F7 preserva precisão nos snapshots, sem arredondá-las para a
+escala do model. Contrato detalhado em FATURAS_E_COBRANCAS.md, Sprint F7.
+Desde C4.3, InvoiceNormalized inclui billing_energy_input: compensações canônicas,
+energia_compensada_cobravel_kwh (Decimal textual ou null), status, issues,
+identidade documental, competência e fatura_concessionaria_id. Somente VALID
+autoriza consumo energético futuro. Copel atual retorna UNSUPPORTED; snapshots
+anteriores não são reprocessados. Não há novo endpoint ou cobrança.
+O upload não executa processamento, não há endpoint novo e a duplicata continua
+retornando o registro existente sem reprocessar ou sobrescrever snapshots.
 
 ---
 
@@ -383,12 +439,11 @@ Linha 1 é sempre a usina/associação (0%, `termoAdesaoOk: null`). Linhas segui
 Body: `{ "plantId": number }`. Confere Termo de Adesão de cada UC beneficiária (por nome/categoria do `Document`). Se faltar algum, cria uma `Pendencia` (categoria `Documentos`, prioridade `critica`) e retorna `ok: false`.
 `data`: `{ "ok": boolean, "faltando": [{ "clienteId": number, "ucId": number, "nome": string }] }`.
 
-### `POST /rateio/formulario/gerar-pdf`
-Body: `{ "plantId": number, "responsavelNome": string, "responsavelCpf": string }`. Gera o Formulário Copel (Associações) preenchido por overlay em cima do template oficial (`backend/assets/formulario_copel_associacao.pdf`). **Resposta binária** (`application/pdf`, `Content-Disposition: attachment`), não passa pelo envelope `success_response`.
-Bloqueia com 400 se: faltar pré-requisito, Termo de Adesão de alguma UC beneficiária ou a soma dos percentuais exceder 100%. Beneficiárias adicionais seguem em páginas de continuação. Falha de infraestrutura do Drive retorna 503 com mensagem acionável.
+### `GET /rateio/formulario/preview?plantId=`
+Leitura tenant-scoped para a revisão antes do download. Retorna a linha fixa da associação (`associacao`, ordem 1 e 0%), beneficiárias renumeradas a partir de 2, `somaPercentual` e `avisos` (inclusive expansão acima de 24 linhas). Não monta o XLSX.
 
 ### `POST /rateio/formulario/gerar-excel`
-Body: `{ "plantId": number, "responsavelNome": string, "responsavelCpf": string, "linhas"?: [...] }`. Gera o Formulário Copel em XLSX a partir do modelo CSV oficial em `backend/assets`; `linhas` preserva as edições somente visuais feitas na revisão. **Resposta binária** (`application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`). Expande a tabela para qualquer quantidade de beneficiárias e mantém a validação de soma máxima de 100%.
+Body: `{ "plantId": number, "responsavelNome": string, "responsavelCpf": string, "linhas"?: [...], "excedenteEnergia": boolean }`. Gera o Formulário Copel no modelo oficial `backend/assets/formulario_copel_rateio.xlsx`; `linhas` preserva as edições somente visuais da revisão e `excedenteEnergia` preenche A11 (`NÃO` por padrão). **Resposta binária** (`application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`). A associação ocupa a primeira linha (0%), a tabela expande sem limite artificial e todos os merges/campos abaixo são deslocados. Bloqueia 400 para pré-requisito, Termo de Adesão ausente ou soma maior que 100%.
 
 ### `POST /rateio/formulario/gerar-termos`
 Body: `{ "plantId": number }`. Baixa do Google Drive o Termo de Adesão de cada UC beneficiária (mesma ordem alfabética da tabela) e mescla num PDF único. **Resposta binária** (`application/pdf`). Bloqueia com 400 nas mesmas condições da rota acima.
@@ -511,7 +566,267 @@ Body obrigatório: `{ "provider": "resend", "nome": "Principal", "segredo": "...
 
 ### `POST /api-credentials/<id>/testar`
 
-Executa somente um dry-run local: verifica que a cifra existe e pode ser lida, sem enviar segredo e sem fazer HTTP, e retorna `{ "ok": true, "modo": "dry-run", "provider": "..." }`.
+Para API keys Asaas, executa uma consulta autenticada a `/myAccount` usando a chave API cifrada selecionada para o ambiente ativo e retorna `{ "ok": true, "modo": "asaas-api", "provider": "asaas" }`, sem retornar a chave. Credenciais Asaas `webhook_token*` e os demais provedores executam somente dry-run local: verificam que a cifra existe e pode ser lida, sem fazer HTTP, e retornam `modo: "dry-run"`.
+
+---
+
+## Perfis de regra de cobrança (`/billing-rules`)
+
+`GrupoRegraCobranca` é configuração comercial reutilizável. Não representa
+assignment, regra já resolvida, cálculo executado ou cobrança emitida.
+
+### `GET /billing-rules` · `GET /billing-rules/<id>`
+
+Requer `billing_rules.read`, disponível às roles financeiras de leitura atuais
+(`owner`, `admin`, `financial`, `operator`, `viewer`). Lista e consulta somente
+o tenant autenticado; ID de outra empresa responde 404.
+
+### `POST /billing-rules`
+
+Requer `billing_rules.write` (`owner`, `admin`, `financial`). O tenant vem da
+autenticação; `empresaId` não é aceito. Body:
+
+```json
+{
+  "nome": "Associação 20%",
+  "descricao": "Perfil reutilizável",
+  "ativo": true,
+  "padrao": false,
+  "calculationMethod": "energia_compensada",
+  "tariffSource": "manual",
+  "manualTariff": "0.654321",
+  "discountType": "percentage",
+  "discountValue": "20.000000",
+  "tariffBasis": "compensated",
+  "energyComponentIndex": null,
+  "billingMode": "auto",
+  "dueDateBasis": "invoice_due_date",
+  "dueDateOffsetDays": -2,
+  "monthlyInterest": "1.000000",
+  "finePercentage": "2.000000"
+}
+```
+
+Decimals entram e saem como strings exatas. Campos enum usam os valores C0.
+`energyComponentIndex` é obrigatório e não negativo apenas para
+`tariffBasis=documented_component`. `ativo` defaulta `true`, `padrao` defaulta
+`false`; os demais campos comerciais não recebem default implícito. Sucesso 201.
+
+#### Extensão C4.1 — parâmetros comerciais
+
+POST/PUT/PATCH aceitam também os objetos abaixo; GET os retorna juntamente com
+os campos legados. Cada objeto aceita atualização parcial. Omissão preserva o
+valor atual; `null` em um campo limpa esse campo. Objetos inteiros `null` e chaves
+desconhecidas são recusados com 400. Nenhuma fórmula é executada.
+
+```json
+{
+  "tariffConfiguration": {
+    "companyTariff": "0.734821",
+    "tariffHfp": "0.654321",
+    "tariffHp": null
+  },
+  "billingModifiers": {
+    "excludePisCofins": true,
+    "icmsPolicy": "exclude",
+    "excludeTariffFlag": true,
+    "gracePeriod": {
+      "enabled": true,
+      "withoutDiscount": true,
+      "durationMonths": 3,
+      "start": null,
+      "end": null
+    },
+    "recurringAdditionalCost": "12.345678"
+  }
+}
+```
+
+`companyTariff` é a tarifa comercial da empresa, alias de `manualTariff` (mesma
+coluna `manual_tariff`). Se ambos forem enviados, devem ter valores iguais.
+Pode coexistir com `tariffSource=invoice`: a referência documental é independente.
+`tariffSource` permanece obrigatório por compatibilidade; `manual` ainda exige
+tarifa empresa, mas não comanda mais o TariffSelector documental. Não significa
+que a estratégia futura obrigatoriamente usará a referência como base matemática.
+Tarifas e adicional recorrente usam Numeric(18,6); strings fora da capacidade ou
+com precisão excedente são rejeitadas, sem arredondamento. Float JSON não é aceito.
+
+| calculationMethod | Requisito confirmado (sem cálculo) |
+|---|---|
+| energia_compensada | Contrato legado preservado; base documental depende de F6. |
+| economia_gerada | Legado preservado; fórmula pendente. |
+| valor_total_fatura | Base futura é o total da concessionária, sem compensação; desconto explícito conforme discountType. |
+| tarifa_fixa | Identificador legado preservado, sem conversão automática para outro método. |
+| tarifa_fixa_com_desconto | companyTariff obrigatório; discountType=percentage e discountValue obrigatório. |
+| tarifa_especifica | companyTariff obrigatório; não exige desconto adicional por inferência. |
+| energia_recebida | Configurável sem tarifa obrigatória quando tariffSource=invoice; fórmula/dados exigidos pendentes. |
+
+`icmsPolicy` aceita `exclude` (**SEM ICMS**, decisão confirmada) ou `null` (não
+configurado). Excluir ICMS não autoriza reconstruir tarifa nem selecionar coluna
+documental por inferência. Flags novas aceitam boolean/null; null não equivale
+a false. Desde C4.2, carência é política reutilizável: `durationMonths` aceita
+inteiro positivo (até 2147483647) ou null, somente com `enabled=true`.
+Null significa duração não configurada, sem herdar `ConsumerUnit.carencia_meses`.
+`start`/`end` são campos **legados**, preservados na resposta para revisão; novos
+valores não nulos retornam 400 `INVALID_BILLING_RULE`. Podem ser limpos juntos,
+explicitamente, com null. Omissão preserva datas antigas e não as aplica a targets.
+Regra com datas legadas bloqueia resolução interna com
+`grace_policy_migration_required`, sem fallback inferior. PATCH descritivo continua
+permitido; remover datas/alterar duração incrementa revision. Não há conversão
+automática de intervalo antigo em duração nem em data da UC.
+`inicioContrato` da UC é data contratual, não foi aprovado como início da carência
+da instalação; não existe novo campo de UC nem origem temporal automática.
+`tariffHp=null` permanece null, sem copiar HFP. O adicional é separado de juros,
+multa, tarifa e desconto. Todos os novos campos persistidos começam null.
+
+Mudanças efetivas em método, tarifa empresa, HP/HFP, modificadores, carência e
+adicional incrementam revision uma vez por atualização; PATCH idêntico e mudanças
+descritivas não incrementam. RBAC/tenant continuam os de C1. ResolvedBillingRule e
+BillingRuleSnapshot transportam `tariff_configuration` e `billing_modifiers`,
+com Decimal textual e datas ISO no snapshot, sem persistência em Fatura.
+Na política de carência do snapshot C4.2 há `enabled`, `without_discount` e
+`duration_months`, sem datas globais. Datas do target pertencem somente à memória
+da execução futura, com origem auditável. Nenhum endpoint de cálculo foi criado.
+Contrato interno C4.2: para Copel 1.3.0/danf3e/DANF3EA4B-V1.06, referência é a
+soma das tarifas unitárias documentais de ENERGIA ELET CONSUMO e ENERGIA ELET USO
+SISTEMA. CalculationMemory transporta concessionaria_reference_components com
+valores textuais e rastreabilidade. Nenhuma coluna comercial/API recebe essa soma
+automaticamente; companyTariff/manualTariff continuam tarifa da empresa.
+
+**Contrato interno C5.1 (sem endpoint novo):** engine concreto em
+`services/billing_calculation_engine.py`, com a assinatura C0
+`calculate(*, invoice: InvoiceNormalized, rule: ResolvedBillingRule,
+context: BillingCalculationContext) -> BillingCalculationResult`.
+O contexto mantém IDs/competência/timestamp opcional, sem buscar sessão ou banco.
+Invoice fornece BillingEnergyInput VALID e coerente com o contexto; regra vem do
+RuleResolver. Somente energia_compensada executa: energia canônica × companyTariff,
+menos desconto percentage (0..100 inclusivos) sobre o bruto, ou none com valor null.
+TariffSource/TariffBasis não substituem energia canônica ou tarifa empresa.
+
+Resultado reutiliza energy_base_kwh/energia_compensada_kwh, tariff_value,
+gross_base, discount_amount e hub_amount. Só hub_amount recebe ROUND_HALF_UP em
+centavos; bruto/desconto permanecem exatos. CalculationMemory ganha campos opcionais
+discount_percentage, effective_company_tariff, net_amount_before_rounding e
+monetary_rounding, mantendo energy_source/reference e company_tariff_used.
+Decimal é serializado como string. BillingRuleSnapshot preserva parâmetros,
+method e revision; calculation_version=1.0. Sem persistência em Fatura.
+
+BillingCalculationError.code distingue invalid_context, required_energy_data_missing,
+invalid_energy_input, invalid_company_tariff, invalid_discount,
+unsupported_discount_type, unsupported_billing_configuration e
+unsupported_calculation_method. Nenhum erro produz resultado financeiro.
+Fixed, modificadores ativos, adicional configurado e HP/HFP configurados bloqueiam;
+não há aplicação parcial. Juros/multa/vencimento/BillingMode ficam apenas no snapshot.
+
+**Extensão interna C5.2:** mesmo motor/assinatura, agora também aceita
+tarifa_fixa e tarifa_especifica. O parâmetro manual existente
+TariffConfiguration.company_tariff (coluna manual_tariff; API
+companyTariff/manualTariff) representa a tarifa configurada do método escolhido.
+Não há novos aliases, campos de tarifa, fallback documental ou migration.
+Fixa aplica none/percentage 0..100 sobre E×T; específica calcula E×T sem desconto.
+E é exclusivamente a energia canônica VALID. Zero configurado é permitido;
+ausência/negativo bloqueiam. Na específica, ausência já bloqueia no DTO C0.
+
+CalculationMemory ganha `desconto_aplicado: bool | null` (nome novo em português):
+false e discount_percentage=null na específica; true quando fixa usa percentage,
+false para none. Na energia_compensada permanece null por compatibilidade.
+Snapshot preserva o desconto originalmente configurado, mesmo não utilizado.
+Demais campos e ROUND_HALF_UP somente no líquido final permanecem C5.1.
+Nenhum endpoint/persistência; modificadores continuam bloqueados.
+tarifa_fixa_com_desconto, valor_total_fatura, economia_gerada e energia_recebida
+continuam unsupported_calculation_method, sem conversão automática entre enums.
+
+**Contrato interno C5.3A (sem endpoint novo):**
+`DocumentTariffResolver.resolve(invoice: InvoiceNormalized) -> ResolvedDocumentTariffs`
+faz somente resolução documental. O resultado não é persistido nem incorporado ao
+snapshot F7 nesta sprint.
+
+```text
+ResolvedDocumentTariffs
+  full_tariff: ResolvedDocumentTariff | null
+  compensation_tariff: ResolvedDocumentTariff | null
+  status: VALID | AMBIGUOUS | MISSING | UNSUPPORTED
+  issues: TariffResolutionIssue[]
+
+ResolvedDocumentTariff
+  kind: full | compensation | unknown
+  value: Decimal | null
+  with_taxes: bool | null
+  includes_flag: bool | null
+  source_item_indexes: int[]
+  confidence: Decimal | null
+  status: VALID | AMBIGUOUS | MISSING | UNSUPPORTED
+  issues: TariffResolutionIssue[]
+  evidence: DocumentTariffEvidence[]
+```
+
+Cada evidência preserva valor/status, label, caminho/campo, source, confidence e
+warnings do `ExtractedField`. Decimal serializa como string por `json_safe`; valor
+só existe em status VALID. A confiança agregada é o mínimo quando todas as fontes
+a informam; qualquer fonte sem confiança mantém o agregado null. Issues reutilizam
+`ExtractionIssue` e incluem códigos canônicos de ausência, múltiplos candidatos,
+divergência, bandeira e tributação ambíguas.
+
+Tarifa cheia Copel reutiliza a soma C4.2 de tarifas unitárias de consumo + uso do
+sistema. Tarifa de compensação exige um único par TE/TUSD classificado e completo;
+ausência não usa a cheia como fallback. `preco_unitario_com_tributos` apenas prova
+a variante tributada separada; não deduz ICMS/PIS/COFINS. Bandeira separada pode
+provar `includes_flag=false`; sem prova fica null. Não há acesso a regra/tarifa
+comercial, cálculo, banco, Flask, Fatura, ASAAS ou migration. C5.3B permanece fora.
+
+### `PUT|PATCH /billing-rules/<id>`
+
+Requer `billing_rules.write` e aceita atualização parcial do mesmo contrato.
+Alteração financeira incrementa `revision`; desativação usa `{ "ativo": false }`.
+Não há DELETE. Duas regras ativas/padrão na mesma empresa retornam 409 com
+`DEFAULT_BILLING_RULE_CONFLICT`; estrutura inválida retorna 400 com
+`INVALID_BILLING_RULE`.
+
+---
+
+## Assignments de regra de cobrança (`/billing-rule-assignments`)
+
+`RegraCobrancaAssignment` associa explicitamente um `GrupoRegraCobranca` a um
+target do tenant. `GrupoRegraCobranca.padrao` não cria nem substitui assignment
+de escopo `company`.
+
+### `GET /billing-rule-assignments` · `GET /billing-rule-assignments/<id>`
+
+Requer `billing_rules.read` (`owner`, `admin`, `financial`, `operator`, `viewer`).
+Lista e consulta somente a empresa autenticada; ID de outro tenant responde 404.
+O GET de coleção aceita filtros `scopeType`, `clientId`, `consumerUnitId`,
+`grupoRegraCobrancaId` e `ativo=true|false`.
+
+### `POST /billing-rule-assignments`
+
+Requer `billing_rules.write` (`owner`, `admin`, `financial`). O tenant vem da
+autenticação e `empresaId` é recusado. Bodies suportados:
+
+```json
+{ "grupoRegraCobrancaId": 1, "scopeType": "company" }
+```
+
+```json
+{ "grupoRegraCobrancaId": 2, "scopeType": "client", "clientId": 10 }
+```
+
+```json
+{ "grupoRegraCobrancaId": 3, "scopeType": "consumer_unit", "consumerUnitId": 55 }
+```
+
+Grupo, Client e ConsumerUnit são procurados dentro do tenant. `company` não
+aceita target; `client` exige somente `clientId`; `consumer_unit` exige somente
+`consumerUnitId`. Grupo inativo não recebe novo assignment ativo. Sucesso 201;
+estrutura inválida retorna 400 `INVALID_BILLING_RULE_ASSIGNMENT` e conflito de
+assignment ativo para o mesmo target retorna 409 `BILLING_RULE_ASSIGNMENT_CONFLICT`.
+
+### `PUT|PATCH /billing-rule-assignments/<id>`
+
+Requer `billing_rules.write`. `{ "ativo": false }` desativa sem hard delete.
+Alterar grupo/target de um assignment ativo desativa a linha anterior e cria uma
+nova linha ativa atomicamente, preservando histórico. Histórico inativo não é
+reescrito; sua reativação só é aceita sem mudar grupo/target e respeita grupo
+ativo/unicidade. Não existe DELETE nem endpoint de resolução nesta sprint.
 
 ---
 
@@ -521,23 +836,78 @@ Todas as rotas autenticadas são isoladas pela empresa atual. `owner`, `admin` e
 
 ### `GET /faturas?clienteId=&ucId=&status=&competencia=` · `GET /faturas/<id>`
 
-Lista ou consulta o espelho local da cobrança ASAAS. IDs de outra empresa retornam 404.
+Lista ou consulta a intenção/espelho local da cobrança ASAAS. IDs de outra empresa retornam 404.
+Campos adicionais: `statusInterno` (`aguardando_emissao|emitida|erro_emissao|cancelada|null`),
+`paymentProvider` (`asaas|null`) e `externalReference` (`string|null`). `asaasId` agora
+aceita `null` antes da conclusão. Campos novos ficam nulos nos legados. `asaasStatus`
+mantém o contrato/default `pending`, mas só representa confirmação remota quando
+`asaasId` está presente. Nenhum segredo, hash do comando ou cabeçalho ASAAS é retornado.
 
 ### `POST /faturas`
 
-Emite boleto ASAAS. Body: `{ "clienteId": 1, "ucId": 2, "valor": 284.90, "mesVencimento": "2026-10-05", "competencia": "2026-09" }`. Cliente e UC precisam pertencer à empresa e a UC precisa pertencer ao cliente. A Fatura só é gravada após retorno bem-sucedido do ASAAS.
+Emite boleto ASAAS. Body preservado: `{ "clienteId": 1, "ucId": 2, "valor": 284.90, "mesVencimento": "2026-10-05", "competencia": "2026-09" }`.
+Cliente/UC devem ser IDs inteiros positivos da empresa atual, e a UC deve pertencer
+ao cliente. Valor finito/positivo dentro de `Numeric(10,2)` e competência `YYYY-MM`
+válida são exigidos. Tenant e permissão do ator são validados também pelo service.
+
+B1 confirma intenção local `aguardando_emissao`, referência UUID e chave do comando
+antes do ASAAS. A identidade é empresa + cliente + UC + competência + valor
+normalizado a centavos + vencimento; `10`, `10.0` e `10.00` identificam o mesmo valor.
+Retry idêntico (inclusive após cancelamento) recupera o mesmo registro, sem nova
+Fatura/pagamento. Outra versão explícita é escopo futuro. Não há header novo obrigatório.
+
+Sucesso mantém `201` e a Fatura, inclusive em retry resolvido. Resultado ambíguo
+retorna `409`, `code: "EMISSAO_PENDENTE"`, `details: { "faturaId": N }` e mensagem
+para repetir o mesmo comando. A intenção fica disponível no GET. Após tentativa
+de POST remoto, retries somente conciliam por referência, nunca reenviam pagamentos
+com base apenas em resposta vazia. Falhas de validação/provider permanecem `400`;
+falta de permissão retorna `403`. Não enviar comando alterado para contornar ambiguidade.
 
 ### `POST /faturas/<id>/sincronizar` · `POST /faturas/<id>/cancelar`
 
 Consulta ou cancela a cobrança no ASAAS e atualiza o espelho local; não há edição ou exclusão física.
+Sem `asaasId`, sincronizar tenta somente conciliação por referência e cancelar
+retorna `409 EMISSAO_PENDENTE`. A consulta pode retornar `503` se o provider estiver
+indisponível/divergente. Essas ações nunca criam pagamento remoto.
 
 ### `GET /faturas/resumo`
 
-Retorna contagens locais por `pending`, `received`, `overdue` e `canceled`.
+Retorna contagens locais por `pending`, `received`, `overdue` e `canceled`, apenas
+para registros com `asaasId`. Intenções ainda não emitidas não entram nessas contagens.
 
 ### `POST /webhooks/asaas`
 
-Pública. Exige o header `asaas-access-token` igual a `ASAAS_WEBHOOK_TOKEN`; processa o objeto `payment` idempotentemente pelo `asaas_id` e atualiza somente a fatura correspondente.
+Pública, sem Bearer. Body ASAAS: `{ "id": "evt_...", "event": "PAYMENT_RECEIVED", "payment": { "id": "pay_...", "externalReference": "hub-...", "status": "RECEIVED" } }`.
+`id` do envelope é a identidade do evento (não o ID do pagamento); aceita IDs ASAAS com `&`.
+Campos adicionais são tolerados, sem persistência do payload completo.
+
+Resolve uma única Fatura por `externalReference`, ou por `payment.id` como fallback
+não ambíguo. Referências contraditórias são rejeitadas; legados sem referência local
+podem usar o ID remoto único. A empresa vem da Fatura, nunca do body/header do cliente.
+Exige `asaas-access-token` comparado constant-time com `ApiCredential` da empresa,
+`provider=asaas`, `nome=webhook_token_sandbox` ou `webhook_token_producao`.
+O ambiente segue `ASAAS_API_BASE_URL`, compartilhado pela instalação como na B1.
+`ASAAS_WEBHOOK_TOKEN` global não autentica mais esta rota.
+
+- `200`: `{ "success": true, "message": "...", "data": { "received": true } }`,
+  tanto na primeira aplicação quanto em reentrega autenticada do mesmo evento.
+- `400`: estrutura/identificadores/campos consumidos inválidos.
+- `401`: token inválido/ausente, configuração indisponível, cobrança inexistente,
+  ambígua ou identificadores conflitantes; mesma mensagem genérica, sem tenant/IDs.
+- `409`: colisão do ID de evento com outro alvo/tipo ou conflito de processamento.
+- `422`: evento/status não suportado pelo espelho atual; nenhum efeito/ledger concluído.
+- `503`: falha de persistência; rollback permite reentrega.
+
+`payment_webhook_events` tem unicidade global `(provider,event_id)`. Registro,
+alteração da Fatura e `processed_at` compartilham um único commit. Duplicatas não
+alteram `updated_at`, não reaplicam status/URLs nem repetem efeitos. `status_interno`,
+reservas e `asaas_id` permanecem sob responsabilidade da emissão/reconciliação B1.
+Eventos e estados aceitos e configuração operacional: `FATURAS.md`, seção B2.
+
+Credenciais ASAAS: preferir `api_key_sandbox`/`api_key_producao`; nomes livres antigos
+continuam fallback para a API, excluindo nomes reservados de chave/token. O teste
+de `webhook_token*` no CRUD existente retorna `modo=dry-run`, sem chamada externa;
+não comprova configuração no ASAAS. Nenhum novo endpoint de credenciais.
 
 ---
 

@@ -97,6 +97,7 @@ A seção abaixo é escrita sozinha toda vez que você roda `python hub.py inici
 ```mermaid
 graph TD
   subgraph models["models"]
+    models_agenda_event["models.agenda_event"]
     models_api_credential["models.api_credential"]
     models_assinatura["models.assinatura"]
     models_category["models.category"]
@@ -107,18 +108,23 @@ graph TD
     models_email_template["models.email_template"]
     models_empresa["models.empresa"]
     models_fatura["models.fatura"]
+    models_fatura_concessionaria["models.fatura_concessionaria"]
     models_google_account["models.google_account"]
+    models_grupo_regra_cobranca["models.grupo_regra_cobranca"]
     models_import_preview["models.import_preview"]
     models_invitation["models.invitation"]
     models_limite_contratado["models.limite_contratado"]
     models_log_entry["models.log_entry"]
     models_message_template["models.message_template"]
     models_password_reset_token["models.password_reset_token"]
+    models_payment_webhook_event["models.payment_webhook_event"]
     models_pendencia["models.pendencia"]
     models_plant["models.plant"]
     models_rateio_historico["models.rateio_historico"]
+    models_regra_cobranca_assignment["models.regra_cobranca_assignment"]
     models_setting["models.setting"]
     models_user["models.user"]
+    models_whatsapp["models.whatsapp"]
   end
   subgraph raiz["raiz"]
     app["app"]
@@ -139,6 +145,7 @@ graph TD
     routes_email_template_routes["routes.email_template_routes"]
     routes_empresa_routes["routes.empresa_routes"]
     routes_fatura_routes["routes.fatura_routes"]
+    routes_grupo_regra_cobranca_routes["routes.grupo_regra_cobranca_routes"]
     routes_health_routes["routes.health_routes"]
     routes_import_routes["routes.import_routes"]
     routes_invitation_routes["routes.invitation_routes"]
@@ -149,17 +156,23 @@ graph TD
     routes_plant_routes["routes.plant_routes"]
     routes_platform_routes["routes.platform_routes"]
     routes_rateio_routes["routes.rateio_routes"]
+    routes_regra_cobranca_assignment_routes["routes.regra_cobranca_assignment_routes"]
     routes_settings_routes["routes.settings_routes"]
     routes_uc_routes["routes.uc_routes"]
     routes_user_routes["routes.user_routes"]
+    routes_whatsapp_routes["routes.whatsapp_routes"]
   end
   subgraph services["services"]
     services["services"]
     services_agenda_service["services.agenda_service"]
     services_api_credential_service["services.api_credential_service"]
     services_asaas_client["services.asaas_client"]
+    services_asaas_webhook_service["services.asaas_webhook_service"]
     services_auth_service["services.auth_service"]
     services_automacao_service["services.automacao_service"]
+    services_billing_calculation_contracts["services.billing_calculation_contracts"]
+    services_billing_calculation_engine["services.billing_calculation_engine"]
+    services_billing_rule_resolver["services.billing_rule_resolver"]
     services_client_service["services.client_service"]
     services_dashboard_service["services.dashboard_service"]
     services_database_config_service["services.database_config_service"]
@@ -169,9 +182,18 @@ graph TD
     services_email_template_defaults["services.email_template_defaults"]
     services_email_template_service["services.email_template_service"]
     services_empresa_service["services.empresa_service"]
+    services_fatura_concessionaria_upload_service["services.fatura_concessionaria_upload_service"]
+    services_fatura_processing_service["services.fatura_processing_service"]
     services_fatura_service["services.fatura_service"]
+    services_grupo_regra_cobranca_service["services.grupo_regra_cobranca_service"]
     services_import_service["services.import_service"]
     services_invitation_service["services.invitation_service"]
+    services_invoice_compensation["services.invoice_compensation"]
+    services_invoice_normalization_service["services.invoice_normalization_service"]
+    services_invoice_parsers_extraction["services.invoice_parsers.extraction"]
+    services_invoice_parsers_registry["services.invoice_parsers.registry"]
+    services_invoice_parsers_schemas["services.invoice_parsers.schemas"]
+    services_invoice_validation_service["services.invoice_validation_service"]
     services_log_service["services.log_service"]
     services_message_template_service["services.message_template_service"]
     services_oauth_service["services.oauth_service"]
@@ -180,12 +202,16 @@ graph TD
     services_permission_service["services.permission_service"]
     services_plant_service["services.plant_service"]
     services_quota_service["services.quota_service"]
+    services_rateio_excel_service["services.rateio_excel_service"]
     services_rateio_formulario_service["services.rateio_formulario_service"]
     services_rateio_pdf_service["services.rateio_pdf_service"]
     services_rateio_service["services.rateio_service"]
+    services_regra_cobranca_assignment_service["services.regra_cobranca_assignment_service"]
     services_settings_service["services.settings_service"]
+    services_tariff_selector["services.tariff_selector"]
     services_uc_service["services.uc_service"]
     services_user_service["services.user_service"]
+    services_whatsapp_service["services.whatsapp_service"]
   end
   subgraph utils["utils"]
     utils_api_response["utils.api_response"]
@@ -195,6 +221,7 @@ graph TD
   end
   app --> config
   app --> extensions
+  app --> models_agenda_event
   app --> models_api_credential
   app --> models_assinatura
   app --> models_category
@@ -204,18 +231,23 @@ graph TD
   app --> models_email_template
   app --> models_empresa
   app --> models_fatura
+  app --> models_fatura_concessionaria
   app --> models_google_account
+  app --> models_grupo_regra_cobranca
   app --> models_import_preview
   app --> models_invitation
   app --> models_limite_contratado
   app --> models_log_entry
   app --> models_message_template
   app --> models_password_reset_token
+  app --> models_payment_webhook_event
   app --> models_pendencia
   app --> models_plant
   app --> models_rateio_historico
+  app --> models_regra_cobranca_assignment
   app --> models_setting
   app --> models_user
+  app --> models_whatsapp
   app --> routes_agenda_routes
   app --> routes_api_credential_routes
   app --> routes_auth_routes
@@ -228,6 +260,7 @@ graph TD
   app --> routes_email_template_routes
   app --> routes_empresa_routes
   app --> routes_fatura_routes
+  app --> routes_grupo_regra_cobranca_routes
   app --> routes_health_routes
   app --> routes_import_routes
   app --> routes_invitation_routes
@@ -238,11 +271,14 @@ graph TD
   app --> routes_plant_routes
   app --> routes_platform_routes
   app --> routes_rateio_routes
+  app --> routes_regra_cobranca_assignment_routes
   app --> routes_settings_routes
   app --> routes_uc_routes
   app --> routes_user_routes
+  app --> routes_whatsapp_routes
   app --> services_import_service
   app --> utils_auth
+  models_agenda_event --> extensions
   models_api_credential --> extensions
   models_api_credential --> utils_crypto
   models_assinatura --> extensions
@@ -253,24 +289,33 @@ graph TD
   models_email_template --> extensions
   models_empresa --> extensions
   models_fatura --> extensions
+  models_fatura_concessionaria --> extensions
   models_google_account --> extensions
   models_google_account --> utils_crypto
+  models_grupo_regra_cobranca --> extensions
+  models_grupo_regra_cobranca --> services_billing_calculation_contracts
   models_import_preview --> extensions
   models_invitation --> extensions
   models_limite_contratado --> extensions
   models_log_entry --> extensions
   models_message_template --> extensions
   models_password_reset_token --> extensions
+  models_payment_webhook_event --> extensions
   models_pendencia --> extensions
   models_plant --> extensions
   models_rateio_historico --> extensions
+  models_regra_cobranca_assignment --> extensions
+  models_regra_cobranca_assignment --> services_billing_calculation_contracts
   models_setting --> extensions
   models_user --> extensions
+  models_whatsapp --> extensions
+  routes_agenda_routes --> extensions
   routes_agenda_routes --> services_agenda_service
   routes_agenda_routes --> services_permission_service
   routes_agenda_routes --> utils_api_response
   routes_api_credential_routes --> extensions
   routes_api_credential_routes --> services_api_credential_service
+  routes_api_credential_routes --> services_asaas_client
   routes_api_credential_routes --> services_permission_service
   routes_api_credential_routes --> utils_api_response
   routes_auth_routes --> extensions
@@ -285,6 +330,7 @@ graph TD
   routes_category_routes --> services_permission_service
   routes_category_routes --> utils_api_response
   routes_client_routes --> services_client_service
+  routes_client_routes --> services_fatura_concessionaria_upload_service
   routes_client_routes --> services_permission_service
   routes_client_routes --> utils_api_response
   routes_config_routes --> services_database_config_service
@@ -312,11 +358,16 @@ graph TD
   routes_empresa_routes --> services_empresa_service
   routes_empresa_routes --> services_permission_service
   routes_empresa_routes --> utils_api_response
-  routes_fatura_routes --> config
   routes_fatura_routes --> services_asaas_client
+  routes_fatura_routes --> services_asaas_webhook_service
   routes_fatura_routes --> services_fatura_service
   routes_fatura_routes --> services_permission_service
   routes_fatura_routes --> utils_api_response
+  routes_grupo_regra_cobranca_routes --> services
+  routes_grupo_regra_cobranca_routes --> services_grupo_regra_cobranca_service
+  routes_grupo_regra_cobranca_routes --> services_permission_service
+  routes_grupo_regra_cobranca_routes --> utils_api_response
+  routes_health_routes --> extensions
   routes_import_routes --> extensions
   routes_import_routes --> services_import_service
   routes_import_routes --> services_permission_service
@@ -350,10 +401,15 @@ graph TD
   routes_platform_routes --> utils_api_response
   routes_platform_routes --> utils_auth
   routes_rateio_routes --> services_permission_service
+  routes_rateio_routes --> services_rateio_excel_service
   routes_rateio_routes --> services_rateio_formulario_service
   routes_rateio_routes --> services_rateio_pdf_service
   routes_rateio_routes --> services_rateio_service
   routes_rateio_routes --> utils_api_response
+  routes_regra_cobranca_assignment_routes --> services
+  routes_regra_cobranca_assignment_routes --> services_permission_service
+  routes_regra_cobranca_assignment_routes --> services_regra_cobranca_assignment_service
+  routes_regra_cobranca_assignment_routes --> utils_api_response
   routes_settings_routes --> services_drive_service
   routes_settings_routes --> services_permission_service
   routes_settings_routes --> services_settings_service
@@ -364,17 +420,31 @@ graph TD
   routes_user_routes --> services_permission_service
   routes_user_routes --> services_user_service
   routes_user_routes --> utils_api_response
+  routes_whatsapp_routes --> extensions
+  routes_whatsapp_routes --> services
+  routes_whatsapp_routes --> services_permission_service
+  routes_whatsapp_routes --> utils_api_response
   security_middleware --> extensions
   security_middleware --> services_log_service
   security_middleware --> utils_api_response
+  services_agenda_service --> extensions
+  services_agenda_service --> models_agenda_event
   services_agenda_service --> models_pendencia
+  services_agenda_service --> services_log_service
   services_api_credential_service --> extensions
   services_api_credential_service --> models_api_credential
   services_api_credential_service --> models_log_entry
+  services_api_credential_service --> services_asaas_client
   services_api_credential_service --> services_log_service
   services_api_credential_service --> utils_crypto
   services_asaas_client --> config
   services_asaas_client --> models_api_credential
+  services_asaas_webhook_service --> extensions
+  services_asaas_webhook_service --> models_api_credential
+  services_asaas_webhook_service --> models_fatura
+  services_asaas_webhook_service --> models_payment_webhook_event
+  services_asaas_webhook_service --> services_asaas_client
+  services_asaas_webhook_service --> utils_crypto
   services_auth_service --> extensions
   services_auth_service --> models_empresa
   services_auth_service --> models_user
@@ -387,6 +457,16 @@ graph TD
   services_automacao_service --> models_pendencia
   services_automacao_service --> services_log_service
   services_automacao_service --> services_pendencia_service
+  services_billing_calculation_contracts --> services_invoice_normalization_service
+  services_billing_calculation_engine --> services_billing_calculation_contracts
+  services_billing_calculation_engine --> services_invoice_compensation
+  services_billing_calculation_engine --> services_invoice_normalization_service
+  services_billing_rule_resolver --> extensions
+  services_billing_rule_resolver --> models_client
+  services_billing_rule_resolver --> models_consumer_unit
+  services_billing_rule_resolver --> services_billing_calculation_contracts
+  services_billing_rule_resolver --> services_grupo_regra_cobranca_service
+  services_billing_rule_resolver --> services_regra_cobranca_assignment_service
   services_client_service --> extensions
   services_client_service --> models_client
   services_client_service --> models_consumer_unit
@@ -427,12 +507,32 @@ graph TD
   services_empresa_service --> services_log_service
   services_empresa_service --> services_message_template_service
   services_empresa_service --> utils_auth
+  services_fatura_concessionaria_upload_service --> extensions
+  services_fatura_concessionaria_upload_service --> models_client
+  services_fatura_concessionaria_upload_service --> models_fatura_concessionaria
+  services_fatura_concessionaria_upload_service --> services_document_service
+  services_fatura_processing_service --> extensions
+  services_fatura_processing_service --> models_client
+  services_fatura_processing_service --> models_consumer_unit
+  services_fatura_processing_service --> models_document
+  services_fatura_processing_service --> models_empresa
+  services_fatura_processing_service --> models_fatura_concessionaria
+  services_fatura_processing_service --> services_invoice_normalization_service
+  services_fatura_processing_service --> services_invoice_parsers_extraction
+  services_fatura_processing_service --> services_invoice_parsers_registry
+  services_fatura_processing_service --> services_invoice_parsers_schemas
+  services_fatura_processing_service --> services_invoice_validation_service
   services_fatura_service --> extensions
   services_fatura_service --> models_client
   services_fatura_service --> models_consumer_unit
   services_fatura_service --> models_fatura
+  services_fatura_service --> models_user
   services_fatura_service --> services_asaas_client
   services_fatura_service --> services_log_service
+  services_fatura_service --> services_permission_service
+  services_grupo_regra_cobranca_service --> extensions
+  services_grupo_regra_cobranca_service --> models_grupo_regra_cobranca
+  services_grupo_regra_cobranca_service --> services_billing_calculation_contracts
   services_import_service --> extensions
   services_import_service --> models_client
   services_import_service --> models_consumer_unit
@@ -449,6 +549,10 @@ graph TD
   services_invitation_service --> services_log_service
   services_invitation_service --> services_user_service
   services_invitation_service --> utils_auth
+  services_invoice_compensation --> services_invoice_parsers_schemas
+  services_invoice_normalization_service --> services_invoice_compensation
+  services_invoice_normalization_service --> services_invoice_parsers_schemas
+  services_invoice_validation_service --> services_invoice_parsers_schemas
   services_log_service --> extensions
   services_log_service --> models_log_entry
   services_message_template_service --> extensions
@@ -488,12 +592,15 @@ graph TD
   services_quota_service --> models_limite_contratado
   services_quota_service --> models_plant
   services_quota_service --> models_user
+  services_rateio_excel_service --> models_empresa
+  services_rateio_excel_service --> services_rateio_formulario_service
   services_rateio_formulario_service --> extensions
   services_rateio_formulario_service --> models_consumer_unit
   services_rateio_formulario_service --> models_document
   services_rateio_formulario_service --> models_empresa
   services_rateio_formulario_service --> models_pendencia
   services_rateio_formulario_service --> models_plant
+  services_rateio_formulario_service --> models_setting
   services_rateio_formulario_service --> services_pendencia_service
   services_rateio_pdf_service --> services_drive_service
   services_rateio_pdf_service --> services_rateio_formulario_service
@@ -503,9 +610,18 @@ graph TD
   services_rateio_service --> models_rateio_historico
   services_rateio_service --> services_log_service
   services_rateio_service --> services_settings_service
+  services_regra_cobranca_assignment_service --> extensions
+  services_regra_cobranca_assignment_service --> models_client
+  services_regra_cobranca_assignment_service --> models_consumer_unit
+  services_regra_cobranca_assignment_service --> models_grupo_regra_cobranca
+  services_regra_cobranca_assignment_service --> models_regra_cobranca_assignment
+  services_regra_cobranca_assignment_service --> services_billing_calculation_contracts
   services_settings_service --> extensions
   services_settings_service --> models_setting
+  services_tariff_selector --> services_billing_calculation_contracts
+  services_tariff_selector --> services_invoice_normalization_service
   services_uc_service --> extensions
+  services_uc_service --> models_api_credential
   services_uc_service --> models_client
   services_uc_service --> models_consumer_unit
   services_uc_service --> models_plant
@@ -515,6 +631,13 @@ graph TD
   services_user_service --> models_user
   services_user_service --> services_log_service
   services_user_service --> utils_auth
+  services_whatsapp_service --> config
+  services_whatsapp_service --> extensions
+  services_whatsapp_service --> models_api_credential
+  services_whatsapp_service --> models_client
+  services_whatsapp_service --> models_consumer_unit
+  services_whatsapp_service --> models_message_template
+  services_whatsapp_service --> models_whatsapp
   utils_auth --> config
   utils_auth --> extensions
   utils_auth --> models_empresa
@@ -532,14 +655,18 @@ graph TD
     components_ClientCard["components/ClientCard"]
     components_ClientDetailView["components/ClientDetailView"]
     components_ClientDocumentsPanel["components/ClientDocumentsPanel"]
+    components_ConcessionariaPasswordField["components/ConcessionariaPasswordField"]
     components_DashboardCards["components/DashboardCards"]
     components_DataTable["components/DataTable"]
+    components_DetailDrawer["components/DetailDrawer"]
     components_DetailHeader["components/DetailHeader"]
     components_DocumentLinkModal["components/DocumentLinkModal"]
     components_ErrorBoundary["components/ErrorBoundary"]
     components_Header["components/Header"]
     components_Icon["components/Icon"]
     components_IconStatCard["components/IconStatCard"]
+    components_ImportacoesModal["components/ImportacoesModal"]
+    components_IntegrationCard["components/IntegrationCard"]
     components_Loading["components/Loading"]
     components_PlantCard["components/PlantCard"]
     components_PlantConnectionsField["components/PlantConnectionsField"]
@@ -570,6 +697,7 @@ graph TD
     pages_ForgotPasswordPage["pages/ForgotPasswordPage"]
     pages_ImportacoesPage["pages/ImportacoesPage"]
     pages_LoginPage["pages/LoginPage"]
+    pages_MessagesPage["pages/MessagesPage"]
     pages_PendenciasPage["pages/PendenciasPage"]
     pages_PlaceholderPage["pages/PlaceholderPage"]
     pages_PlantsPage["pages/PlantsPage"]
@@ -579,6 +707,8 @@ graph TD
     pages_TemplatesPage["pages/TemplatesPage"]
     pages_UcsPage["pages/UcsPage"]
     pages_UsersPage["pages/UsersPage"]
+    pages_rateio_RateioFormularioView["pages/rateio/RateioFormularioView"]
+    pages_rateio_RateioWizard["pages/rateio/RateioWizard"]
   end
   subgraph services["services"]
     services_agendaService["services/agendaService"]
@@ -613,24 +743,32 @@ graph TD
     services_settingsService["services/settingsService"]
     services_ucsService["services/ucsService"]
     services_userService["services/userService"]
+    services_whatsappService["services/whatsappService"]
   end
   components_CategoryPicker --> services_documentsService
   components_ClientCard --> components_ClientDocumentsPanel
+  components_ClientCard --> components_ConcessionariaPasswordField
   components_ClientCard --> components_PlantConnectionsField
   components_ClientCard --> components_formFields
   components_ClientCard --> services_clientsService
   components_ClientCard --> services_plantService
-  components_ClientDetailView --> components_ClientDocumentsPanel
   components_ClientDetailView --> services_clientsService
   components_ClientDocumentsPanel --> components_Icon
   components_ClientDocumentsPanel --> hooks_useToast
   components_ClientDocumentsPanel --> services_documentsService
+  components_ConcessionariaPasswordField --> components_formFields
+  components_ConcessionariaPasswordField --> hooks_useToast
+  components_ConcessionariaPasswordField --> services_authService
+  components_ConcessionariaPasswordField --> services_ucsService
   components_DashboardCards --> components_Icon
   components_DocumentLinkModal --> components_CategoryPicker
   components_DocumentLinkModal --> services_clientsService
   components_DocumentLinkModal --> services_documentsService
   components_ErrorBoundary --> components_Toast
   components_IconStatCard --> components_Icon
+  components_ImportacoesModal --> components_Icon
+  components_ImportacoesModal --> pages_ImportacoesPage
+  components_IntegrationCard --> components_Icon
   components_PlantCard --> components_formFields
   components_PlantCard --> services_plantService
   components_PlantConnectionsField --> services_clientsService
@@ -643,6 +781,7 @@ graph TD
   components_Sidebar --> components_Icon
   components_Sidebar --> services_authService
   components_Sidebar --> services_settingsService
+  components_UcCard --> components_ConcessionariaPasswordField
   components_UcCard --> components_PlantConnectionsField
   components_UcCard --> components_formFields
   components_UcCard --> services_clientsService
@@ -656,6 +795,7 @@ graph TD
   layouts_BaseLayout --> components_Toast
   pages_AgendaPage --> components_Icon
   pages_AgendaPage --> hooks_useGlobalLoading
+  pages_AgendaPage --> hooks_useToast
   pages_AgendaPage --> layouts_BaseLayout
   pages_AgendaPage --> services_agendaService
   pages_AgendaPage --> services_pendenciasService
@@ -663,8 +803,11 @@ graph TD
   pages_ChangePasswordPage --> services_authService
   pages_ClientsPage --> components_ClientCard
   pages_ClientsPage --> components_ClientDetailView
+  pages_ClientsPage --> components_ClientDocumentsPanel
   pages_ClientsPage --> components_DashboardCards
   pages_ClientsPage --> components_DataTable
+  pages_ClientsPage --> components_DetailDrawer
+  pages_ClientsPage --> components_ImportacoesModal
   pages_ClientsPage --> hooks_useGlobalLoading
   pages_ClientsPage --> hooks_useToast
   pages_ClientsPage --> layouts_BaseLayout
@@ -677,6 +820,7 @@ graph TD
   pages_DashboardPage --> services_dashboardService
   pages_DashboardPage --> services_pendenciasService
   pages_DocumentsPage --> components_DocumentLinkModal
+  pages_DocumentsPage --> components_IconStatCard
   pages_DocumentsPage --> components_ReservedPanel
   pages_DocumentsPage --> components_ResultsList
   pages_DocumentsPage --> components_SearchPanel
@@ -685,9 +829,11 @@ graph TD
   pages_DocumentsPage --> layouts_BaseLayout
   pages_DocumentsPage --> services_clientsService
   pages_DocumentsPage --> services_documentRules
+  pages_DocumentsPage --> services_documentsService
   pages_DocumentsPage --> services_driveService
   pages_EmpresasPage --> components_DataTable
   pages_EmpresasPage --> components_Icon
+  pages_EmpresasPage --> components_IconStatCard
   pages_EmpresasPage --> components_formFields
   pages_EmpresasPage --> hooks_useGlobalLoading
   pages_EmpresasPage --> hooks_useToast
@@ -719,10 +865,16 @@ graph TD
   pages_LoginPage --> components_Sidebar
   pages_LoginPage --> services_authService
   pages_LoginPage --> services_config
+  pages_MessagesPage --> hooks_useGlobalLoading
+  pages_MessagesPage --> hooks_useToast
+  pages_MessagesPage --> layouts_BaseLayout
+  pages_MessagesPage --> services_authService
+  pages_MessagesPage --> services_clientsService
+  pages_MessagesPage --> services_whatsappService
   pages_PendenciasPage --> components_ClientDetailView
-  pages_PendenciasPage --> components_DashboardCards
   pages_PendenciasPage --> components_DataTable
   pages_PendenciasPage --> components_Icon
+  pages_PendenciasPage --> components_IconStatCard
   pages_PendenciasPage --> components_formFields
   pages_PendenciasPage --> hooks_useGlobalLoading
   pages_PendenciasPage --> hooks_useToast
@@ -738,6 +890,7 @@ graph TD
   pages_PlantsPage --> components_DataTable
   pages_PlantsPage --> components_Icon
   pages_PlantsPage --> components_IconStatCard
+  pages_PlantsPage --> components_ImportacoesModal
   pages_PlantsPage --> components_PlantCard
   pages_PlantsPage --> components_PlantDistribuicaoModal
   pages_PlantsPage --> hooks_useGlobalLoading
@@ -745,19 +898,20 @@ graph TD
   pages_PlantsPage --> layouts_BaseLayout
   pages_PlantsPage --> services_plantService
   pages_PlantsPage --> services_ucsService
-  pages_RateioPage --> components_Icon
   pages_RateioPage --> hooks_useGlobalLoading
   pages_RateioPage --> hooks_useToast
   pages_RateioPage --> layouts_BaseLayout
-  pages_RateioPage --> services_config
-  pages_RateioPage --> services_empresaService
+  pages_RateioPage --> pages_rateio_RateioFormularioView
+  pages_RateioPage --> pages_rateio_RateioWizard
   pages_RateioPage --> services_plantService
-  pages_RateioPage --> services_rateioFormularioService
-  pages_RateioPage --> services_rateioService
   pages_RateioPage --> services_ucsService
   pages_ResetPasswordPage --> components_Icon
   pages_ResetPasswordPage --> services_passwordResetService
   pages_SettingsPage --> components_DataTable
+  pages_SettingsPage --> components_DetailDrawer
+  pages_SettingsPage --> components_Icon
+  pages_SettingsPage --> components_IconStatCard
+  pages_SettingsPage --> components_IntegrationCard
   pages_SettingsPage --> components_Sidebar
   pages_SettingsPage --> components_formFields
   pages_SettingsPage --> hooks_useToast
@@ -769,16 +923,19 @@ graph TD
   pages_SettingsPage --> services_logsService
   pages_SettingsPage --> services_rateioConfigService
   pages_SettingsPage --> services_settingsService
+  pages_SettingsPage --> services_whatsappService
   pages_TemplatesPage --> components_DataTable
   pages_TemplatesPage --> hooks_useGlobalLoading
   pages_TemplatesPage --> hooks_useToast
   pages_TemplatesPage --> layouts_BaseLayout
   pages_TemplatesPage --> services_authService
   pages_TemplatesPage --> services_messageTemplatesService
+  pages_TemplatesPage --> services_whatsappService
   pages_UcsPage --> components_ClientDetailView
-  pages_UcsPage --> components_DashboardCards
   pages_UcsPage --> components_DataTable
   pages_UcsPage --> components_Icon
+  pages_UcsPage --> components_IconStatCard
+  pages_UcsPage --> components_ImportacoesModal
   pages_UcsPage --> components_UcCard
   pages_UcsPage --> hooks_useGlobalLoading
   pages_UcsPage --> hooks_useToast
@@ -788,6 +945,7 @@ graph TD
   pages_UcsPage --> services_ucsService
   pages_UsersPage --> components_DataTable
   pages_UsersPage --> components_Icon
+  pages_UsersPage --> components_IconStatCard
   pages_UsersPage --> components_formFields
   pages_UsersPage --> hooks_useGlobalLoading
   pages_UsersPage --> hooks_useToast
@@ -834,8 +992,8 @@ graph TD
   services_router --> pages_EmpresasPage
   services_router --> pages_FaturasPage
   services_router --> pages_ForgotPasswordPage
-  services_router --> pages_ImportacoesPage
   services_router --> pages_LoginPage
+  services_router --> pages_MessagesPage
   services_router --> pages_PendenciasPage
   services_router --> pages_PlantsPage
   services_router --> pages_RateioPage
@@ -851,6 +1009,7 @@ graph TD
   services_ucsService --> services_apiClient
   services_ucsService --> services_clientsService
   services_userService --> services_apiClient
+  services_whatsappService --> services_apiClient
 ```
 <!-- MAPA-AUTO:FIM -->
 

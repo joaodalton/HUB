@@ -37,7 +37,7 @@ def get_document(document_id: int) -> Document | None:
     return _document(document_id)
 
 
-def create_document(data: dict, file_storage) -> dict:
+def prepare_document(data: dict, file_storage) -> tuple[Document, bool]:
     """Upload de verdade -- vai pro Google Drive, nao mais pro disco local (ver
     UPLOAD_ROOT acima: so serve pra ler documento antigo, nunca mais escreve
     nele). Antes de enviar, procura no Drive um arquivo com o MESMO nome e o
@@ -92,7 +92,23 @@ def create_document(data: dict, file_storage) -> dict:
         mime_type=file_storage.mimetype
     )
     db.session.add(document)
-    db.session.commit()
+    return document, existing_file_id is None
+
+
+def discard_prepared_document(document: Document, uploaded_new: bool) -> None:
+    """Compensa somente o arquivo remoto criado pela transacao atual."""
+    if uploaded_new and document.storage_provider == 'google_drive' and document.storage_ref:
+        get_drive_service().delete_file(document.storage_ref)
+
+
+def create_document(data: dict, file_storage) -> dict:
+    document, uploaded_new = prepare_document(data, file_storage)
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        discard_prepared_document(document, uploaded_new)
+        raise
 
     LogService.info(acao='create', mensagem=f'Documento "{document.nome}" enviado', entidade='Document', metadados={'id': document.id})
     return document.to_dict()

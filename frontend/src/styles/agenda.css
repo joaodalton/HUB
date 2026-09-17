@@ -34,7 +34,7 @@
   padding: 7px 12px;
   border-radius: calc(var(--radius-input) - 3px);
   background: transparent;
-  color: var(--text-muted);
+  color: var(--text-dim);
   cursor: pointer;
 }
 

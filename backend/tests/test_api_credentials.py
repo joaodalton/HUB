@@ -4,7 +4,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from cryptography.fernet import Fernet
 
@@ -17,6 +17,7 @@ from app import create_app  # noqa: E402
 from config import Config  # noqa: E402
 from extensions import db  # noqa: E402
 from models.api_credential import ApiCredential  # noqa: E402
+from models.client import Client  # noqa: E402
 from models.empresa import Empresa  # noqa: E402
 from models.log_entry import LogEntry  # noqa: E402
 from models.user import User  # noqa: E402
@@ -66,8 +67,8 @@ class ApiCredentialTest(IsolatedTestRuntime, unittest.TestCase):
                 headers['Authorization'] = f'Bearer {generate_token(user_id)}'
         return self.app.test_client().open(path, method=method, headers=headers, **kwargs)
 
-    def _create(self, user_id, nome='Principal', segredo='segredo-super-secreto'):
-        return self._request('POST', '/api/v1/api-credentials', user_id, json={'provider': 'resend', 'nome': nome, 'segredo': segredo})
+    def _create(self, user_id, nome='Principal', segredo='segredo-super-secreto', provider='resend'):
+        return self._request('POST', '/api/v1/api-credentials', user_id, json={'provider': provider, 'nome': nome, 'segredo': segredo})
 
     def test_secret_is_encrypted_and_never_returned(self):
         response = self._create(self.owner_a_id)
@@ -132,6 +133,26 @@ class ApiCredentialTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertEqual(dry_run.status_code, 200)
         self.assertEqual(dry_run.get_json()['data']['modo'], 'dry-run')
 
+    def test_asaas_test_uses_encrypted_api_key_without_returning_it(self):
+        credential_id = self._create(self.owner_a_id, segredo='$aact_hmlg_example', provider='asaas').get_json()['data']['id']
+        response = Mock(ok=True)
+        response.json.return_value = {'id': 'acct_123'}
+        with patch('services.asaas_client.requests.request', return_value=response) as request:
+            tested = self._request('POST', f'/api/v1/api-credentials/{credential_id}/testar', self.owner_a_id)
+        self.assertEqual(tested.status_code, 200)
+        self.assertEqual(tested.get_json()['data']['modo'], 'asaas-api')
+        self.assertNotIn('$aact_hmlg_example', tested.get_data(as_text=True))
+        self.assertEqual(request.call_args.kwargs['headers']['access_token'], '$aact_hmlg_example')
+
+    def test_asaas_webhook_token_test_is_local_and_does_not_send_token(self):
+        credential_id = self._create(self.owner_a_id, nome='webhook_token_sandbox',
+            segredo='webhook-secret', provider='asaas').get_json()['data']['id']
+        with patch('services.asaas_client.requests.request', side_effect=AssertionError('token must not reach API')):
+            tested = self._request('POST', f'/api/v1/api-credentials/{credential_id}/testar', self.owner_a_id)
+        self.assertEqual(tested.status_code, 200)
+        self.assertEqual(tested.get_json()['data']['modo'], 'dry-run')
+        self.assertNotIn('webhook-secret', tested.get_data(as_text=True))
+
     def test_delete_creates_redacted_audit_in_same_database_transaction(self):
         credential_id = self._create(self.owner_a_id, nome='Apagar', segredo='nao-logar').get_json()['data']['id']
         response = self._request('DELETE', f'/api/v1/api-credentials/{credential_id}', self.owner_a_id)
@@ -142,6 +163,48 @@ class ApiCredentialTest(IsolatedTestRuntime, unittest.TestCase):
             self.assertIsNotNone(audit)
             self.assertEqual(audit.metadados, {'provider': 'resend'})
             self.assertNotIn('nao-logar', str(audit.to_dict()))
+
+    def test_uc_password_reuses_the_encrypted_credential_for_the_same_document(self):
+        with self.app.app_context():
+            client = Client(empresa_id=1, nome='Cliente UC', cpf='12345678901', email='uc@example.test')
+            db.session.add(client)
+            db.session.commit()
+            client_id = client.id
+        first = self._request('POST', '/api/v1/ucs', self.owner_a_id, json={
+            'clienteId': client_id, 'codigo': 'UC-1', 'documento': '123.456.789-00',
+            'senhaConcessionaria': 'segredo-inicial', 'conexoes': [],
+        })
+        self.assertEqual(first.status_code, 201)
+        first_uc_id = first.get_json()['data']['id']
+        second = self._request('POST', '/api/v1/ucs', self.owner_a_id, json={
+            'clienteId': client_id, 'codigo': 'UC-2', 'documento': '12345678900',
+            'senhaConcessionaria': 'segredo-atualizado', 'conexoes': [],
+        })
+        self.assertEqual(second.status_code, 201)
+        self.assertNotIn('segredo-atualizado', second.get_data(as_text=True))
+        with self.app.app_context():
+            credentials = ApiCredential.query.filter_by(
+                empresa_id=1, provider='concessionaria', nome='CPF 12345678900'
+            ).all()
+            self.assertEqual(len(credentials), 1)
+            self.assertEqual(credentials[0].get_segredo(), 'segredo-atualizado')
+
+        revealed = self._request('GET', f'/api/v1/ucs/{first_uc_id}/senha-concessionaria', self.owner_a_id)
+        self.assertEqual(revealed.status_code, 200)
+        self.assertEqual(revealed.get_json()['data']['senhaConcessionaria'], 'segredo-atualizado')
+        self.assertEqual(self._request('GET', f'/api/v1/ucs/{first_uc_id}/senha-concessionaria', self.viewer_a_id).status_code, 403)
+        self.assertEqual(self._request('GET', f'/api/v1/ucs/{first_uc_id}/senha-concessionaria', self.owner_b_id).status_code, 404)
+        with self.app.app_context():
+            audit = LogEntry.query.filter_by(acao='reveal_concessionaria_password', entidade_id=first_uc_id).first()
+            self.assertIsNotNone(audit)
+            self.assertNotIn('segredo-atualizado', str(audit.to_dict()))
+
+    def test_ready_reports_database_availability_without_exposing_errors(self):
+        self.assertEqual(self.app.test_client().get('/ready').status_code, 200)
+        with patch('routes.health_routes.db.session.execute', side_effect=RuntimeError('database detail')):
+            response = self.app.test_client().get('/ready')
+        self.assertEqual(response.status_code, 503)
+        self.assertNotIn('database detail', response.get_data(as_text=True))
 
 
 if __name__ == '__main__':

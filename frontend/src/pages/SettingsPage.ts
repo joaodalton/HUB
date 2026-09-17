@@ -35,6 +35,7 @@ import {
   createApiCredential,
   deleteApiCredential,
   getApiCredentials,
+  testApiCredential,
   updateApiCredential,
   type ApiCredentialPayload,
   type ApiCredentialProvider,
@@ -300,6 +301,15 @@ export function createSettingsPage(): HTMLElement {
     }
   }
 
+  async function handleTestApiCredential(credential: ApiCredentialRow): Promise<void> {
+    try {
+      const result = await testApiCredential(credential.id);
+      toast.success(result.modo === 'asaas-api' ? 'Chave de API Asaas validada.' : 'Credencial verificada localmente.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível validar a credencial.');
+    }
+  }
+
   async function handleDeleteApiCredential(id: number): Promise<void> {
     try {
       await deleteApiCredential(id);
@@ -370,6 +380,7 @@ export function createSettingsPage(): HTMLElement {
           loadApiCredentials,
           handleCreateApiCredential,
           handleUpdateApiCredential,
+          handleTestApiCredential,
           handleDeleteApiCredential,
           whatsappIntegration,
           whatsappIntegrationLoaded,
@@ -630,6 +641,19 @@ const API_PROVIDER_OPTIONS: Array<{ value: ApiCredentialProvider; label: string;
   { value: 'concessionaria', label: 'Concessionária', descricao: 'Credenciais de serviços das concessionárias.', icon: 'plants' }
 ];
 
+function credentialCopy(provider: ApiCredentialProvider, replacing = false): { label: string; hint: string; placeholder: string } {
+  if (provider === 'asaas') return {
+    label: replacing ? 'Novo segredo Asaas (opcional)' : 'Segredo Asaas',
+    hint: 'Use a API key ou o webhook token conforme o nome da credencial e o ambiente. São segredos distintos e ficam cifrados.',
+    placeholder: replacing ? 'Deixe em branco para manter o atual' : ''
+  };
+  return {
+    label: replacing ? 'Novo segredo (opcional)' : 'Segredo de acesso',
+    hint: 'O segredo é enviado apenas para ser protegido no servidor; ele não será listado, preenchido novamente nem gravado pelo navegador.',
+    placeholder: replacing ? 'Deixe em branco para manter o atual' : ''
+  };
+}
+
 function createApiCredentialsPanel(
   credentials: ApiCredentialRow[],
   loaded: boolean,
@@ -638,6 +662,7 @@ function createApiCredentialsPanel(
   onRetry: () => Promise<void>,
   onCreate: (data: Required<ApiCredentialPayload>) => Promise<void>,
   onUpdate: (id: number, data: Pick<ApiCredentialPayload, 'nome' | 'segredo'>) => Promise<void>,
+  onTest: (credential: ApiCredentialRow) => Promise<void>,
   onDelete: (id: number) => Promise<void>,
   whatsapp: WhatsappIntegration | null,
   whatsappLoaded: boolean,
@@ -683,7 +708,7 @@ function createApiCredentialsPanel(
           return;
         }
         const cards = providerCredentials.map((credential) => {
-          const card = createApiCredentialCard(credential, onUpdate, onDelete) as HTMLDetailsElement;
+          const card = createApiCredentialCard(credential, onUpdate, onTest, onDelete) as HTMLDetailsElement;
           card.open = true;
           return card;
         });
@@ -748,6 +773,7 @@ function createToggle(label: string, checked: boolean): { field: HTMLElement; ch
 function createApiCredentialCard(
   credential: ApiCredentialRow,
   onUpdate: (id: number, data: Pick<ApiCredentialPayload, 'nome' | 'segredo'>) => Promise<void>,
+  onTest: (credential: ApiCredentialRow) => Promise<void>,
   onDelete: (id: number) => Promise<void>
 ): HTMLElement {
   const card = createElement('details', { className: 'api-credential-card' });
@@ -765,12 +791,14 @@ function createApiCredentialCard(
     createElement('strong', { textContent: provider })
   );
   const nameField = createInput('Nome da integração', 'text', credential.nome, true);
-  const secretField = createInput('Novo segredo (opcional)', 'password', '', false);
+  const copy = credentialCopy(credential.provider, true);
+  const secretField = createInput(copy.label, 'password', '', false);
   secretField.input.autocomplete = 'new-password';
-  secretField.input.placeholder = 'Deixe em branco para manter o atual';
-  const hint = createElement('p', { className: 'settings-hint', textContent: 'Por segurança, o segredo configurado não pode ser consultado ou exibido. Informe outro valor somente para substituí-lo.' });
+  secretField.input.placeholder = copy.placeholder;
+  const hint = createElement('p', { className: 'settings-hint', textContent: `${copy.hint} Por segurança, o valor atual não pode ser consultado ou exibido.` });
   const actions = createElement('div', { className: 'form-actions' });
   const save = createElement('button', { type: 'submit', textContent: 'Salvar alterações' });
+  const test = credential.provider === 'asaas' ? createElement('button', { className: 'secondary-button', type: 'button', textContent: credential.nome.startsWith('webhook_token') ? 'Verificar cifra local' : 'Testar chave API' }) : null;
   const remove = createElement('button', { className: 'danger-button', type: 'button', textContent: 'Remover' });
   body.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -786,13 +814,14 @@ function createApiCredentialCard(
       save.textContent = 'Salvar alterações';
     }
   });
+  if (test) test.addEventListener('click', () => void onTest(credential));
   remove.addEventListener('click', async () => {
     if (!window.confirm(`Remover a integração "${credential.nome}"?`)) return;
     remove.disabled = true;
     await onDelete(credential.id);
     remove.disabled = false;
   });
-  actions.append(save, remove);
+  actions.append(save, ...(test ? [test] : []), remove);
   body.append(providerField, nameField.field, secretField.field, hint, actions);
   card.append(summary, body);
   return card;
@@ -805,7 +834,17 @@ function createApiCredentialForm(onCreate: (data: Required<ApiCredentialPayload>
   const nameField = createInput('Nome da integração', 'text', '', true);
   const secretField = createInput('Segredo de acesso', 'password', '', true);
   secretField.input.autocomplete = 'new-password';
-  const hint = createElement('p', { className: 'settings-hint', textContent: 'O segredo é enviado apenas para ser protegido no servidor; ele não será listado, preenchido novamente nem gravado pelo navegador.' });
+  const hint = createElement('p', { className: 'settings-hint' });
+  const webhookHint = createElement('p', { className: 'settings-hint api-webhook-hint', textContent: 'Cadastre segredos separados: api_key_sandbox e webhook_token_sandbox (ou api_key_producao e webhook_token_producao). O token deve coincidir com o configurado no webhook Asaas desta empresa. O ambiente ativo segue a URL ASAAS do servidor. Testar um webhook token verifica apenas a cifra local.' });
+  function refreshProviderCopy(): void {
+    const copy = credentialCopy(providerField.select.value as ApiCredentialProvider);
+    secretField.field.firstElementChild!.textContent = copy.label;
+    secretField.input.placeholder = copy.placeholder;
+    hint.textContent = copy.hint;
+    webhookHint.hidden = providerField.select.value !== 'asaas';
+  }
+  providerField.select.addEventListener('change', refreshProviderCopy);
+  refreshProviderCopy();
   const actions = createElement('div', { className: 'form-actions' });
   const submit = createElement('button', { type: 'submit', textContent: 'Adicionar' });
   form.addEventListener('submit', async (event) => {
@@ -824,7 +863,7 @@ function createApiCredentialForm(onCreate: (data: Required<ApiCredentialPayload>
     }
   });
   actions.appendChild(submit);
-  form.append(providerField.field, nameField.field, secretField.field, hint, actions);
+  form.append(providerField.field, nameField.field, secretField.field, hint, webhookHint, actions);
   return form;
 }
 

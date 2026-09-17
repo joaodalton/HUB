@@ -112,9 +112,8 @@ def _verificar_ucs_sem_usina() -> int:
         if _ja_existe_pendencia_ativa(uc_id=uc.id, titulo_contem='sem usina'):
             continue
 
-        # Verifica há quanto tempo a UC foi criada sem usina
-        # (ou desde quando está sem usina, se tinha mas perdeu)
-        dias_sem_usina = (datetime.utcnow().date() - uc.created_at.date()).days
+        inicio_sem_usina = uc.sem_usina_desde or uc.created_at
+        dias_sem_usina = (datetime.utcnow().date() - inicio_sem_usina.date()).days
 
         if dias_sem_usina >= PRAZO_DIAS_SEM_USINA:
             criar_alerta({
@@ -130,7 +129,7 @@ def _verificar_ucs_sem_usina() -> int:
                 'prioridade': 'alta',
                 'metadados': {
                     'diasSemUsina': dias_sem_usina,
-                    'ucCriadaEm': uc.created_at.isoformat(),
+                    'semUsinaDesde': inicio_sem_usina.isoformat(),
                 }
             })
             criados += 1

@@ -21,6 +21,7 @@ export type ApiCredentialPayload = {
 };
 
 export type ApiCredentialUpdatePayload = Pick<ApiCredentialPayload, 'nome' | 'segredo'>;
+export type ApiCredentialTestResult = { ok: boolean; modo: 'dry-run' | 'asaas-api'; provider: ApiCredentialProvider };
 
 export async function getApiCredentials(): Promise<ApiCredentialRow[]> {
   const response = await apiRequest<ApiResponse<ApiCredentialRow[]>>('/api-credentials');
@@ -39,4 +40,8 @@ export async function updateApiCredential(id: number, data: ApiCredentialUpdateP
 
 export async function deleteApiCredential(id: number): Promise<void> {
   await apiRequest<ApiResponse<null>>(`/api-credentials/${id}`, { method: 'DELETE' });
+}
+
+export async function testApiCredential(id: number): Promise<ApiCredentialTestResult> {
+  return (await apiRequest<ApiResponse<ApiCredentialTestResult>>(`/api-credentials/${id}/testar`, { method: 'POST' })).data;
 }

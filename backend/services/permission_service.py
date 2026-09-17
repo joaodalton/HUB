@@ -73,6 +73,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         'imports.preview',
         'imports.commit',
         'faturas.read', 'faturas.create',
+        'billing_rules.read', 'billing_rules.write',
         'messages.read', 'messages.send',
     },
     'admin': {
@@ -131,6 +132,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         'imports.preview',
         'imports.commit',
         'faturas.read', 'faturas.create',
+        'billing_rules.read', 'billing_rules.write',
         'messages.read', 'messages.send',
     },
     'operator': {
@@ -167,6 +169,9 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         'rateios.read',
         'rateios.calculate',
         'rateios.update',
+        # Faturas: consulta operacional, sem acoes financeiras.
+        'faturas.read',
+        'billing_rules.read',
         'imports.preview',
         'imports.commit',
         'messages.read', 'messages.send',
@@ -192,6 +197,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         # Categories
         'categories.read',
         'faturas.read', 'faturas.create',
+        'billing_rules.read', 'billing_rules.write',
     },
     'viewer': {
         # Empresa - leitura
@@ -211,6 +217,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         # Categories
         'categories.read',
         'faturas.read',
+        'billing_rules.read',
         'messages.read',
     },
 }

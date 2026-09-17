@@ -9,6 +9,7 @@ class ConsumerUnit(TenantMixin, db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     client_id = db.Column(db.Integer, db.ForeignKey('clients.id'), nullable=False)
+    concessionaria_credential_id = db.Column(db.Integer, db.ForeignKey('api_credentials.id'), nullable=True)
 
     codigo = db.Column(db.String(30), nullable=False)
     codigo_aneel = db.Column(db.String(20), nullable=True)  # novo padrao nacional de 15 digitos (REN ANEEL 1.095/2024)
@@ -40,8 +41,10 @@ class ConsumerUnit(TenantMixin, db.Model):
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    sem_usina_desde = db.Column(db.DateTime, nullable=True)
 
     client = db.relationship('Client', backref=db.backref('ucs', cascade='all, delete-orphan'))
+    concessionaria_credential = db.relationship('ApiCredential')
     conexoes = db.relationship(
         'PlantConnection',
         back_populates='consumer_unit',
@@ -57,6 +60,7 @@ class ConsumerUnit(TenantMixin, db.Model):
             'codigoAneel': self.codigo_aneel,
             'apelido': self.apelido,
             'documento': self.documento,
+            'senhaConcessionariaConfigurada': self.concessionaria_credential_id is not None,
             'endereco': self.endereco,
             'cep': self.cep,
             'concessionaria': self.concessionaria,

@@ -230,7 +230,7 @@
 }
 
 .rateio-summary-donut strong { z-index: 1; font-size: 10px; }
-.rateio-summary-caption { font-size: 12px; color: var(--text-muted); }
+.rateio-summary-caption { font-size: 12px; color: var(--text-dim); }
 
 .rateio-regras { display: grid; gap: 6px; }
 
@@ -415,6 +415,17 @@
 
 .rateio-formulario-resumo { margin: 0; }
 
+.rateio-formulario-layout { display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: var(--space-4); }
+.rateio-formulario-main { min-width: 0; display: grid; gap: var(--space-4); }
+.rateio-formulario-preview { align-self: start; display: grid; gap: var(--space-2); padding: var(--space-3); }
+.rateio-formulario-preview h3 { margin: 0; }
+.rateio-preview-associacao { margin: 0; padding: var(--space-2); border-radius: var(--radius); background: var(--accent-bg); color: var(--text); font-size: 12px; font-weight: 600; }
+.rateio-table-row.fixed { background: var(--accent-bg); }
+.rateio-table-row.fixed:hover { background: var(--accent-bg); }
+.rateio-excedente-control { display: flex; align-items: center; gap: var(--space-2); }
+.rateio-excedente-control .settings-subheading { margin: 0; }
+.rateio-help { display: inline-grid; place-items: center; width: 18px; height: 18px; border: 1px solid var(--border); border-radius: 50%; color: var(--text-dim); cursor: help; font-size: 12px; font-weight: 700; }
+
 .rateio-formulario-panel .settings-subheading { margin: var(--space-1) 0 calc(-1 * var(--space-2)); }
 
 .rateio-table {
@@ -531,6 +542,8 @@
   .rateio-tabs { width: 100%; }
   .rateio-tabs button { flex: 1; padding: 0 10px; font-size: 12px; }
   .rateio-formulario-panel { padding: var(--space-3); }
+  .rateio-formulario-layout { grid-template-columns: 1fr; }
+  .rateio-formulario-preview { position: static; }
   .rateio-table { overflow-x: auto; }
   .rateio-table-header,
   .rateio-table-row { min-width: 760px; }

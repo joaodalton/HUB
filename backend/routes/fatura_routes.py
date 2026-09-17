@@ -1,10 +1,8 @@
-import hmac
-
 from flask import Blueprint, g, request
 
-from config import Config
 from services.asaas_client import AsaasError
-from services.fatura_service import cancelar, emitir, listar, obter, processar_webhook, resumo, sincronizar
+from services.asaas_webhook_service import WebhookError, processar_webhook
+from services.fatura_service import EmissaoPendente, cancelar, emitir, listar, obter, resumo, sincronizar
 from services.permission_service import require_permission
 from utils.api_response import error_response, success_response
 
@@ -21,7 +19,11 @@ def index():
 @require_permission('faturas.create')
 def store():
     try:
-        return success_response(emitir(request.get_json(silent=True) or {}, g.current_empresa_id, g.current_user.id), 'Fatura emitida.', 201)
+        return success_response(emitir(request.get_json(silent=True) or {}, g.current_empresa_id, g.current_user.id), 'Fatura processada.', 201)
+    except PermissionError as exc:
+        return error_response(str(exc), 403)
+    except EmissaoPendente as exc:
+        return error_response(str(exc), 409, code='EMISSAO_PENDENTE', details={'faturaId': exc.fatura_id})
     except (ValueError, AsaasError) as exc:
         return error_response(str(exc), 400)
 
@@ -45,6 +47,7 @@ def sync(fatura_id: int):
     fatura = obter(fatura_id, g.current_empresa_id)
     if not fatura: return error_response('Fatura não encontrada.', 404)
     try: return success_response(sincronizar(fatura))
+    except EmissaoPendente as exc: return error_response(str(exc), 409, code='EMISSAO_PENDENTE', details={'faturaId': exc.fatura_id})
     except AsaasError as exc: return error_response(str(exc), 503)
 
 
@@ -54,6 +57,7 @@ def cancel(fatura_id: int):
     fatura = obter(fatura_id, g.current_empresa_id)
     if not fatura: return error_response('Fatura não encontrada.', 404)
     try: return success_response(cancelar(fatura), 'Fatura cancelada.')
+    except EmissaoPendente as exc: return error_response(str(exc), 409, code='EMISSAO_PENDENTE', details={'faturaId': exc.fatura_id})
     except AsaasError as exc: return error_response(str(exc), 503)
 
 
@@ -62,10 +66,8 @@ webhook_routes = Blueprint('webhook_routes', __name__, url_prefix='/api/v1/webho
 
 @webhook_routes.route('/asaas', methods=['POST'])
 def asaas_webhook():
-    token = request.headers.get('asaas-access-token', '')
-    if not Config.ASAAS_WEBHOOK_TOKEN or not hmac.compare_digest(token, Config.ASAAS_WEBHOOK_TOKEN):
-        return error_response('Webhook não autorizado.', 401)
-    payment = (request.get_json(silent=True) or {}).get('payment')
-    if not isinstance(payment, dict): return error_response('Payload inválido.', 400)
-    processar_webhook(payment)
+    try:
+        processar_webhook(request.get_json(silent=True), request.headers.get('asaas-access-token', ''))
+    except WebhookError as exc:
+        return error_response(str(exc), exc.status)
     return success_response({'received': True})

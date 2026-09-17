@@ -4,6 +4,7 @@ export type TableColumn<T> = {
   key: string;
   label: string;
   align?: 'left' | 'right';
+  headerRender?: () => HTMLElement;
   // Opcional: quando presente, ignora item[key] e desenha a celula do jeito
   // que a pagina quiser (ex.: id+nome numa celula so, botao de acao). key
   // continua obrigatorio (serve so de identificador da coluna nesse caso).
@@ -39,7 +40,9 @@ export function createDataTable<T extends Record<string, unknown>>({
   const headerRow = createElement('tr');
 
   columns.forEach((column) => {
-    const th = createElement('th', { textContent: column.label });
+    const th = createElement('th');
+    if (column.headerRender) th.appendChild(column.headerRender());
+    else th.textContent = column.label;
     if (column.align === 'right') th.classList.add('align-right');
     headerRow.appendChild(th);
   });

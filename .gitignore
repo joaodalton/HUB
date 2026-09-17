@@ -23,7 +23,8 @@ backend/scripts/testar_*.py
 .codex
 .obsidian/
 graphify-out/
-
+backend/tests/fixtures/invoices/copel/private/
+backend/tests/fixtures/invoices/copel/minha_fatura_copel.pdf
 
 
 # Ignore Smart Environment folder
@@ -38,3 +39,27 @@ start-hub.sh
 test_hub.py
 # O diretório de testes é código versionado. Artefatos de execução (por
 # exemplo, .pytest_cache) continuam ignorados acima.
+
+# Ruflo local secrets and runtime data
+.env
+.env.local
+.env.*.local
+.claude-flow/data/
+.claude-flow/logs/
+.claude-flow/sessions/
+
+# Local swarm, security fixes and tests
+.swarm/
+security_fixes/
+backend/tests/*
+!backend/tests/test_regra_cobranca_assignment.py
+!backend/tests/test_grupo_regra_cobranca.py
+!backend/tests/test_billing_rule_resolver.py
+!backend/tests/test_tariff_selector.py
+!backend/tests/test_billing_calculation_contracts.py
+!backend/tests/test_copel_energy.py
+!backend/tests/test_invoice_processing_persistence.py
+!backend/tests/test_invoice_compensation.py
+!backend/tests/test_billing_calculation_engine.py
+!backend/tests/test_calculo_tarifas.py
+!backend/tests/test_document_tariff_resolver.py

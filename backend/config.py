@@ -47,10 +47,17 @@ class Config:
     # Pra onde redirecionar de volta depois do callback do Google (a SPA do frontend, nao o backend).
     FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
 
-    # ASAAS por empresa: a API key fica em ApiCredential cifrada. Estes dois
-    # valores são infraestrutura, compartilhados por todas as empresas.
+    # B1 conserva ambiente por instalacao; API keys/tokens cifrados por empresa.
     ASAAS_API_BASE_URL = os.getenv('ASAAS_API_BASE_URL', 'https://api-sandbox.asaas.com/v3')
+    # Compatibilidade de configuracao apenas: B2 NAO usa este token global.
     ASAAS_WEBHOOK_TOKEN = os.getenv('ASAAS_WEBHOOK_TOKEN', '')
+
+    FATURA_CONCESSIONARIA_MAX_BYTES = int(os.getenv(
+        'FATURA_CONCESSIONARIA_MAX_BYTES', str(10 * 1024 * 1024)
+    ))
+    FATURA_CONCESSIONARIA_MAX_PAGES = int(os.getenv(
+        'FATURA_CONCESSIONARIA_MAX_PAGES', '10'
+    ))
 
     # Meta App e assinatura do webhook sao infraestrutura do HUB. O token de
     # acesso de cada numero fica cifrado por empresa em ApiCredential.

@@ -1,8 +1,101 @@
-.page-actions-spacer { flex: 1 0 auto; }
-.faturas-filters { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.fatura-client-cell { display: grid; gap: 2px; }
-.fatura-client-cell strong { color: var(--text); font-size: 13px; }
-.fatura-client-cell span { color: var(--text-faint); font-size: 12px; }
+.faturas-page { gap: var(--space-3); }
+
+.faturas-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--panel);
+  box-shadow: var(--shadow-sm);
+}
+
+.faturas-toolbar-copy { display: grid; gap: var(--space-1); }
+.faturas-toolbar-copy h2 { font-size: 20px; color: var(--text); }
+.faturas-toolbar-copy p { color: var(--text-dim); font-size: 13px; }
+.faturas-toolbar-actions { display: flex; align-items: center; gap: var(--space-2); flex-shrink: 0; }
+
+.faturas-metrics {
+  grid-template-columns: repeat(6, minmax(140px, 1fr));
+}
+
+.faturas-metrics .metric-card { min-height: 96px; }
+.faturas-metrics .metric-card:last-child strong { font-size: 19px; }
+
+.faturas-filter-panel {
+  display: grid;
+  grid-template-columns: minmax(240px, 1.5fr) repeat(4, minmax(140px, 1fr)) auto;
+  align-items: end;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--panel);
+  box-shadow: var(--shadow-sm);
+}
+
+.faturas-search {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-height);
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-input);
+  background: var(--panel-soft);
+  color: var(--text-faint);
+}
+
+.faturas-search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-bg); }
+.faturas-search .icon { width: 17px; height: 17px; flex: 0 0 17px; }
+.faturas-search input { width: 100%; min-width: 0; padding: 0; border: 0; outline: 0; background: transparent; }
+.faturas-search input::placeholder { color: var(--text-faint); }
+
+.faturas-filter-field { display: grid; gap: 6px; min-width: 0; }
+.faturas-filter-field span { color: var(--text-faint); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+.faturas-filter-field select { width: 100%; min-width: 0; }
+.faturas-clear-filters { white-space: nowrap; }
+
+.fatura-uc-cell { display: grid; gap: 2px; }
+.fatura-uc-cell strong { color: var(--text); font-size: 13px; }
+.fatura-uc-cell span { color: var(--text-faint); font-size: 11px; }
+
+.fatura-selection-checkbox {
+  display: block;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.fatura-selection-checkbox:disabled { cursor: not-allowed; opacity: 0.45; }
+.faturas-page .data-table th:first-child,
+.faturas-page .data-table td:first-child { width: 44px; padding-right: 6px; }
+.faturas-page .data-table td:first-child { font-weight: 400; }
+.faturas-page .data-panel-scroll { max-height: calc(100vh - 390px); min-height: 300px; }
 .fatura-notice { margin: 0; padding: 12px 14px; border: 1px solid var(--accent-border); border-radius: var(--radius-input); background: var(--accent-bg); color: var(--text-dim); font-size: 12px; line-height: 1.5; }
 .fatura-modal .detail-info-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-@media (max-width: 640px) { .fatura-modal .detail-info-grid { grid-template-columns: 1fr; } }
+
+@media (max-width: 1280px) {
+  .faturas-metrics { grid-template-columns: repeat(3, minmax(160px, 1fr)); }
+  .faturas-filter-panel { grid-template-columns: repeat(3, minmax(160px, 1fr)); }
+  .faturas-search { grid-column: span 2; }
+}
+
+@media (max-width: 760px) {
+  .faturas-toolbar { align-items: flex-start; flex-direction: column; padding: var(--space-3); }
+  .faturas-toolbar-actions { width: 100%; }
+  .faturas-toolbar-actions button { width: 100%; justify-content: center; }
+  .faturas-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .faturas-filter-panel { grid-template-columns: 1fr; }
+  .faturas-search { grid-column: auto; }
+  .faturas-clear-filters { width: 100%; }
+  .fatura-modal .detail-info-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 480px) {
+  .faturas-metrics { grid-template-columns: 1fr; }
+}

@@ -54,6 +54,10 @@ def create_app() -> Flask:
     from models.import_preview import ImportPreview  # type: ignore
     from models.message_template import MessageTemplate  # type: ignore
     from models.fatura import Fatura  # type: ignore
+    from models.fatura_concessionaria import FaturaConcessionaria  # type: ignore
+    from models.grupo_regra_cobranca import GrupoRegraCobranca  # type: ignore
+    from models.regra_cobranca_assignment import RegraCobrancaAssignment  # type: ignore
+    from models.payment_webhook_event import PaymentWebhookEvent  # type: ignore
     from models.assinatura import Assinatura  # type: ignore
     from models.limite_contratado import LimiteContratado  # type: ignore
     from models.whatsapp import WhatsappIntegration, WhatsappConversation, WhatsappMessage  # type: ignore
@@ -91,6 +95,8 @@ def create_app() -> Flask:
     from routes.message_template_routes import message_template_routes
     from routes.fatura_routes import fatura_routes, webhook_routes
     from routes.whatsapp_routes import whatsapp_routes, whatsapp_webhook_routes
+    from routes.grupo_regra_cobranca_routes import grupo_regra_cobranca_routes
+    from routes.regra_cobranca_assignment_routes import regra_cobranca_assignment_routes
 
     app.register_blueprint(health_routes)
     app.register_blueprint(auth_routes)
@@ -120,10 +126,12 @@ def create_app() -> Flask:
     app.register_blueprint(webhook_routes)
     app.register_blueprint(whatsapp_routes)
     app.register_blueprint(whatsapp_webhook_routes)
+    app.register_blueprint(grupo_regra_cobranca_routes)
+    app.register_blueprint(regra_cobranca_assignment_routes)
 
     from utils.auth import register_auth_middleware
     register_auth_middleware(app, public_paths={
-        '/', '/api/v1/auth/login', '/api/v1/auth/bootstrap', '/api/v1/importacoes/modelo',
+        '/', '/ready', '/api/v1/auth/login', '/api/v1/auth/bootstrap', '/api/v1/importacoes/modelo',
         '/api/v1/auth/register', '/api/v1/auth/aceitar-convite',
         '/api/v1/convites/verificar',
         '/api/v1/empresas/registro',

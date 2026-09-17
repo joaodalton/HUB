@@ -1,106 +1,157 @@
-"""Gera o formulário Copel em XLSX a partir do modelo CSV oficial fornecido."""
-import csv
+"""Preenche o formulário oficial Copel de associações em XLSX."""
 import io
 import re
+from copy import copy
 from datetime import date
 from pathlib import Path
 
-from openpyxl import Workbook
-from openpyxl.styles import Alignment, Border, Font, Side
+from flask import g
+from openpyxl import load_workbook
+from openpyxl.worksheet.cell_range import CellRange
 
-from services.rateio_formulario_service import montar_tabela_formulario
-from services.rateio_pdf_service import aplicar_linhas_override, validar_tabela_formulario, validar_termos_adesao_obrigatorios
+from models.empresa import Empresa
+from services.rateio_formulario_service import get_regras_documentos_rateio, montar_tabela_formulario, verificar_termos_adesao
 
 ASSETS_DIR = Path(__file__).resolve().parent.parent / 'assets'
-CSV_TEMPLATE_GLOB = '*ASSOCIAÇÃO - PERCENTUAL).csv'
-LINHA_INICIAL_BENEFICIARIAS = 17
+XLSX_TEMPLATE_NAME = 'formulario_copel_rateio.xlsx'
+LINHA_INICIAL = 17
 LINHA_TOTAL = 41
-BENEFICIARIAS_MODELO = 24
+LINHAS_PRE_FORMATADAS = 24
 
 
 def _template_path() -> Path:
-    templates = list(ASSETS_DIR.glob(CSV_TEMPLATE_GLOB))
-    if not templates:
-        raise ValueError('Modelo CSV do formulário Copel não encontrado em backend/assets.')
-    return templates[0]
+    path = ASSETS_DIR / XLSX_TEMPLATE_NAME
+    if not path.is_file():
+        raise ValueError('Modelo XLSX do formulário Copel não encontrado em backend/assets.')
+    return path
 
 
-def _carregar_modelo() -> Workbook:
-    with _template_path().open(encoding='cp1252', newline='') as arquivo:
-        linhas = list(csv.reader(arquivo, delimiter=';'))
-
-    workbook = Workbook()
-    worksheet = workbook.active
-    worksheet.title = 'Formulário Copel'
-    worksheet.sheet_view.showGridLines = False
-    worksheet.freeze_panes = 'A17'
-
-    for linha_idx, linha in enumerate(linhas, start=1):
-        for coluna_idx, valor in enumerate(linha, start=1):
-            celula = worksheet.cell(linha_idx, coluna_idx, None if valor == '\xa0' else valor)
-            celula.alignment = Alignment(vertical='center', wrap_text=True)
-
-    for coluna, largura in {'A': 8, 'B': 42, 'C': 25, 'D': 28, 'E': 18, 'F': 4, 'G': 8}.items():
-        worksheet.column_dimensions[coluna].width = largura
-    for linha in range(17, 41):
-        worksheet.row_dimensions[linha].height = 20
-
-    borda = Border(*(Side(style='thin') for _ in range(4)))
-    for linha in range(16, 41):
-        for coluna in range(1, 6):
-            worksheet.cell(linha, coluna).border = borda
-    return workbook
+def _carregar_modelo():
+    return load_workbook(_template_path())
 
 
-def _preencher_texto(celula, texto: str) -> None:
-    celula.value = texto
-    celula.font = Font(bold=False)
+def _validar(tabela: dict, plant_id: int) -> None:
+    regras = {**get_regras_documentos_rateio(), **tabela.get('regrasDocumentos', {})}
+    faltando = []
+    if not tabela.get('ucGeradora'):
+        faltando.append('UC da usina')
+    if regras['documentoCnpjObrigatorio'] and not tabela.get('documentoCnpjOk'):
+        faltando.append('CNPJ da empresa')
+    if regras['documentoEstatutoObrigatorio'] and not tabela.get('documentoEstatutoOk'):
+        faltando.append('Estatuto da empresa')
+    if faltando:
+        raise ValueError(f'Pré-requisitos faltando: {", ".join(faltando)}.')
+    soma = round(sum(float(linha.get('percentual') or 0) for linha in tabela['linhas']), 2)
+    if soma > 100:
+        raise ValueError(f'Soma dos percentuais desta usina é {soma}% -- excede 100%. Ajuste antes de gerar.')
+    if regras['termosAdesaoObrigatorios']:
+        verificacao = verificar_termos_adesao(plant_id)
+        if not verificacao['ok']:
+            nomes = ', '.join(item['nome'] for item in verificacao['faltando'])
+            raise ValueError(f'Termo de Adesão faltando para: {nomes}. Geração bloqueada.')
 
 
-def gerar_formulario_excel(
-    plant_id: int, responsavel_nome: str, responsavel_cpf: str, linhas_override: list[dict] | None = None
-) -> bytes:
-    if not responsavel_nome.strip() or not responsavel_cpf.strip():
-        raise ValueError('Nome e CPF do responsavel sao obrigatorios.')
+def _aplicar_linhas_override(tabela: dict, linhas_override: list[dict] | None) -> None:
+    if linhas_override is None:
+        return
+    if not isinstance(linhas_override, list):
+        raise ValueError('Linhas de revisão inválidas.')
+    por_uc = {item.get('ucId'): item for item in linhas_override if isinstance(item, dict) and item.get('ucId') is not None}
+    for linha in tabela['linhas']:
+        override = por_uc.get(linha['ucId'])
+        if not override:
+            continue
+        for campo in ('nome', 'documento', 'ucIdentificacao'):
+            if campo in override:
+                linha[campo] = str(override[campo] or '').strip()
+        if 'percentual' in override:
+            try:
+                percentual = float(override['percentual'])
+            except (TypeError, ValueError) as exc:
+                raise ValueError('Percentual visual inválido no formulário.') from exc
+            if not 0 <= percentual <= 100:
+                raise ValueError('Percentual visual deve estar entre 0 e 100.')
+            linha['percentual'] = percentual
+    tabela['somaPercentual'] = round(sum(float(linha['percentual']) for linha in tabela['linhas']), 2)
 
+
+def montar_preview_formulario(plant_id: int) -> dict:
+    """Dados de leitura para a revisão, incluindo a linha fixa da associação."""
     tabela = montar_tabela_formulario(plant_id)
-    aplicar_linhas_override(tabela, linhas_override)
-    validar_tabela_formulario(tabela)
+    associacao = {
+        'ordem': 1, 'nome': tabela['empresaNome'], 'documento': tabela['empresaCnpj'],
+        'ucIdentificacao': tabela['ucGeradora'], 'percentual': 0.0, 'termoAdesaoOk': None,
+        'clienteId': None, 'ucId': None, 'fixa': True,
+    }
+    linhas = [{**linha, 'ordem': linha['ordem'] + 1} for linha in tabela['linhas']]
+    total_linhas = len(linhas) + 1
+    avisos = [f'A planilha será expandida para {total_linhas} linhas.'] if total_linhas > LINHAS_PRE_FORMATADAS else []
+    return {**tabela, 'associacao': associacao, 'linhas': linhas, 'somaPercentual': round(sum(l['percentual'] for l in linhas), 2), 'avisos': avisos}
 
-    validar_termos_adesao_obrigatorios(tabela, plant_id)
 
+def _substituir_placeholder(celula, pattern: str, valor: str, descricao: str) -> None:
+    preenchido, substituicoes = re.subn(pattern, valor, str(celula.value or ''), count=1)
+    if substituicoes != 1:
+        raise ValueError(f'Placeholder de {descricao} não encontrado no modelo XLSX atual.')
+    celula.value = preenchido
+
+
+def _inserir_linhas_tabela(worksheet, extras: int) -> None:
+    if not extras:
+        return
+    merges = [CellRange(str(merge)) for merge in worksheet.merged_cells.ranges if merge.max_row >= LINHA_TOTAL]
+    for merge in merges:
+        worksheet.unmerge_cells(str(merge))
+    worksheet.insert_rows(LINHA_TOTAL, extras)
+    for linha in range(LINHA_TOTAL, LINHA_TOTAL + extras):
+        worksheet.row_dimensions[linha].height = worksheet.row_dimensions[LINHA_TOTAL - 1].height
+        for coluna in range(1, 6):
+            origem, destino = worksheet.cell(LINHA_TOTAL - 1, coluna), worksheet.cell(linha, coluna)
+            destino._style = copy(origem._style)
+            destino.number_format = origem.number_format
+            destino.alignment = copy(origem.alignment)
+            destino.protection = copy(origem.protection)
+    for merge in merges:
+        merge.shift(0, extras)
+        worksheet.merge_cells(str(merge))
+
+
+def gerar_formulario_excel(plant_id: int, responsavel_nome: str, responsavel_cpf: str,
+                           linhas_override: list[dict] | None = None, excedente_energia: bool = False) -> bytes:
+    if not responsavel_nome.strip() or not responsavel_cpf.strip():
+        raise ValueError('Nome e CPF do responsável são obrigatórios.')
+    tabela = montar_tabela_formulario(plant_id)
+    _aplicar_linhas_override(tabela, linhas_override)
+    _validar(tabela, plant_id)
+    linhas = [{'ordem': 1, 'nome': tabela['empresaNome'], 'documento': tabela['empresaCnpj'],
+               'ucIdentificacao': tabela['ucGeradora'], 'percentual': 0.0}] + [
+        {**linha, 'ordem': linha['ordem'] + 1} for linha in tabela['linhas']
+    ]
     workbook = _carregar_modelo()
     worksheet = workbook.active
-    linhas_extras = max(0, len(tabela['linhas']) - BENEFICIARIAS_MODELO)
-    if linhas_extras:
-        worksheet.insert_rows(LINHA_TOTAL, linhas_extras)
-        borda = Border(*(Side(style='thin') for _ in range(4)))
-        for linha_excel in range(LINHA_TOTAL, LINHA_TOTAL + linhas_extras):
-            worksheet.row_dimensions[linha_excel].height = 20
-            for coluna in range(1, 6):
-                worksheet.cell(linha_excel, coluna).border = borda
-    worksheet['A4'] = re.sub(r'n[ºo]\s*_+', f'nº {tabela["ucGeradora"]}', str(worksheet['A4'].value), count=1)
-    worksheet['A8'] = re.sub(r'n[ºo]\s*_+', f'nº {tabela["ucAncora"]}', str(worksheet['A8'].value), count=1)
-
-    for linha in tabela['linhas']:
-        linha_excel = LINHA_INICIAL_BENEFICIARIAS + linha['ordem'] - 1
-        worksheet.cell(linha_excel, 1, linha['ordem'])
-        _preencher_texto(worksheet.cell(linha_excel, 2), linha['nome'] or '')
-        _preencher_texto(worksheet.cell(linha_excel, 3), linha['documento'] or '')
-        _preencher_texto(worksheet.cell(linha_excel, 4), linha['ucIdentificacao'] or '')
-        percentual = round(float(linha['percentual']) / 100, 4)
-        worksheet.cell(linha_excel, 5, percentual).number_format = '0.00%'
-
-    total = round(sum(float(linha['percentual']) for linha in tabela['linhas']) / 100, 4)
-    linha_total = LINHA_TOTAL + linhas_extras
-    worksheet.cell(linha_total, 5, total).number_format = '0.00%'
-    _preencher_texto(worksheet[f'C{71 + linhas_extras}'], tabela['empresaNome'] or '')
-    _preencher_texto(worksheet[f'C{72 + linhas_extras}'], tabela['empresaEmail'] or '')
-    _preencher_texto(worksheet[f'C{73 + linhas_extras}'], tabela['empresaCnpj'] or '')
-    _preencher_texto(worksheet[f'C{75 + linhas_extras}'], responsavel_nome.strip())
-    _preencher_texto(worksheet[f'C{76 + linhas_extras}'], responsavel_cpf.strip())
-    worksheet[f'A{81 + linhas_extras}'] = f'Data: {date.today():%d/%m/%Y}'
-
+    extras = max(0, len(linhas) - LINHAS_PRE_FORMATADAS)
+    _inserir_linhas_tabela(worksheet, extras)
+    _substituir_placeholder(worksheet['A4'], r'_{3,}', str(tabela['ucGeradora']), 'UC geradora')
+    _substituir_placeholder(worksheet['A8'], r'_{3,}', str(tabela['ucAncora']), 'UC beneficiária âncora')
+    worksheet['A11'] = 'SIM' if excedente_energia else 'NÃO'
+    for linha in linhas:
+        linha_excel = LINHA_INICIAL + linha['ordem'] - 1
+        worksheet.cell(linha_excel, 1).value = linha['ordem']
+        worksheet.cell(linha_excel, 2).value = linha['nome'] or ''
+        worksheet.cell(linha_excel, 3).value = linha['documento'] or ''
+        worksheet.cell(linha_excel, 4).value = linha['ucIdentificacao'] or ''
+        worksheet.cell(linha_excel, 5).value = round(float(linha['percentual']) / 100, 4)
+        worksheet.cell(linha_excel, 5).number_format = '0.00%'
+    linha_total = LINHA_TOTAL + extras
+    worksheet.cell(linha_total, 5).value = round(sum(float(linha['percentual']) for linha in linhas) / 100, 4)
+    worksheet.cell(linha_total, 5).number_format = '0.00%'
+    for endereco, valor in {
+        f'C{71 + extras}': tabela['empresaNome'] or '', f'C{72 + extras}': tabela['empresaEmail'] or '',
+        f'C{73 + extras}': tabela['empresaCnpj'] or '', f'C{75 + extras}': responsavel_nome.strip(),
+        f'C{76 + extras}': responsavel_cpf.strip(),
+    }.items():
+        worksheet[endereco] = valor
+    _substituir_placeholder(worksheet[f'A{81 + extras}'], r'_{2,}/_{2,}/\s*20_{2}', date.today().strftime('%d/%m/%Y'), 'data')
     output = io.BytesIO()
     workbook.save(output)
     return output.getvalue()

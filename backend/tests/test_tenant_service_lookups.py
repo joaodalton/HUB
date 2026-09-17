@@ -103,6 +103,15 @@ class TenantServiceLookupsTest(IsolatedTestRuntime, unittest.TestCase):
             self.assertEqual(updated['ucs'][0]['id'], uc_id)
             self.assertEqual(ConsumerUnit.query.filter_by(id=uc_id).first().empresa_id, 1)
 
+    def test_disconnecting_last_plant_records_when_the_uc_became_unassigned(self):
+        with self.app.test_request_context('/'):
+            g.current_empresa_id = 1
+            uc = ConsumerUnit.query.filter_by(id=self.uc_a).first()
+            sync_connections(uc, [{'plantId': self.plant_a}])
+            db.session.flush()
+            sync_connections(uc, [])
+            self.assertIsNotNone(uc.sem_usina_desde)
+
     def test_drive_root_setting_is_tenant_scoped(self):
         with self.app.test_request_context('/'):
             g.current_empresa_id = 1

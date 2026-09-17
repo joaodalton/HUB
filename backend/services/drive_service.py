@@ -156,6 +156,10 @@ class GoogleDriveService:
 
         return created['id']
 
+    def delete_file(self, file_id: str) -> None:
+        """Remove um upload novo cuja transacao de Document nao foi concluida."""
+        self.client.files().delete(fileId=file_id).execute()
+
 
 _drive_service_cache: dict[int, GoogleDriveService] = {}
 

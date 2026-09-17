@@ -13,6 +13,7 @@ export type ClientUc = {
   codigoAneel: string | null;
   apelido: string;
   documento: string | null;
+  senhaConcessionariaConfigurada?: boolean;
   endereco: string | null;
   cep: string | null;
   concessionaria: string | null;
@@ -26,6 +27,7 @@ export type ClientUc = {
   terminoContrato: string | null;
   carenciaMeses: number | null;
   percentualDescontoCarencia: string | null;
+  senhaConcessionaria?: string;
   conexoes: PlantConnection[];
 };
 

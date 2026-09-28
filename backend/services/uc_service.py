@@ -9,6 +9,9 @@ from models.consumer_unit import ConsumerUnit, PlantConnection
 from models.api_credential import ApiCredential
 from models.plant import Plant
 from services.log_service import LogService
+from services.uc_discount import parse_uc_discount
+from services.uc_code import normalize_uc_code
+from services.cad_identity import normalize_document
 
 def _uc(uc_id): return ConsumerUnit.query.filter_by(id=uc_id, empresa_id=g.current_empresa_id).first()
 def _client(client_id): return Client.query.filter_by(id=client_id, empresa_id=g.current_empresa_id).first()
@@ -115,10 +118,17 @@ def apply_uc_fields(uc: ConsumerUnit, data: dict) -> None:
     """Aplica os campos simples (nao-relacionamento) de uma UC a partir do payload.
     Compartilhado entre uc_service (CRUD avulso) e client_service (UC aninhada no
     cliente) -- nao duplicar essa lista de campos em outro lugar."""
-    uc.codigo = data.get('codigo', uc.codigo or '').strip()
-    uc.codigo_aneel = data.get('codigoAneel', uc.codigo_aneel)
+    client = None
+    if uc.client_id:
+        with db.session.no_autoflush:
+            client = _client(uc.client_id)
+    concessionaria = data.get('concessionaria') or uc.concessionaria or (client.concessionaria if client else None)
+    if (uc.id is None or ('codigo' in data and data['codigo'] != uc.codigo)
+            or ('concessionaria' in data and data['concessionaria'] != uc.concessionaria)):
+        uc.codigo = normalize_uc_code(data.get('codigo', uc.codigo or ''), concessionaria)
     uc.apelido = data.get('apelido', uc.apelido)
-    uc.documento = data.get('documento', uc.documento)
+    if 'documento' in data and data['documento'] != uc.documento:
+        uc.documento = normalize_document(data['documento']) if data['documento'] else None
     if data.get('senhaConcessionaria'):
         _salvar_senha_concessionaria(uc, data['senhaConcessionaria'])
     uc.endereco = data.get('endereco', uc.endereco)
@@ -128,7 +138,9 @@ def apply_uc_fields(uc: ConsumerUnit, data: dict) -> None:
     uc.dia_emissao_fatura = data.get('diaEmissaoFatura', uc.dia_emissao_fatura)
     uc.consumo = _parse_consumo(data['consumo']) if 'consumo' in data else uc.consumo
     uc.base_tarifaria = data.get('baseTarifaria', uc.base_tarifaria or 'B1')
-    uc.desconto = data.get('desconto', uc.desconto)
+    if 'desconto' in data:
+        parse_uc_discount(data['desconto'])
+        uc.desconto = data['desconto']
     uc.tipo_ligacao = data.get('tipoLigacao', uc.tipo_ligacao or 'Monofasico')
     uc.inicio_contrato = _parse_date(data.get('inicioContrato')) if 'inicioContrato' in data else uc.inicio_contrato
     uc.termino_contrato = _parse_date(data.get('terminoContrato')) if 'terminoContrato' in data else uc.termino_contrato

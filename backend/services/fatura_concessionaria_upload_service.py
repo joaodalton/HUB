@@ -9,8 +9,12 @@ from sqlalchemy.exc import IntegrityError
 
 from extensions import db
 from models.client import Client
+from models.consumer_unit import ConsumerUnit
 from models.fatura_concessionaria import FaturaConcessionaria
 from services.document_service import discard_prepared_document, prepare_document
+from services.invoice_parsers.extraction import MinimalExtractor
+from services.invoice_parsers.registry import default_registry
+from services.uc_code import find_document_ucs
 
 
 class InvoiceUploadError(ValueError):
@@ -64,16 +68,46 @@ def _find_existing(empresa_id: int, arquivo_hash: str) -> FaturaConcessionaria |
     ).order_by(FaturaConcessionaria.created_at, FaturaConcessionaria.id).first()
 
 
-def upload_invoice(client_id: int, file_storage) -> tuple[dict, bool]:
+def _client_from_document(file_bytes: bytes, empresa_id: int) -> Client:
+    try:
+        selection = default_registry().select(MinimalExtractor().extract(file_bytes))
+        if selection.parser is None:
+            _fail('Layout da fatura nao reconhecido para vinculo automatico.', 'INVOICE_LAYOUT_UNSUPPORTED', 422)
+        parsed = selection.parser.parse(file_bytes)
+        code = parsed.identificacao_fiscal.get('codigo_uc')
+        if code is None or code.status != 'found' or not isinstance(code.value, str):
+            _fail('UC da fatura ausente ou ilegivel.', 'UC_CODE_UNREADABLE', 422)
+    except InvoiceUploadError:
+        raise
+    except Exception:
+        _fail('Nao foi possivel extrair a UC da fatura.', 'UC_CODE_UNREADABLE', 422)
+
+    concessionaria = parsed.identificacao_fiscal.get('concessionaria')
+    matches = find_document_ucs(empresa_id, code.value, concessionaria.value if concessionaria else None).limit(2).all()
+    if not matches:
+        _fail('UC da fatura nao encontrada nesta empresa.', 'UC_NOT_FOUND', 422)
+    if len(matches) != 1:
+        _fail('Mais de uma UC corresponde a fatura.', 'UC_MATCH_AMBIGUOUS', 409)
+    client = Client.query.filter_by(id=matches[0].client_id, empresa_id=empresa_id).first()
+    if client is None:
+        _fail('Cliente da UC nao encontrado nesta empresa.', 'CLIENT_NOT_FOUND', 404)
+    return client
+
+
+def upload_invoice(client_id: int | None, file_storage) -> tuple[dict, bool]:
     empresa_id = g.current_empresa_id
-    client = Client.query.filter_by(id=client_id, empresa_id=empresa_id).first()
-    if not client:
+    client = Client.query.filter_by(id=client_id, empresa_id=empresa_id).first() if client_id is not None else None
+    if client_id is not None and not client:
         _fail('Cliente nao encontrado.', 'CLIENT_NOT_FOUND', 404)
 
     file_bytes = _validate_pdf(file_storage)
     arquivo_hash = hashlib.sha256(file_bytes).hexdigest()
+    if client_id is None:
+        client = _client_from_document(file_bytes, empresa_id)
     existing = _find_existing(empresa_id, arquivo_hash)
     if existing:
+        if client_id is None and existing.client_id != client.id:
+            _fail('Fatura ja recebida com cliente diferente da UC documental.', 'INVOICE_CLIENT_CONFLICT', 409)
         return _result(existing, True), True
 
     document = None
@@ -99,6 +133,8 @@ def upload_invoice(client_id: int, file_storage) -> tuple[dict, bool]:
         ):
             discard_prepared_document(document, uploaded_new)
         if existing:
+            if client_id is None and existing.client_id != client.id:
+                _fail('Fatura ja recebida com cliente diferente da UC documental.', 'INVOICE_CLIENT_CONFLICT', 409)
             return _result(existing, True), True
         raise
     except Exception:

@@ -3,9 +3,9 @@ from dataclasses import dataclass
 from decimal import Decimal, localcontext
 from enum import Enum
 
-from services.invoice_compensation import EnergyStatus as ResolutionStatus
+from services.invoice_compensation import CompensacaoNormalizada, EnergyStatus as ResolutionStatus
 from services.invoice_normalization_service import InvoiceNormalized
-from services.invoice_parsers.schemas import ExtractedField, ExtractionIssue
+from services.invoice_parsers.schemas import ExtractionIssue
 
 
 REFERENCE_COMPOSITIONS = {
@@ -13,7 +13,7 @@ REFERENCE_COMPOSITIONS = {
         'energia_elet_consumo', 'energia_elet_uso_sistema',
     ),
 }
-FLAG_COMPONENTS = {'energia_cons_b_amarela'}
+FLAG_COMPONENTS = {'energia_cons_b_amarela', 'energia_inj_band_amarela_te'}
 
 
 class DocumentTariffKind(str, Enum):
@@ -87,11 +87,50 @@ class ResolvedDocumentTariff:
 
 
 @dataclass(frozen=True)
+class ResolvedCompensationTariffEvent:
+    identity: CompensacaoNormalizada
+    te_tariff: Decimal | None
+    tusd_tariff: Decimal | None
+    combined_tariff: Decimal | None
+    includes_flag: bool | None
+    with_taxes: bool | None
+    source_item_indexes: tuple[int, ...]
+    confidence: Decimal | None
+    status: ResolutionStatus
+    issues: tuple[ExtractionIssue, ...]
+    evidence: tuple[DocumentTariffEvidence, ...] = ()
+
+    def __post_init__(self):
+        object.__setattr__(self, 'status', ResolutionStatus(self.status))
+        if not isinstance(self.identity, CompensacaoNormalizada):
+            raise TypeError('Evento tarifário exige CompensacaoNormalizada como identidade.')
+        values = (self.te_tariff, self.tusd_tariff, self.combined_tariff)
+        if self.status == ResolutionStatus.VALID:
+            if self.identity.status != ResolutionStatus.VALID or any(
+                not _finite_decimal(value) or value < 0 for value in values
+            ) or not self.source_item_indexes:
+                raise ValueError('Evento tarifário VALID exige identidade, tarifas e origem válidas.')
+            if self.combined_tariff != _sum_exact((self.te_tariff, self.tusd_tariff)):
+                raise ValueError('Tarifa combinada deve ser a soma exata de TE e TUSD.')
+        elif any(value is not None for value in values):
+            raise ValueError('Evento tarifário não VALID não pode fornecer tarifas.')
+        if self.includes_flag is not None and type(self.includes_flag) is not bool:
+            raise TypeError('includes_flag exige bool ou None.')
+        if self.with_taxes is not None and type(self.with_taxes) is not bool:
+            raise TypeError('with_taxes exige bool ou None.')
+        if self.confidence is not None and (
+            not _finite_decimal(self.confidence) or not 0 <= self.confidence <= 1
+        ):
+            raise ValueError('Confiança exige Decimal entre zero e um.')
+
+
+@dataclass(frozen=True)
 class ResolvedDocumentTariffs:
     full_tariff: ResolvedDocumentTariff | None
     compensation_tariff: ResolvedDocumentTariff | None
     status: ResolutionStatus
     issues: tuple[ExtractionIssue, ...]
+    compensation_tariff_events: tuple[ResolvedCompensationTariffEvent, ...] = ()
 
     def __post_init__(self):
         object.__setattr__(self, 'status', ResolutionStatus(self.status))
@@ -102,13 +141,15 @@ class DocumentTariffResolver:
         if not isinstance(invoice, InvoiceNormalized):
             raise TypeError('Resolver exige InvoiceNormalized.')
         full = self._resolve_full(invoice)
-        compensation = self._resolve_compensation(invoice)
-        statuses = {full.status, compensation.status}
+        compensation, events, compensation_status, compensation_issues = self._resolve_compensation(invoice)
+        statuses = {full.status, compensation_status}
         status = next((candidate for candidate in (
             ResolutionStatus.AMBIGUOUS, ResolutionStatus.UNSUPPORTED,
             ResolutionStatus.MISSING, ResolutionStatus.VALID,
         ) if candidate in statuses), ResolutionStatus.MISSING)
-        return ResolvedDocumentTariffs(full, compensation, status, full.issues + compensation.issues)
+        return ResolvedDocumentTariffs(
+            full, compensation, status, full.issues + compensation_issues, events,
+        )
 
     def _empty(self, kind, status, code, message, issues=(), evidence=()):
         combined = tuple(issues) + (_issue(code, message),)
@@ -174,7 +215,7 @@ class DocumentTariffResolver:
                                'Tarifa cheia não possui componentes unitários inequívocos.', issues, evidence)
 
         with_taxes, tax_issues = self._tax_state(invoice, evidence)
-        includes_flag, flag_issues = self._flag_state(invoice)
+        includes_flag, flag_issues = self._flag_state(invoice, 'energia_cons_b_amarela')
         issues.extend(tax_issues + flag_issues)
         if flag_issues:
             includes_flag = None
@@ -187,55 +228,100 @@ class DocumentTariffResolver:
 
     def _resolve_compensation(self, invoice):
         energy = invoice.billing_energy_input
-        if energy is None or energy.status == ResolutionStatus.UNSUPPORTED:
-            return self._empty(DocumentTariffKind.COMPENSATION, ResolutionStatus.UNSUPPORTED,
-                               'TARIFA_COMPENSACAO_NAO_SUPORTADA',
-                               'Parser não comprova componentes de compensação neste layout.')
+        if energy is None or (energy.status == ResolutionStatus.UNSUPPORTED and not energy.compensacoes):
+            result = self._empty(DocumentTariffKind.COMPENSATION, ResolutionStatus.UNSUPPORTED,
+                                 'TARIFA_COMPENSACAO_NAO_SUPORTADA',
+                                 'Parser não comprova componentes de compensação neste layout.')
+            return result, (), result.status, result.issues
         if not energy.compensacoes:
             status = ResolutionStatus.AMBIGUOUS if energy.status == ResolutionStatus.AMBIGUOUS else ResolutionStatus.MISSING
-            return self._empty(DocumentTariffKind.COMPENSATION, status,
-                               'TARIFA_COMPENSACAO_NAO_ENCONTRADA',
-                               'Nenhuma tarifa de compensação comprovada.', energy.issues)
+            result = self._empty(DocumentTariffKind.COMPENSATION, status,
+                                 'TARIFA_COMPENSACAO_NAO_ENCONTRADA',
+                                 'Nenhuma tarifa de compensação comprovada.', energy.issues)
+            return result, (), result.status, result.issues
 
-        all_evidence, issues, candidate_values = [], list(energy.issues), []
-        for event in energy.compensacoes:
-            if event.status != ResolutionStatus.VALID:
-                issues.extend(event.issues)
-                continue
-            kinds = {component.tipo for component in event.componentes}
-            indexes = []
-            for component in event.componentes:
-                reference = component.energy_evidence.get('item_index')
-                if reference is not None and reference.status == 'found' and type(reference.value) is int:
-                    indexes.append(reference.value)
-            if kinds != {'TE', 'TUSD'} or len(indexes) != 2 or len(set(indexes)) != 2:
-                issues.append(_issue('DIVERGENCIA_COMPONENTES_TARIFA',
-                                     'Compensação exige par TE/TUSD com origens distintas.'))
-                continue
-            evidence, event_issues, status = self._read_unit_tariffs(invoice, indexes)
-            issues.extend(event_issues)
-            all_evidence.extend(evidence)
-            if status == ResolutionStatus.VALID:
-                candidate_values.append((_sum_exact([item.value for item in evidence]), tuple(indexes), tuple(evidence)))
+        identities = tuple(event for event in energy.compensacoes if event.cobravel_ouc_mpt)
+        if not identities:
+            result = self._empty(DocumentTariffKind.COMPENSATION, ResolutionStatus.MISSING,
+                                 'TARIFA_COMPENSACAO_NAO_ENCONTRADA',
+                                 'Nenhum evento OUC/MPT cobrável foi comprovado.', energy.issues)
+            return result, (), result.status, result.issues
 
-        if len(energy.compensacoes) > 1:
-            return self._empty(DocumentTariffKind.COMPENSATION, ResolutionStatus.AMBIGUOUS,
-                               'MULTIPLOS_CANDIDATOS_TARIFA_COMPENSACAO',
-                               'Múltiplos eventos fornecem candidatos de compensação.', issues, all_evidence)
-        if not candidate_values:
-            status = ResolutionStatus.AMBIGUOUS if energy.status == ResolutionStatus.AMBIGUOUS or any(
-                issue.code in ('DIVERGENCIA_COMPONENTES_TARIFA', 'MULTIPLOS_CANDIDATOS_TARIFA_COMPENSACAO')
-                for issue in issues) else ResolutionStatus.MISSING
-            return self._empty(DocumentTariffKind.COMPENSATION, status,
-                               'COMPONENTE_TARIFARIO_INCOMPLETO',
-                               'Tarifa de compensação exige par tarifário completo.', issues, all_evidence)
+        events = tuple(self._resolve_compensation_event(invoice, identity) for identity in identities)
+        issues = list(energy.issues)
+        for event in events:
+            for issue in event.issues:
+                if issue not in issues:
+                    issues.append(issue)
+        statuses = {energy.status, *(event.status for event in events)}
+        status = next((candidate for candidate in (
+            ResolutionStatus.AMBIGUOUS, ResolutionStatus.UNSUPPORTED,
+            ResolutionStatus.MISSING, ResolutionStatus.VALID,
+        ) if candidate in statuses), ResolutionStatus.MISSING)
+        if status != ResolutionStatus.VALID:
+            return None, events, status, tuple(issues)
 
-        value, indexes, evidence = candidate_values[0]
+        signatures = {(
+            event.te_tariff, event.tusd_tariff, event.combined_tariff,
+            event.with_taxes, event.includes_flag,
+        ) for event in events}
+        if len(signatures) != 1:
+            issues.append(_issue(
+                'TARIFA_COMPENSACAO_ESCALAR_INAPLICAVEL',
+                'Eventos válidos possuem tarifas documentais diferentes; scalar não produzido.',
+            ))
+            return None, events, ResolutionStatus.VALID, tuple(issues)
+
+        _, _, value, with_taxes, includes_flag = next(iter(signatures))
+        evidence = tuple(item for event in events for item in event.evidence)
+        indexes = tuple(sorted({index for event in events for index in event.source_item_indexes}))
+        confidences = [event.confidence for event in events]
+        confidence = min(confidences) if all(item is not None for item in confidences) else None
+        scalar = ResolvedDocumentTariff(
+            DocumentTariffKind.COMPENSATION, value, with_taxes, includes_flag,
+            indexes, confidence, ResolutionStatus.VALID, tuple(issues), evidence,
+        )
+        return scalar, events, ResolutionStatus.VALID, tuple(issues)
+
+    def _resolve_compensation_event(self, invoice, identity):
+        indexes = []
+        for component in identity.componentes:
+            reference = component.energy_evidence.get('item_index')
+            if reference is not None and reference.status == 'found' and type(reference.value) is int:
+                indexes.append(reference.value)
+        indexes = tuple(indexes)
+        if identity.status != ResolutionStatus.VALID:
+            return ResolvedCompensationTariffEvent(
+                identity, None, None, None, None, None, indexes, identity.confidence,
+                identity.status, identity.issues,
+            )
+        if ({component.tipo for component in identity.componentes} != {'TE', 'TUSD'}
+                or len(indexes) != 2 or len(set(indexes)) != 2):
+            issue = _issue('DIVERGENCIA_COMPONENTES_TARIFA',
+                           'Compensação exige par TE/TUSD com origens distintas.')
+            return ResolvedCompensationTariffEvent(
+                identity, None, None, None, None, None, indexes, identity.confidence,
+                ResolutionStatus.AMBIGUOUS, identity.issues + (issue,),
+            )
+
+        evidence, issues, status = self._read_unit_tariffs(invoice, indexes)
+        combined_issues = list(identity.issues) + issues
+        if status != ResolutionStatus.VALID:
+            return ResolvedCompensationTariffEvent(
+                identity, None, None, None, None, None, indexes, None,
+                status, tuple(combined_issues), evidence,
+            )
+        by_kind = {component.tipo: item for component, item in zip(identity.componentes, evidence)}
         with_taxes, tax_issues = self._tax_state(invoice, evidence)
-        issues.extend(tax_issues)
-        return ResolvedDocumentTariff(
-            DocumentTariffKind.COMPENSATION, value, with_taxes, None, indexes,
-            self._confidence(evidence), ResolutionStatus.VALID, tuple(issues), evidence,
+        includes_flag, flag_issues = self._flag_state(invoice, 'energia_inj_band_amarela_te')
+        combined_issues.extend(tax_issues + flag_issues)
+        tariff_confidence = self._confidence(evidence)
+        confidence = (min(identity.confidence, tariff_confidence)
+                      if identity.confidence is not None and tariff_confidence is not None else None)
+        te, tusd = by_kind['TE'].value, by_kind['TUSD'].value
+        return ResolvedCompensationTariffEvent(
+            identity, te, tusd, _sum_exact((te, tusd)), includes_flag, with_taxes,
+            indexes, confidence, ResolutionStatus.VALID, tuple(combined_issues), evidence,
         )
 
     def _read_unit_tariffs(self, invoice, indexes):
@@ -319,15 +405,17 @@ class DocumentTariffResolver:
         return None, issues
 
     @staticmethod
-    def _flag_state(invoice):
+    def _flag_state(invoice, component):
+        if component not in FLAG_COMPONENTS:
+            raise ValueError('Componente de bandeira documental não suportado.')
         found, ambiguous = 0, False
         for item in invoice.itens_documentais:
             label = item.get('descricao_normalizada')
             if label is None:
                 continue
-            if label.status == 'found' and label.value in FLAG_COMPONENTS:
+            if label.status == 'found' and label.value == component:
                 found += 1
-            elif label.status == 'ambiguous' and label.value in FLAG_COMPONENTS:
+            elif label.status == 'ambiguous' and label.value == component:
                 ambiguous = True
         if ambiguous or found > 1:
             return None, [_issue('BANDEIRA_AMBIGUA', 'Item de bandeira não é inequívoco.')]

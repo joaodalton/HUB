@@ -171,20 +171,20 @@ class ApiCredentialTest(IsolatedTestRuntime, unittest.TestCase):
             db.session.commit()
             client_id = client.id
         first = self._request('POST', '/api/v1/ucs', self.owner_a_id, json={
-            'clienteId': client_id, 'codigo': 'UC-1', 'documento': '123.456.789-00',
+            'clienteId': client_id, 'codigo': 'UC-1', 'concessionaria': 'Outra', 'documento': '529.982.247-25',
             'senhaConcessionaria': 'segredo-inicial', 'conexoes': [],
         })
         self.assertEqual(first.status_code, 201)
         first_uc_id = first.get_json()['data']['id']
         second = self._request('POST', '/api/v1/ucs', self.owner_a_id, json={
-            'clienteId': client_id, 'codigo': 'UC-2', 'documento': '12345678900',
+            'clienteId': client_id, 'codigo': 'UC-2', 'concessionaria': 'Outra', 'documento': '52998224725',
             'senhaConcessionaria': 'segredo-atualizado', 'conexoes': [],
         })
         self.assertEqual(second.status_code, 201)
         self.assertNotIn('segredo-atualizado', second.get_data(as_text=True))
         with self.app.app_context():
             credentials = ApiCredential.query.filter_by(
-                empresa_id=1, provider='concessionaria', nome='CPF 12345678900'
+                empresa_id=1, provider='concessionaria', nome='CPF 52998224725'
             ).all()
             self.assertEqual(len(credentials), 1)
             self.assertEqual(credentials[0].get_segredo(), 'segredo-atualizado')

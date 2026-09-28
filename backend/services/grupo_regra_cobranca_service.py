@@ -5,6 +5,7 @@ from sqlalchemy.exc import IntegrityError
 
 from extensions import db
 from models.grupo_regra_cobranca import GrupoRegraCobranca
+from models.regra_cobranca_assignment import RegraCobrancaAssignment
 from services.billing_calculation_contracts import (
     BillingMode,
     CalculationMethod,
@@ -21,6 +22,10 @@ class BillingRuleValidationError(ValueError):
 
 
 class BillingRuleConflictError(ValueError):
+    pass
+
+
+class BillingRuleInUseError(ValueError):
     pass
 
 
@@ -110,6 +115,10 @@ def update_rule(rule_id: int, data: dict) -> dict | None:
     if not item:
         return None
     values = _validated_values(data, item)
+    if item.ativo and values['ativo'] is False and RegraCobrancaAssignment.query.filter_by(
+        empresa_id=g.current_empresa_id, grupo_regra_cobranca_id=item.id, ativo=True,
+    ).first():
+        raise BillingRuleInUseError('Regra vinculada a um assignment ativo nao pode ser desativada.')
     if any(getattr(item, field) != values[field] for field in _VERSIONED):
         item.revision += 1
     for field, value in values.items():

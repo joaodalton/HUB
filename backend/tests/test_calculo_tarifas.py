@@ -157,9 +157,11 @@ class CalculoTarifasTest(unittest.TestCase):
     def test_selecao_das_estrategias(self):
         for metodo, estrategia in (('tarifa_fixa', EstrategiaTarifaFixa),
                                    ('tarifa_especifica', EstrategiaTarifaEspecifica)):
-            regra = self.regra(metodo)
-            with patch.object(estrategia, 'calculate', return_value='resultado') as calcular:
-                self.assertEqual(self.calcular(regra), 'resultado')
+            regra = self.regra(metodo, desconto='20')
+            original = estrategia().calculate
+            with patch.object(estrategia, 'calculate', side_effect=original) as calcular:
+                result = self.calcular(regra)
+                self.assertEqual(result.hub_amount, Decimal('560.00' if metodo == 'tarifa_fixa' else '700.00'))
                 calcular.assert_called_once_with(invoice=self.fatura, rule=regra, context=self.contexto)
 
     def test_metodos_ainda_nao_suportados(self):
@@ -201,7 +203,7 @@ class CalculoTarifasTest(unittest.TestCase):
 
     def test_modificadores_continuam_bloqueados(self):
         for metodo in ('tarifa_fixa', 'tarifa_especifica'):
-            for modificadores in (BillingModifiers(exclude_pis_cofins=True), BillingModifiers(icms_policy='exclude'),
+            for modificadores in (BillingModifiers(icms_policy='exclude'),
                     BillingModifiers(exclude_tariff_flag=True), BillingModifiers(grace_period=GracePeriod(True)),
                     BillingModifiers(recurring_additional_cost=Decimal('1'))):
                 self.verificar_bloqueio('unsupported_billing_configuration',

@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from services.invoice_parsers.copel import CopelDANF3EParser
+from services.invoice_parsers.copel import CopelDANF3EParser, _decimal
 from services.invoice_parsers.item_matcher import ItemMatcher, ItemMatcherRule
 from services.invoice_parsers.schemas import ExtractedField, ParsedInvoice
 try:
@@ -24,7 +24,9 @@ class CopelEnergyTest(unittest.TestCase):
         parsed = self.parse()
         normalized = InvoiceNormalizer().normalize(parsed)
         for key, value in (('grupo_tarifario', 'B'), ('subgrupo_tarifario', 'B1'),
-                           ('modalidade_tarifaria', 'CONVENCIONAL')):
+                           ('modalidade_tarifaria', 'CONVENCIONAL'),
+                           ('classe_tarifaria', 'Residencial'),
+                           ('subclasse_tarifaria', 'Residencial')):
             self.assertEqual(normalized.campos[key].value, value)
             self.assertTrue(normalized.campos[key].source)
         missing = InvoiceNormalizer().normalize(self.parse(omitted=('classification',)))
@@ -36,6 +38,58 @@ class CopelEnergyTest(unittest.TestCase):
 
     def parse(self, **options):
         return CopelDANF3EParser().parse(make_pdf(**options))
+
+    def sanitized_gd_components(self, case):
+        folder = Path(__file__).parent / 'fixtures/invoices/copel'
+        rows = json.loads((folder / 'gd_events_sanitized.json').read_text(encoding='utf-8'))[case]
+
+        def found(value):
+            return ExtractedField('found', value, Decimal('0.95'), 'sanitized:copel-real')
+
+        items = tuple({
+            'descricao_original': found(row['label']),
+            'unidade': found('kWh'),
+            'quantidade': found(Decimal(row['quantity_kwh'])),
+            'preco_unitario_com_tributos': found(Decimal(row['taxed_unit_price'])),
+            'tarifa_unitaria': found(Decimal(row['tariff_unit'])),
+        } for row in rows)
+        components, _, _ = CopelDANF3EParser()._energy(items, found(Decimal('0')))
+        return rows, components
+
+    def test_real_gd_labels_are_structured_without_collapsing_events(self):
+        for case in ('own_and_ouc_gdii_2026_08', 'ouc_gdi_gdii_2026_09', 'ouc_gdii_2026_09'):
+            rows, components = self.sanitized_gd_components(case)
+            self.assertEqual(len(components), len(rows))
+            for expected, actual in zip(rows, components):
+                self.assertEqual(actual['category'].value, expected['category'])
+                if expected['category'] in ('injected', 'compensated'):
+                    self.assertEqual(actual['tariff_component'].value, expected['component'])
+                    self.assertEqual(actual['gd_classification'].value, expected['gd'])
+                    self.assertEqual(actual['credit_month'].value, expected['month'])
+                if expected['category'] == 'compensated':
+                    self.assertEqual(actual['origin'].value, 'OUC')
+                    self.assertEqual(actual['period'].value, 'MPT')
+                    self.assertEqual(actual['compensation_context'].value, 'energia_inj_ouc_mpt')
+
+    def test_document_negative_decimal_is_preserved(self):
+        self.assertEqual(_decimal('-352'), Decimal('-352'))
+
+    def test_gdiii_document_label_reaches_unsupported_normalization(self):
+        def found(value):
+            return ExtractedField('found', value, Decimal('0.95'), 'synthetic:gdiii')
+
+        items = tuple({
+            'descricao_original': found(f'ENERGIA INJ. OUC MPT {kind} 08/2026 GDIII-III'),
+            'unidade': found('kWh'), 'quantidade': found(Decimal('-10')),
+            'tarifa_unitaria': found(Decimal('0.1')),
+        } for kind in ('TE', 'TUSD'))
+        parser = CopelDANF3EParser()
+        components, energia, issues = parser._energy(items, found(Decimal('0')))
+        self.assertEqual([row['gd_classification'].value for row in components], ['GD_III', 'GD_III'])
+        from services.invoice_normalization_service import InvoiceNormalizer
+        parsed = ParsedInvoice(parser.identity, itens=items, energy_components=components,
+                               energia=energia, issues=issues, compensation_supported=True)
+        self.assertEqual(InvoiceNormalizer().normalize(parsed).billing_energy_input.status, 'UNSUPPORTED')
 
     def test_fixture_expected_and_sources(self):
         folder = Path(__file__).parent / 'fixtures/invoices/copel'
@@ -88,12 +142,15 @@ class CopelEnergyTest(unittest.TestCase):
         self.assertEqual(len(parsed.energy_components), 4)
         self.assertEqual([c['item_index'].value for c in parsed.energy_components], [0, 1, 2, 4])
 
-    def test_matcher_only_observed_exact_labels(self):
+    def test_matcher_only_observed_labels(self):
         rules = CopelDANF3EParser.energy_matcher.rules
         self.assertEqual([(r.mode, r.pattern, r.target, r.priority) for r in rules], [
             ('exact', ITEMS[0][0], 'consumed', 100),
             ('exact', ITEMS[1][0], 'other', 100),
-            ('exact', ITEMS[2][0], 'other', 100),
+            ('prefix', 'ENERGIA INJETADA ', 'injected', 100),
+            ('prefix', 'ENERGIA INJ. OUC MPT ', 'compensated', 100),
+            ('prefix', ITEMS[2][0], 'other', 100),
+            ('exact', 'ENERGIA INJ. BAND. AMARELA TE', 'other', 100),
         ])
 
     def test_matcher_tie_is_ambiguous_not_first_wins(self):

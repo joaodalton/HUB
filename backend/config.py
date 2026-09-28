@@ -58,6 +58,17 @@ class Config:
     FATURA_CONCESSIONARIA_MAX_PAGES = int(os.getenv(
         'FATURA_CONCESSIONARIA_MAX_PAGES', '10'
     ))
+    BILLING_DIAGNOSTIC_TIMEOUT_SECONDS = int(os.getenv(
+        'BILLING_DIAGNOSTIC_TIMEOUT_SECONDS', '20'
+    ))
+    # 100 MiB por arquivo ANEEL; limite exclusivo desta rota, em bytes.
+    REGULATORY_TARIFF_MAX_BYTES = int(os.getenv('REGULATORY_TARIFF_MAX_BYTES', str(100 * 1024 * 1024)))
+    REGULATORY_TARIFF_TEMP_DIR = os.getenv('REGULATORY_TARIFF_TEMP_DIR', '')
+    REGULATORY_TARIFF_MAX_ROWS = int(os.getenv('REGULATORY_TARIFF_MAX_ROWS', '100000'))
+    REGULATORY_TARIFF_PREVIEW_TTL_MINUTES = int(os.getenv('REGULATORY_TARIFF_PREVIEW_TTL_MINUTES', '20'))
+    ANEEL_CKAN_API_URL = os.getenv('ANEEL_CKAN_API_URL', 'https://dadosabertos.aneel.gov.br/api/3/action')
+    ANEEL_CKAN_TIMEOUT_SECONDS = int(os.getenv('ANEEL_CKAN_TIMEOUT_SECONDS', '15'))
+    ANEEL_CKAN_TOKEN = os.getenv('ANEEL_CKAN_TOKEN', '')
 
     # Meta App e assinatura do webhook sao infraestrutura do HUB. O token de
     # acesso de cada numero fica cifrado por empresa em ApiCredential.

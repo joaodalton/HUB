@@ -60,7 +60,7 @@ class InvoiceCompensationTest(unittest.TestCase):
         self.assertEqual(json_safe(original), before)
 
     def test_divergence_blocks_whole_input_including_other_valid_events(self):
-        invoice = self.normalize(parsed((('bad', '2026-06', '1000', '950'), ('good', '2026-07', '400', '400'))))
+        invoice = self.normalize(parsed((('bad', '2026-06', '-352', '-350'), ('good', '2026-07', '-30', '-30'))))
         energy = invoice.billing_energy_input
         self.assertEqual(energy.status, 'AMBIGUOUS')
         self.assertIsNone(energy.energia_compensada_cobravel_kwh)
@@ -79,6 +79,32 @@ class InvoiceCompensationTest(unittest.TestCase):
         self.assertEqual(separate.require_valid(), Decimal('800'))
         self.assertEqual(len(separate.compensacoes), 2)
 
+    def test_local_injection_is_auditable_but_only_ouc_mpt_is_billable(self):
+        doc = parsed((('ouc', '2026-08', '-2400', '-2400'),))
+        own = tuple({
+            'category': found('injected'), 'unit': found('kWh'),
+            'amount_kwh': found(Decimal('-1240')), 'tariff_component': found(kind),
+        } for kind in ('TE', 'TUSD'))
+        invoice = self.normalize(replace(doc, energy_components=(*own, *doc.energy_components)))
+        self.assertEqual(invoice.billing_energy_input.require_valid(), Decimal('2400'))
+        self.assertEqual([row['amount_kwh'].value for row in invoice.energy_components[:2]],
+                         [Decimal('-1240'), Decimal('-1240')])
+
+    def test_gdi_and_gdii_are_two_valid_events_and_sum_once_each(self):
+        doc = parsed((('ouc', '2026-07', '-30', '-30'),
+                      ('ouc', '2026-08', '-352', '-352')))
+        for row in doc.energy_components[:2]:
+            row['gd_classification'] = found('GD_I')
+        for row in doc.energy_components[2:]:
+            row['gd_classification'] = found('GD_II')
+        energy = self.normalize(doc).billing_energy_input
+        self.assertEqual(energy.require_valid(), Decimal('382'))
+        self.assertEqual([(event.classificacao_gd, event.mes_origem, event.quantidade_kwh,
+                           event.status) for event in energy.compensacoes], [
+            ('GD_I', '2026-07', Decimal('30'), EnergyStatus.VALID),
+            ('GD_II', '2026-08', Decimal('352'), EnergyStatus.VALID),
+        ])
+
     def test_non_compensation_categories_balance_planning_taxes_never_add_energy(self):
         doc = parsed(energia={'saldo_creditos_kwh': found(Decimal('3500')),
                              'energia_rateada_esperada_kwh': found(Decimal('2000')),
@@ -95,17 +121,40 @@ class InvoiceCompensationTest(unittest.TestCase):
                 item[name] = found(Decimal('99999999'))
         self.assertEqual(self.normalize(doc).billing_energy_input.require_valid(), Decimal('1000'))
 
-    def test_origins_periods_gd_are_metadata_not_multipliers(self):
+    def test_only_other_uc_same_period_is_billable(self):
         for origin, normalized_origin in (('MUC', 'MESMA_UC'), ('OUC', 'OUTRA_UC')):
             for period, normalized_period in (('MPT', 'MESMO_POSTO'), ('OPT', 'OUTRO_POSTO')):
-                for gd in ('GD_I', 'GD_II', 'GD_III', 'UNKNOWN'):
+                for gd in ('GD_I', 'GD_II', 'UNKNOWN'):
                     doc = parsed()
                     for row in doc.energy_components:
                         row.update(origin=found(origin), period=found(period), gd_classification=found(gd))
                     energy = self.normalize(doc).billing_energy_input
-                    self.assertEqual(energy.require_valid(), Decimal('1000'))
                     event, = energy.compensacoes
                     self.assertEqual((event.origem, event.posto, event.classificacao_gd), (normalized_origin, normalized_period, gd))
+                    if (origin, period) == ('OUC', 'MPT'):
+                        self.assertEqual(energy.require_valid(), Decimal('1000'))
+                    else:
+                        self.assertEqual(energy.status, EnergyStatus.MISSING)
+                        self.assertIsNone(energy.energia_compensada_cobravel_kwh)
+
+    def test_gdiii_is_explicitly_unsupported(self):
+        doc = parsed()
+        for row in doc.energy_components:
+            row['gd_classification'] = found('GD_III')
+        energy = self.normalize(doc).billing_energy_input
+        self.assertEqual(energy.status, EnergyStatus.UNSUPPORTED)
+        self.assertIsNone(energy.energia_compensada_cobravel_kwh)
+
+    def test_missing_origin_or_period_blocks_other_valid_ouc_event(self):
+        for missing in ('origin', 'period'):
+            doc = parsed((('valid', '2026-07', '-30', '-30'),
+                          ('incomplete', '2026-08', '-352', '-352')))
+            for row in doc.energy_components[2:]:
+                row.pop(missing)
+            energy = self.normalize(doc).billing_energy_input
+            self.assertEqual(energy.status, EnergyStatus.AMBIGUOUS)
+            self.assertIsNone(energy.energia_compensada_cobravel_kwh)
+            self.assertIn('COMPENSACAO_IDENTIDADE_INDEFINIDA', {issue.code for issue in energy.issues})
 
     def test_missing_unit_kw_and_missing_or_ambiguous_quantity_do_not_create_energy(self):
         for key, field in (('unit', found('kW')), ('unit', ExtractedField('not_present')),

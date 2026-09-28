@@ -17,23 +17,48 @@ def found(value, confidence=Decimal('0.95'), warnings=()):
     return ExtractedField('found', value, confidence, 'synthetic:document', warnings)
 
 
-def compensation_invoice(events=(('event-1', '0.312345', '0.456789'),)):
+def compensation_invoice(events=(('event-1', '0.312345', '0.456789'),), separate_flag=False):
     items, components = [], []
-    for context, te, tusd in events:
-        for kind, tariff in (('TE', te), ('TUSD', tusd)):
+    for event in events:
+        if isinstance(event, dict):
+            context, month, gd, quantity = (event[key] for key in ('context', 'month', 'gd', 'quantity'))
+            tariffs = (('TE', event['te'], event.get('te_taxed')),
+                       ('TUSD', event['tusd'], event.get('tusd_taxed')))
+        else:
+            context, te, tusd = event
+            month, gd, quantity = None, 'UNKNOWN', '-100'
+            tariffs = (('TE', te, None), ('TUSD', tusd, None))
+        for kind, tariff, taxed in tariffs:
             index = len(items)
-            items.append({
+            item = {
                 'descricao_original': found(f'COMPENSACAO {kind}'),
                 'descricao_normalizada': found(f'compensacao_{kind.lower()}'),
-                'quantidade': found(Decimal('-100')), 'unidade': found('kWh'),
+                'quantidade': found(Decimal(quantity)), 'unidade': found('kWh'),
                 'tarifa_unitaria': found(Decimal(tariff)), 'valor': found(Decimal('-10')),
-            })
-            components.append({
+            }
+            if taxed is not None:
+                item['preco_unitario_com_tributos'] = found(Decimal(taxed))
+            items.append(item)
+            component = {
                 'category': found('compensated'), 'unit': found('kWh'),
-                'amount_kwh': found(Decimal('-100')), 'item_index': found(index),
+                'amount_kwh': found(Decimal(quantity)), 'item_index': found(index),
                 'origin': found('OUC'), 'period': found('MPT'),
-                'compensation_context': found(context), 'tariff_component': found(kind),
-            })
+                'tariff_component': found(kind),
+                'gd_classification': found(gd),
+            }
+            if context is not None:
+                component['compensation_context'] = found(context)
+            if month is not None:
+                component['credit_month'] = found(month)
+            components.append(component)
+    if separate_flag:
+        items.append({
+            'descricao_original': found('ENERGIA INJ. BAND. AMARELA TE'),
+            'descricao_normalizada': found('energia_inj_band_amarela_te'),
+            'quantidade': found(Decimal('-382')), 'unidade': found('kWh'),
+            'tarifa_unitaria': found(Decimal('0.018850')),
+            'preco_unitario_com_tributos': found(Decimal('0.018848')),
+        })
     parsed = ParsedInvoice(ParserIdentity('synthetic-domain-only', '1'), itens=tuple(items),
                            energy_components=tuple(components), compensation_supported=True)
     return InvoiceNormalizer().normalize(parsed)
@@ -53,6 +78,12 @@ class DocumentTariffResolverTest(unittest.TestCase):
         result = self.resolver.resolve(copel_invoice()).full_tariff
         self.assertEqual((result.status, result.value), (ResolutionStatus.VALID, Decimal('0.358023')))
         self.assertEqual(result.source_item_indexes, (0, 1))
+
+    def test_full_tariff_preserves_real_gd_invoice_composition(self):
+        invoice = deepcopy(copel_invoice())
+        invoice.tariffs_documented[0]['tarifa_unitaria'] = found(Decimal('0.310850'))
+        invoice.tariffs_documented[1]['tarifa_unitaria'] = found(Decimal('0.457170'))
+        self.assertEqual(self.resolver.resolve(invoice).full_tariff.value, Decimal('0.768020'))
 
     def test_full_tariff_never_sums_line_totals(self):
         invoice = deepcopy(copel_invoice())
@@ -98,13 +129,81 @@ class DocumentTariffResolverTest(unittest.TestCase):
         self.assertEqual(self.resolver.resolve(invoice).full_tariff.status, ResolutionStatus.AMBIGUOUS)
 
     def test_multiple_compensation_candidates_are_ambiguous(self):
-        invoice = compensation_invoice((('a', '0.1', '0.2'), ('b', '0.3', '0.4')))
-        result = self.resolver.resolve(invoice).compensation_tariff
-        self.assertEqual(result.status, ResolutionStatus.AMBIGUOUS)
-        self.assertIn('MULTIPLOS_CANDIDATOS_TARIFA_COMPENSACAO', {issue.code for issue in result.issues})
-        invoice = deepcopy(invoice)
-        invoice.tariffs_documented[3]['tarifa_unitaria'] = ExtractedField('not_present')
-        self.assertEqual(self.resolver.resolve(invoice).compensation_tariff.status, ResolutionStatus.AMBIGUOUS)
+        duplicate_identity = (
+            {'context': 'same', 'month': '2026-08', 'gd': 'GD_II', 'quantity': '-352',
+             'te': '0.310850', 'tusd': '0.328431'},
+            {'context': 'same', 'month': '2026-08', 'gd': 'GD_II', 'quantity': '-352',
+             'te': '0.310850', 'tusd': '0.328431'},
+        )
+        resolved = self.resolver.resolve(compensation_invoice(duplicate_identity))
+        self.assertIsNone(resolved.compensation_tariff)
+        self.assertEqual(resolved.compensation_tariff_events[0].status, ResolutionStatus.AMBIGUOUS)
+
+    def test_incomplete_second_identity_blocks_scalar_from_valid_event(self):
+        events = (
+            {'context': 'valid', 'month': '2026-07', 'gd': 'GD_I', 'quantity': '-30',
+             'te': '0.310850', 'tusd': '0.457170'},
+            {'context': None, 'month': '2026-08', 'gd': 'GD_II', 'quantity': '-352',
+             'te': '0.310850', 'tusd': '0.328431'},
+        )
+        resolved = self.resolver.resolve(compensation_invoice(events))
+        self.assertIsNone(resolved.compensation_tariff)
+        self.assertIn('COMPENSACAO_IDENTIDADE_INDEFINIDA', {issue.code for issue in resolved.issues})
+
+    def test_gdi_and_gdii_have_distinct_valid_tariff_events_without_scalar(self):
+        invoice = compensation_invoice((
+            {'context': 'ouc', 'month': '2026-07', 'gd': 'GD_I', 'quantity': '-30',
+             'te': '0.310850', 'tusd': '0.457170',
+             'te_taxed': '0.310667', 'tusd_taxed': '0.457000'},
+            {'context': 'ouc', 'month': '2026-08', 'gd': 'GD_II', 'quantity': '-352',
+             'te': '0.310850', 'tusd': '0.328431',
+             'te_taxed': '0.310824', 'tusd_taxed': '0.328409'},
+        ), separate_flag=True)
+        resolved = self.resolver.resolve(invoice)
+        self.assertIsNone(resolved.compensation_tariff)
+        self.assertEqual(len(resolved.compensation_tariff_events), 2)
+        self.assertEqual([
+            (event.identity.classificacao_gd, event.identity.mes_origem,
+             event.identity.quantidade_kwh, event.combined_tariff, event.status)
+            for event in resolved.compensation_tariff_events
+        ], [
+            ('GD_I', '2026-07', Decimal('30'), Decimal('0.768020'), ResolutionStatus.VALID),
+            ('GD_II', '2026-08', Decimal('352'), Decimal('0.639281'), ResolutionStatus.VALID),
+        ])
+        self.assertEqual([event.source_item_indexes for event in resolved.compensation_tariff_events],
+                         [(0, 1), (2, 3)])
+        self.assertEqual([event.confidence for event in resolved.compensation_tariff_events],
+                         [Decimal('0.95'), Decimal('0.95')])
+        self.assertTrue(all(event.with_taxes is False for event in resolved.compensation_tariff_events))
+        self.assertTrue(all(event.includes_flag is False for event in resolved.compensation_tariff_events))
+
+    def test_equivalent_event_tariffs_keep_safe_scalar_compatibility(self):
+        common = (
+            {'context': 'ouc', 'month': '2026-07', 'gd': 'GD_I', 'quantity': '-30',
+             'te': '0.310850', 'tusd': '0.457170'},
+            {'context': 'ouc', 'month': '2026-08', 'gd': 'GD_II', 'quantity': '-352',
+             'te': '0.310850', 'tusd': '0.457170'},
+        )
+        resolved = self.resolver.resolve(compensation_invoice(common))
+        self.assertEqual(resolved.compensation_tariff.value, Decimal('0.768020'))
+        self.assertEqual(resolved.compensation_tariff.status, ResolutionStatus.VALID)
+
+    def test_equal_combined_value_with_different_components_has_no_scalar(self):
+        events = (
+            {'context': 'ouc', 'month': '2026-07', 'gd': 'GD_I', 'quantity': '-30',
+             'te': '0.300000', 'tusd': '0.400000'},
+            {'context': 'ouc', 'month': '2026-08', 'gd': 'GD_II', 'quantity': '-352',
+             'te': '0.200000', 'tusd': '0.500000'},
+        )
+        self.assertIsNone(self.resolver.resolve(compensation_invoice(events)).compensation_tariff)
+
+    def test_taxed_price_never_replaces_event_unit_tariff(self):
+        event = ({'context': 'ouc', 'month': '2026-08', 'gd': 'GD_II', 'quantity': '-352',
+                  'te': '0.310850', 'tusd': '0.328431',
+                  'te_taxed': '9.000000', 'tusd_taxed': '8.000000'},)
+        resolved = self.resolver.resolve(compensation_invoice(event)).compensation_tariff_events[0]
+        self.assertEqual((resolved.te_tariff, resolved.tusd_tariff, resolved.combined_tariff),
+                         (Decimal('0.310850'), Decimal('0.328431'), Decimal('0.639281')))
 
     def test_compensation_source_indexes_are_preserved(self):
         result = self.resolver.resolve(compensation_invoice()).compensation_tariff

@@ -69,9 +69,11 @@
   /* Altura padrao de controle (botao/input) e tamanho unico de icone inline */
   --control-height: 40px;
   --icon-size: 18px;
+  --sidebar-width: 180px;
 
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  --font-page-title: clamp(18px, 1.5vw, 22px);
 
   --bg-deep: #0e1720;
   --panel-deep: #101c24;

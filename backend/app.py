@@ -35,6 +35,13 @@ def create_app() -> Flask:
         from services.import_service import purge_expirados
         click.echo(f'Previews expirados removidos: {purge_expirados()}')
 
+    @app.cli.command('purge-regulatory-tariff-previews')
+    def purge_regulatory_tariff_previews_command() -> None:
+        """Remove previews ANEEL expiradas e temporários órfãos."""
+        from services.regulatory_tariff_import_service import purge_expired_previews
+        result = purge_expired_previews()
+        click.echo(f"Previews regulatórias removidas: {result['previews']}; arquivos órfãos: {result['files']}")
+
     from models.empresa import Empresa  # type: ignore
     from models.client import Client  # type: ignore
     from models.plant import Plant  # type: ignore
@@ -55,6 +62,7 @@ def create_app() -> Flask:
     from models.message_template import MessageTemplate  # type: ignore
     from models.fatura import Fatura  # type: ignore
     from models.fatura_concessionaria import FaturaConcessionaria  # type: ignore
+    from models.calculo_cobranca import BillingCalculationExecution, BillingCalculationSnapshot  # type: ignore
     from models.grupo_regra_cobranca import GrupoRegraCobranca  # type: ignore
     from models.regra_cobranca_assignment import RegraCobrancaAssignment  # type: ignore
     from models.payment_webhook_event import PaymentWebhookEvent  # type: ignore
@@ -62,6 +70,7 @@ def create_app() -> Flask:
     from models.limite_contratado import LimiteContratado  # type: ignore
     from models.whatsapp import WhatsappIntegration, WhatsappConversation, WhatsappMessage  # type: ignore
     from models.agenda_event import AgendaEvent  # type: ignore
+    from models.regulatory_tariff import RegulatoryTariff, RegulatoryTariffImport, RegulatoryTariffPreview  # type: ignore
 
     cors_origins = [Config.FRONTEND_URL]
     if Config.DEBUG:
@@ -97,6 +106,9 @@ def create_app() -> Flask:
     from routes.whatsapp_routes import whatsapp_routes, whatsapp_webhook_routes
     from routes.grupo_regra_cobranca_routes import grupo_regra_cobranca_routes
     from routes.regra_cobranca_assignment_routes import regra_cobranca_assignment_routes
+    from routes.regulatory_tariff_routes import regulatory_tariff_routes
+    from routes.billing_calculation_routes import billing_calculation_routes, platform_billing_calculation_routes
+    from routes.billing_pdf_lab_routes import billing_pdf_lab_routes
 
     app.register_blueprint(health_routes)
     app.register_blueprint(auth_routes)
@@ -128,6 +140,10 @@ def create_app() -> Flask:
     app.register_blueprint(whatsapp_webhook_routes)
     app.register_blueprint(grupo_regra_cobranca_routes)
     app.register_blueprint(regra_cobranca_assignment_routes)
+    app.register_blueprint(regulatory_tariff_routes)
+    app.register_blueprint(billing_calculation_routes)
+    app.register_blueprint(platform_billing_calculation_routes)
+    app.register_blueprint(billing_pdf_lab_routes)
 
     from utils.auth import register_auth_middleware
     register_auth_middleware(app, public_paths={

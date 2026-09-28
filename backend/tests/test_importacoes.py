@@ -11,11 +11,13 @@ from app import create_app  # noqa
 from config import Config  # noqa
 from extensions import db, limiter  # noqa
 from models.client import Client  # noqa
+from models.consumer_unit import ConsumerUnit  # noqa
 from models.empresa import Empresa  # noqa
 from models.import_preview import ImportPreview  # noqa
 from models.log_entry import LogEntry  # noqa
 from models.user import User  # noqa
 from services.import_service import MAX_CELL_CHARS, MAX_COLUMNS, MAX_ROWS, _read_file, criar_preview  # noqa
+from services.uc_service import apply_uc_fields  # noqa
 from utils.auth import generate_token  # noqa
 from werkzeug.datastructures import FileStorage  # noqa
 try:
@@ -43,7 +45,7 @@ class ImportacoesTest(IsolatedTestRuntime, unittest.TestCase):
   return self.app.test_client().post('/api/v1/importacoes/preview',headers={'Authorization':'Bearer '+self._token(user)},data={'tipo':kind,'arquivo':(io.BytesIO(body), 'dados.csv')},content_type='multipart/form-data')
  def _commit(self,user,pid): return self.app.test_client().post(f'/api/v1/importacoes/{pid}/confirmar',headers={'Authorization':'Bearer '+self._token(user)})
  def test_csv_preview_has_no_writes_then_atomic_commit_and_replay(self):
-  r=self._preview(self.a,b'nome,cpf,email\nAna,12345678901,ana@example.test\n'); self.assertEqual(r.status_code,201); pid=r.json['data']['previewId']
+  r=self._preview(self.a,b'nome,cpf,email\nAna,52998224725,ana@example.test\n'); self.assertEqual(r.status_code,201); pid=r.json['data']['previewId']
   with self.app.app_context(): self.assertEqual(Client.query.count(),0); self.assertEqual(ImportPreview.query.count(),1)
   self.assertEqual(self._commit(self.a,pid).status_code,200)
   with self.app.app_context():
@@ -51,6 +53,16 @@ class ImportacoesTest(IsolatedTestRuntime, unittest.TestCase):
    audit=LogEntry.query.filter_by(acao='import_confirmed', entidade_id=pid).one()
    self.assertEqual(audit.metadados['resultado'],'sucesso'); self.assertEqual(audit.metadados['usuarioId'],self.a); self.assertEqual(audit.metadados['contagens']['clientes'],1)
   self.assertEqual(self._commit(self.a,pid).status_code,409)
+ def test_uc_discount_rejects_invalid_input_in_crud_and_import_preview(self):
+  uc=ConsumerUnit(codigo='UC-TESTE')
+  with self.assertRaisesRegex(ValueError, 'Desconto da UC'):
+   apply_uc_fields(uc, {'codigo':'UC-TESTE','desconto':'120'})
+  valid=self._preview(self.a,b'clienteCpf,codigo,desconto\n52998224725,123456789012,20\n','ucs')
+  self.assertEqual(valid.status_code,201)
+  self.assertEqual(valid.json['data']['erros'],[])
+  invalid=self._preview(self.a,b'clienteCpf,codigo,desconto\n52998224725,123456789013,120\n','ucs')
+  self.assertEqual(invalid.status_code,201)
+  self.assertTrue(any('Desconto da UC' in error['erro'] for error in invalid.json['data']['erros']))
  def test_xlsx_valid_and_formula_rejected(self):
   wb=Workbook(); ws=wb.active; ws.title='Clientes'; ws.append(['nome','cpf','email']); ws.append(['Bia','12345678902','bia@example.test']); out=io.BytesIO(); wb.save(out)
   r=self.app.test_client().post('/api/v1/importacoes/preview',headers={'Authorization':'Bearer '+self._token(self.a)},data={'arquivo':(io.BytesIO(out.getvalue()),'dados.xlsx')},content_type='multipart/form-data'); self.assertEqual(r.status_code,201)
@@ -105,12 +117,12 @@ class ImportacoesTest(IsolatedTestRuntime, unittest.TestCase):
   self.assertEqual(self._preview(self.viewer,b'nome,cpf,email\nX,12345678904,x@x.test\n').status_code,403)
   r=self._preview(self.a,b'nome,cpf,email\nX,12345678904,x@x.test\n'); pid=r.json['data']['previewId']; self.assertEqual(self._commit(self.b,pid).status_code,404)
  def test_duplicate_preview_and_atomic_rollback(self):
-  d=self._preview(self.a,b'nome,cpf,email\nX,12345678905,x@x.test\nX2,12345678905,y@x.test\n'); self.assertEqual(d.status_code,201); self.assertTrue(d.json['data']['erros'])
+  d=self._preview(self.a,b'nome,cpf,email\nX,12345678305,x@x.test\nX2,12345678305,y@x.test\n'); self.assertEqual(d.status_code,201); self.assertTrue(d.json['data']['erros'])
   # XLSX com cliente + UC que referencia CPF inexistente: commit deve reverter cliente recém-criado.
-  wb=Workbook(); c=wb.active; c.title='Clientes'; c.append(['nome','cpf','email']); c.append(['Y','12345678906','y@x.test']); u=wb.create_sheet('UCs'); u.append(['clienteCpf','codigo']); u.append(['99999999999','UC-1']); out=io.BytesIO(); wb.save(out)
+  wb=Workbook(); c=wb.active; c.title='Clientes'; c.append(['nome','cpf','email']); c.append(['Y','12345678496','y@x.test']); u=wb.create_sheet('UCs'); u.append(['clienteCpf','codigo']); u.append(['99999999999','123456789012']); out=io.BytesIO(); wb.save(out)
   r=self.app.test_client().post('/api/v1/importacoes/preview',headers={'Authorization':'Bearer '+self._token(self.a)},data={'arquivo':(io.BytesIO(out.getvalue()),'atomico.xlsx')},content_type='multipart/form-data'); pid=r.json['data']['previewId']; self.assertEqual(self._commit(self.a,pid).status_code,409)
   with self.app.app_context():
-   self.assertIsNone(Client.query.filter_by(cpf='12345678906').first())
+   self.assertIsNone(Client.query.filter_by(cpf='12345678496').first())
    self.assertEqual(LogEntry.query.filter_by(acao='import_confirm_failed', entidade_id=pid).one().metadados['resultado'],'falha')
 
  def test_z_standard_template_public_download_import_and_export(self):
@@ -127,6 +139,10 @@ class ImportacoesTest(IsolatedTestRuntime, unittest.TestCase):
   self.assertEqual(client.get('/api/v1/importacoes/exportar', headers={'Authorization':'Bearer '+self._token(self.viewer)}).status_code, 403)
   # O arquivo real enviado pelo usuario cobre todos os campos opcionais.
   workbook = load_workbook(TEMPLATE_PATH)
+  workbook['Clientes']['B2'] = '123.456.780-62'
+  workbook['UCs']['A2'] = '123.456.780-62'
+  workbook['UCs']['B2'] = '000123456789012'
+  workbook['UCs']['D2'] = '123.456.780-62'
   output = io.BytesIO(); workbook.save(output)
   rows = _read_file(output.getvalue(), 'modelo.xlsx', None)
   plan, errors = _validate(rows)
@@ -136,13 +152,14 @@ class ImportacoesTest(IsolatedTestRuntime, unittest.TestCase):
   self.assertEqual(plan['usinas'][0]['numModulos'], '180')
   response = client.post('/api/v1/importacoes/preview', headers={'Authorization':'Bearer '+self._token(self.a)}, data={'arquivo':(io.BytesIO(output.getvalue()), 'modelo.xlsx')})
   self.assertEqual(response.status_code, 201)
-  self.assertEqual(self._commit(self.a, response.json['data']['previewId']).status_code, 200)
+  committed = self._commit(self.a, response.json['data']['previewId'])
+  self.assertEqual(committed.status_code, 200, committed.json)
   exported = client.get('/api/v1/importacoes/exportar', headers={'Authorization':'Bearer '+self._token(self.a)})
   self.assertEqual(exported.status_code, 200)
   exported_rows = _read_file(exported.data, 'export.xlsx', None)
-  exported_client = next(row for row in exported_rows['clientes'] if row['cpf'] == '12345678900')
+  exported_client = next(row for row in exported_rows['clientes'] if row['cpf'] == '12345678062')
   self.assertEqual(exported_client['dataNascimento'], '1990-05-20')
-  self.assertEqual(exported_rows['ucs'][0]['clienteCpf'], '12345678900')
+  self.assertEqual(exported_rows['ucs'][0]['clienteCpf'], '12345678062')
   self.assertEqual(exported_rows['ucs'][0]['apelido'], 'Casa')
   self.assertEqual(exported_rows['ucs'][0]['consumo'], 450.5)
   self.assertEqual(exported_rows['usinas'][0]['numModulos'], 180)

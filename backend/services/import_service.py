@@ -13,6 +13,9 @@ from models.consumer_unit import ConsumerUnit
 from models.import_preview import ImportPreview
 from models.log_entry import LogEntry
 from models.plant import Plant
+from services.uc_discount import parse_uc_discount
+from services.uc_code import normalize_uc_code
+from services.cad_identity import normalize_name, normalize_phone, normalize_cpf, normalize_document
 
 MAX_BYTES, MAX_ROWS, TTL_MINUTES, MAX_COLUMNS, MAX_CELL_CHARS = 10 * 1024 * 1024, 10_000, 20, 80, 2_000
 SHEETS = {'Clientes': 'clientes', 'UCs': 'ucs', 'Usinas': 'usinas'}
@@ -146,16 +149,17 @@ def confirmar(preview_id: int) -> dict | None:
     try:
         clients = {}
         for row in plan['clientes']:
-            cpf = _digits(row['cpf'])
+            cpf = normalize_cpf(row['cpf'])
             if Client.query.filter(Client.empresa_id == g.current_empresa_id, Client.cpf == cpf).first():
                 raise ValueError('Cliente duplicado no banco.')
-            client = Client(empresa_id=g.current_empresa_id, nome=row['nome'], cpf=cpf, email=row['email'], telefone=row.get('telefone'), concessionaria=row.get('concessionaria') or 'Copel', data_nascimento=_date(row.get('dataNascimento')))
+            client = Client(empresa_id=g.current_empresa_id, nome=normalize_name(row['nome']), cpf=cpf, email=row['email'], telefone=normalize_phone(row['telefone']) if row.get('telefone') else None, concessionaria=row.get('concessionaria') or 'Copel', data_nascimento=_date(row.get('dataNascimento')))
             db.session.add(client); db.session.flush(); clients[cpf] = client
         for row in plan['ucs']:
             cpf = _digits(row['clienteCpf']); client = clients.get(cpf)
             if not client: raise ValueError('UC referencia cliente ausente no mesmo arquivo.')
-            if ConsumerUnit.query.filter(ConsumerUnit.empresa_id == g.current_empresa_id, ConsumerUnit.client_id == client.id, ConsumerUnit.codigo == row['codigo']).first(): raise ValueError('UC duplicada no banco.')
-            db.session.add(ConsumerUnit(empresa_id=g.current_empresa_id, client_id=client.id, codigo=row['codigo'], apelido=row.get('apelido'), documento=row.get('documento'), consumo=_number(row.get('consumo')), base_tarifaria=row.get('baseTarifaria') or 'B1', tipo_ligacao=row.get('tipoLigacao') or 'Monofasico', desconto=row.get('desconto'), dia_emissao_fatura=_integer(row.get('diaEmissaoFatura')), concessionaria=row.get('concessionaria')))
+            codigo = normalize_uc_code(row['codigo'], row.get('concessionaria') or client.concessionaria)
+            if ConsumerUnit.query.filter(ConsumerUnit.empresa_id == g.current_empresa_id, ConsumerUnit.client_id == client.id, ConsumerUnit.codigo == codigo).first(): raise ValueError('UC duplicada no banco.')
+            db.session.add(ConsumerUnit(empresa_id=g.current_empresa_id, client_id=client.id, codigo=codigo, apelido=row.get('apelido'), documento=normalize_document(row['documento']) if row.get('documento') else None, consumo=_number(row.get('consumo')), base_tarifaria=row.get('baseTarifaria') or 'B1', tipo_ligacao=row.get('tipoLigacao') or 'Monofasico', desconto=row.get('desconto'), dia_emissao_fatura=_integer(row.get('diaEmissaoFatura')), concessionaria=row.get('concessionaria')))
         for row in plan['usinas']:
             if Plant.query.filter(Plant.empresa_id == g.current_empresa_id, Plant.nome == row['nome'], Plant.uc == row['uc']).first(): raise ValueError('Usina duplicada no banco.')
             db.session.add(Plant(empresa_id=g.current_empresa_id, nome=row['nome'], uc=row['uc'], kw_pico=_number(row['kwPico']), marca_inversor=row.get('marcaInversor'), telefone_proprietario=row.get('telefoneProprietario'), email_proprietario=row.get('emailProprietario'), cidade=row.get('cidade'), uf=row.get('uf'), endereco=row.get('endereco'), num_modulos=_integer(row.get('numModulos')), producao_media_manual=_number(row.get('producaoMediaManual')), dia_emissao_usina=_integer(row.get('diaEmissaoUsina')), status=row.get('status') or 'Implantacao', responsavel=row.get('responsavel'), concessionaria=row.get('concessionaria')))
@@ -250,6 +254,7 @@ def _validate(rows):
     if sum(len(v) for v in rows.values()) > MAX_ROWS: raise ValueError('Máximo de 10 mil linhas.')
     errors, plan = [], {k: [] for k in REQUIRED}
     seen = set()
+    client_concessionarias = {}
     for kind, entries in rows.items():
         aliases = _aliases(kind)
         for index, raw in enumerate(entries, 2):
@@ -264,12 +269,23 @@ def _validate(rows):
                         if value < 0 or (field.startswith('dia') and not 1 <= value <= 31):
                             raise ValueError(f'{field} fora do intervalo permitido.')
                 if clean.get('dataNascimento'): _date(clean['dataNascimento'])
+                if kind == 'ucs':
+                    parse_uc_discount(clean.get('desconto'))
+                    client_concessionaria = client_concessionarias.get(_digits(clean.get('clienteCpf')), 'Copel')
+                    clean['codigo'] = normalize_uc_code(clean.get('codigo'), clean.get('concessionaria') or client_concessionaria)
+                    if clean.get('documento'): clean['documento'] = normalize_document(clean['documento'])
             except ValueError as exc:
                 errors.append({'tipo': kind, 'linha': index, 'erro': str(exc)})
                 continue
             if missing: errors.append({'tipo': kind, 'linha': index, 'erro': f'Campos obrigatórios: {", ".join(missing)}'}); continue
             if kind == 'clientes':
-                clean['cpf'] = _digits(clean['cpf']); key=(kind,clean['cpf'])
+                try:
+                    clean['nome'] = normalize_name(clean['nome'])
+                    clean['cpf'] = normalize_cpf(clean['cpf'])
+                    if clean.get('telefone'): clean['telefone'] = normalize_phone(clean['telefone'])
+                except ValueError as exc:
+                    errors.append({'tipo':kind,'linha':index,'erro':str(exc)}); continue
+                key=(kind,clean['cpf'])
                 if len(clean['cpf']) != 11 or '@' not in clean['email']: errors.append({'tipo':kind,'linha':index,'erro':'CPF ou email inválido.'}); continue
             elif kind == 'ucs': key=(kind,_digits(clean['clienteCpf']),clean['codigo'])
             else:
@@ -278,6 +294,7 @@ def _validate(rows):
                 except ValueError: errors.append({'tipo':kind,'linha':index,'erro':'kwPico inválido.'}); continue
             if key in seen: errors.append({'tipo':kind,'linha':index,'erro':'Duplicata no arquivo.'}); continue
             seen.add(key); plan[kind].append(clean)
+            if kind == 'clientes': client_concessionarias[clean['cpf']] = clean.get('concessionaria') or 'Copel'
     return plan, errors
 
 def _digits(value): return ''.join(c for c in str(value) if c.isdigit())

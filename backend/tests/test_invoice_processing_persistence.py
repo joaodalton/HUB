@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import date, timedelta
 import hashlib
 from pathlib import Path
 import sys
@@ -11,10 +11,12 @@ from flask import g
 from app import create_app
 from extensions import db
 from models.client import Client
-from models.consumer_unit import ConsumerUnit
+from models.consumer_unit import ConsumerUnit, PlantConnection
 from models.document import Document
 from models.empresa import Empresa
 from models.fatura_concessionaria import FaturaConcessionaria
+from models.pendencia import Pendencia
+from models.plant import Plant
 from services.fatura_processing_service import FaturaProcessingService
 from services.invoice_parsers.registry import ParserRegistry
 try:
@@ -46,7 +48,7 @@ class InvoicePersistenceTest(IsolatedTestRuntime, unittest.TestCase):
             db.session.add(FaturaConcessionaria(id=tenant, empresa_id=tenant, client_id=tenant, document_id=tenant,
                                                arquivo_hash=hashlib.sha256(self.document).hexdigest()))
             db.session.add(ConsumerUnit(id=tenant, empresa_id=tenant, client_id=tenant,
-                                       codigo=f'LEGACY-{tenant}', codigo_aneel='000000000000001'))
+                                       codigo='000000000000001'))
         db.session.add(Client(id=3, empresa_id=1, nome='Other', cpf='3', email='3@test.local'))
         db.session.commit()
         g.current_empresa_id = 1
@@ -70,14 +72,14 @@ class InvoicePersistenceTest(IsolatedTestRuntime, unittest.TestCase):
     def uc(self):
         return ConsumerUnit.query.filter_by(id=1, empresa_id=1).one()
 
-    def test_full_pipeline_matches_aneel_and_persists_exact_snapshots(self):
+    def test_full_pipeline_matches_canonical_uc_and_persists_exact_snapshots(self):
         result = self.process()
         self.assertEqual(result.status, 'parsed')
         self.assertEqual(result.validation.status, 'valida')
         invoice = self.invoice()
         self.assertEqual((invoice.status_extracao, invoice.status_validacao), ('extraida', 'valida'))
         self.assertEqual(invoice.consumer_unit_id, 1)
-        self.assertEqual(result.normalized.campos['uc_numero'].value, 'LEGACY-1')
+        self.assertEqual(result.normalized.campos['uc_numero'].value, '000000000000001')
         self.assertEqual((invoice.parser_name, invoice.parser_version, invoice.layout_version), ('copel', '1.3.0', 'DANF3EA4B-V1.06'))
         self.assertEqual(invoice.competencia, '2030-08')
         self.assertEqual(invoice.dados_normalizados['invoice']['campos']['valor_total_concessionaria']['value'], '1234.567890')
@@ -90,17 +92,29 @@ class InvoicePersistenceTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertEqual(energy['fatura_concessionaria_id'], invoice.id)
         self.assertEqual(energy['competencia'], invoice.competencia)
 
-    def test_exact_legacy_code_match(self):
-        uc = self.uc()
-        uc.codigo_aneel, uc.codigo = None, '000000000000001'
+    def test_operational_processing_creates_one_gd_pending_only_when_expectation_is_proven(self):
+        plant = Plant(empresa_id=1, nome='Ativa', uc='P-1', kw_pico=1, status='Ativa', data_ativacao=date(2030, 1, 1))
+        db.session.add(plant); db.session.flush()
+        db.session.add(PlantConnection(empresa_id=1, consumer_unit_id=1, plant_id=plant.id, percentual=100))
         db.session.commit()
-        self.assertEqual(self.process().validation.consumer_unit_id, 1)
+        self.process()
+        pending = Pendencia.query.filter_by(empresa_id=1, origem='GD_COMPENSATION_UNVERIFIED').one()
+        self.assertEqual((pending.consumer_unit_id, pending.plant_id, pending.fatura_concessionaria_id), (1, plant.id, 1))
+        self.assertEqual(pending.metadados['energyStatus'], 'UNSUPPORTED')
+
+    def test_legacy_aneel_alias_does_not_match(self):
+        uc = self.uc()
+        uc.codigo, uc.codigo_aneel = '570778003105', '000000000000001'
+        db.session.commit()
+        result = self.process()
+        self.assertEqual(result.validation.status, 'uc_nao_encontrada')
+        self.assertIsNone(self.invoice().consumer_unit_id)
 
     def test_same_code_other_tenant_does_not_match_or_leak_identity_map(self):
         g.current_empresa_id = 2
         foreign = ConsumerUnit.query.filter_by(id=2, empresa_id=2).one()
         g.current_empresa_id = 1
-        self.uc().codigo_aneel = 'different'
+        self.uc().codigo = 'different'
         db.session.commit()
         result = self.process()
         self.assertEqual(result.validation.status, 'uc_nao_encontrada')

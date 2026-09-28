@@ -112,6 +112,8 @@ Todas exigem token.
 `data` = `Client`. 404 se não existir.
 
 ### `POST /clients`
+CAD-1: `nome` é obrigatório, recebe trim e aceita de 1 a 200 caracteres. `cpf` aceita máscara, mas deve ter 11 dígitos e verificadores válidos; é persistido só com dígitos. `telefone` permanece opcional; quando informado, aceita máscara e prefixo `+55`, sendo salvo com 10 dígitos (fixo com DDD) ou 11 dígitos (celular com DDD e primeiro dígito 9). DDD deve ser válido. Entradas longas ou inválidas retornam 400 sem truncamento. As regras valem também para `PUT /clients` e para prévia/confirmação de importação. Dados legados não são regravados numa edição de outro campo.
+
 Body obrigatório: `nome`, `cpf`, `email` (não-vazios). Opcional: `telefone`, `concessionaria`, `ucs: [ConsumerUnitInput]`.
 
 `ConsumerUnitInput` aninhada (mesmos campos do payload de `POST /ucs`, ver abaixo, **sem** `clienteId`) — `id` ausente ou não-numérico (ex.: UUID gerado no front) = UC nova; `id` numérico = UC existente que deve ser atualizada. UCs existentes que não vierem na lista são **excluídas**.
@@ -120,7 +122,7 @@ Sucesso (201): `data` = `Client`.
 Erros: 400 (campo obrigatório faltando), 409 (CPF já cadastrado).
 
 ### `PUT /clients/<id>`
-Mesmo body/validação de `POST`. 404 se cliente não existir. Sucesso: `data` = `Client`.
+Mesma validação dos campos enviados no `POST`. Omitir `ucs` preserva as UCs e o status existentes; enviar a lista reconcilia apenas UCs já pertencentes a esse cliente. Um ID de UC alheia retorna 404 sem alterar os vínculos. 404 também se o cliente não existir. Sucesso: `data` = `Client`.
 
 ### `DELETE /clients/<id>`
 Sem body. Apaga cliente e cascade de UCs/documentos vinculados. 404 se não existir.
@@ -136,7 +138,7 @@ CRUD avulso — a mesma lógica de campos e conexões (`apply_uc_fields`/`sync_c
 ```json
 {
   "id": 1, "clienteId": 1, "clienteNome": "",
-  "codigo": "", "codigoAneel": null, "apelido": "", "documento": null,
+  "codigo": "", "apelido": "", "documento": null,
   "endereco": null, "cep": null, "concessionaria": null,
   "geracaoPropria": false, "diaEmissaoFatura": null,
   "consumo": "", "baseTarifaria": "B1", "desconto": "",
@@ -146,6 +148,10 @@ CRUD avulso — a mesma lógica de campos e conexões (`apply_uc_fields`/`sync_c
 }
 ```
 `tipoLigacao` é sempre um de `Monofasico | Bifasico | Trifasico`. Datas de contrato em `YYYY-MM-DD`.
+`desconto` é texto percentual de 0 a 100 (`20` e `20%` equivalem a 20%);
+`null`/vazio significa sem desconto. Novos valores fora desse formato são
+rejeitados no CRUD de UC/Cliente e no preview de importação. Valores legados
+inválidos bloqueiam novas execuções financeiras para revisão.
 `senhaConcessionariaConfigurada` indica se existe senha salva para a UC; a senha não aparece nas respostas comuns.
 
 ### `GET /ucs/<id>`
@@ -155,13 +161,15 @@ CRUD avulso — a mesma lógica de campos e conexões (`apply_uc_fields`/`sync_c
 Restrita a `owner`/`admin` (ou administrador da plataforma). Revela sob demanda `{ "senhaConcessionaria": string }` para a UC da empresa atual; não entra em listagens nem nos endpoints normais de Cliente/UC. Cada revelação é auditada sem registrar a senha. Retorna 404 se a UC ou a senha não existir.
 
 ### `POST /ucs`
+Para Copel, `codigo` de 12 dígitos é salvo como string de 15 dígitos com `000` à esquerda; código de 15 dígitos é preservado. Outros comprimentos são rejeitados. A regra também vale na edição, no cadastro aninhado de Cliente e no upload/processamento/cálculo operacional. Outras concessionárias preservam o código informado sem normalização. `codigo_aneel` continua apenas como dado legado e não participa do vínculo da fatura. Códigos já persistidos não são migrados automaticamente; a busca documental reconhece temporariamente o legado Copel de 12 dígitos, restringe a concessionária e mantém erro de ambiguidade em caso de colisão. `documento`, quando informado ou alterado, aceita CPF/CNPJ numérico com máscara e verificadores válidos; documentos legados não são alterados em edições de outros campos. CNPJ alfanumérico não é aceito nesta versão; não foi criado CHECK numérico no banco.
+
 Body obrigatório: `clienteId` (precisa existir), `codigo` (não-vazio). Todos os outros campos do objeto acima são opcionais/aceitos. `conexoes: [{ plantId, percentual }]` — omitir a chave = nenhuma conexão criada. `senhaConcessionaria` é opcional, exige `documento` e é salva por CPF/CNPJ: UCs com o mesmo documento compartilham a credencial cifrada; documentos diferentes usam credenciais separadas.
 
 Sucesso (201): `data` = `ConsumerUnit`.
-Erros: 400 (cliente/código faltando), 409 (`ValueError` do service — cliente informado não existe).
+Erros: 400 (código/documento ausente ou inválido), 404 (cliente informado não existe).
 
 ### `PUT /ucs/<id>`
-Mesmo formato de body, todos os campos opcionais (só atualiza o que vier). Se enviar `clienteId` diferente do atual, move a UC pro outro cliente (404 se o novo cliente não existir → vira erro 409 na prática, ver código). Se a chave `conexoes` **não** vier no body, as conexões existentes são mantidas; se vier (mesmo vazia `[]`), substitui tudo. `senhaConcessionaria` segue a mesma regra de identificação por CPF/CNPJ do `POST`.
+Mesmo formato de body, todos os campos opcionais (só atualiza o que vier). Se enviar `clienteId` diferente do atual, move a UC pro outro cliente (404 se o novo cliente não existir). Código/documento inválido retorna 400. Se a chave `conexoes` **não** vier no body, as conexões existentes são mantidas; se vier (mesmo vazia `[]`), substitui tudo. `senhaConcessionaria` segue a mesma regra de identificação por CPF/CNPJ do `POST`.
 
 Sucesso: `data` = `ConsumerUnit`. 404 se a UC não existir.
 
@@ -244,6 +252,14 @@ Erros: 400 (sem arquivo / sem categoria), 409 (cliente, UC ou categoria informad
 
 ## Faturas originais da concessionária
 
+### `POST /billing-calculations/invoices/upload` — **multipart/form-data**
+
+Upload da página de Faturas sem seleção de cliente. Requer `faturas.create` e exatamente um campo `arquivo` (PDF); o tenant vem da autenticação. Após validar o PDF, o backend extrai o código documental da UC pelo parser suportado e procura correspondência exata em `ConsumerUnit.codigo` **dentro da empresa**. Apenas uma UC correspondente autoriza vincular o documento ao cliente proprietário dessa UC. Não recebe cliente, UC ou empresa do corpo da requisição. O vínculo persistido no upload é com o cliente; `consumerUnitId` só é preenchido pelo processamento/validação F7.
+
+Para administrador da plataforma, a rota equivalente é `POST /platform/empresas/<empresaId>/billing-calculations/invoices/upload`, com empresa explícita e a mesma permissão. Erros antes do armazenamento: `INVOICE_LAYOUT_UNSUPPORTED` ou `UC_CODE_UNREADABLE` (422), `UC_NOT_FOUND` (422), `UC_MATCH_AMBIGUOUS` (409) e `CLIENT_NOT_FOUND` (404). Falha de vínculo não cria Documento nem fatura. Validação de arquivo, resposta e limites seguem o contrato abaixo. Uma duplicata por hash é conferida contra a UC atual: cliente divergente retorna `INVOICE_CLIENT_CONFLICT` (409), sem alterar a fonte histórica; cliente igual retorna a fonte imutável existente.
+
+O campo legado `codigoAneel` permanece no banco para preservar valores anteriores, mas não participa da correspondência e não é exposto e, se enviado, é ignorado no CRUD de UC. Para o layout Copel suportado, `codigo` deve conter o mesmo identificador documental de 15 dígitos do PDF. Ausência de compensação GD não impede o upload; afeta a elegibilidade posterior para cobrança.
+
 ### `POST /clients/<clientId>/invoices/upload` — **multipart/form-data**
 
 Requer `faturas.create` (`owner`, `admin` ou `financial`). Campo `arquivo` obrigatório; nesta versão aceita exatamente um PDF por chamada. O tenant vem da autenticação e o Cliente precisa pertencer a ele. Nenhum `empresaId` ou UC é aceito do request.
@@ -281,7 +297,7 @@ energia_compensada_cobravel_kwh (Decimal textual ou null), status, issues,
 identidade documental, competência e fatura_concessionaria_id. Somente VALID
 autoriza consumo energético futuro. Copel atual retorna UNSUPPORTED; snapshots
 anteriores não são reprocessados. Não há novo endpoint ou cobrança.
-O upload não executa processamento, não há endpoint novo e a duplicata continua
+O upload não executa processamento; a duplicata continua
 retornando o registro existente sem reprocessar ou sobrescrever snapshots.
 
 ---
@@ -657,9 +673,19 @@ com precisão excedente são rejeitadas, sem arredondamento. Float JSON não é 
 | economia_gerada | Legado preservado; fórmula pendente. |
 | valor_total_fatura | Base futura é o total da concessionária, sem compensação; desconto explícito conforme discountType. |
 | tarifa_fixa | Identificador legado preservado, sem conversão automática para outro método. |
-| tarifa_fixa_com_desconto | companyTariff obrigatório; discountType=percentage e discountValue obrigatório. |
+| tarifa_fixa_com_desconto | companyTariff obrigatório; aceita `discountType=percentage` com `discountValue` (legado) ou `discountType=none` com `discountValue=null`. |
 | tarifa_especifica | companyTariff obrigatório; não exige desconto adicional por inferência. |
 | energia_recebida | Configurável sem tarifa obrigatória quando tariffSource=invoice; fórmula/dados exigidos pendentes. |
+
+`tarifa_fixa_com_desconto` com desconto `none` permite configurar a regra sem
+duplicar na regra o desconto cadastrado na UC. Na execução operacional C5.5,
+`ConsumerUnit.desconto` é o percentual efetivo nos métodos compatíveis; vazio
+significa sem desconto e valor inválido bloqueia com `UC_DISCOUNT_INVALID`, sem
+snapshot. `tarifa_especifica` não aplica desconto adicional. O método
+`tarifa_fixa_com_desconto` ainda retorna `unsupported_calculation_method` ao
+executar. Não há fallback para o desconto antigo da regra. Regras legadas com percentual
+permanecem preservadas. A migration `u5a8c3d7e2f9` amplia somente a constraint
+estrutural e bloqueia downgrade se houver regra nesse novo estado.
 
 `icmsPolicy` aceita `exclude` (**SEM ICMS**, decisão confirmada) ou `null` (não
 configurado). Excluir ICMS não autoriza reconstruir tarifa nem selecionar coluna
@@ -745,6 +771,7 @@ snapshot F7 nesta sprint.
 ResolvedDocumentTariffs
   full_tariff: ResolvedDocumentTariff | null
   compensation_tariff: ResolvedDocumentTariff | null
+  compensation_tariff_events: ResolvedCompensationTariffEvent[]
   status: VALID | AMBIGUOUS | MISSING | UNSUPPORTED
   issues: TariffResolutionIssue[]
 
@@ -753,6 +780,19 @@ ResolvedDocumentTariff
   value: Decimal | null
   with_taxes: bool | null
   includes_flag: bool | null
+  source_item_indexes: int[]
+  confidence: Decimal | null
+  status: VALID | AMBIGUOUS | MISSING | UNSUPPORTED
+  issues: TariffResolutionIssue[]
+  evidence: DocumentTariffEvidence[]
+
+ResolvedCompensationTariffEvent
+  identity: CompensacaoNormalizada
+  te_tariff: Decimal | null
+  tusd_tariff: Decimal | null
+  combined_tariff: Decimal | null
+  includes_flag: bool | null
+  with_taxes: bool | null
   source_item_indexes: int[]
   confidence: Decimal | null
   status: VALID | AMBIGUOUS | MISSING | UNSUPPORTED
@@ -768,11 +808,237 @@ a informam; qualquer fonte sem confiança mantém o agregado null. Issues reutil
 divergência, bandeira e tributação ambíguas.
 
 Tarifa cheia Copel reutiliza a soma C4.2 de tarifas unitárias de consumo + uso do
-sistema. Tarifa de compensação exige um único par TE/TUSD classificado e completo;
-ausência não usa a cheia como fallback. `preco_unitario_com_tributos` apenas prova
-a variante tributada separada; não deduz ICMS/PIS/COFINS. Bandeira separada pode
-provar `includes_flag=false`; sem prova fica null. Não há acesso a regra/tarifa
-comercial, cálculo, banco, Flask, Fatura, ASAAS ou migration. C5.3B permanece fora.
+sistema. A compensação reutiliza `CompensacaoNormalizada` como identidade: somente
+`OUTRA_UC + MESMO_POSTO` é cobrável, enquanto injeção própria/local permanece
+auditável em `energy_components`. GD-I, GD-II e meses distintos geram eventos
+separados; TE/TUSD da mesma identidade representam uma única quantidade física.
+
+Um evento válido mantém compatibilidade com `compensation_tariff`. Múltiplos
+eventos só produzem scalar comum quando TE, TUSD, tributação e bandeira são
+semanticamente iguais. Tarifas diferentes mantêm o scalar null e os eventos VALID,
+sem média ou escolha arbitrária. Duplicidade na mesma identidade e divergência
+TE/TUSD permanecem bloqueadas. GD-III é UNSUPPORTED.
+
+Ausência não usa a tarifa cheia como fallback. `preco_unitario_com_tributos`
+apenas prova a variante tributada separada; não substitui `tarifa_unitaria` nem
+deduz ICMS/PIS/COFINS. Bandeira separada pode provar `includes_flag=false`; sem
+prova fica null. Não há acesso a regra/tarifa comercial, cálculo, banco, Flask,
+Fatura, ASAAS ou migration. A seleção comercial é definida no contrato C5.3B
+abaixo.
+
+**Contrato interno C5.3B (sem endpoint novo):**
+`CommercialTariffSelector.select(resolved_tariffs, rule) -> tuple[SelectedCommercialTariff, ...]`
+faz somente a escolha comercial por evento e não calcula cobrança.
+
+```text
+SelectedCommercialTariff
+  event: ResolvedCompensationTariffEvent
+  source_kind: configured_fixed | configured_specific | document_full | document_compensation
+  selected_tariff: Decimal | null
+  document_full_tariff: Decimal | null
+  document_compensation_tariff: Decimal | null
+  includes_flag: bool | null
+  with_taxes: bool | null
+  status: VALID | AMBIGUOUS | MISSING | UNSUPPORTED
+  issues: BillingCalculationIssue[]
+  rule_snapshot: BillingRuleSnapshot
+```
+
+`tarifa_fixa` seleciona `company_tariff` como `configured_fixed` e
+`tarifa_especifica` como `configured_specific`. Para `energia_compensada`,
+`icms_policy=exclude` seleciona `event.combined_tariff` como
+`document_compensation`; política null seleciona `full_tariff` como
+`document_full`. Esse ramo exige `tariff_source=invoice`; regra manual não é
+convertida em documental. Não há fallback entre fontes.
+
+O seletor retorna um item por evento, sem tarifa média ou scalar artificial.
+Evento não VALID não fornece `selected_tariff`. Bandeira exige igualdade
+tri-state: política true requer `includes_flag=false`, política false requer
+true e política null ignora o campo; evidência null bloqueia quando há exigência.
+`with_taxes` é evidência transportada, sem lógica tributária. O snapshot preserva
+identidade/revisão da regra. Não há cálculo, arredondamento, PIS/COFINS, Fio B,
+persistência, endpoint ou migration.
+
+**Contrato interno C5.4 (DONE; sem endpoint novo):**
+
+`BillingModifiers.exclude_gdii_fio_b: bool | null` é exclusivamente em memória;
+não é campo aceito ou retornado pela API persistida de grupos. O
+`BillingRuleSnapshot` conserva seu valor, inclusive null.
+
+`CommercialDeductionResolver.resolve(invoice=..., rule=..., evidence=())`
+retorna `ResolvedCommercialDeductions`. `DocumentDeductionEvidence` liga tipo
+`PIS|COFINS`, evento, `ExtractedField` monetário, índices/caminho de
+origem e fatura/competência. `ResolvedCommercialDeduction` conserva tipo,
+amount Decimal/null, applies_to_event, status canônico, índices, confiança,
+issues e evidências. Totais `total_pis`, `total_cofins`, `total_pis_cofins` e
+`total_fio_b` são Decimal quando válidos e null quando não resolvidos; regra
+desativada produz zero. Não se utiliza o quadro tributário agregado como
+evidência vinculada, nem diferenças de tarifas como Fio B. `DocumentDeductionEvidence`
+aceita somente PIS/COFINS e `source=DOCUMENT`. A linha original precisa provar
+tributo, base_calculo, aliquota, valor e identidade origin/period/gd_classification/
+compensation_context/credit_month correspondente ao evento; todos são ExtractedField
+com origem. Valor isolado não prova dedução. O resultado conserva `document_tax`
+com o quadro fiscal vinculado. Ausência de base/alíquota bloqueia a dedução, mas
+não a preservação auditável do valor fiscal global em `document_taxes`.
+
+O engine concreto aceita argumentos opcionais `selected_tariffs`,
+`deduction_evidence` e `fio_b_tariffs`, preservando chamadas C5.1/C5.2. O resultado acrescenta
+`resolution_status`; bloqueio não fornece `hub_amount`. A memória acrescenta
+`event_calculations`, `deduction_resolution`, `post_discount_amount`,
+`post_pis_cofins_amount`, `pis_amount`, `cofins_amount`, `fio_b_amount`,
+`fio_b_treatment` e `exclude_gdii_fio_b`; reutiliza `pis_cofins_amount`,
+`pis_cofins_treatment`, `net_amount_before_rounding` e campos de desconto.
+Ordem: bruto → desconto → PIS/COFINS → Fio B → piso zero → arredondamento final.
+O líquido aritmético negativo permanece auditável antes do piso; a issue
+`DEDUCOES_SUPERAM_VALOR_COBRAVEL` explica a cobrança final zero.
+
+`CalculationMemory.document_taxes` contém `pis`/`cofins`: `source=DOCUMENT`,
+`status=RESOLVED|MISSING_DATA|AMBIGUOUS`, base/rate/amount Decimal ou null,
+`rate_unit=%` e evidência fiscal original. O quadro fiscal é preservado, inclusive
+valores assinados e zero documental, sem cálculo por alíquota e sem dedução
+integral/proporcional da compensação. Ausência de base/alíquota não invalida valor
+documentado; duplicidade não escolhe candidato. Valores de dedução permanecem
+separados em `pis_amount`/`cofins_amount` e exigem vínculo por evento.
+
+`CalculationMemory.fio_b_components` e `ResolvedCommercialDeductions.fio_b_components`
+preservam um resultado por evento canônico: `applicable`, `gd_classification`,
+competencia, energy_kwh, tusd_fio_b_unit_tariff, tariff_source, transition_rate,
+amount, regulatory_basis, evidence e status. O status é
+`RESOLVED|NOT_APPLICABLE|UNSUPPORTED|MISSING_DATA|AMBIGUOUS`; amount é null
+em todo estado diferente de RESOLVED. Estados financeiros agregados continuam
+VALID/MISSING/UNSUPPORTED/AMBIGUOUS por compatibilidade. GD I é NOT_APPLICABLE;
+GD III e anos fora de 2023–2028 são UNSUPPORTED. Taxas anuais: .15/.30/.45/.60/.75/.90.
+Ano vem da competência da fatura, nunca do crédito nem do relógio do servidor.
+
+`FioBResolver` resolve localmente a tarifa explicitamente documentada no campo
+`tusd_fio_b_unit_tariff: ExtractedField` do item TUSD do próprio evento, conferida
+contra o item original. Esse campo é contrato estruturado novo; o parser atual
+não o extrai sem comprovação de layout. `tarifa_unitaria`/TUSD total não servem.
+Na ausência do campo, `RegulatoryTariffRepository` fornece primeiro os
+`RegulatoryFioBTariff` publicados na base regulatória; o dataset local versionado
+`backend/data/regulatory_tariffs.json` é apenas fallback de compatibilidade fora
+do contexto da aplicação. O argumento `fio_b_tariffs` permanece disponível para
+registros já validados. Nenhuma fonte é consultada pela rede em runtime. O registro conserva componente,
+unidade original/convertida, fonte, referência, id/hash da versão ANEEL, vigência
+diária e mensal, distributor, subgroup, modality, unit_tariff (Decimal R$/kWh),
+reference, version e dimensões opcionais
+tariff_class/tariff_subclass/tariff_period. Todas as dimensões informadas exigem
+correspondência documental exata em concessionaria/subgrupo_tarifario/
+modalidade_tarifaria/classe_tarifaria/subclasse_tarifaria/posto_tarifario.
+Múltiplos registros válidos ou documento ambíguo são AMBIGUOUS. Campo documental
+inválido ou sem vínculo não substitui uma tarifa regulatória válida; sua evidência
+permanece na auditoria. Sem registro, MISSING_DATA. A primeira linha oficial é
+COPEL-DIS/TUSD_FioB da ANEEL Componentes Tarifárias 2026, Resolução Homologatória
+3.592/2026: 214.53560037400001 R$/MWh, convertida exatamente para R$/kWh,
+vigência 2026-06-24 a 2027-06-23. Como a competência é mensal, somente meses
+integralmente contidos (2026-07 a 2027-05) resolvem; meses parciais não recebem
+fallback. Atualização futura substitui/adiciona registros versionados após
+validação, sem HTTP no cálculo.
+
+Fórmula: quantidade canônica do evento GD II × tarifa TUSD Fio B × transição.
+Sem arredondamento intermediário. O modificador `exclude_gdii_fio_b=true` deduz
+a soma desses componentes após o desconto e as deduções PIS/COFINS vinculadas.
+False/null mantém o cálculo comercial anterior; a auditoria continua disponível.
+O tipo monetário legado `GDII_FIO_B` foi removido de `DocumentDeductionEvidence`;
+Fio B utiliza exclusivamente tarifa/fórmula/enquadramento.
+Em 2026-09-24, a importação CKAN `id=1` publicou 53 registros COPEL-DIS do recurso
+`e8717aa8-2521-453f-bf16-fbb9a16eea39`, versão `2026-09-17T15:31:25.510600`, com
+cobertura 2026-06-24 a 2027-06-23. A prova C5.4.4 usa B1/CONVENCIONAL/Residencial/
+SCEE na competência 2026-09: `214.53560037400001 R$/MWh / Decimal(1000)` resulta
+em `0.21453560037400001 R$/kWh`; 1000 kWh GD II (.60) resulta em
+`128.721360224400006000` de Fio B e valor final `591.28`. A auditoria preserva
+ANEEL, resource_id, versão, COPEL-DIS, valor/unidade original e vigência.
+O suporte regulatório Copel está concluído para a vigência importada. PIS/COFINS
+específico da compensação continua exigindo vínculo documental; GD III, 2029+,
+configuração persistida Fio B e importação automática ANEEL não são implementados.
+
+**C5.4.1 — Base tarifária ANEEL (DONE; operação manual):**
+
+`GET /regulatory-tariffs/status` é somente leitura de plataforma e retorna estado,
+quantidade, cobertura e última importação global. `POST /regulatory-tariffs/imports/preview`
+recebe `arquivo` CSV e opcionalmente `sourceUrl`/`sourceVersion`; `POST
+/regulatory-tariffs/imports/confirm` recebe `{ "previewId": number }`. As duas
+as operações exigem `is_platform_admin`; owner/admin comum recebe 403. A prévia é
+vinculada ao usuário de plataforma, expira e nunca publica tarifa. Confirmação de
+outro usuário responde 404; replay/expiração/conflito retorna 409.
+Uma base vazia retorna 200 com `status: "missing"`, zero registros, cobertura nula
+e `lastImport: null`, mantendo a primeira importação disponível.
+Se o banco regulatório estiver indisponível ou sem o schema necessário, o status
+retorna 503; a UI distingue falta de permissão, indisponibilidade e erro interno.
+
+`POST /regulatory-tariffs/imports/preview` aceita CSV de até 100 MiB
+(`REGULATORY_TARIFF_MAX_BYTES`, em bytes) e retorna 413 quando excedido. O CSV é
+processado em streaming, usado apenas no temporário privado da prévia e removido
+antes da resposta; confirmação usa somente o plano persistido, vinculado ao mesmo
+administrador de plataforma.
+
+O CSV precisa ser UTF-8 e conter os campos ANEEL `SigNomeAgente`,
+`DscComponenteTarifario`, `DscBaseTarifaria`, dimensões tarifárias, valor/unidade,
+vigências e referência da resolução. Apenas `TUSD_FioB` + Tarifa de Aplicação +
+SCEE + `R$/MWh` é normalizado a `TUSD_FIO_B` R$/kWh com Decimal. A chave natural
+inclui distribuidora, dimensões e vigência; conteúdo idêntico é no-op e divergência
+é conflito explícito. Dados publicados são globais, sem `empresa_id`.
+
+`POST /regulatory-tariffs/imports/ckan/preview` recebe `{ "distributor": "COPEL-DIS", "year": 2026 }` e exige o mesmo `is_platform_admin`. O backend consulta exclusivamente o host HTTPS oficial configurado da ANEEL, descobre o recurso anual pelo metadata CKAN e usa filtros exatos para `COPEL-DIS`, `TUSD_FioB`, Tarifa de Aplicação, SCEE e `R$/MWh`. A resposta reutiliza integralmente `RegulatoryTariffPreview`; a confirmação continua em `POST /imports/confirm`. Falha de rede/timeout retorna 503, resposta CKAN inválida retorna 502 e nenhum endereço externo é recebido do navegador.
+
+### C5.5 — Diagnóstico de cálculo
+
+`GET /billing-calculations`, `GET /billing-calculations/invoices`,
+`POST /billing-calculations/invoices/<id>/execute`, e detalhes de execução/snapshot
+exigem respectivamente `billing_calculations.read` e `billing_calculations.execute`.
+`GET /billing-calculations/invoices` aceita `page` (padrão 1), `pageSize`
+(padrão 50, máximo 100), `q` (nome do cliente ou código da UC), `usinaId`,
+`competencia`, `statusProcessamento` (extração ou validação),
+`statusCobranca` (status ASAAS ou `sem_cobranca`) e `comPendencia=true|false`.
+Os filtros são aplicados antes da paginação, sempre na empresa autenticada.
+`data` permanece um array; a resposta acrescenta
+`pagination: { page, pageSize, total, pages }`. Cada item inclui
+`clienteNome`, `ucCodigo`, `usinas: [{ id, nome }]`,
+`valorTotalConcessionaria`, `dataVencimento`, `documentoId`,
+`documentoDisponivel`, `temPendencia` e `contextualCharges`, além dos campos
+anteriores. `contextualCharges` é um array de zero ou mais
+`{ id, statusInterno, asaasStatus, asaasId, valor, mesVencimento, boletoUrl }`
+da mesma empresa, UC e competência. Valor e
+vencimento podem ser nulos até a extração. `temPendencia` considera somente
+pendência aberta vinculada à fatura original. A associação com cobranças
+ASAAS por UC e competência é contextual; não existe vínculo persistido entre
+os dois documentos, e pode haver várias cobranças no mesmo contexto.
+`documentoDisponivel` não é uma URL de acesso; esta lista não concede
+visualização ou download do PDF original.
+As rotas administrativas equivalentes ficam sob
+`/platform/empresas/<empresaId>/billing-calculations` e exigem
+`is_platform_admin` com empresa explícita. O resultado nunca chama ASAAS.
+Execuções são append-only; somente `CALCULATED` possui snapshot e valor final.
+As outras situações retornam diagnóstico sem valor financeiro. A proteção SQL
+PostgreSQL é validável opt-in com `TEST_POSTGRES_BILLING_URL` apontando a banco
+isolado `test_*`; não usar banco compartilhado.
+
+### C5.5-D — Laboratório isolado de PDFs
+
+`POST /platform/billing-diagnostics/pdf` recebe multipart `arquivo`, exige
+`is_platform_admin` e não aceita nem consulta empresa, cliente, UC ou fatura.
+O retorno 200 é um diagnóstico técnico estruturado (`executionId`, `status`,
+`extractionStatus`, `normalizationStatus`, `billingEligibility`, PDF, extração,
+normalização, compensações, campos ausentes, warnings, blockers, 11 etapas,
+duração e erro sanitizado), inclusive quando a análise termina em `ERROR`.
+`billingEligibility.eligible` só é verdadeiro com energia compensada documental
+confiável; consumo nunca preenche compensação.
+Validação de PDF inválido retorna 400 e tamanho excedido 413; timeout retorna 504.
+Não há cobrança, simulação financeira, snapshot, histórico persistido ou ASAAS.
+O preflight CORS `OPTIONS` é respondido antes da autenticação; chamadas `POST`
+reais continuam exigindo o token de platform admin.
+
+### F6.1 — Pendência operacional de compensação GD
+
+Após processamento persistente de uma fatura com UC validada, o backend pode criar
+uma `Pendencia` de origem `GD_COMPENSATION_UNVERIFIED`. Ela é criada somente quando
+uma `PlantConnection` tenant-scoped aponta para usina `Ativa`, com `data_ativacao`
+anterior ou igual ao primeiro dia da competência, e a energia compensada não é
+`VALID`. A unicidade `(empresa_id, fatura_concessionaria_id, origem)` impede
+duplicidade por reprocessamento/concorrência. A resposta padrão de pendência passa
+a expor `faturaId`; blocker, competência, status energético e usinas candidatas ficam
+em `metadados`. O laboratório `/platform/billing-diagnostics/pdf` não cria essa
+pendência.
 
 ### `PUT|PATCH /billing-rules/<id>`
 
@@ -780,7 +1046,8 @@ Requer `billing_rules.write` e aceita atualização parcial do mesmo contrato.
 Alteração financeira incrementa `revision`; desativação usa `{ "ativo": false }`.
 Não há DELETE. Duas regras ativas/padrão na mesma empresa retornam 409 com
 `DEFAULT_BILLING_RULE_CONFLICT`; estrutura inválida retorna 400 com
-`INVALID_BILLING_RULE`.
+`INVALID_BILLING_RULE`. Desativar regra com assignment ativo na mesma empresa
+retorna 409 `BILLING_RULE_IN_USE`; desative ou troque os vínculos antes.
 
 ---
 

@@ -9,6 +9,7 @@ import json
 import re
 
 from services.invoice_normalization_service import InvoiceNormalized, json_safe
+from services.invoice_compensation import EnergyStatus
 
 
 CALCULATION_ENGINE_VERSION = '1.0'
@@ -157,9 +158,11 @@ class BillingModifiers:
     exclude_tariff_flag: bool | None = None
     grace_period: GracePeriod = field(default_factory=GracePeriod)
     recurring_additional_cost: Decimal | None = None
+    # C5.4: somente contrato em memoria; sem coluna/API persistida.
+    exclude_gdii_fio_b: bool | None = None
 
     def __post_init__(self):
-        for value in (self.exclude_pis_cofins, self.exclude_tariff_flag):
+        for value in (self.exclude_pis_cofins, self.exclude_tariff_flag, self.exclude_gdii_fio_b):
             if value is not None and type(value) is not bool:
                 raise ValueError('Modificador exige booleano ou None.')
         if self.icms_policy not in (None, 'exclude'):
@@ -175,8 +178,10 @@ def validate_commercial_method(method, tariff, discount_type, discount_value):
         if tariff.company_tariff is None:
             raise ValueError('Método exige companyTariff.')
     if method == CalculationMethod.TARIFA_FIXA_COM_DESCONTO:
-        if discount_type != DiscountType.PERCENTAGE or discount_value is None:
-            raise ValueError('tarifa_fixa_com_desconto exige desconto percentage explícito.')
+        if (discount_type, discount_value) != (DiscountType.NONE, None) and (
+            discount_type != DiscountType.PERCENTAGE or discount_value is None
+        ):
+            raise ValueError('tarifa_fixa_com_desconto aceita desconto none ou percentage explícito.')
 
 
 @dataclass(frozen=True)
@@ -322,8 +327,36 @@ class CalculationMemory:
     net_amount_before_rounding: Decimal | None = None
     monetary_rounding: str | None = None
     desconto_aplicado: bool | None = None
+    event_calculations: tuple[dict, ...] = ()
+    deduction_resolution: dict | None = None
+    post_discount_amount: Decimal | None = None
+    post_pis_cofins_amount: Decimal | None = None
+    pis_amount: Decimal | None = None
+    cofins_amount: Decimal | None = None
+    fio_b_amount: Decimal | None = None
+    fio_b_treatment: ComponentTreatment = ComponentTreatment.NOT_EVALUATED
+    exclude_gdii_fio_b: bool | None = None
+    document_taxes: dict = field(default_factory=dict)
+    fio_b_components: tuple[dict, ...] = ()
 
     def __post_init__(self):
+        if self.exclude_gdii_fio_b is not None and type(self.exclude_gdii_fio_b) is not bool:
+            raise ValueError('Modificador Fio B exige bool ou None.')
+        if not isinstance(self.event_calculations, tuple) or any(
+            not isinstance(row, dict) for row in self.event_calculations
+        ):
+            raise TypeError('Memoria por evento exige tupla de mapas.')
+        if self.deduction_resolution is not None and not isinstance(self.deduction_resolution, dict):
+            raise TypeError('Resolucao de deducoes exige mapa ou None.')
+        if not isinstance(self.document_taxes, dict) or not isinstance(self.fio_b_components, tuple):
+            raise TypeError('Auditoria C5.4 exige mapa fiscal e tupla de componentes Fio B.')
+        for name in ('event_calculations', 'deduction_resolution', 'document_taxes', 'fio_b_components'):
+            json_safe(getattr(self, name))
+            object.__setattr__(self, name, deepcopy(getattr(self, name)))
+        for name in ('post_discount_amount', 'post_pis_cofins_amount', 'pis_amount',
+                     'cofins_amount', 'fio_b_amount'):
+            _decimal(getattr(self, name))
+        object.__setattr__(self, 'fio_b_treatment', ComponentTreatment(self.fio_b_treatment))
         if self.desconto_aplicado is not None and type(self.desconto_aplicado) is not bool:
             raise ValueError('desconto_aplicado exige booleano ou None.')
         if not isinstance(self.concessionaria_reference_components, tuple) or any(
@@ -367,8 +400,12 @@ class BillingCalculationResult:
     hub_amount: Decimal | None = None
     issues: tuple[BillingCalculationIssue, ...] = ()
     calculation_memory: dict | CalculationMemory = field(default_factory=CalculationMemory)
+    resolution_status: EnergyStatus = EnergyStatus.VALID
 
     def __post_init__(self):
+        object.__setattr__(self, 'resolution_status', EnergyStatus(self.resolution_status))
+        if self.resolution_status != EnergyStatus.VALID and self.hub_amount is not None:
+            raise ValueError('Resultado bloqueado nao fornece valor final.')
         if not isinstance(self.context, BillingCalculationContext) or not isinstance(self.rule_snapshot, BillingRuleSnapshot):
             raise TypeError('Resultado exige contexto e snapshot tipados.')
         for name in ('energy_base_kwh', 'consumo_kwh', 'gd1_kwh', 'gd2_kwh', 'energia_compensada_kwh',

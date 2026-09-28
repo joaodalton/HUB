@@ -12,7 +12,7 @@ class ConsumerUnit(TenantMixin, db.Model):
     concessionaria_credential_id = db.Column(db.Integer, db.ForeignKey('api_credentials.id'), nullable=True)
 
     codigo = db.Column(db.String(30), nullable=False)
-    codigo_aneel = db.Column(db.String(20), nullable=True)  # novo padrao nacional de 15 digitos (REN ANEEL 1.095/2024)
+    codigo_aneel = db.Column(db.String(20), nullable=True)  # legado preservado; nao participa do vinculo da UC
     apelido = db.Column(db.String(100), nullable=True, default='')
     documento = db.Column(db.String(20), nullable=True)  # CPF/CNPJ da UC -- pode ser diferente do cpf do Cliente (ex.: casa no CPF, empresa no CNPJ do mesmo titular)
     endereco = db.Column(db.String(255), nullable=True)
@@ -57,7 +57,6 @@ class ConsumerUnit(TenantMixin, db.Model):
             'clienteId': self.client_id,
             'clienteNome': self.client.nome if self.client else None,
             'codigo': self.codigo,
-            'codigoAneel': self.codigo_aneel,
             'apelido': self.apelido,
             'documento': self.documento,
             'senhaConcessionariaConfigurada': self.concessionaria_credential_id is not None,

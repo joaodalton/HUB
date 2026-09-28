@@ -64,7 +64,9 @@ class GrupoRegraCobranca(TenantMixin, db.Model):
             name='ck_grupo_regra_company_tariff',
         ),
         db.CheckConstraint(
-            "calculation_method <> 'tarifa_fixa_com_desconto' OR (discount_type = 'percentage' AND discount_value IS NOT NULL)",
+            "calculation_method <> 'tarifa_fixa_com_desconto' OR "
+            "(discount_type = 'percentage' AND discount_value IS NOT NULL) OR "
+            "(discount_type = 'none' AND discount_value IS NULL)",
             name='ck_grupo_regra_fixed_discount',
         ),
         db.Index(

@@ -40,6 +40,7 @@ export type PendenciaRow = {
   usinaNome: string | null;
   documentoId: number | null;
   documentoNome: string | null;
+  faturaId: number | null;
   prazo: string | null;
   prioridade: PendenciaPrioridade;
   responsavelId: number | null;

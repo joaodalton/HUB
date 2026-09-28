@@ -74,6 +74,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         'imports.commit',
         'faturas.read', 'faturas.create',
         'billing_rules.read', 'billing_rules.write',
+        'billing_calculations.read', 'billing_calculations.execute',
         'messages.read', 'messages.send',
     },
     'admin': {
@@ -133,6 +134,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         'imports.commit',
         'faturas.read', 'faturas.create',
         'billing_rules.read', 'billing_rules.write',
+        'billing_calculations.read', 'billing_calculations.execute',
         'messages.read', 'messages.send',
     },
     'operator': {
@@ -198,6 +200,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         'categories.read',
         'faturas.read', 'faturas.create',
         'billing_rules.read', 'billing_rules.write',
+        'billing_calculations.read', 'billing_calculations.execute',
     },
     'viewer': {
         # Empresa - leitura

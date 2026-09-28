@@ -13,9 +13,11 @@ from models.document import Document
 from models.empresa import Empresa
 from models.fatura_concessionaria import FaturaConcessionaria
 from services.invoice_normalization_service import InvoiceNormalized, InvoiceNormalizer, json_safe
+from services.gd_compensation_pending_service import register as register_gd_compensation_pending
 from services.invoice_validation_service import InvoiceValidationResult, InvoiceValidator, UCMatchCandidate
 from services.invoice_parsers.extraction import MinimalExtractor
 from services.invoice_parsers.registry import ParserRegistry, default_registry
+from services.uc_code import find_document_ucs
 from services.invoice_parsers.schemas import (
     ExtractedField, ExtractionIssue, IssueSeverity, ParsedInvoice, RawExtraction,
 )
@@ -106,8 +108,7 @@ class FaturaProcessingService:
             code = normalized.campos['codigo_uc_documental']
             matches = []
             if code.status == 'found':
-                query = ConsumerUnit.query.populate_existing().filter(ConsumerUnit.empresa_id == empresa_id, or_(
-                    ConsumerUnit.codigo == code.value, ConsumerUnit.codigo_aneel == code.value))
+                query = find_document_ucs(empresa_id, code.value, normalized.campos['concessionaria'].value).populate_existing()
                 if persist:
                     query = query.with_for_update()
                 matches = [UCMatchCandidate(c.id, c.empresa_id, c.client_id, c.codigo) for c in query.all()]
@@ -145,6 +146,7 @@ class FaturaProcessingService:
                         values[column] = value.value
                 # Numeric do model tem escala limitada: JSON é a fonte exata.
                 self._save(original, values)
+                register_gd_compensation_pending(invoice.id, normalized, validation)
             return ProcessingResult(
                 ProcessingStatus.PARSED, raw=raw, parsed=parsed,
                 issues=raw.warnings + validation.issues, normalized=normalized, validation=validation,

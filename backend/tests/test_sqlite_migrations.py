@@ -23,6 +23,23 @@ def _load_migration(filename: str):
 
 
 class SQLiteMigrationsTest(unittest.TestCase):
+    def test_cad1_client_name_upgrade_preserves_legacy_and_downgrade_guards_long_name(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'cad1.db'
+            result = self._flask(path, 'upgrade', 'u5a8c3d7e2f9')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection, connection:
+                connection.execute("INSERT INTO clients (id,empresa_id,nome,cpf,email,concessionaria,status) "
+                                   "VALUES (991,1,?, '52998224725','cad@example.com','Copel','Esperando usina')", ('A' * 150,))
+            result = self._flask(path, 'upgrade', 'head')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection, connection:
+                self.assertEqual(connection.execute('SELECT nome FROM clients WHERE id=991').fetchone()[0], 'A' * 150)
+                connection.execute('UPDATE clients SET nome=? WHERE id=991', ('B' * 200,))
+            result = self._flask(path, 'downgrade', 'u5a8c3d7e2f9')
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('truncate data', result.stdout + result.stderr)
+
     def test_c42_grace_policy_upgrade_preserves_legacy_dates_and_guards_downgrade(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / 'grace-policy.db'
@@ -103,7 +120,8 @@ class SQLiteMigrationsTest(unittest.TestCase):
                     "VALUES (1,100,'company',1,'2026-09-16','2026-09-16')")
                 legacy = connection.execute('SELECT * FROM grupos_regra_cobranca').fetchone()
                 assignments = connection.execute('SELECT * FROM regra_cobranca_assignments').fetchall()
-            for command, target in (('upgrade', 'head'), ('downgrade', 'n8b3d7e0f2a4'), ('upgrade', 'head')):
+            for command, target in (('upgrade', 'o9c4e8f1a3b5'), ('downgrade', 'n8b3d7e0f2a4'),
+                                    ('upgrade', 'o9c4e8f1a3b5')):
                 result = self._flask(path, command, target)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 with closing(sqlite3.connect(path)) as connection:
@@ -124,6 +142,42 @@ class SQLiteMigrationsTest(unittest.TestCase):
             with closing(sqlite3.connect(path)) as connection:
                 self.assertEqual(connection.execute('SELECT version_num FROM alembic_version').fetchone()[0], 'o9c4e8f1a3b5')
                 self.assertEqual(connection.execute('SELECT icms_policy,tariff_hp FROM grupos_regra_cobranca').fetchone(), ('exclude', None))
+
+    def test_fixed_discount_optional_upgrade_preserves_legacy_and_guards_downgrade(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'fixed-discount.db'
+            result = self._flask(path, 'upgrade', 't4d9e2a7c1b5')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            statement = (
+                "INSERT INTO grupos_regra_cobranca "
+                "(id,empresa_id,nome,ativo,padrao,calculation_method,tariff_source,manual_tariff,"
+                "discount_type,discount_value,tariff_basis,billing_mode,due_date_basis,"
+                "due_date_offset_days,revision,created_at,updated_at) VALUES "
+                "(?,1,?,1,0,'tarifa_fixa_com_desconto','manual',0.654321,?,?,"
+                "'compensated','auto','invoice_due_date',0,1,'2026-09-24','2026-09-24')"
+            )
+            with closing(sqlite3.connect(path)) as connection, connection:
+                connection.execute(statement, (101, 'Legada', 'percentage', 15))
+            result = self._flask(path, 'upgrade', 'head')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection, connection:
+                self.assertEqual(connection.execute(
+                    'SELECT discount_type,discount_value FROM grupos_regra_cobranca WHERE id=101'
+                ).fetchone(), ('percentage', 15))
+                connection.execute(statement, (102, 'Sem desconto no grupo', 'none', None))
+                with self.assertRaises(sqlite3.IntegrityError):
+                    connection.execute(statement, (103, 'Fixo invalido', 'fixed', 1))
+            result = self._flask(path, 'downgrade', 't4d9e2a7c1b5')
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('preservar regras sem desconto no grupo', result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection, connection:
+                connection.execute('DELETE FROM grupos_regra_cobranca WHERE id=102')
+            result = self._flask(path, 'downgrade', 't4d9e2a7c1b5')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection:
+                self.assertEqual(connection.execute(
+                    'SELECT discount_type,discount_value FROM grupos_regra_cobranca WHERE id=101'
+                ).fetchone(), ('percentage', 15))
 
     def test_b2_upgrade_preserves_faturas_and_downgrade_preserves_event_ledger(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -212,6 +266,10 @@ class SQLiteMigrationsTest(unittest.TestCase):
                 fatura_concessionaria_columns = {row[1] for row in connection.execute('PRAGMA table_info(faturas_concessionarias)')}
                 fatura_concessionaria_indexes = {row[1] for row in connection.execute("PRAGMA index_list('faturas_concessionarias')")}
                 fatura_concessionaria_fks = {row[2] for row in connection.execute("PRAGMA foreign_key_list('faturas_concessionarias')")}
+                pendencia_columns = {row[1] for row in connection.execute("PRAGMA table_info('pendencias')")}
+                pendencia_indexes = {row[1]: row for row in connection.execute("PRAGMA index_list('pendencias')")}
+                pendencia_unique_columns = [row[2] for row in connection.execute(
+                    "PRAGMA index_info('sqlite_autoindex_pendencias_1')")]
                 billing_rule_columns = {row[1] for row in connection.execute("PRAGMA table_info('grupos_regra_cobranca')")}
                 billing_rule_indexes = {row[1]: row for row in connection.execute("PRAGMA index_list('grupos_regra_cobranca')")}
                 billing_rule_fks = {row[2] for row in connection.execute("PRAGMA foreign_key_list('grupos_regra_cobranca')")}
@@ -227,10 +285,58 @@ class SQLiteMigrationsTest(unittest.TestCase):
                 assignment_fks = {row[2] for row in connection.execute(
                     "PRAGMA foreign_key_list('regra_cobranca_assignments')"
                 )}
+                snapshot_columns = {row[1] for row in connection.execute(
+                    "PRAGMA table_info('billing_calculation_snapshots')"
+                )}
+                snapshot_indexes = {row[1] for row in connection.execute(
+                    "PRAGMA index_list('billing_calculation_snapshots')"
+                )}
+                snapshot_fk_rows = list(connection.execute(
+                    "PRAGMA foreign_key_list('billing_calculation_snapshots')"
+                ))
+                snapshot_fks = {row[2] for row in snapshot_fk_rows}
+                execution_columns = {row[1] for row in connection.execute(
+                    "PRAGMA table_info('billing_calculation_executions')"
+                )}
+                execution_indexes = {row[1] for row in connection.execute(
+                    "PRAGMA index_list('billing_calculation_executions')"
+                )}
+                execution_fk_rows = list(connection.execute(
+                    "PRAGMA foreign_key_list('billing_calculation_executions')"
+                ))
+                execution_fks = {row[2] for row in execution_fk_rows}
                 preview_indexes = {row[1] for row in connection.execute("PRAGMA index_list('import_previews')")}
             finally:
                 connection.close()
-            self.assertEqual(revision, 'p0d5f9a2b4c6')
+            self.assertEqual(revision, 'v6b9d4e8f3a1')
+            self.assertTrue({'empresa_id', 'fatura_concessionaria_id', 'fingerprint',
+                             'regra_snapshot', 'entrada_normalizada', 'resultado',
+                             'valor_final'}.issubset(snapshot_columns))
+            self.assertTrue({'empresa_id', 'fatura_concessionaria_id', 'snapshot_id',
+                             'status', 'auditoria'}.issubset(execution_columns))
+            self.assertNotIn('valor_final', execution_columns)
+            self.assertEqual(snapshot_fks, {'empresas', 'faturas_concessionarias'})
+            self.assertEqual(execution_fks,
+                             {'empresas', 'faturas_concessionarias', 'billing_calculation_snapshots'})
+            for rows, parent, child_id in (
+                (snapshot_fk_rows, 'faturas_concessionarias', 'fatura_concessionaria_id'),
+                (execution_fk_rows, 'faturas_concessionarias', 'fatura_concessionaria_id'),
+                (execution_fk_rows, 'billing_calculation_snapshots', 'snapshot_id'),
+            ):
+                tenant_rows = [row for row in rows if row[2] == parent]
+                expected = {(child_id, 'id'), ('empresa_id', 'empresa_id')}
+                if parent == 'billing_calculation_snapshots':
+                    expected.add(('fatura_concessionaria_id', 'fatura_concessionaria_id'))
+                self.assertEqual({(row[3], row[4]) for row in tenant_rows},
+                                 expected)
+                self.assertEqual(len({row[0] for row in tenant_rows}), 1)
+            self.assertTrue({'ix_billing_calculation_snapshots_empresa_id',
+                             'ix_billing_calculation_snapshots_fatura_concessionaria_id'}
+                            .issubset(snapshot_indexes))
+            self.assertTrue({'ix_billing_calculation_executions_empresa_id',
+                             'ix_billing_calculation_executions_fatura_concessionaria_id',
+                             'ix_billing_calculation_executions_snapshot_id'}
+                            .issubset(execution_indexes))
             self.assertTrue({'empresa_id', 'provider', 'nome', 'segredo_encrypted', 'interna'}.issubset(columns))
             self.assertTrue({'sem_usina_desde', 'concessionaria_credential_id'}.issubset(uc_columns))
             self.assertIn('asaas_customer_id', client_columns)
@@ -247,12 +353,18 @@ class SQLiteMigrationsTest(unittest.TestCase):
             self.assertTrue({
                 'ix_faturas_concessionarias_empresa_id',
                 'ix_faturas_concessionarias_empresa_chave',
+                'uq_faturas_concessionarias_id_empresa',
                 'sqlite_autoindex_faturas_concessionarias_1',
             }.issubset(fatura_concessionaria_indexes))
             self.assertEqual(
                 fatura_concessionaria_fks,
                 {'empresas', 'clients', 'consumer_units', 'documents'},
             )
+            self.assertIn('fatura_concessionaria_id', pendencia_columns)
+            self.assertIn('sqlite_autoindex_pendencias_1', pendencia_indexes)
+            self.assertEqual(pendencia_indexes['sqlite_autoindex_pendencias_1'][2], 1)
+            self.assertEqual(pendencia_unique_columns,
+                ['empresa_id', 'fatura_concessionaria_id', 'origem'])
             self.assertTrue({
                 'empresa_id', 'nome', 'ativo', 'padrao', 'calculation_method',
                 'tariff_source', 'manual_tariff', 'discount_type', 'discount_value',
@@ -318,6 +430,48 @@ class SQLiteMigrationsTest(unittest.TestCase):
             self.assertEqual(assinaturas, [(1, 'vitalicio', 'ativa'), (2, 'trial', 'trial')])
         finally:
             database_path.unlink(missing_ok=True)
+
+    def test_gd_pending_upgrade_preserves_existing_rows_and_enforces_unique_origin(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'gd-pending-upgrade.db'
+            result = self._flask(path, 'upgrade', 's3c8d1e6f9a2')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection, connection:
+                connection.execute("INSERT INTO empresas (id,nome,slug,status) VALUES (91,'E','gd-upgrade','ativa')")
+                connection.execute("INSERT INTO pendencias (id,empresa_id,tipo,categoria,origem,titulo,prioridade,status) "
+                                   "VALUES (91,91,'pendencia','Operacional','GD_COMPENSATION_UNVERIFIED','Legada','alta','aberta')")
+            result = self._flask(path, 'upgrade', 'head')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection, connection:
+                self.assertEqual(connection.execute(
+                    "SELECT titulo,fatura_concessionaria_id FROM pendencias WHERE id=91").fetchone(),
+                    ('Legada', None))
+                connection.execute("UPDATE pendencias SET fatura_concessionaria_id=42 WHERE id=91")
+                with self.assertRaises(sqlite3.IntegrityError):
+                    connection.execute("INSERT INTO pendencias (empresa_id,fatura_concessionaria_id,tipo,categoria,origem,titulo,prioridade,status) "
+                                       "VALUES (91,42,'pendencia','Operacional','GD_COMPENSATION_UNVERIFIED','Duplicada','alta','aberta')")
+
+    def test_live_q1_upgrade_restores_pendencia_query_without_losing_rows(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'live-q1-upgrade.db'
+            result = self._flask(path, 'upgrade', 'q1e6a4b9c2d7')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection, connection:
+                connection.execute("INSERT INTO empresas (id,nome,slug,status) VALUES (91,'E','live-q1','ativa')")
+                connection.execute("INSERT INTO pendencias (id,empresa_id,tipo,categoria,origem,titulo,prioridade,status) "
+                                   "VALUES (91,91,'pendencia','Operacional','Manual','Existente','alta','aberta')")
+                self.assertNotIn('fatura_concessionaria_id',
+                                 {row[1] for row in connection.execute('PRAGMA table_info(pendencias)')})
+            result = self._flask(path, 'upgrade', 'head')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection:
+                self.assertIn('fatura_concessionaria_id',
+                              {row[1] for row in connection.execute('PRAGMA table_info(pendencias)')})
+                self.assertEqual(connection.execute(
+                    'SELECT empresa_id,titulo,fatura_concessionaria_id FROM pendencias WHERE id=91'
+                ).fetchone(), (91, 'Existente', None))
+                self.assertEqual(connection.execute('SELECT version_num FROM alembic_version').fetchone()[0],
+                                 'v6b9d4e8f3a1')
 
     def test_fatura_concessionaria_downgrade_preserves_source_records(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -451,6 +605,37 @@ class SQLiteMigrationsTest(unittest.TestCase):
             with closing(sqlite3.connect(path)) as connection, connection:
                 self.assertEqual(connection.execute('SELECT external_reference,asaas_id FROM faturas').fetchone(), ('hub-test', None))
                 self.assertEqual(connection.execute('SELECT version_num FROM alembic_version').fetchone()[0], 'j4d9e3f8a6b0')
+
+    def test_billing_calculation_migration_roundtrip_preserves_audit_rows(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'billing-calculation.db'
+            self.assertEqual(self._flask(path, 'upgrade', 'q1e6a4b9c2d7').returncode, 0)
+            self.assertEqual(self._flask(path, 'upgrade').returncode, 0)
+            result = self._flask(path, 'downgrade', 'q1e6a4b9c2d7')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection:
+                tables = {row[0] for row in connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                )}
+                self.assertNotIn('billing_calculation_snapshots', tables)
+                self.assertNotIn('billing_calculation_executions', tables)
+
+            self.assertEqual(self._flask(path, 'upgrade').returncode, 0)
+            with closing(sqlite3.connect(path)) as connection, connection:
+                connection.execute(
+                    "INSERT INTO billing_calculation_snapshots "
+                    "(empresa_id,fatura_concessionaria_id,fingerprint,regra_snapshot,"
+                    "entrada_normalizada,resultado,valor_final,created_at) VALUES "
+                    "(1,1,?,?,?, ?,13.42,'2026-09-24')",
+                    ('a' * 64, '{}', '{}', '{}'),
+                )
+            result = self._flask(path, 'downgrade', 'q1e6a4b9c2d7')
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('preservar auditoria', result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection:
+                self.assertEqual(connection.execute(
+                    'SELECT COUNT(*) FROM billing_calculation_snapshots'
+                ).fetchone()[0], 1)
 
     def test_google_account_downgrade_rejects_duplicate_email_before_rebuild(self):
         handle = tempfile.NamedTemporaryFile(suffix='.db', delete=False)

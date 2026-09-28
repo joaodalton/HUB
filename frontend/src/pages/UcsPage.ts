@@ -4,7 +4,11 @@ import { createIcon } from '../components/Icon';
 import { createIconStatCard, type IconStatCardProps } from '../components/IconStatCard';
 import { createImportacoesModal } from '../components/ImportacoesModal';
 import { createUcCard } from '../components/UcCard';
+import { createUcBillingRuleSection } from '../components/UcBillingRuleSection';
 import { createElement } from '../dom';
+import {
+  listBillingRuleAssignments, listBillingRules, type BillingRule, type BillingRuleAssignment
+} from '../services/billingRulesService';
 import { useGlobalLoading } from '../hooks/useGlobalLoading';
 import { useToast } from '../hooks/useToast';
 import { createBaseLayout } from '../layouts/BaseLayout';
@@ -28,7 +32,11 @@ export function createUcsPage(): HTMLElement {
   let ucs: UcRow[] = [];
   let clients: ClientRow[] = [];
   let availablePlants: PlantRow[] = [];
-  let selectedUcId: number | null = null;
+  const requestedUcId = Number(new URLSearchParams(window.location.search).get('ucId'));
+  let selectedUcId: number | null = Number.isSafeInteger(requestedUcId) && requestedUcId > 0 ? requestedUcId : null;
+  let billingRules: BillingRule[] = [];
+  let billingAssignments: BillingRuleAssignment[] = [];
+  let billingRulesUnavailable = false;
   let loadError = false;
   let quickFilter: 'all' | 'without-plant' | 'contract-expiring' = 'all';
 
@@ -47,6 +55,12 @@ export function createUcsPage(): HTMLElement {
     try {
       [ucs, clients, availablePlants] = await Promise.all([getUcs(), getClients(), getAvailablePlants()]);
       loadError = false;
+      try {
+        [billingRules, billingAssignments] = await Promise.all([listBillingRules(), listBillingRuleAssignments({ ativo: 'true' })]);
+        billingRulesUnavailable = false;
+      } catch {
+        billingRulesUnavailable = true;
+      }
     } catch {
       loadError = true;
       toast.error('Nao foi possivel carregar UCs. Verifique se o backend esta rodando.');
@@ -180,7 +194,6 @@ export function createUcsPage(): HTMLElement {
     const grid = createElement('div', { className: 'detail-info-grid' });
     grid.append(
       createInfoField('Cliente', uc.clienteNome ?? '-'),
-      createInfoField('Código ANEEL', uc.codigoAneel || 'Não informado'),
       createInfoField('Apelido', uc.apelido || 'Não informado'),
       createInfoField('CPF/CNPJ da UC', uc.documento || 'Não informado'),
       createInfoField('Endereço', uc.endereco || 'Não informado'),
@@ -213,7 +226,10 @@ export function createUcsPage(): HTMLElement {
 
     actions.append(editButton, deleteButton);
 
-    panel.append(title, grid, actions);
+    panel.append(title, grid, createUcBillingRuleSection({
+      uc, rules: billingRules, assignments: billingAssignments,
+      unavailable: billingRulesUnavailable, onUpdated: loadAll
+    }), actions);
     return panel;
   }
 

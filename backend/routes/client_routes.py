@@ -63,17 +63,15 @@ def show(client_id: int):
 def store():
     data = request.get_json(silent=True) or {}
 
-    if not data.get('nome', '').strip():
-        return error_response('Nome e obrigatorio.', 400)
-    if not data.get('cpf', '').strip():
-        return error_response('CPF e obrigatorio.', 400)
-    if not data.get('email', '').strip():
+    if not str(data.get('email') or '').strip():
         return error_response('Email e obrigatorio.', 400)
 
     try:
         client = create_client(data)
     except ValueError as exc:
-        return error_response(str(exc), 409)
+        if str(exc) == 'UC nao encontrada para este cliente.':
+            return error_response(str(exc), 404)
+        return error_response(str(exc), 409 if 'Ja existe' in str(exc) or 'JÃ¡ existe' in str(exc) else 400)
 
     return success_response(client, 'Cliente cadastrado.', 201)
 
@@ -82,17 +80,15 @@ def store():
 def update(client_id: int):
     data = request.get_json(silent=True) or {}
 
-    if not data.get('nome', '').strip():
-        return error_response('Nome e obrigatorio.', 400)
-    if not data.get('cpf', '').strip():
-        return error_response('CPF e obrigatorio.', 400)
-    if not data.get('email', '').strip():
+    if not str(data.get('email') or '').strip():
         return error_response('Email e obrigatorio.', 400)
 
     try:
         client = update_client(client_id, data)
     except ValueError as exc:
-        return error_response(str(exc), 409)
+        if str(exc) == 'UC nao encontrada para este cliente.':
+            return error_response(str(exc), 404)
+        return error_response(str(exc), 409 if 'Ja existe' in str(exc) or 'JÃ¡ existe' in str(exc) else 400)
 
     if not client:
         return error_response('Cliente nao encontrado.', 404)

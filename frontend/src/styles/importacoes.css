@@ -41,6 +41,19 @@
 .importacao-result { max-width: 980px; }
 .importacoes-modal-card { width: min(100%, 1040px); max-height: 90vh; overflow: auto; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-modal); box-shadow: var(--shadow-xl); }
 .importacoes-modal-card > .content-stack { padding: var(--space-4); }
+.regulatory-tariff-control {
+  width: 100%;
+  min-height: var(--control-height);
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-input);
+  background: var(--panel-soft);
+  color: var(--text);
+  color-scheme: dark;
+}
+.regulatory-tariff-control:hover { border-color: var(--border-soft); }
+.regulatory-tariff-control:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-bg); }
+.regulatory-tariff-control option { background: var(--panel-soft); color: var(--text); }
 
 @media (max-width: 900px) { .importacao-summary-grid { grid-template-columns: repeat(3, minmax(100px, 1fr)); } }
 @media (max-width: 560px) { .importacao-panel { padding: var(--space-3); } .importacao-summary-grid { grid-template-columns: repeat(2, minmax(100px, 1fr)); } }

@@ -1,6 +1,8 @@
 import { createElement } from '../dom';
+import { createContextHelp } from './ContextHelp';
 import { createConcessionariaPasswordField } from './ConcessionariaPasswordField';
 import { createCheckboxField, createFormSection, createInput } from './formFields';
+import { cnpjError, cpfError, digits, ucError, validateField } from './cadastroFields';
 import { createPlantConnections, createTariffSelect } from './PlantConnectionsField';
 import type { ClientRow, PlantConnection } from '../services/clientsService';
 import type { PlantRow } from '../services/plantService';
@@ -33,7 +35,6 @@ export function createUcCard({ uc, clients, availablePlants, onSave, onCancel, o
 
   const cliente = createClientSelect(clients, uc?.clienteId);
   const codigo = createInput('UC', 'text', uc?.codigo ?? '', true);
-  const codigoAneel = createInput('Codigo ANEEL', 'text', uc?.codigoAneel ?? '', false);
   const apelido = createInput('Subnome', 'text', uc?.apelido ?? '', false);
   const documento = createInput('CPF/CNPJ da UC', 'text', uc?.documento ?? '', false);
   const senhaConcessionaria = createConcessionariaPasswordField(uc ?? { id: '' });
@@ -42,9 +43,16 @@ export function createUcCard({ uc, clients, availablePlants, onSave, onCancel, o
   const endereco = createInput('Endereco', 'text', uc?.endereco ?? '', false);
   const cep = createInput('CEP', 'text', uc?.cep ?? '', false);
   const concessionaria = createInput('Concessionaria', 'text', uc?.concessionaria ?? '', false);
+  codigo.input.inputMode = 'numeric';
+  documento.input.addEventListener('input', () => validateField(documento.input, ''));
+  codigo.input.addEventListener('input', () => validateField(codigo.input, ''));
+  concessionaria.input.addEventListener('input', () => validateField(codigo.input, ''));
+  cliente.select.addEventListener('change', () => validateField(codigo.input, ''));
   const consumo = createInput('Consumo (kWh)', 'number', uc?.consumo != null ? String(uc.consumo) : '', false);
   const baseTarifaria = createTariffSelect(uc?.baseTarifaria ?? 'B1');
   const desconto = createInput('Desconto (%)', 'text', uc?.desconto ?? '', false);
+  desconto.field.querySelector('span')?.appendChild(createContextHelp('Desconto comercial da UC',
+    'Percentual usado nas novas cobranças dos métodos compatíveis. Exemplo: 20 ou 20% reduz em 20%; vazio não aplica desconto. Tarifa específica não soma outro desconto.'));
   const tipoLigacao = createLigacaoSelect(uc?.tipoLigacao ?? 'Monofasico');
   const geracaoPropria = createCheckboxField('Geracao propria', uc?.geracaoPropria ?? false);
   const diaEmissaoFatura = createInput('Dia de emissao da fatura', 'number', uc?.diaEmissaoFatura != null ? String(uc.diaEmissaoFatura) : '', false);
@@ -98,6 +106,14 @@ export function createUcCard({ uc, clients, availablePlants, onSave, onCancel, o
       codigo.input.reportValidity();
       return;
     }
+    if ((!uc || codigo.input.value !== uc.codigo ||
+        (concessionaria.input.value.trim() || null) !== (uc.concessionaria ?? null) ||
+        Number(cliente.select.value) !== uc.clienteId) &&
+        !validateField(codigo.input, ucError(codigo.input.value, concessionaria.input.value || clients.find((item) => item.id === Number(cliente.select.value))?.concessionaria || 'Copel'))) return;
+    if (documento.input.value.trim() && documento.input.value !== (uc?.documento ?? '') && !validateField(documento.input, digits(documento.input.value).length === 11 ? cpfError(documento.input.value) : cnpjError(documento.input.value))) return;
+    const codigoValue = (!uc || codigo.input.value !== uc.codigo || (concessionaria.input.value.trim() || null) !== (uc.concessionaria ?? null)) &&
+      (concessionaria.input.value || clients.find((item) => item.id === Number(cliente.select.value))?.concessionaria || 'Copel').trim().toLowerCase() === 'copel' && codigo.input.value.length === 12
+      ? `000${codigo.input.value}` : codigo.input.value.trim();
 
     isSubmitting = true;
     saveButton.disabled = true;
@@ -105,10 +121,9 @@ export function createUcCard({ uc, clients, availablePlants, onSave, onCancel, o
 
     onSave({
       clienteId: Number(cliente.select.value),
-      codigo: codigo.input.value.trim(),
-      codigoAneel: codigoAneel.input.value.trim() || null,
+      codigo: codigoValue,
       apelido: apelido.input.value.trim(),
-      documento: documento.input.value.trim() || null,
+      documento: documento.input.value.trim() ? (documento.input.value === (uc?.documento ?? '') ? documento.input.value : digits(documento.input.value)) : null,
       senhaConcessionaria: senhaConcessionaria.input.value || undefined,
       endereco: endereco.input.value.trim() || null,
       cep: cep.input.value.trim() || null,
@@ -129,7 +144,7 @@ export function createUcCard({ uc, clients, availablePlants, onSave, onCancel, o
 
   form.append(
     header,
-    createFormSection('Dados da UC', cliente.field, codigo.field, codigoAneel.field, apelido.field, documento.field, senhaConcessionaria.field, concessionaria.field),
+    createFormSection('Dados da UC', cliente.field, codigo.field, apelido.field, documento.field, senhaConcessionaria.field, concessionaria.field),
     createFormSection('Endereço e consumo', endereco.field, cep.field, consumo.field, baseTarifaria.field, desconto.field, tipoLigacao.field, geracaoPropria.field, diaEmissaoFatura.field),
     createFormSection('Contrato', inicioContrato.field, terminoContrato.field, carenciaMeses.field, percentualDescontoCarencia.field),
     plantArea,

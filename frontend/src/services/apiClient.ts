@@ -8,6 +8,13 @@ type RequestOptions = Omit<RequestInit, 'body'> & {
 const CSRF_COOKIE_NAME = 'hub_csrf';
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
+export class ApiRequestError extends Error {
+  constructor(public readonly status: number, message: string) {
+    super(message);
+    this.name = 'ApiRequestError';
+  }
+}
+
 function readCsrfCookie(): string | null {
   const match = document.cookie.match(new RegExp(`(?:^|; )${CSRF_COOKIE_NAME}=([^;]*)`));
   return match ? decodeURIComponent(match[1]) : null;
@@ -57,7 +64,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 
   if (response.status === 401) redirectToLogin();
   await notifyRequiredPasswordChange(response);
-  if (!response.ok) throw new Error(await readErrorMessage(response));
+  if (!response.ok) throw new ApiRequestError(response.status, await readErrorMessage(response));
   return response.json() as Promise<T>;
 }
 
@@ -71,7 +78,7 @@ export async function apiBlob(path: string, options: RequestOptions = {}): Promi
 
   if (response.status === 401) redirectToLogin();
   await notifyRequiredPasswordChange(response);
-  if (!response.ok) throw new Error(await readErrorMessage(response));
+  if (!response.ok) throw new ApiRequestError(response.status, await readErrorMessage(response));
   return response.blob();
 }
 
@@ -85,6 +92,6 @@ export async function apiUpload<T>(path: string, formData: FormData): Promise<T>
 
   if (response.status === 401) redirectToLogin();
   await notifyRequiredPasswordChange(response);
-  if (!response.ok) throw new Error(await readErrorMessage(response));
+  if (!response.ok) throw new ApiRequestError(response.status, await readErrorMessage(response));
   return response.json() as Promise<T>;
 }

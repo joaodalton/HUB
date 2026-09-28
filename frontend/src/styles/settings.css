@@ -313,3 +313,31 @@
 .api-credential-title span { font-size: 12px; color: var(--text-faint); }
 .api-credential-form { max-width: 560px; padding: 0 16px 16px; }
 .api-credential-form h3 { margin: 0; font-size: 15px; color: var(--text); }
+
+/* ---------- Diagnóstico financeiro administrativo ---------- */
+
+.billing-diagnostics-card { display: grid; gap: var(--space-3); }
+.billing-diagnostics-card h2, .billing-diagnostics-card h3 { margin: 0; color: var(--text); }
+.billing-diagnostics-upload { display: grid; grid-template-columns: minmax(180px, 1fr) auto; gap: var(--space-3); align-items: end; }
+.billing-diagnostics-file { min-height: var(--control-height); padding: 7px 10px !important; color-scheme: dark; }
+.billing-diagnostics-badge { display: inline-flex; width: fit-content; padding: 4px 8px; font-size: 11px; font-weight: 700; border-radius: 999px; color: var(--text-dim); background: var(--panel-soft); border: 1px solid var(--border); }
+.billing-diagnostics-badge.tone-success { color: var(--success); background: var(--success-bg); border-color: var(--success-border); }
+.billing-diagnostics-badge.tone-warning { color: var(--warning); background: var(--warning-bg); border-color: var(--warning-border); }
+.billing-diagnostics-badge.tone-danger { color: var(--danger); background: var(--danger-bg); border-color: var(--danger-border); }
+.billing-diagnostics-details { display: grid; gap: var(--space-3); }
+.billing-diagnostics-stage, .billing-diagnostics-summary, .billing-diagnostics-structured {
+  padding: var(--space-3); border: 1px solid var(--border-deep);
+  border-radius: var(--radius-card); background: var(--panel-deep);
+}
+.billing-diagnostics-stage { display: grid; gap: var(--space-2); }
+.billing-diagnostics-stage-header { display: flex; justify-content: space-between; gap: var(--space-2); align-items: center; }
+.billing-diagnostics-summary h3 { margin: 0 0 var(--space-2); color: var(--text); font-size: 13px; }
+.billing-diagnostics-summary dl { display: grid; grid-template-columns: minmax(110px, 1fr) minmax(0, 2fr); gap: var(--space-2); margin: 0; font-size: 12px; }
+.billing-diagnostics-summary dt { color: var(--text-faint); }
+.billing-diagnostics-summary dd { margin: 0; color: var(--text); overflow-wrap: anywhere; font-family: var(--font-mono); }
+.billing-diagnostics-structured summary { cursor: pointer; color: var(--text); font-size: 12px; }
+.billing-diagnostics-structured button { margin-top: var(--space-2); }
+.billing-diagnostics-structured pre { max-height: 280px; overflow: auto; margin-bottom: 0; color: var(--text-dim); white-space: pre-wrap; overflow-wrap: anywhere; font: 12px var(--font-mono); }
+@media (max-width: 760px) {
+  .billing-diagnostics-upload { grid-template-columns: 1fr; }
+}

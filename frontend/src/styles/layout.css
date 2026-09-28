@@ -13,7 +13,7 @@
 /* ---------- App Body / Grid ---------- */
 .app-body {
   display: grid;
-  grid-template-columns: 180px minmax(0, 1fr);
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
   min-height: 100vh;
   min-height: 100dvh;
 }
@@ -31,15 +31,14 @@
 .content-stack {
   display: grid;
   gap: var(--space-4);
+  min-width: 0;
 }
 
 /* ---------- Responsive Breakpoints ---------- */
 
 /* Large screens (1440px+) */
 @media (min-width: 1440px) {
-  .app-body {
-    grid-template-columns: 200px minmax(0, 1fr);
-  }
+  .app-body { --sidebar-width: 200px; }
   .app-main {
     padding: var(--space-5) var(--space-5) var(--space-5);
   }
@@ -47,22 +46,22 @@
 
 /* Desktop - 1366px */
 @media (max-width: 1366px) {
-  .app-body { grid-template-columns: 160px minmax(0, 1fr); }
+  .app-body { --sidebar-width: 160px; }
   .app-main { padding: var(--space-3) var(--space-4) var(--space-4); }
 }
 
 /* Laptop - 1024px */
 @media (max-width: 1024px) {
-  .app-body { grid-template-columns: 64px minmax(0, 1fr); }
+  .app-body { --sidebar-width: 64px; }
   .app-main { padding: var(--space-2) var(--space-3) var(--space-4); }
 
   /* Sidebar collapse - show only icons */
   .sidebar-brand span:not(.sidebar-mark),
-  .sidebar-link span,
+  .sidebar-link > span:last-child,
   .sidebar-section-title,
   .sidebar-user-text,
   .sidebar-version,
-  .sidebar-logout span {
+  .sidebar-logout-label {
     display: none;
   }
 
@@ -136,7 +135,7 @@
 
   /* Restore full sidebar on mobile */
   .sidebar-brand span:not(.sidebar-mark),
-  .sidebar-link span,
+  .sidebar-link > span:last-child,
   .sidebar-section-title,
   .sidebar-user-text,
   .sidebar-version {
@@ -166,10 +165,12 @@
   }
 
   .sidebar-logout {
-    display: block;
+    display: flex;
     padding: 10px 12px;
     border: 1px solid var(--border);
   }
+
+  .sidebar-logout-label { display: inline; }
 
   .sidebar-user {
     justify-content: flex-start;
@@ -273,6 +274,9 @@
 .sidebar {
   position: sticky;
   top: 0;
+  width: var(--sidebar-width);
+  min-width: var(--sidebar-width);
+  flex-shrink: 0;
   height: 100vh;
   height: 100dvh;
   display: flex;
@@ -294,6 +298,13 @@
   font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.02em;
+  min-width: 0;
+}
+
+.sidebar-brand > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sidebar-mark {
@@ -315,6 +326,7 @@
   gap: 20px;
   flex: 1;
   min-height: 0;
+  min-width: 0;
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-width: thin;
@@ -332,6 +344,7 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
 }
 
 .sidebar-section-title {
@@ -355,6 +368,14 @@
   font-weight: 500;
   text-decoration: none;
   transition: all var(--transition-fast);
+  min-width: 0;
+  width: 100%;
+}
+
+.sidebar-link > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sidebar-link .sidebar-icon {
@@ -470,7 +491,10 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  min-width: 0;
 }
+
+.masthead-text { min-width: 0; overflow-wrap: anywhere; }
 
 .masthead-mark {
   display: none;
@@ -482,7 +506,7 @@
 }
 
 .masthead-text h1 {
-  font-size: 22px;
+  font-size: var(--font-page-title);
   font-weight: 700;
   color: var(--text);
   line-height: 1.2;
@@ -542,4 +566,22 @@
 ::-moz-selection {
   background: var(--accent-bg);
   color: var(--accent);
+}
+
+.sidebar-logout .icon { width: var(--icon-size); height: var(--icon-size); }
+.sidebar-logout .icon svg { transform: rotate(180deg); }
+
+/* Estas regras vêm após os estilos base para o menu móvel conservar a posição e o toggle. */
+@media (max-width: 768px) {
+  .app-body { grid-template-columns: minmax(0, 1fr); }
+  .sidebar {
+    position: fixed;
+    width: min(280px, 85vw);
+    min-width: 0;
+    z-index: 200;
+    visibility: hidden;
+  }
+  .sidebar.open { visibility: visible; }
+  .mobile-menu-toggle { display: grid; }
+  .sidebar-overlay.active { display: block; }
 }

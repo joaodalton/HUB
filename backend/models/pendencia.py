@@ -22,6 +22,10 @@ CATEGORIAS_POR_TIPO = {
 
 class Pendencia(TenantMixin, db.Model):
     __tablename__ = 'pendencias'
+    __table_args__ = (
+        db.UniqueConstraint('empresa_id', 'fatura_concessionaria_id', 'origem',
+                            name='uq_pendencias_fatura_origem'),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     tipo = db.Column(db.String(20), nullable=False, default='pendencia')
@@ -34,6 +38,7 @@ class Pendencia(TenantMixin, db.Model):
     consumer_unit_id = db.Column(db.Integer, db.ForeignKey('consumer_units.id'), nullable=True)
     plant_id = db.Column(db.Integer, db.ForeignKey('plants.id'), nullable=True)
     document_id = db.Column(db.Integer, db.ForeignKey('documents.id'), nullable=True)
+    fatura_concessionaria_id = db.Column(db.Integer, db.ForeignKey('faturas_concessionarias.id'), nullable=True)
 
     prazo = db.Column(db.DateTime, nullable=True)
     prioridade = db.Column(db.String(20), nullable=False, default='media')
@@ -50,6 +55,7 @@ class Pendencia(TenantMixin, db.Model):
     consumer_unit = db.relationship('ConsumerUnit')
     plant = db.relationship('Plant')
     document = db.relationship('Document')
+    fatura_concessionaria = db.relationship('FaturaConcessionaria')
     responsavel = db.relationship('User')
     comentarios = db.relationship(
         'PendenciaComentario',
@@ -81,6 +87,7 @@ class Pendencia(TenantMixin, db.Model):
             'usinaNome': self.plant.nome if self.plant else None,
             'documentoId': self.document_id,
             'documentoNome': self.document.nome if self.document else None,
+            'faturaId': self.fatura_concessionaria_id,
             'prazo': self.prazo.isoformat() if self.prazo else None,
             'prioridade': self.prioridade,
             'responsavelId': responsavel_compativel.id if responsavel_compativel else None,

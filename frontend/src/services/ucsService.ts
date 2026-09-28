@@ -7,7 +7,6 @@ export type UcRow = {
   clienteId: number;
   clienteNome: string | null;
   codigo: string;
-  codigoAneel: string | null;
   apelido: string;
   documento: string | null;
   senhaConcessionariaConfigurada?: boolean;
@@ -30,7 +29,6 @@ export type UcRow = {
 export type UcPayload = {
   clienteId: number;
   codigo: string;
-  codigoAneel: string | null;
   apelido: string;
   documento: string | null;
   endereco: string | null;

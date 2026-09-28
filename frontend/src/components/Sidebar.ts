@@ -43,6 +43,7 @@ const sections: SidebarSection[] = [
     title: 'Financeiro',
     items: [
       { label: 'Faturas', path: '/faturas', icon: 'faturas', enabled: true },
+      { label: 'Regras de cobrança', path: '/regras-cobranca', icon: 'cobrancas', enabled: true },
       { label: 'Pagamentos', path: '/pagamentos', icon: 'pagamentos', enabled: false },
       { label: 'Cobranças', path: '/cobrancas', icon: 'cobrancas', enabled: false }
     ]
@@ -69,14 +70,17 @@ const sections: SidebarSection[] = [
 
 let brandTextElement: HTMLElement | null = null;
 
-export function refreshSidebarBrand(): void { if (brandTextElement)
-   {brandTextElement.textContent = getSettings().companyName || 'HUB';}}
+export function refreshSidebarBrand(): void { if (brandTextElement) {
+  brandTextElement.textContent = getSettings().companyName || 'HUB';
+  brandTextElement.title = brandTextElement.textContent ?? '';
+} }
 
 export function createSidebar(): HTMLElement {
   const sidebar = createElement('aside', { className: 'sidebar' });
   const brand = createElement('div', { className: 'sidebar-brand' });
   const brandMark = createElement('span', { className: 'sidebar-mark', textContent: 'H' });
   brandTextElement = createElement('span', { textContent: getSettings().companyName || 'HUB' });
+  brandTextElement.title = brandTextElement.textContent ?? '';
   const nav = createElement('nav', { className: 'sidebar-nav' });
 
   brand.append(brandMark, brandTextElement);
@@ -125,10 +129,13 @@ function createSidebarLink(item: SidebarLink): HTMLElement {
   }
 
   const isActive = item.path === window.location.pathname
+    || (item.path === '/regras-cobranca' && window.location.pathname.startsWith('/regras-cobranca/'))
     || (window.location.pathname === '/' && item.path === '/dashboard');
   const link = createElement('a', { className: isActive ? 'sidebar-link active' : 'sidebar-link' });
 
   link.href = item.path;
+  link.title = item.label;
+  link.setAttribute('aria-label', item.label);
   link.append(icon, label);
   link.addEventListener('click', (event) => {
     event.preventDefault();
@@ -142,6 +149,7 @@ function createSidebarLink(item: SidebarLink): HTMLElement {
 function createUserCard(): HTMLElement {
   const user = getCurrentUser();
   const card = createElement('div', { className: 'sidebar-user' });
+  card.title = `${user?.nome || user?.email || 'Usuário'} — ${user?.empresaNome || roleLabel(user?.role)}`;
   const avatar = createElement('span', {
     className: 'sidebar-user-avatar',
     textContent: initialsFor(user?.email ?? '?')
@@ -171,9 +179,13 @@ function createVersionTag(): HTMLElement {
 function createLogoutButton(): HTMLElement {
   const logoutButton = createElement('button', {
     className: 'sidebar-logout',
-    textContent: 'Sair',
     type: 'button'
   });
+  logoutButton.title = 'Sair';
+  logoutButton.setAttribute('aria-label', 'Sair');
+  logoutButton.append(createIcon('login'), createElement('span', {
+    className: 'sidebar-logout-label', textContent: 'Sair'
+  }));
 
   logoutButton.addEventListener('click', () => {
     logout().finally(() => {

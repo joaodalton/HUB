@@ -176,20 +176,18 @@ def _build_oauth_credentials():
     if not account:
         return None
 
-    refresh_token = account.get_refresh_token()
-    if not refresh_token:
-        return None
-
-    credentials = OAuthCredentials(
-        token=None,
-        refresh_token=refresh_token,
-        token_uri='https://oauth2.googleapis.com/token',
-        client_id=Config.GOOGLE_OAUTH_CLIENT_ID,
-        client_secret=Config.GOOGLE_OAUTH_CLIENT_SECRET,
-        scopes=Config.GOOGLE_DRIVE_SCOPES
-    )
-
     try:
+        refresh_token = account.get_refresh_token()
+        if not refresh_token:
+            return None
+        credentials = OAuthCredentials(
+            token=None,
+            refresh_token=refresh_token,
+            token_uri='https://oauth2.googleapis.com/token',
+            client_id=Config.GOOGLE_OAUTH_CLIENT_ID,
+            client_secret=Config.GOOGLE_OAUTH_CLIENT_SECRET,
+            scopes=Config.GOOGLE_DRIVE_SCOPES
+        )
         credentials.refresh(GoogleAuthRequest())
     except Exception as exc:  # RefreshError (token revogado/expirado) ou falha de rede -- nunca derruba a rota
         LogService.warning(

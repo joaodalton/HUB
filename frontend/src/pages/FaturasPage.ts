@@ -1,81 +1,122 @@
-import { createDashboardCards, type DashboardMetric } from '../components/DashboardCards';
 import { createDataTable } from '../components/DataTable';
+import { createConcessionariaUploadButton } from '../components/ConcessionariaInvoicesPanel';
 import { createIcon } from '../components/Icon';
+import { createModal, detailSection, selectField, textField, option, filterSelect, createBadge, createChargeCell, statusLabel, formatCurrency, formatDate, formatReference, currentMonth } from '../components/FaturasUi';
 import { createElement } from '../dom';
 import { useGlobalLoading } from '../hooks/useGlobalLoading';
 import { useToast } from '../hooks/useToast';
 import { createBaseLayout } from '../layouts/BaseLayout';
+import { getCurrentUser } from '../services/authService';
+import { getBillingInvoicePage, type BillingInvoice, type BillingInvoiceFilters } from '../services/billingCalculationsService';
 import { getClients, type ClientRow } from '../services/clientsService';
-import { cancelFatura, createFatura, getFaturas, getFaturasResumo, syncFatura, type FaturaRow, type FaturaStatus, type FaturasResumo } from '../services/faturasService';
+import { cancelFatura, createFatura, getFaturas, syncFatura, type FaturaRow } from '../services/faturasService';
+import { getPendencias, type PendenciaRow } from '../services/pendenciasService';
 import { getUcs, type UcRow } from '../services/ucsService';
 
-const STATUS: Array<{ value: FaturaStatus; label: string; tone: DashboardMetric['tone'] }> = [
-  { value: 'pending', label: 'Pendentes', tone: 'warning' },
-  { value: 'received', label: 'Recebidas', tone: 'success' },
-  { value: 'overdue', label: 'Vencidas', tone: 'danger' },
-  { value: 'canceled', label: 'Canceladas', tone: 'neutral' }
-];
+const PAGE_SIZE = 25; type InvoiceFilters = Omit<BillingInvoiceFilters, 'page' | 'pageSize'>;
 
 export function createFaturasPage(): HTMLElement {
   const content = createElement('section', { className: 'content-stack faturas-page' });
-  const toast = useToast();
-  const loading = useGlobalLoading();
-  let faturas: FaturaRow[] = [];
-  let resumo: FaturasResumo = {};
-  let clients: ClientRow[] = [];
-  let ucs: UcRow[] = [];
-  let searchTerm = '';
-  let statusFilter: FaturaStatus | undefined;
-  let referenceFilter = '';
-  let clientFilter = '';
-  let ucFilter = '';
-  const selectedIds = new Set<number>();
+  const toast = useToast(), loading = useGlobalLoading();
+  const user = getCurrentUser();
+  const canIssue = !user?.isPlatformAdmin && ['owner', 'admin', 'financial'].includes(user?.role ?? '');
+  const canReadInvoices = Boolean(user?.isPlatformAdmin || canIssue);
+  const empresaId = user?.isPlatformAdmin ? user.platformViewEmpresaId ?? undefined : undefined;
+  let invoices: BillingInvoice[] = [], charges: FaturaRow[] = [];
+  let pendencias: PendenciaRow[] = [], clients: ClientRow[] = [], ucs: UcRow[] = [];
+  let pagination = { page: 1, pageSize: PAGE_SIZE, total: 0, pages: 0 };
+  let page = 1;
+  let filters: InvoiceFilters = {};
+  let error = false, busy = false, requestId = 0;
+  let selectedInvoice: BillingInvoice | null = null;
 
   const layout = createBaseLayout({ content, eyebrow: 'Financeiro', title: 'Faturas' });
-  void load();
-  return layout;
+  void load(); return layout;
 
   async function load(): Promise<void> {
+    const current = ++requestId;
+    busy = true; render();
     loading.show();
     try {
-      [faturas, resumo, clients, ucs] = await Promise.all([getFaturas(), getFaturasResumo(), getClients(), getUcs()]);
-      const availableIds = new Set(faturas.map((fatura) => fatura.id));
-      selectedIds.forEach((id) => { if (!availableIds.has(id)) selectedIds.delete(id); });
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível carregar as faturas.');
+      if (user?.isPlatformAdmin && !empresaId) {
+        invoices = []; charges = []; pendencias = []; clients = []; ucs = [];
+        pagination = { page: 1, pageSize: PAGE_SIZE, total: 0, pages: 0 };
+        error = false;
+        return;
+      }
+      if (!canReadInvoices) {
+        charges = await getFaturas();
+        error = false;
+        return;
+      }
+      const [invoicePage, chargeRows, pendingRows, clientRows, ucRows] = await Promise.all([
+        getBillingInvoicePage({ ...filters, page, pageSize: PAGE_SIZE }, empresaId),
+        user?.isPlatformAdmin ? Promise.resolve([]) : getFaturas(),
+        user?.isPlatformAdmin ? Promise.resolve([]) : getPendencias(),
+        user?.isPlatformAdmin ? Promise.resolve([]) : getClients(),
+        user?.isPlatformAdmin ? Promise.resolve([]) : getUcs()
+      ]);
+      if (current !== requestId) return;
+      invoices = invoicePage.data;
+      if (selectedInvoice) selectedInvoice = invoices.find((invoice) => invoice.id === selectedInvoice?.id) ?? null;
+      pagination = invoicePage.pagination;
+      charges = chargeRows;
+      pendencias = pendingRows;
+      clients = clientRows;
+      ucs = ucRows;
+      error = false;
+    } catch (cause) {
+      if (current !== requestId) return;
+      error = true;
+      toast.error(cause instanceof Error ? cause.message : 'Não foi possível carregar as faturas.');
     } finally {
-      loading.hide();
-      render();
+      if (current === requestId) {
+        busy = false;
+        loading.hide();
+        render();
+      }
     }
   }
 
-  function filtered(): FaturaRow[] {
-    const term = normalize(searchTerm);
-    return faturas.filter((fatura) => {
-      if (statusFilter && fatura.asaasStatus !== statusFilter) return false;
-      if (referenceFilter && fatura.competencia !== referenceFilter) return false;
-      if (clientFilter && fatura.clienteId !== Number(clientFilter)) return false;
-      if (ucFilter && fatura.ucId !== Number(ucFilter)) return false;
-      return !term || normalize(`${fatura.externalReference ?? ''} ${fatura.clienteNome} ${fatura.ucCodigo} ${fatura.competencia}`).includes(term);
-    });
+  function applyFilters(next: InvoiceFilters): void {
+    filters = next;
+    page = 1;
+    selectedInvoice = null;
+    void load();
+  }
+
+  function canIssueInvoice(invoice: BillingInvoice | null): boolean {
+    return Boolean(canIssue && invoice && invoice.statusValidacao === 'valida' &&
+      invoice.consumerUnitId && invoice.competencia && invoice.valorTotalConcessionaria &&
+      invoice.dataVencimento && !invoice.temPendencia && !relatedPendencias(invoice).length);
+  }
+
+  function contextualCharges(invoice: BillingInvoice): FaturaRow[] {
+    if (!invoice.consumerUnitId || !invoice.competencia) return [];
+    return charges.filter((charge) => charge.ucId === invoice.consumerUnitId && charge.competencia === invoice.competencia);
+  }
+
+  function relatedPendencias(invoice: BillingInvoice): PendenciaRow[] {
+    return pendencias.filter((item) => item.status === 'aberta' && item.faturaId === invoice.id);
   }
 
   function render(): void {
     const toolbar = createElement('section', { className: 'faturas-toolbar' });
-    const toolbarText = createElement('div', { className: 'faturas-toolbar-copy' });
-    toolbarText.append(
-      createElement('span', { className: 'eyebrow', textContent: 'Gestão financeira' }),
-      createElement('h2', { textContent: 'Visão geral das faturas' }),
-      createElement('p', { textContent: 'Acompanhe referências, clientes, unidades consumidoras e status de cobrança.' })
-    );
-    const toolbarActions = createElement('div', { className: 'faturas-toolbar-actions' });
-    const add = createElement('button', { className: 'button-with-icon', type: 'button' });
-    add.append(createIcon('plus'), document.createTextNode('Nova fatura'));
-    add.addEventListener('click', openCreateModal);
-    toolbarActions.appendChild(add);
-    toolbar.append(toolbarText, toolbarActions);
-
-    content.replaceChildren(toolbar, createCards(), createFilters(), createTable());
+    const copy = createElement('div', { className: 'faturas-toolbar-copy' });
+    copy.append(createElement('h2', { textContent: 'Faturas' }), createElement('p', { textContent: 'Documentos da concessionária e acompanhamento das cobranças comerciais.' }));
+    const actions = createElement('div', { className: 'faturas-toolbar-actions' });
+    const upload = createConcessionariaUploadButton(() => void load());
+    if (upload) actions.appendChild(upload);
+    if (canIssue) {
+      const issue = createElement('button', { className: 'button-with-icon', type: 'button' });
+      issue.append(createIcon('plus'), document.createTextNode('Emitir cobrança'));
+      issue.disabled = !canIssueInvoice(selectedInvoice);
+      issue.title = issue.disabled ? 'Selecione uma fatura validada, com UC, valor, vencimento e sem pendência operacional.' : '';
+      issue.addEventListener('click', () => { if (canIssueInvoice(selectedInvoice)) openCreateModal(selectedInvoice!); });
+      actions.appendChild(issue);
+    }
+    toolbar.append(copy, actions);
+    content.replaceChildren(toolbar, ...(canReadInvoices ? [createFilters(), createTable(), createPagination()] : [createReadOnlyChargeTable()]));
   }
 
   function createFilters(): HTMLElement {
@@ -84,169 +125,219 @@ export function createFaturasPage(): HTMLElement {
     searchWrap.appendChild(createIcon('faturas'));
     const search = createElement('input');
     search.type = 'search';
-    search.setAttribute('aria-label', 'Buscar faturas');
-    search.placeholder = 'Buscar por referência, UC ou cliente';
-    search.value = searchTerm;
+    search.setAttribute('aria-label', 'Buscar por cliente ou UC');
+    search.placeholder = 'Cliente ou UC';
+    search.value = filters.q ?? '';
+    let timer: number | undefined;
     search.addEventListener('input', () => {
-      const cursor = search.selectionStart ?? search.value.length;
-      searchTerm = search.value;
-      render();
-      const next = content.querySelector<HTMLInputElement>('.faturas-search input');
-      next?.focus();
-      next?.setSelectionRange(cursor, cursor);
+      const value = search.value;
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => applyFilters({ ...filters, q: value }), 300);
     });
     searchWrap.appendChild(search);
-
-    const references = [...new Set(faturas.map((fatura) => fatura.competencia))]
-      .sort((a, b) => b.localeCompare(a));
-    const reference = filterSelect('Referência', referenceFilter, [
-      { value: '', label: 'Todas as referências' },
-      ...references.map((value) => ({ value, label: formatReference(value) }))
-    ], (value) => { referenceFilter = value; render(); });
-    const status = filterSelect('Status', statusFilter ?? '', [
-      { value: '', label: 'Todos os status' },
-      ...STATUS.map(({ value, label }) => ({ value, label }))
-    ], (value) => { statusFilter = (value || undefined) as FaturaStatus | undefined; render(); });
-    const client = filterSelect('Cliente', clientFilter, [
-      { value: '', label: 'Todos os clientes' },
-      ...clients.map((item) => ({ value: String(item.id), label: item.nome }))
-    ], (value) => { clientFilter = value; ucFilter = ''; render(); });
-    const availableUcs = clientFilter
-      ? ucs.filter((item) => item.clienteId === Number(clientFilter))
-      : ucs;
-    const uc = filterSelect('UC', ucFilter, [
-      { value: '', label: 'Todas as UCs' },
-      ...availableUcs.map((item) => ({ value: String(item.id), label: item.codigo }))
-    ], (value) => { ucFilter = value; render(); });
-    const clear = createElement('button', {
-      className: 'secondary-button faturas-clear-filters', type: 'button', textContent: 'Limpar filtros'
-    });
-    clear.disabled = !searchTerm && !statusFilter && !referenceFilter && !clientFilter && !ucFilter;
-    clear.addEventListener('click', () => {
-      searchTerm = ''; statusFilter = undefined; referenceFilter = ''; clientFilter = ''; ucFilter = ''; render();
-    });
-    panel.append(searchWrap, reference, status, client, uc, clear);
+    const plantIds = new Map<number, string>();
+    ucs.flatMap((uc) => uc.conexoes).forEach((link) => plantIds.set(link.plantId, link.usina));
+    const plant = filterSelect('Usina', String(filters.usinaId ?? ''), [
+      { value: '', label: 'Todas as usinas' },
+      ...[...plantIds].sort((a, b) => a[1].localeCompare(b[1])).map(([id, nome]) => ({ value: String(id), label: nome }))
+    ], (value) => applyFilters({ ...filters, usinaId: value ? Number(value) : undefined }));
+    const reference = createElement('label', { className: 'faturas-filter-field' });
+    const referenceInput = createElement('input');
+    referenceInput.type = 'month';
+    referenceInput.value = filters.competencia ?? '';
+    referenceInput.setAttribute('aria-label', 'Competência');
+    referenceInput.addEventListener('change', () => applyFilters({ ...filters, competencia: referenceInput.value }));
+    reference.append(createElement('span', { textContent: 'Competência' }), referenceInput);
+    const processing = filterSelect('Processamento', filters.statusProcessamento ?? '', [
+      { value: '', label: 'Todos' },
+      { value: 'recebida', label: 'Recebida' },
+      { value: 'extraida', label: 'Extraída' },
+      { value: 'valida', label: 'Validada' },
+      { value: 'erro', label: 'Erro' }
+    ], (value) => applyFilters({ ...filters, statusProcessamento: value }));
+    const charge = filterSelect('Cobrança', filters.statusCobranca ?? '', [
+      { value: '', label: 'Todas' }, { value: 'sem_cobranca', label: 'Sem cobrança' },
+      { value: 'pending', label: 'Pendente' }, { value: 'received', label: 'Recebida' },
+      { value: 'overdue', label: 'Vencida' }, { value: 'canceled', label: 'Cancelada' },
+      { value: 'refunded', label: 'Estornada' }
+    ], (value) => applyFilters({ ...filters, statusCobranca: value }));
+    const pending = filterSelect('Pendência', filters.comPendencia === undefined ? '' : String(filters.comPendencia), [
+      { value: '', label: 'Todas' }, { value: 'true', label: 'Com pendência' }, { value: 'false', label: 'Sem pendência' }
+    ], (value) => applyFilters({ ...filters, comPendencia: value ? value === 'true' : undefined }));
+    panel.append(searchWrap, plant, reference, processing, charge, pending);
     return panel;
   }
 
-  function createCards(): HTMLElement {
-    const totalValue = faturas.reduce((sum, fatura) => sum + Number(fatura.valor || 0), 0);
-    const metrics: DashboardMetric[] = [{
-      label: 'Total de faturas', value: String(faturas.length), tone: 'neutral',
-      active: !statusFilter,
-      onClick: () => { statusFilter = undefined; render(); }
-    }, ...STATUS.map(({ value, label, tone }) => ({
-      label,
-      value: String(resumo[value] ?? faturas.filter((fatura) => fatura.asaasStatus === value).length),
-      tone,
-      active: statusFilter === value,
-      onClick: () => { statusFilter = statusFilter === value ? undefined : value; render(); }
-    })), {
-      label: 'Valor total', value: formatCurrency(totalValue), tone: 'neutral'
-    }];
-    const cards = createDashboardCards(metrics);
-    cards.classList.add('faturas-metrics');
-    return cards;
+  function createTable(): HTMLElement {
+    const table = createDataTable<BillingInvoice>({
+      title: 'Faturas da concessionária',
+      eyebrow: busy ? 'Carregando…' : `${pagination.total} registro${pagination.total === 1 ? '' : 's'}`,
+      rows: error || busy ? [] : invoices,
+      emptyMessage: busy ? 'Carregando faturas…' : user?.isPlatformAdmin && !empresaId ? 'Selecione uma empresa.' : error ? 'Não foi possível carregar as faturas.' : 'Nenhuma fatura encontrada.',
+      onRowClick: openInvoiceDetail,
+      columns: [
+        { key: 'usinas', label: 'Usina / contexto', render: (item) => item.usinas?.map((plant) => plant.nome).join(', ') || 'Sem vínculo de usina' },
+        { key: 'clienteNome', label: 'Cliente', render: (item) => item.clienteNome ?? clients.find((client) => client.id === item.clientId)?.nome ?? '—' },
+        { key: 'ucCodigo', label: 'UC', render: (item) => item.ucCodigo ?? ucs.find((uc) => uc.id === item.consumerUnitId)?.codigo ?? 'Aguardando validação' },
+        { key: 'competencia', label: 'Competência', render: (item) => formatReference(item.competencia) },
+        { key: 'valorTotalConcessionaria', label: 'Valor da concessionária', align: 'right', render: (item) => formatCurrency(item.valorTotalConcessionaria) },
+        { key: 'dataVencimento', label: 'Vencimento', render: (item) => formatDate(item.dataVencimento) },
+        { key: 'statusProcessamento', label: 'Processamento', render: (item) => createBadge(item.statusValidacao === 'pendente' ? item.statusExtracao : item.statusValidacao) },
+        { key: 'statusCobranca', label: 'Cobrança', render: (item) => createChargeCell(item.contextualCharges ?? contextualCharges(item)) },
+        { key: 'temPendencia', label: 'Pendência', render: (item) => item.temPendencia ? createBadge('Aberta', 'warning') : '—' }
+      ]
+    });
+    return table;
   }
 
-  function createTable(): HTMLElement {
-    const rows = filtered();
-    const visibleIds = rows.map((fatura) => fatura.id);
-    const selectedVisible = visibleIds.filter((id) => selectedIds.has(id)).length;
+  function createReadOnlyChargeTable(): HTMLElement {
     return createDataTable<FaturaRow>({
-      title: selectedIds.size ? `Lista de faturas · ${selectedIds.size} selecionada${selectedIds.size === 1 ? '' : 's'}` : 'Lista de faturas',
-      eyebrow: `${rows.length} registro${rows.length === 1 ? '' : 's'}`, rows,
-      emptyMessage: 'Nenhuma fatura encontrada.', onRowClick: openDetailModal,
+      title: 'Cobranças ASAAS', eyebrow: `${charges.length} registro${charges.length === 1 ? '' : 's'}`,
+      rows: error || busy ? [] : charges,
+      emptyMessage: busy ? 'Carregando cobranças…' : error ? 'Não foi possível carregar as cobranças.' : 'Nenhuma cobrança encontrada.',
       columns: [
-        {
-          key: 'selecao', label: 'Selecionar',
-          headerRender: () => createSelectAllCheckbox(visibleIds, selectedVisible),
-          render: (fatura) => createRowCheckbox(fatura)
-        },
-        { key: 'competencia', label: 'Referência', render: (fatura) => formatReference(fatura.competencia) },
-        { key: 'ucCodigo', label: 'UC', render: (fatura) => createUcCell(fatura) },
         { key: 'clienteNome', label: 'Cliente' },
-        { key: 'mesVencimento', label: 'Vencimento', render: (fatura) => formatDate(fatura.mesVencimento) },
-        { key: 'valor', label: 'Valor', align: 'right', render: (fatura) => formatCurrency(fatura.valor) },
-        { key: 'asaasStatus', label: 'Status', render: (fatura) => createStatusBadge(fatura.asaasStatus) },
-        { key: 'acoes', label: 'Ação', align: 'right', render: (fatura) => createActions(fatura) }
+        { key: 'ucCodigo', label: 'UC' },
+        { key: 'competencia', label: 'Competência', render: (item) => formatReference(item.competencia) },
+        { key: 'valor', label: 'Valor comercial', align: 'right', render: (item) => formatCurrency(item.valor) },
+        { key: 'mesVencimento', label: 'Vencimento', render: (item) => formatDate(item.mesVencimento) },
+        { key: 'asaasStatus', label: 'Situação', render: (item) => createBadge(item.asaasId ? statusLabel(item.asaasStatus) : item.statusInterno ?? 'Aguardando emissão') }
       ]
     });
   }
 
-  function createSelectAllCheckbox(visibleIds: number[], selectedVisible: number): HTMLElement {
-    const input = selectionCheckbox('Selecionar todas as faturas visíveis');
-    input.checked = visibleIds.length > 0 && selectedVisible === visibleIds.length;
-    input.indeterminate = selectedVisible > 0 && selectedVisible < visibleIds.length;
-    input.disabled = visibleIds.length === 0;
-    input.addEventListener('change', () => {
-      visibleIds.forEach((id) => input.checked ? selectedIds.add(id) : selectedIds.delete(id));
-      render();
+  function createPagination(): HTMLElement {
+    const nav = createElement('nav', { className: 'faturas-pagination' });
+    nav.setAttribute('aria-label', 'Páginas de faturas');
+    const previous = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Anterior' });
+    previous.disabled = busy || page <= 1;
+    previous.addEventListener('click', () => { page--; void load(); });
+    const next = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Próxima' });
+    next.disabled = busy || page >= pagination.pages;
+    next.addEventListener('click', () => { page++; void load(); });
+    nav.append(previous, createElement('span', { textContent: `${pagination.pages ? page : 0} de ${pagination.pages}` }), next);
+    return nav;
+  }
+
+  function openInvoiceDetail(invoice: BillingInvoice): void {
+    selectedInvoice = invoice;
+    render();
+    const overlay = createModal(`Fatura da concessionária #${invoice.id}`, 'Financeiro');
+    const body = overlay.querySelector('.modal-body') as HTMLElement;
+    const utility = detailSection('Fatura da concessionária', [
+      ['Cliente', invoice.clienteNome ?? clients.find((client) => client.id === invoice.clientId)?.nome ?? '—'],
+      ['UC', invoice.ucCodigo ?? 'Aguardando validação'],
+      ['Usinas vinculadas', invoice.usinas?.map((plant) => plant.nome).join(', ') || 'Sem vínculo comprovado'],
+      ['Competência', formatReference(invoice.competencia)],
+      ['Valor', formatCurrency(invoice.valorTotalConcessionaria)],
+      ['Vencimento', formatDate(invoice.dataVencimento)],
+      ['Extração', invoice.statusExtracao], ['Validação', invoice.statusValidacao]
+    ]);
+    const documents = createElement('section', { className: 'fatura-detail-section' });
+    documents.appendChild(createElement('h3', { textContent: 'Histórico e documentos' }));
+    documents.appendChild(createElement('p', { textContent: `Recebida em ${formatDate(invoice.createdAt)}.` }));
+    documents.appendChild(createElement('p', { textContent: 'PDF original da concessionária: acesso não disponível nesta página.' }));
+    const chargeSection = createElement('section', { className: 'fatura-detail-section' });
+    chargeSection.appendChild(createElement('h3', { textContent: 'Cobrança comercial ASAAS' }));
+    const linkedCharges = user?.isPlatformAdmin ? [] : contextualCharges(invoice);
+    const platformCharges = user?.isPlatformAdmin ? invoice.contextualCharges ?? [] : [];
+    if (!linkedCharges.length && !platformCharges.length) chargeSection.appendChild(createElement('p', { textContent: 'Nenhuma cobrança encontrada para esta UC e competência.' }));
+    else {
+      chargeSection.appendChild(createElement('p', { className: 'fatura-context-note', textContent: 'Cobranças encontradas pela UC e competência; o vínculo documental ainda não é confirmado pela API.' }));
+      platformCharges.forEach((charge) => chargeSection.appendChild(detailSection(`Cobrança #${charge.id}`, [
+        ['Valor comercial', formatCurrency(charge.valor)], ['Vencimento', formatDate(charge.mesVencimento)],
+        ['Situação', charge.asaasId ? statusLabel(charge.asaasStatus as FaturaRow['asaasStatus']) : charge.statusInterno ?? 'Aguardando emissão']
+      ])));
+      linkedCharges.forEach((charge) => {
+        const card = detailSection(`Cobrança #${charge.id}`, [
+          ['Valor comercial', formatCurrency(charge.valor)], ['Vencimento', formatDate(charge.mesVencimento)],
+          ['Situação', charge.asaasId ? statusLabel(charge.asaasStatus) : charge.statusInterno ?? 'Aguardando emissão']
+        ]);
+        const actions = createElement('div', { className: 'form-actions' });
+        if (charge.boletoUrl) {
+          const boleto = createElement('a', { className: 'secondary-button', textContent: 'Abrir boleto ASAAS' });
+          boleto.href = charge.boletoUrl; boleto.target = '_blank'; boleto.rel = 'noreferrer'; actions.appendChild(boleto);
+        }
+        if (canIssue) {
+          const sync = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Sincronizar' });
+          sync.addEventListener('click', () => void runChargeAction(sync, () => syncFatura(charge.id), 'Cobrança sincronizada.', overlay));
+          actions.appendChild(sync);
+          if (charge.asaasId && charge.asaasStatus === 'pending') {
+            const cancel = createElement('button', { className: 'danger-button', type: 'button', textContent: 'Cancelar cobrança' });
+            cancel.addEventListener('click', () => { if (window.confirm('Cancelar esta cobrança na ASAAS?')) void runChargeAction(cancel, () => cancelFatura(charge.id), 'Cobrança cancelada.', overlay); });
+            actions.appendChild(cancel);
+          }
+        }
+        card.appendChild(actions);
+        chargeSection.appendChild(card);
+      });
+    }
+    const pendingSection = createElement('section', { className: 'fatura-detail-section' });
+    pendingSection.appendChild(createElement('h3', { textContent: 'Pendências relacionadas' }));
+    const related = relatedPendencias(invoice);
+    if (!related.length) pendingSection.appendChild(createElement('p', { textContent: invoice.temPendencia ? 'Há pendência operacional. Consulte a central de pendências.' : 'Nenhuma pendência aberta vinculada.' }));
+    related.forEach((item) => {
+      const link = createElement('a', { textContent: item.titulo });
+      link.href = `/pendencias?selecionada=${item.id}`;
+      pendingSection.appendChild(link);
     });
-    return input;
+    body.append(utility, chargeSection, pendingSection, documents);
+    if (canIssueInvoice(invoice)) {
+      const issue = createElement('button', { type: 'button', textContent: 'Emitir cobrança para esta fatura' });
+      issue.addEventListener('click', () => { overlay.remove(); openCreateModal(invoice); }); body.appendChild(issue);
+    }
   }
 
-  function createRowCheckbox(fatura: FaturaRow): HTMLElement {
-    const input = selectionCheckbox(`Selecionar fatura de ${fatura.clienteNome}, referência ${formatReference(fatura.competencia)}`);
-    input.checked = selectedIds.has(fatura.id);
-    input.addEventListener('change', () => {
-      if (input.checked) selectedIds.add(fatura.id);
-      else selectedIds.delete(fatura.id);
-      render();
-    });
-    return input;
+  async function runChargeAction(button: HTMLButtonElement, action: () => Promise<unknown>, message: string, overlay: HTMLElement): Promise<void> {
+    button.disabled = true;
+    try { await action(); toast.success(message); overlay.remove(); await load(); }
+    catch (cause) { toast.error(cause instanceof Error ? cause.message : 'Não foi possível concluir a ação.'); }
+    finally { button.disabled = false; }
   }
 
-  function createActions(fatura: FaturaRow): HTMLElement {
-    const wrap = createElement('div', { className: 'table-actions' });
-    const button = createElement('button', { className: 'icon-button neutral', type: 'button', title: 'Ver fatura' });
-    button.appendChild(createIcon('eye'));
-    button.addEventListener('click', (event) => { event.stopPropagation(); openDetailModal(fatura); });
-    wrap.appendChild(button);
-    return wrap;
-  }
-
-  function openCreateModal(): void {
-    const overlay = createModal('Nova fatura', 'Financeiro');
+  function openCreateModal(invoice: BillingInvoice): void {
+    const overlay = createModal('Emitir cobrança', 'Financeiro');
     const form = createElement('form', { className: 'client-form' });
     const client = selectField('Cliente', clients.map((item) => ({ value: String(item.id), label: item.nome })), true);
     const uc = selectField('UC', [], true);
     const concessionaria = textField('Concessionária', 'text', '', true);
     concessionaria.input.readOnly = true;
     const competencia = textField('Competência', 'month', currentMonth(), true);
-    const vencimento = textField('Vencimento', 'date', '', true);
-    const valor = textField('Valor (R$)', 'number', '', true);
+    const vencimento = textField('Vencimento da cobrança', 'date', '', true);
+    const valor = textField('Valor comercial (R$)', 'number', '', true);
     valor.input.min = '0.01'; valor.input.step = '0.01';
-    const notice = createElement('p', { className: 'fatura-notice', textContent: 'Ao confirmar, a cobrança será emitida na ASAAS. Para corrigir, cancele e emita uma nova fatura.' });
+    const notice = createElement('p', { className: 'fatura-notice', textContent: 'A cobrança será emitida na ASAAS. Informe o valor comercial final; o valor da concessionária é um documento distinto.' });
     const actions = createElement('div', { className: 'form-actions' });
-    const submit = createElement('button', { type: 'submit', textContent: 'Emitir fatura' });
+    const submit = createElement('button', { type: 'submit', textContent: 'Emitir cobrança' });
     const cancel = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Cancelar' });
     cancel.addEventListener('click', () => overlay.remove());
     actions.append(submit, cancel);
-
     function refreshUcs(): void {
       const selectedClientId = Number(client.select.value);
       const options = ucs.filter((item) => item.clienteId === selectedClientId);
       uc.select.replaceChildren(...options.map((item) => option(String(item.id), item.codigo)));
-      const selected = options[0];
-      concessionaria.input.value = selected?.concessionaria ?? '';
+      concessionaria.input.value = options[0]?.concessionaria ?? '';
     }
     client.select.addEventListener('change', refreshUcs);
     uc.select.addEventListener('change', () => { concessionaria.input.value = ucs.find((item) => item.id === Number(uc.select.value))?.concessionaria ?? ''; });
     refreshUcs();
-
+    client.select.value = String(invoice.clientId);
+    refreshUcs();
+    uc.select.value = String(invoice.consumerUnitId);
+    concessionaria.input.value = ucs.find((item) => item.id === invoice.consumerUnitId)?.concessionaria ?? '';
+    competencia.input.value = invoice.competencia ?? '';
+    client.select.disabled = true;
+    uc.select.disabled = true;
+    competencia.input.readOnly = true;
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
-      if (!form.reportValidity()) return;
+      if (!form.reportValidity() || !canIssueInvoice(invoice)) return;
       submit.disabled = true;
       try {
         await createFatura({ clienteId: Number(client.select.value), ucId: Number(uc.select.value), valor: Number(valor.input.value), competencia: competencia.input.value, mesVencimento: vencimento.input.value });
-        toast.success('Fatura emitida.');
-        overlay.remove();
-        await load();
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'Não foi possível emitir a fatura.');
-      } finally { submit.disabled = false; }
+        toast.success('Cobrança emitida.'); overlay.remove(); await load();
+      } catch (cause) { toast.error(cause instanceof Error ? cause.message : 'Não foi possível emitir a cobrança.'); }
+      finally { submit.disabled = false; }
     });
     const grid = createElement('div', { className: 'form-grid' });
     client.field.classList.add('form-field-wide');
@@ -254,76 +345,4 @@ export function createFaturasPage(): HTMLElement {
     form.append(grid, notice, actions);
     overlay.querySelector('.modal-body')?.appendChild(form);
   }
-
-  function openDetailModal(fatura: FaturaRow): void {
-    const overlay = createModal(`Fatura #${fatura.id}`, 'Financeiro');
-    const body = overlay.querySelector('.modal-body') as HTMLElement;
-    const info = createElement('div', { className: 'detail-info-grid' });
-    [['Cliente', fatura.clienteNome], ['UC', fatura.ucCodigo], ['Competência', fatura.competencia], ['Valor', formatCurrency(fatura.valor)], ['Vencimento', formatDate(fatura.mesVencimento)], ['Status', statusLabel(fatura.asaasStatus)]].forEach(([label, value]) => {
-      const field = createElement('div', { className: 'detail-info-field' });
-      field.append(createElement('span', { textContent: label }), createElement('strong', { textContent: value }));
-      info.appendChild(field);
-    });
-    const actions = createElement('div', { className: 'form-actions' });
-    if (fatura.boletoUrl) {
-      const boleto = createElement('a', { className: 'secondary-button', textContent: 'Abrir boleto' });
-      boleto.href = fatura.boletoUrl; boleto.target = '_blank'; boleto.rel = 'noreferrer'; actions.appendChild(boleto);
-    }
-    const sync = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Sincronizar' });
-    sync.addEventListener('click', () => void runAction(sync, () => syncFatura(fatura.id), 'Fatura sincronizada.'));
-    actions.appendChild(sync);
-    if (fatura.asaasStatus === 'pending') {
-      const cancel = createElement('button', { className: 'danger-button', type: 'button', textContent: 'Cancelar fatura' });
-      cancel.addEventListener('click', () => { if (window.confirm('Cancelar esta fatura na ASAAS?')) void runAction(cancel, () => cancelFatura(fatura.id), 'Fatura cancelada.'); });
-      actions.appendChild(cancel);
-    }
-    body.append(info, actions);
-    async function runAction(button: HTMLButtonElement, action: () => Promise<unknown>, message: string): Promise<void> {
-      button.disabled = true;
-      try { await action(); toast.success(message); overlay.remove(); await load(); }
-      catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível concluir a ação.'); }
-      finally { button.disabled = false; }
-    }
-  }
 }
-
-function createModal(title: string, eyebrow: string): HTMLElement {
-  const overlay = createElement('section', { className: 'modal-overlay' });
-  const card = createElement('article', { className: 'plant-card fatura-modal' });
-  const header = createElement('div', { className: 'modal-header' });
-  const heading = createElement('div');
-  heading.append(createElement('span', { className: 'eyebrow', textContent: eyebrow }), createElement('h2', { textContent: title }));
-  const close = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Fechar' });
-  close.addEventListener('click', () => overlay.remove());
-  header.append(heading, close);
-  card.append(header, createElement('div', { className: 'modal-body' }));
-  overlay.appendChild(card);
-  overlay.addEventListener('click', (event) => { if (event.target === overlay) overlay.remove(); });
-  document.body.appendChild(overlay);
-  return overlay;
-}
-
-function selectField(label: string, options: Array<{ value: string; label: string }>, required = false) {
-  const field = createElement('label', { className: 'form-field' });
-  const select = createElement('select'); select.required = required;
-  select.append(...options.map((item) => option(item.value, item.label)));
-  field.append(createElement('span', { textContent: label }), select);
-  return { field, select };
-}
-function textField(label: string, type: string, value: string, required = false) {
-  const field = createElement('label', { className: 'form-field' });
-  const input = createElement('input'); input.type = type; input.value = value; input.required = required;
-  field.append(createElement('span', { textContent: label }), input);
-  return { field, input };
-}
-function option(value: string, label: string): HTMLOptionElement { const element = createElement('option', { textContent: label }); element.value = value; return element; }
-function filterSelect(label: string, value: string, options: Array<{ value: string; label: string }>, onChange: (value: string) => void): HTMLElement { const field = createElement('label', { className: 'faturas-filter-field' }); const select = createElement('select'); select.append(...options.map((item) => option(item.value, item.label))); select.value = value; select.addEventListener('change', () => onChange(select.value)); field.append(createElement('span', { textContent: label }), select); return field; }
-function selectionCheckbox(label: string): HTMLInputElement { const input = createElement('input', { className: 'fatura-selection-checkbox' }); input.type = 'checkbox'; input.setAttribute('aria-label', label); input.addEventListener('click', (event) => event.stopPropagation()); return input; }
-function createUcCell(fatura: FaturaRow): HTMLElement { const cell = createElement('div', { className: 'fatura-uc-cell' }); cell.append(createElement('strong', { textContent: fatura.ucCodigo }), createElement('span', { textContent: fatura.concessionaria ?? 'Concessionária não informada' })); return cell; }
-function createStatusBadge(status: FaturaStatus): HTMLElement { const tone = status === 'received' ? 'success' : status === 'overdue' ? 'danger' : status === 'pending' ? 'warning' : 'neutral'; return createElement('span', { className: tone === 'neutral' ? 'status-badge' : `status-badge tone-${tone}`, textContent: statusLabel(status) }); }
-function statusLabel(status: FaturaStatus): string { return ({ pending: 'Pendente', received: 'Recebida', overdue: 'Vencida', canceled: 'Cancelada', refunded: 'Estornada' })[status]; }
-function formatCurrency(value: string | number): string { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value)); }
-function formatDate(value: string): string { return value ? new Date(`${value.slice(0, 10)}T12:00:00`).toLocaleDateString('pt-BR') : '-'; }
-function formatReference(value: string): string { if (!/^\d{4}-\d{2}$/.test(value)) return value || '-'; const [year, month] = value.split('-'); return `${month}/${year}`; }
-function currentMonth(): string { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`; }
-function normalize(value: string): string { return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }

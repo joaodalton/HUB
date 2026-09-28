@@ -25,6 +25,7 @@ from services.rateio_formulario_service import montar_tabela_formulario
 from services.rateio_service import confirmar_selecao, preview_rateio
 from services.settings_service import get_all_settings, update_settings
 from services.uc_service import delete_uc, sync_connections, update_uc
+from services.uc_code import find_document_ucs
 try:
     from .support import IsolatedTestRuntime
 except ImportError:
@@ -91,7 +92,7 @@ class TenantServiceLookupsTest(IsolatedTestRuntime, unittest.TestCase):
         with self.app.test_request_context('/'):
             g.current_empresa_id = 1
             created = create_client({
-                'nome': 'Novo', 'cpf': '12345678902', 'email': 'novo@x.test',
+                'nome': 'Novo', 'cpf': '52998224725', 'email': 'novo@x.test', 'concessionaria': 'Outra',
                 'ucs': [{'codigo': 'UC-N', 'conexoes': []}],
             })
             uc_id = created['ucs'][0]['id']
@@ -102,6 +103,64 @@ class TenantServiceLookupsTest(IsolatedTestRuntime, unittest.TestCase):
             })
             self.assertEqual(updated['ucs'][0]['id'], uc_id)
             self.assertEqual(ConsumerUnit.query.filter_by(id=uc_id).first().empresa_id, 1)
+
+    def test_partial_client_edit_keeps_existing_ucs_and_status(self):
+        with self.app.test_request_context('/'):
+            g.current_empresa_id = 1
+            client = Client.query.filter_by(id=self.client_a).one()
+            client.status = 'Concluido'
+            db.session.commit()
+            uc_ids = {uc.id for uc in client.ucs}
+            updated = update_client(self.client_a, {'nome': 'Ajustado'})
+            self.assertEqual(updated['status'], 'Concluido')
+            self.assertEqual({uc['id'] for uc in updated['ucs']}, uc_ids)
+
+    def test_nested_edit_rejects_another_clients_uc(self):
+        with self.app.test_request_context('/'):
+            g.current_empresa_id = 1
+            other = Client(empresa_id=1, nome='Outro', cpf='outro', email='outro@x.test')
+            db.session.add(other)
+            db.session.flush()
+            foreign = ConsumerUnit(empresa_id=1, client_id=other.id, codigo='UC-OUTRO')
+            db.session.add(foreign)
+            db.session.commit()
+            foreign_uc = foreign.id
+            with self.assertRaises(ValueError):
+                update_client(self.client_a, {'ucs': [{'id': foreign_uc, 'codigo': 'UC-OUTRO'}]})
+            db.session.rollback()
+            self.assertEqual(ConsumerUnit.query.filter_by(id=foreign_uc).one().client_id, other.id)
+            self.assertIsNotNone(ConsumerUnit.query.filter_by(id=self.uc_a).first())
+
+    def test_copel_document_does_not_match_another_provider(self):
+        with self.app.test_request_context('/'):
+            g.current_empresa_id = 1
+            db.session.add(ConsumerUnit(empresa_id=1, client_id=self.client_a,
+                                        codigo='000000000000001', concessionaria='Outra'))
+            db.session.commit()
+            self.assertEqual(find_document_ucs(1, '000000000001', 'Copel').count(), 0)
+
+    def test_client_identity_validation_on_create_and_edit_preserves_legacy_values(self):
+        with self.app.test_request_context('/'):
+            g.current_empresa_id = 1
+            created = create_client({
+                'nome': '  Cliente válido  ', 'cpf': '111.444.777-35',
+                'email': 'cad-1@x.test', 'telefone': '+55 (41) 99999-1234',
+            })
+            self.assertEqual((created['nome'], created['cpf'], created['telefone']),
+                             ('Cliente válido', '11144477735', '41999991234'))
+            with self.assertRaises(ValueError):
+                create_client({'nome': ' ' * 3, 'cpf': '52998224725', 'email': 'invalid@x.test'})
+            with self.assertRaises(ValueError):
+                update_client(created['id'], {'nome': 'x' * 201})
+            with self.assertRaises(ValueError):
+                update_client(created['id'], {'telefone': '41812345678'})
+            updated = update_client(created['id'], {'nome': '  Editado  ', 'telefone': '(41) 3333-1234'})
+            self.assertEqual((updated['nome'], updated['telefone']), ('Editado', '4133331234'))
+            legacy = Client.query.filter_by(id=self.client_a).one()
+            self.assertEqual(legacy.cpf, '12345678900')
+            self.assertEqual(update_client(legacy.id, {
+                'nome': 'Ajustado', 'ucs': [{'id': self.uc_a, 'codigo': 'UC-A'}],
+            })['cpf'], '12345678900')
 
     def test_disconnecting_last_plant_records_when_the_uc_became_unassigned(self):
         with self.app.test_request_context('/'):

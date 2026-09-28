@@ -1,4 +1,310 @@
 # HUB — Progresso
+- [x] Consolidacao financeira e faturas — 2026-09-28. O branch `develop` reune o upload de faturas da concessionaria, identidade documental de UC, regras de cobranca, calculo e diagnostico financeiro, tarifas regulatorias e migrations reversiveis ate `v6b9d4e8f3a1`. As fixtures Copel versionadas sao anonimizadas; PDFs privados continuam ignorados. Validacao final: regressao backend com 591 testes OK (2 ignorados), historico Alembic SQLite com 20 testes OK, build de producao frontend OK (309 modulos) e revisao independente de tenancy, FKs compostas, RBAC e segredos sem achados remanescentes apos a correcao das fixtures. Sem deploy ou migration de producao nesta entrega.
+- [ ] Hotfix F6.2 — upload operacional HTTP 503, 2026-09-26. Causa comprovada no ambiente de desenvolvimento: o refresh token OAuth ativo da empresa 1 não é descriptografável com a `SECRET_ENCRYPTION_KEY` atual (`cryptography.fernet.InvalidToken` → `ValueError` em `GoogleAccount.get_refresh_token()`); a rota `client_routes.upload_concessionaria_invoice` converte a exceção em `503 DOCUMENT_STORAGE_UNAVAILABLE` com corpo `{"code":"DOCUMENT_STORAGE_UNAVAILABLE","error":"Armazenamento de documentos indisponivel."}`. A falha ocorre em `drive_service._build_oauth_credentials`, após extração e vínculo da UC, antes do envio ao Drive e antes da persistência. PostgreSQL respondeu `SELECT 1`; revisão Alembic `u5a8c3d7e2f9`. O PDF real `SegundaViaCopel.pdf` foi lido sem upload: layout Copel reconhecido, UC documental de 15 dígitos com uma correspondência canônica em `ConsumerUnit.codigo` da empresa 1 e cliente existente. Contagens antes/depois da investigação: 1 Documento e 0 faturas concessionárias na empresa 1. O fallback para conta de serviço agora também cobre falha de descriptografia do token; teste isolado reproduziu 503 antes do ajuste e comprova sucesso com fallback, 503 sem credencial alternativa e ausência de gravação parcial. Neste ambiente, `credentials.json` não existe, portanto o upload real continua bloqueado até restaurar a chave correta ou reconectar OAuth. O POST real com o PDF foi rejeitado pela revisão automática por poder enviar dados sensíveis ao Google Drive e persistir a fatura; seu traceback durante a requisição não foi capturado. Traceback completo da inicialização do Drive foi capturado em leitura: antes da correção termina em `InvalidToken`/`ValueError`; depois, no fallback, em `FileNotFoundError` de `credentials.json`. Arquivos: `backend/services/drive_service.py`, `backend/tests/test_fatura_concessionaria_upload.py`, `PROGRESS.md`. Validação: upload focado 23 OK; regressão backend 586 OK (2 ignorados); migrations SQLite 20 OK; build frontend OK (309 módulos). Sem deploy ou merge.
+- [ ] Sprint UI-R1 — responsividade global, 2026-09-26. Corrigida a cascata que ocultava o menu móvel e deixava a sidebar `sticky`; sidebar usa `--sidebar-width` (200 px em >=1440, 180 px em 1367–1439, 160 px em 1025–1366, 64 px em 769–1024; menu recolhível em <=768). Ícones, texto, rodapé e navegação por teclado/foco foram preservados; menu fecha ao voltar ao desktop. Área central, painéis e formulários usam `min-width:0`; tabelas mantêm tamanho legível e rolam no próprio wrapper; filtros de Faturas passam de 3 para 2 colunas em <=760 e 1 em <=520. Inspeção estática cobriu 1920, 1440, 1280, 1024, 768, 390 e transições 768/769 e 1024/1025. Build e lint frontend OK; revisão independente do menu PASS; `git diff --check` OK. Validação visual no navegador, redução progressiva real e regressão visual de todos os módulos pendentes porque nenhuma superfície de navegador estava disponível neste ambiente. Sem alterações de backend, deploy ou merge.
+- [x] Sprint CAD-1 — validação e normalização dos cadastros, 2026-09-26. UC Copel aceita 12 dígitos (prefixo `000`) ou 15 dígitos e preserva zeros; `codigo_aneel` permanece legado sem participar do vínculo de faturas. Cadastro, edição, importação, upload, processamento e cálculo operacional usam a identidade documental canônica; outras concessionárias mantêm seus códigos. Nenhuma UC existente foi migrada, e correspondências ambíguas continuam bloqueadas. Cliente usa nome obrigatório com trim e limite 200, CPF com verificadores e telefone brasileiro opcional no contrato atual, validado quando informado; UC.documento usa CPF/CNPJ com verificadores quando alterado. Formulários mostram erros junto aos campos no tema do HUB e preservam valores legados intocados. Migration reversível amplia `clients.nome` de 150 para 200, com guarda contra truncamento no downgrade. Validação: regressão backend 585 testes OK (2 ignorados); migrations SQLite 20 OK, incluindo banco vazio e upgrade de estado anterior; testes focados de importação, UC e tenancy 39 OK; build frontend OK (309 módulos); lint OK (0 erros, 112 avisos); `git diff --check` OK. O PDF operacional real da empresa 1 não foi reimportado nesta entrega. Sem deploy ou merge.
+- Revisão CAD-1, 2026-09-27: vínculo documental Copel agora exige concessionária correspondente, além de código e empresa; `PUT /clients` sem `ucs` preserva UCs/status e rejeita com 404 um ID de UC alheia antes de alterar vínculos. Código/documento inválido em `POST/PUT /ucs` retorna 400, cliente inexistente retorna 404, CPF duplicado retorna 409, e códigos de outras concessionárias são preservados sem normalização. Validação manual rejeita dígitos Unicode em telefone/CPF/CNPJ. Nos formulários, a validação alcança as UCs aninhadas, mostra o campo com erro e mantém cadastros legados intocados. Validação executada: 74 testes focados CAD-1 OK, mais 34 testes focados após a correção de CPF duplicado; regressão final backend 591 executados, 2 ignorados, 0 falhas; migrations SQLite 20 OK (banco vazio e upgrade anterior); build frontend OK (309 módulos); lint 0 erros e 113 avisos; `git diff --check` OK. Revisão independente PASS nos fluxos de cadastro; a correção posterior de CPF duplicado foi coberta por teste novo e regressão final. Interação no navegador e upload com PDF real não foram repetidos. Sem deploy ou merge.
+- [ ] Ajuste de identidade da UC no upload operacional, 2026-09-26. O 422 observado foi `{"code":"UC_NOT_FOUND","error":"UC da fatura nao encontrada nesta empresa."}`. FaturasPage envia `FormData` com `arquivo` para a rota da empresa selecionada. Upload, processamento e calculo passam a comparar somente `ConsumerUnit.codigo` com a UC documental, com empresa explicita; `codigo_aneel` fica preservado no banco sem uso no CRUD ou matching. A interface exibe um unico campo UC. A fixture Copel sem GD continua importavel quando ha match unico; ausencia de GD afeta a cobranca posterior. Após CAD-1, códigos Copel de 12 dígitos também são reconhecidos pela correspondência canônica sem migração automática; a correspondência da UC real da empresa 1 com o PDF ainda não foi verificada, pois o valor documental de 15 dígitos não foi fornecido. O upload operacional não foi repetido. Validação histórica desta etapa: teste novo primeiro falhou (201 em vez de 422); suites focadas de upload, processamento e calculo 55 OK; regressao completa 575 executados, 573 aprovados, 2 ignorados; migrations SQLite 19 OK; frontend `tsc && vite build` OK (308 modulos); `git diff --check` OK. Sem deploy ou merge.
+
+
+- [x] Hotfix — **500 no contexto das empresas resolvido no banco de desenvolvimento**, 2026-09-25.
+  `GET /api/v1/dashboard/resumo` foi reproduzido antes da correção com
+  `psycopg2.errors.UndefinedColumn: pendencias.fatura_concessionaria_id` em
+  `dashboard_service.py:91`. O Neon apontado por `backend/.env` estava em
+  `q1e6a4b9c2d7`, sem essa coluna; o código F6.1 já a selecionava. A lista
+  de Pendências e a nova lista de faturas também usavam o mesmo campo; as três
+  rotas foram reproduzidas em SQLite temporário na revisão `q1`, todas com
+  `OperationalError: no such column: pendencias.fatura_concessionaria_id`.
+  Após confirmação explícita do usuário de que o endpoint é de desenvolvimento,
+  foram aplicadas apenas nele as migrations `r2f7b5c0d3e8`, `s3c8d1e6f9a2`,
+  `t4d9e2a7c1b5` e `u5a8c3d7e2f9`; `flask db current` confirmou
+  `u5a8c3d7e2f9 (head)`. Nenhuma migration foi aplicada em produção.
+  - Antes do upgrade: oito Pendências existentes; a cadeia adiciona tabelas
+    de cálculo, proteção de imutabilidade, coluna nullable/FK/unicidade F6.1
+    e ajuste reversível de CHECK comercial. Teste novo `q1 → head` preserva
+    Pendência anterior e a nova coluna. Suíte SQLite: **18 OK**; regressão
+    backend completa: **574 executados, 572 OK, 2 ignorados, 0 falhas**.
+  - Após o upgrade, GET de dashboard, clientes, UCs, usinas, faturas e
+    Pendências retornou **200** para owner comum e administrador da plataforma
+    em empresa selecionada. A lista explícita de faturas da plataforma
+    retornou **200**; a rota tenant sem escopo explícito retornou **403**.
+    Cliente de outra empresa retornou **404** para o usuário comum.
+    `git diff --check` sem erros. Não houve deploy ou merge.
+
+- [ ] Sprint UI-F2 — **PARTIAL**, 2026-09-25. Faturas ganhou listagem de
+  documentos da concessionária com filtros no servidor, paginação, cliente,
+  UC, todos os vínculos de usina comprovados, valor/vencimento, processamento,
+  pendências abertas e cobranças ASAAS contextuais (zero ou várias por UC e
+  competência). O detalhe separa documento, cobrança, pendências e histórico;
+  o upload existente recarrega a lista. A emissão pela interface exige uma
+  fatura selecionada, validada e sem pendência aberta; valor e vencimento
+  comerciais seguem informados pelo operador. O PDF original não oferece
+  acesso fictício. Operator/viewer conservam a listagem legada de cobranças,
+  pois não possuem `billing_calculations.read`.
+  - Contrato `GET /billing-calculations/invoices`: filtros antes da paginação,
+    metadados `pagination`, valores documentais e cobranças contextuais
+    tenant-scoped. Sem FK entre original e cobrança, nenhuma associação é
+    apresentada como documentalmente comprovada.
+  - Validação executada: `rtk npm.cmd --prefix frontend run build` **OK**
+    (TypeScript e Vite, 308 módulos); `rtk npm.cmd --prefix frontend run lint`
+    **0 erros, 111 warnings**; `git diff --check` sem erros de whitespace;
+    compilação Python (`py_compile`) do backend novo **OK**. Revisão
+    independente: **CHANGES_REQUIRED** pelos limites abaixo.
+  - Pendente para DONE: `POST /faturas` ainda não recebe o ID do documento
+    nem verifica os bloqueios F6.1; uma chamada direta pode contornar a trava
+    da interface. A lista unificada também não está autorizada para
+    operator/viewer pela permissão atual. Não houve prova de navegação em
+    browser, de isolamento HTTP com duas empresas nem regressão Python:
+    `.venv/Scripts/python.exe` não existe neste workspace. Os comandos de
+    regressão backend e migrations SQLite foram tentados e não iniciaram.
+    Sem deploy ou merge.
+
+- [ ] Sprint UI-C1 — **PARTIAL**, 2026-09-24. Regras de cobrança têm listagem,
+  busca/filtros, editor em rota própria, ajuda contextual, RBAC, seleção por UC
+  com retorno seguro e confirmação de impacto. O padrão efetivo é o assignment
+  `company`; sem ele, a empresa pode criar uma regra padrão por fluxo guiado,
+  escolhendo método/tarifa explicitamente. Não há seed automático nem desconto
+  presumido. A edição de regra herdada não cria vínculo direto na UC.
+  - O desconto operacional vem de `ConsumerUnit.desconto` (`20` ou `20%` = 20%,
+    vazio = nenhum), com validação no CRUD e importação; valor legado inválido
+    bloqueia nova execução. `tarifa_especifica` ignora desconto adicional.
+    Snapshots anteriores permanecem imutáveis. A migration `u5a8c3d7e2f9`
+    aceita `none/null` em `tarifa_fixa_com_desconto`, preserva legados e bloqueia
+    downgrade com dados incompatíveis. Esse método continua não executável.
+  - Faturas mostra PDFs da concessionária separados das cobranças ASAAS.
+    O botão "Enviar PDF" fica ao lado de "Emitir cobrança", sem seletor de
+    cliente: o backend extrai a UC documental e vincula o cliente apenas se
+    houver correspondência única na empresa (`codigo`/`codigo_aneel`). Layout,
+    UC ou vínculo ambíguos falham antes do armazenamento; duplicata legada com
+    cliente divergente retorna conflito, sem reescrever a fonte. A rota por
+    cliente permanece compatível. Administrador da plataforma exige empresa
+    explicitamente selecionada. Upload não emite cobrança, não chama ASAAS,
+    não altera Storage e não antecipa a validação F7 da UC.
+  - Validação final 2026-09-25 após o upload automático: regressão backend
+    **571 executados, 569 aprovados, 0 falhas, 2 ignorados**; suíte focal de
+    upload **16 OK** (inclui UC de outro tenant, ambiguidade, RBAC, deduplicação
+    e conflito com cliente legado). Suíte focal anterior de
+    importação/cálculo/regras/migrations **63 OK**; `tsc && vite build`
+    **OK (307 módulos)**; ESLint **0 erros, 106 warnings**;
+    `git diff --check` **OK**. Revisão independente do fluxo novo: **PASS**.
+  - Pendente para DONE: prova de navegação/DOM em navegador para busca,
+    criação/edição e retorno UC → Regras → UC, indisponível no runner frontend
+    atual. A migration foi validada em SQLite vazio/upgrade anterior; ainda não
+    houve prova em PostgreSQL isolado. Nenhum deploy ou merge.
+
+- [x] Sprint C5.4.1 — **DONE**, 2026-09-24. A base regulatória global agora
+  possui migration, `RegulatoryTariff`/importação/prévia duráveis, endpoints
+  protegidos por `is_platform_admin` e cartão em Configurações. O fluxo é API
+  CKAN oficial ou CSV ANEEL UTF-8 → prévia privada com hash SHA-256/TTL → confirmação transacional
+  e idempotente → `RegulatoryTariffRepository` → Fio B. Não há HTTP em runtime.
+  - O parser aceita somente colunas oficiais ANEEL exigidas e componente
+    `TUSD_FioB` em Tarifa de Aplicação/SCEE/R$/MWh; rejeita schema, unidade,
+    dimensão ou componente não comprovado. Decimal é persistido como texto exato
+    para manter precisão também em SQLite. Conflito de chave natural não sobrescreve.
+  - Primeira publicação real: importação `id=1`, `completed`, 53 criados e zero
+    mantidos, em 2026-09-24T14:47:56. O CKAN ANEEL forneceu o recurso
+    `e8717aa8-2521-453f-bf16-fbb9a16eea39`, versão
+    `2026-09-17T15:31:25.510600`, para COPEL-DIS, com cobertura de 2026-06-24
+    a 2027-06-23. Os 53 registros persistem no PostgreSQL migrado até
+    `q1e6a4b9c2d7 (head)`.
+  - Diagnóstico/correção 2026-09-24: o PostgreSQL configurado estava em
+    `l6f1a5b8c2d4`, sem as tabelas `regulatory_tariff_*`, o que explicava o 500
+    do status. Com autorização explícita, a cadeia `m7 → n8 → o9 → p0 → q1`
+    foi aplicada e `flask db current` confirmou `q1e6a4b9c2d7 (head)`. O status
+    retorna 503 para indisponibilidade; a UI informa permissão, conexão e erro
+    interno separadamente.
+  - Validação desta correção: teste isolado de status vazio, prévia, confirmação,
+    autorização e indisponibilidade **4 OK**; `npm --prefix frontend run build` OK;
+    `git diff --check` OK.
+  - Validação: testes de importação/regulatório/Fio B **39 OK**; migration SQLite
+    executada; frontend (`tsc && vite build`) aprovado; regressão backend **504 OK**
+    (somente warnings preexistentes); `git diff --check` aprovado.
+  - C5.4.3: CSV ANEEL passou a aceitar até 100 MiB por configuração exclusiva,
+    com cópia/hash incremental em temporário privado, leitura streaming e remoção
+    em `finally`. A confirmação permanece baseada no plano persistido; o comando
+    `purge-regulatory-tariff-previews` limpa previews expiradas e órfãos. Histórico
+    visual e HUB Storage permanecem fora do escopo. O limite externo do Render não
+    está documentado publicamente e precisa ser comprovado em ambiente não produtivo.
+
+  - CKAN, 2026-09-24: `POST /imports/ckan/preview` consulta somente o host oficial,
+    descobre o recurso anual por metadata e filtra COPEL-DIS/TUSD_FioB/Tarifa de
+    Aplicação/SCEE/R$/MWh; prévia e confirmação reutilizam o contrato existente.
+    Leitura real do recurso `e8717aa8-2521-453f-bf16-fbb9a16eea39` retornou 53
+    registros, versão `2026-09-17T15:31:25.510600`; a prévia foi confirmada e
+    publicou os 53 registros acima. Histórico visual de importações continua pendente.
+  - Interface: os seletores do modal ANEEL usam explicitamente os tokens escuros do
+    HUB, inclusive as opções nativas, para preservar contraste e legibilidade.
+
+- [x] Sprint C5.4 — **DONE**, 2026-09-24. O fluxo Fio B fecha com tarifa ANEEL
+  real publicada no PostgreSQL; `backend/data/regulatory_tariffs.json` permanece
+  somente como fallback compatível fora do contexto da aplicação. O registro E2E é
+  COPEL-DIS,
+  `TUSD_FioB`, B1 Convencional/Residencial/SCEE, Tarifa de Aplicação,
+  Resolução Homologatória 3.592/2026. A fonte, id/hash do recurso, valor bruto
+  `214.53560037400001 R$/MWh`, conversão exata a R$/kWh e vigência diária
+  2026-06-24–2027-06-23 ficam auditáveis no registro.
+  - `RegulatoryTariffRepository` lê primeiro os 53 registros regulatórios publicados
+    e fornece `RegulatoryFioBTariff` ao `FioBResolver`; não há HTTP em cobrança.
+  - Competências mensais só são elegíveis quando totalmente contidas na vigência:
+    2026-07 a 2027-05. Junho/2026 e junho/2027 permanecem MISSING_DATA, evitando
+    aplicação retrospectiva por "latest tariff". Documento válido continua tendo
+    prioridade sobre REGULATORY; ambiguidade documental bloqueia.
+  - O parser/normalizador Copel agora preserva classe e subclasse Residencial já
+    observadas no PDF, permitindo a correspondência exata da dimensão ANEEL.
+  - GD I é NOT_APPLICABLE; GD II usa .15/.30/.45/.60/.75/.90 em 2023–2028;
+    GD III e 2029+ são UNSUPPORTED. TE/TUSD continuam um único kWh canônico.
+  - Ordem preservada: bruto → desconto → PIS/COFINS vinculados → Fio B → piso
+    zero → ROUND_HALF_UP final. Quadros fiscais agregados não são deduzidos nem
+    rateados. `fio_b_components` preserva GD, competência, energia, tarifa,
+    fonte, vigência, referência, versão, transição, valor e evidências.
+  - Prova C5.4.4: para competência 2026-09, B1/CONVENCIONAL/Residencial/SCEE,
+    1000 kWh e GD II (.60), o valor original `214.53560037400001 R$/MWh` foi
+    convertido com Decimal para `0.21453560037400001 R$/kWh`; o Fio B foi
+    `128.721360224400006000`, chegou ao `CommercialDeductionResolver` e o
+    `BillingCalculationEngine` concluiu `591.28` após desconto de 20%. A memória
+    preserva fonte ANEEL, resource_id/URL, versão, COPEL-DIS, valores e vigência.
+  - Validação C5.4.4: prova live opt-in contra PostgreSQL **1 OK**; repositório,
+    Fio B, deduções comerciais e engine **79 OK**; migration SQLite verde;
+    regressão backend **513 passed, 0 failed, 1 skipped**; build frontend verde e
+    `git diff --check` sem erros. Sem deploy, merge ou nova importação.
+
+- [ ] Sprint C5.5 — **PARTIAL**, 2026-09-24. O cálculo passou a ter execução e
+  snapshot financeiro tenant-scoped, idempotente e auditável; a API e o diagnóstico
+  administrativo usam seleção explícita de empresa e não acionam ASAAS. O snapshot
+  somente existe para `CALCULATED`; `REVIEW_REQUIRED`, `MISSING_DATA`,
+  `UNSUPPORTED` e `ERROR` preservam tentativa sem valor financeiro. A migration
+  `s3c8d1e6f9a2` protege snapshots e execuções contra UPDATE/DELETE no PostgreSQL.
+  O teste direto da trigger exige `TEST_POSTGRES_BILLING_URL` em banco isolado
+  `test_*` e permanece pendente; não usar dev/produção. Histórico ANEEL e HUB
+  Storage continuam pendentes.
+
+- [x] C5.5-D — **Laboratório isolado de PDFs**, 2026-09-24. Platform admin usa
+  `POST /api/v1/platform/billing-diagnostics/pdf` para validar PDF, extrair com o
+  parser Copel e normalizar inteiramente em memória. Não recebe empresa/cliente/UC,
+  não cria registro, snapshot ou cobrança e não chama ASAAS. Retorna 11 etapas,
+  campos, compensações, warnings, blockers e erro sanitizado. O limite reutiliza
+  o PDF de fatura (10 MiB/10 páginas); `BILLING_DIAGNOSTIC_TIMEOUT_SECONDS=20`
+  limita a espera e o pool é limitado a duas análises. Histórico e simulação não
+  são persistidos. O preflight CORS `OPTIONS` passa sem autenticação, mas o
+  `POST` continua exigindo platform admin. O teste focado teve **9 OK**.
+  - Hotfix F6/C5.5-D: a leitura de itens passa a iniciar na primeira linha que
+    delimita todas as colunas da tabela, evitando que texto de "Segunda Via" ou
+    histórico vire item financeiro. Complemento de endereço é preservado, CPF
+    mascarado é `not_present` informativo e campos opcionais de iluminação
+    pública não geram warning. O diagnóstico separa extração, normalização e
+    elegibilidade GD; sem compensação comprovada permanece bloqueado, sem
+    converter consumo. Regressão anonimizada: 4 itens, consumo, tarifas,
+    tributos, total e ausência de compensação; **78 OK**.
+
+- [x] F6.1 — **DONE no escopo implementado**, 2026-09-24. Itens opcionais de iluminação pública não
+  geram ausência fiscal falsa; o processamento operacional cria Pendência
+  `GD_COMPENSATION_UNVERIFIED` idempotente por empresa/fatura/origem quando UC
+  validada possui usina Ativa com ativação anterior à competência e compensação não
+  comprovada. O laboratório permanece sem efeitos colaterais.
+  - Validação final: regressão backend **557 executados, 555 passed, 0 failed,
+    2 skipped**; testes focados de pendência/laboratório **10 OK**; migration SQLite
+    em banco vazio e upgrade de `s3c8d1e6f9a2` para `t4d9e2a7c1b5` com pendência
+    anterior **OK**; índice UNIQUE em `(empresa_id, fatura_concessionaria_id,
+    origem)` inspecionado e duplicata rejeitada; build frontend (`tsc && vite build`)
+    **OK, 300 módulos**; `git diff --check` **OK**. Revisão independente: **PASS**.
+  - Testes cobrem UC sem vínculo, usina inativa ou ativada após a competência,
+    pendência com expectativa GD e compensação ausente, repetição da fatura, duas
+    chamadas concorrentes em sessões separadas, múltiplas usinas sem atribuição
+    artificial, laboratório sem pendência e GET lista/detalhe de outra empresa.
+    Conferidos os vínculos de cliente, UC, documento, fatura e `plantIds`.
+  - Limite conhecido: `PlantConnection` não possui início/fim de vigência ou estado
+    próprio; a expectativa usa `Plant.status` e `Plant.data_ativacao`. Não existe
+    notificação interna por usuário: a Pendência/listagem e `LogEntry` são o aviso
+    interno disponível. Não houve envio externo. A prova de concorrência/constraint
+    nesta validação foi em SQLite isolado; PostgreSQL não foi exercitado.
+
+- [x] Sprint C5.3B — **Seleção comercial de tarifa por evento DONE**,
+  2026-09-17; **C5.3 DONE, C5 global PARTIAL e F6 PARTIAL**.
+  Files: contrato/serviço puro `commercial_tariff_selector.py`, testes e
+  documentação. Depends-on: C5.3A/A.1 e `ResolvedBillingRule`; C5.1/C5.2
+  preservadas.
+  - Criados `CommercialTariffSource`, `SelectedCommercialTariff` e
+    `CommercialTariffSelector`. O serviço recebe somente contratos resolvidos e
+    retorna uma seleção imutável por `ResolvedCompensationTariffEvent`, com
+    `BillingRuleSnapshot`, origem, tarifa selecionada, referências documentais,
+    bandeira, tributação, status e issues auditáveis.
+  - `tarifa_fixa` usa `company_tariff` como `configured_fixed`; `tarifa_especifica`
+    usa o mesmo parâmetro como `configured_specific`. O engine C5.1/C5.2 não foi
+    alterado: fixa segue 1000 × 0,70 com 20% = 560,00; específica segue 700,00
+    sem desconto adicional.
+  - Para `energia_compensada`, `icms_policy=exclude` seleciona
+    `document_compensation` do próprio evento e política null seleciona
+    `document_full`. ICMS é apenas critério de seleção. Não há dedução tributária,
+    PIS/COFINS, Fio B, média, fallback ou arredondamento. O ramo documental exige
+    `tariff_source=invoice`, sem reinterpretar regra manual C5.1.
+  - Múltiplos eventos preservam quantidade, identidade, GD-I/GD-II, mês e tarifas
+    distintas. Evento não VALID bloqueia sua própria seleção. Tarifa cheia e de
+    compensação ausentes nunca substituem uma à outra.
+  - Bandeira segue a matriz tri-state aprovada: política true exige
+    `includes_flag=false`, false exige true e null não restringe. Evidência null
+    bloqueia quando há exigência, inclusive para tarifa configurada. `with_taxes`
+    é somente transportado e não dispara cálculo.
+  - Testes C5.3A/C5.3B: **41 OK**. Gate financeiro focado: **118 OK**. Gate
+    integrado parser/F6/F7/C4.3/C5.1/C5.2/C5.3A/A.1/B/tenant/migrations:
+    **313 OK em 117,755s**. Regressão backend completa: **443 testes OK em
+    141,090s**, acima do baseline 426, somente com avisos preexistentes.
+  - Histórico Alembic SQLite vazio: **15 OK em 103,284s**. `py_compile` e build
+    frontend (`tsc && vite build`) verdes. Revisão crítica read-only sem achados
+    remanescentes; `git diff --check`, diff/status e confirmação de zero migration
+    concluídos.
+  - Zero endpoint, persistência, migration ou acesso a parser/PDF/banco/provider.
+    C5.4, PIS/COFINS, Fio B, carência, economia, valor total, HP/HFP,
+    BillingPolicy, Fatura e ASAAS não foram iniciados.
+
+Comandos C5.3B executados:
+
+```powershell
+cd backend
+rtk cmd /c venv\Scripts\python.exe -m unittest tests.test_commercial_tariff_selector tests.test_document_tariff_resolver
+rtk cmd /c venv\Scripts\python.exe -m unittest tests.test_invoice_parsers tests.test_copel_parser tests.test_copel_deep tests.test_copel_energy tests.test_invoice_normalization tests.test_invoice_compensation tests.test_invoice_processing_persistence tests.test_tariff_selector tests.test_billing_calculation_contracts tests.test_billing_calculation_engine tests.test_calculo_tarifas tests.test_document_tariff_resolver tests.test_commercial_tariff_selector tests.test_billing_rule_resolver tests.test_grupo_regra_cobranca tests.test_regra_cobranca_assignment tests.test_tenant_service_lookups tests.test_sqlite_migrations
+rtk cmd /c venv\Scripts\python.exe -m unittest discover -s tests
+rtk cmd /c venv\Scripts\python.exe -m unittest tests.test_sqlite_migrations
+rtk cmd /c venv\Scripts\python.exe -m py_compile services\commercial_tariff_selector.py tests\test_commercial_tariff_selector.py
+cd ..
+rtk npm.cmd --prefix frontend run build
+```
+
+- [x] Sprint C5.3A.1 — **Validação GD real Copel e tarifas por evento DONE**,
+  2026-09-17; **C5.3 PARTIAL, C5 global PARTIAL e F6 PARTIAL**.
+  Files: parser Copel, normalização física de compensação, resolver tarifário
+  documental, fixtures estruturadas sanitizadas, testes e documentação.
+  Depends-on: F6/F7/C4.3/C5.3A; C5.1/C5.2 preservadas.
+  - `MinimalExtractor`, parser Copel atual e inspeção dos line items foram
+    executados, nessa ordem, sobre três PDFs privados reais não versionados.
+    Nenhum nome, documento, endereço, UC ou chave fiscal foi copiado para fixtures.
+  - O parser 1.3.0 passou a estruturar os labels comprovados de ENERGIA INJETADA
+    local e ENERGIA INJ. OUC MPT, componentes TE/TUSD, GD-I/GD-II, mês de origem,
+    bandeira separada e ambas as colunas tarifárias. Valores negativos documentais
+    e o spill da descrição para a coluna de unidade são tratados no parser; o
+    resolver continua sem regex de layout.
+  - `CompensacaoNormalizada` permanece a identidade canônica. Somente eventos
+    OUTRA_UC + MESMO_POSTO alimentam `energia_compensada_cobravel_kwh`; energia
+    própria/local permanece auditável em `energy_components`. Evidência real:
+    1.240 kWh locais não foram somados aos 2.400 kWh OUC.
+  - Criado `ResolvedCompensationTariffEvent` e adicionado
+    `compensation_tariff_events`. A fatura real com GD-I 30 kWh e GD-II 352 kWh
+    produz dois eventos VALID e total 382 kWh. GD-I preserva TE 0.310850 + TUSD
+    0.457170 = 0.768020; GD-II preserva TE 0.310850 + TUSD 0.328431 = 0.639281.
+  - Um evento, ou múltiplos com TE/TUSD/tributação/bandeira semanticamente iguais,
+    pode manter `compensation_tariff` escalar. Tarifas diferentes mantêm o scalar
+    null e issue `TARIFA_COMPENSACAO_ESCALAR_INAPLICAVEL`, sem média, primeiro,
+    último, maior ou menor. Duplicidade na mesma identidade e divergência TE/TUSD
+    continuam bloqueadas; GD-III permanece UNSUPPORTED.
+  - Bandeira de consumo/injeção separada prova `includes_flag=false` na respectiva
+    tarifa. `tarifa_unitaria` e `preco_unitario_com_tributos` permanecem distintos;
+    nenhuma regra comercial de bandeira/tributo foi aplicada. Tarifa cheia Copel
+    permaneceu 0.310850 + 0.457170 = 0.768020.
+  - Gate integrado parser/F6/F7/C4.3/C5.1/C5.2/C5.3A/C5.3A.1/tenant:
+    **276 testes OK em 11,393s**. Histórico Alembic SQLite verde. Regressão backend
+    completa: **426 testes OK em 119,381s**, somente avisos SQLAlchemy preexistentes.
+    Zero migration, endpoint, persistência, cálculo comercial ou frontend.
+  - F6 segue PARTIAL por prudência multi-layout, cobertura incompleta de saldo/
+    expiração e ausência de GD-III. C5.3B não foi iniciada.
 
 - [x] Sprint C5.3A — **Tariff Resolution Contract DONE**, 2026-09-17;
   **C5.3 PARTIAL e C5 global PARTIAL**.
@@ -15,9 +321,9 @@
     energia_elet_consumo + energia_elet_uso_sistema. Não usa valor total,
     quantidade, preço com tributos, tarifa_base, grupo tarifário ou tabela externa.
     TariffSelector C4.2 delega essa mesma composição, sem lógica duplicada.
-  - Compensação reutiliza `BillingEnergyInput`/classificação TE/TUSD C4.3. Exige
-    um único evento completo; ausente é MISSING, parser sem suporte é UNSUPPORTED
-    e múltiplos eventos válidos são AMBIGUOUS. Nunca copia a tarifa cheia.
+  - Compensação reutiliza `BillingEnergyInput`/classificação TE/TUSD C4.3. O
+    comportamento original de evento único foi ampliado pela C5.3A.1: múltiplos
+    eventos válidos não são ambiguidade e nunca copiam a tarifa cheia.
   - Bandeira separada já classificada permite includes_flag=false; ambiguidade
     mantém null+issue. Variante `preco_unitario_com_tributos` associada prova que
     a tarifa_unitaria escolhida é sem tributos; ausência mantém with_taxes=null.
@@ -905,7 +1211,13 @@ e deduplicar eventos por provider/event_id, sem criar pagamentos.
 > **Documentos relacionados:** `VISAO.md` · `ARCHITECTURE.md` · `API_CONTRACTS.md` · `CONTRIBUTING.md`
 > Regra: pegue a primeira tarefa `[ ]` de cima pra baixo. Não pule.
 
-Última atualização: 2026-09-02 — correções de runtime, visualização de empresas, convites e fundação do Financeiro ASAAS Sandbox.
+## HOTFIX — revogação de convite (2026-09-28)
+
+- `revogar_convite` agora persiste `revoked` com `commit()` e retorna somente o dicionário do convite; removido o acesso indevido a `commit` e `token_cru`.
+- Validação executada: `python -m py_compile backend/services/invitation_service.py` passou; teste isolado da função cobriu `pending` (retorno `dict`, um commit) e `revoked`/`expired`/`accepted` (ValueError, sem commit).
+- Suíte `python -m unittest discover -s backend\\tests` tentada, mas indisponível neste ambiente: `.venv` do projeto ausente e Python disponível sem `sentry_sdk`/`flask`. Os cenários HTTP e criação/reenvio dependem desse ambiente e permanecem sem validação de integração.
+
+Última atualização: 2026-09-24 — planejamento V2.5 (centralização de arquivos e auditoria de importações) adicionado; HUB subido localmente (backend + frontend).
 
 - 2026-09-02: Corrigida a migration `e6a8c0d2f4b6` para PostgreSQL (`true/false` em coluna booleana), aplicada até o head no banco de desenvolvimento; migrations SQLite e modelo Fatura passaram nos testes.
 - 2026-09-02: Convites passaram a gerar link HTTPS com `FRONTEND_URL=https://hub-frontend-fnm6.onrender.com`; CORS local mantém `localhost` e `127.0.0.1` somente em debug. Investigado e corrigido o `Failed to fetch` do login: havia processo Flask antigo ocupando a porta e o backend foi reiniciado com a sintaxe atual.
@@ -1021,6 +1333,72 @@ e deduplicar eventos por provider/event_id, sem criar pagamentos.
   Implementação local concluída e validada (migration, isolamento, rotas e build); pendente somente teste ponta a ponta contra conta ASAAS Sandbox real.
 - [ ] Integração WhatsApp pra disparo automático dos eventos da Agenda.
 - [ ] Cobranças automáticas.
+
+## V2.5 — Centralização de arquivos e auditoria de importações (planejamento)
+Esta seção é exclusivamente de planejamento e documentação. A implementação não é iniciada agora; o objetivo é definir escopo, dependências e critério de pronto antes de qualquer linha de código ou migration. Não migrar, nem excluir, documentos existentes nesta tarefa.
+
+### 2.5-A — Histórico de importações ANEEL
+Adicionar à tela Configurações → Base tarifária ANEEL uma seção de histórico contendo, para cada tentativa/publicação:
+- Nome do CSV original.
+- Data e hora da importação.
+- Usuário responsável.
+- URL oficial de origem.
+- Hash SHA-256 do arquivo.
+- Status: prévia, publicado, rejeitado, conflito ou expirado.
+- Quantidade de registros processados, aceitos e rejeitados.
+- Relatório de validação.
+- Acesso autorizado ao CSV original.
+
+Reutilizar os registros e contratos já existentes da C5.4.1 (`RegulatoryTariffImport`, `RegulatoryTariffPreview` e `regulatory_tariff_import_service.py`). Apenas estender a apresentação e os contratos de leitura quando o histórico existente já atender; não criar uma segunda tabela de importações se a existente cobrir o requisito. Decisão documentada antes de qualquer migration.
+
+### 2.5-B — Hub Storage (serviço centralizado de armazenamento privado)
+Planejar um serviço centralizado de armazenamento privado para documentos do HUB, com estrutura lógica:
+- `regulatory/aneel/imports/`
+- `regulatory/aneel/reports/`
+- `companies/{empresa_id}/invoices/`
+- `companies/{empresa_id}/billing/`
+- `companies/{empresa_id}/payments/`
+- `companies/{empresa_id}/clients/`
+- `companies/{empresa_id}/plants/`
+- `audit/import-reports/`
+
+O serviço deve ser uma abstração reutilizável de armazenamento, aproveitando a integração atual com Google Drive (`drive_service.py` + `document_service.py`) e deixando explícita a interface de backend para integração futura com Cloudflare R2 (ou outro provedor de objeto storage). Não introduzir dependência nova sem necessidade; o primeiro provedor concreto continua sendo o já existente.
+
+Regras não-negociáveis do serviço:
+- Preservar isolamento multi-tenant: todo acesso ao storage deve ser escopado à `empresa_id` da sessão, nunca confiar em cliente/UC informados pelo frontend.
+- Controle de acesso via RBAC existente, alinhado aos perfis da rota de Documentos.
+- Metadados em PostgreSQL, separados do blob: quem, quando, origem, hash, provedor, referência e política.
+- SHA-256 do conteúdo antes de persistir; imutabilidade de documentos financeiros (boleto, fatura, comprovante, assinatura de protocolo) — nenhuma sobrescrita silenciosa.
+- Versionamento quando o documento for editável por natureza; imutabilidade quando for comprovante/recibo/protocolo.
+- Políticas de retenção explicitadas por categoria, com registro de expiração/arquivamento auditável.
+- Não armazenar arquivos permanentes no filesystem efêmero do Render — esse filesystem é indicado apenas para previews temporários, uploads em trânsito e logs rotativos, nunca como fonte durável de documento de negócio.
+
+### 2.5-C — Migração (planejamento, sem execução)
+Nesta tarefa não migrar nem excluir documentos existentes. Antes de qualquer plano de migração, mapear onde cada categoria vive hoje:
+- Documentos operacionais/gerais: `Document.storage_provider='google_drive'` com `storage_ref=fileId` do Google Drive, via `document_service.py` / `drive_service.py`.
+- FaturaConcessionaria: upload via `fatura_concessionaria_upload_service.py`, com arquivo persistente no provedor configurado e `arquivo_hash` SHA-256.
+- Importações em massa: `ImportPreview` com `arquivo_hash`, plano transientes e auditoria via `LogEntry`, sem armazenamento permanente do arquivo origem hoje.
+- Base regulatória ANEEL: `RegulatoryTariffImport`/`RegulatoryTariffPreview`, com hash e `source_url`, sem upload de blob permanente no HUB hoje.
+- Anexos legados locais: `backend/uploads/` (filesystem efêmero), usado somente para documentos antigos já persistidos antes da migração para o Drive.
+
+Com esse mapeamento, planejar a migração por categoria, em ordem que preserva dados e não interrompe fluxos ativos, com rollback reversível e validação byte-a-byte de hashes quando aplicável. Decisão de quando e como migrar cada categoria fica para a implementação concreta; nesta tarefa fica apenas o inventário e o plano.
+
+### 2.5-D — Documentação e critérios de aceite
+Atualizar `PROGRESS.md`, `API_CONTRACTS.md` e a documentação de domínio afetada quando a sprint for iniciada. Critérios de pronto para a sprint (a serem validados na implementação, não aqui):
+- Histórico de importações ANEEL exposto com todos os campos da seção 2.5-A, restrito a administrador de plataforma quando o dado for global, e a empresa quando o registro for por tenant.
+- Hub Storage com interface por categoria, isolamento multi-tenant verificado com pelo menos duas empresas, hash SHA-256 persistido, imutabilidade comprovada para documentos financeiros e política de retenção configurável e auditável.
+- Migração documentada por categoria, com inventário de armazenamento atual e plano sem perda de dados, validado em banco de teste antes de qualquer execução em ambiente real.
+- Build do frontend e regressão backend verdes; nenhuma alteração destrutiva de modelo ou migration irreversível sem critério explícito.
+
+### S — Storage e auditoria de importações (planejamento)
+- [ ] Histórico de importações ANEEL na tela Configurações → Base tarifária ANEEL (seção 2.5-A).
+- [ ] Hub Storage: abstração reutilizável de armazenamento privado (seção 2.5-B).
+- [ ] Inventário e plano de migração sem perda de dados (seção 2.5-C).
+- [ ] Documentação, dependências e critérios de aceite (seção 2.5-D).
+
+> Leia `VISAO.md` primeiro. Este arquivo é o estado atual, atualizado a cada tarefa concluída.
+> **Documentos relacionados:** `VISAO.md` · `ARCHITECTURE.md` · `API_CONTRACTS.md` · `CONTRIBUTING.md`
+> Regra: pegue a primeira tarefa `[ ]` de cima pra baixo. Não pule.
 
 ## V3.0 — Financeiro / Rateios
 - [ ] **Regra de cálculo do rateio automático ainda não definida** — decisão de negócio, precisa de conversa com o João antes de qualquer linha de código.

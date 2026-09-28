@@ -3,6 +3,7 @@ from flask import Blueprint, request
 from services import grupo_regra_cobranca_service as service
 from services.grupo_regra_cobranca_service import (
     BillingRuleConflictError,
+    BillingRuleInUseError,
     BillingRuleValidationError,
 )
 from services.permission_service import require_permission
@@ -48,6 +49,8 @@ def update(rule_id: int):
         return error_response(str(exc), 400, code='INVALID_BILLING_RULE')
     except BillingRuleConflictError as exc:
         return error_response(str(exc), 409, code='DEFAULT_BILLING_RULE_CONFLICT')
+    except BillingRuleInUseError as exc:
+        return error_response(str(exc), 409, code='BILLING_RULE_IN_USE')
     return success_response(item, 'Regra de cobranca atualizada.') if item else error_response(
         'Regra de cobranca nao encontrada.', 404,
     )

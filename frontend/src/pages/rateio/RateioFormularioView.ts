@@ -9,12 +9,16 @@ import {
 } from '../../services/rateioFormularioService';
 import { config } from '../../services/config';
 import { createEditableTable, createFormularioCheck, createFormularioStat, createResponsavelField, createTermoAdesaoBadge } from './RateioFormularioControls';
-import { formatNumber, round2 } from './shared';
+import { createStatusBadge, formatNumber, round2 } from './shared';
 
 type GeneratedFiles = { termos?: string; excel?: string };
 type Verification = { ok: boolean; exigido?: boolean; faltando: Array<{ clienteId: number | null; ucId: number | null; nome: string }> };
 
-export type RateioFormularioView = { element: HTMLElement; selectPlant: (plantId: number | null) => void };
+export type RateioFormularioView = {
+  element: HTMLElement;
+  selectPlant: (plantId: number | null) => void;
+  refresh: () => void;
+};
 
 export function createRateioFormularioView(getPlants: () => PlantRow[]): RateioFormularioView {
   const element = createElement('section', { className: 'content-stack' }); const toast = useToast();
@@ -30,7 +34,7 @@ export function createRateioFormularioView(getPlants: () => PlantRow[]): RateioF
   let excedenteEnergia = false;
   getEmpresaDocumentos().then((documents) => { companyDocuments = documents; render(); }).catch(() => { companyDocuments = null; });
   render();
-  return { element, selectPlant };
+  return { element, selectPlant, refresh: render };
   function selectPlant(plantId: number | null): void {
     selectedPlantId = plantId; resetForm(); render();
   }
@@ -45,15 +49,21 @@ export function createRateioFormularioView(getPlants: () => PlantRow[]): RateioF
   function renderPicker(): HTMLElement {
     const panel = createElement('section', { className: 'data-panel rateio-picker' });
     const titleText = createElement('div');
-    titleText.append(createElement('span', { className: 'eyebrow', textContent: 'Formulário Copel' }), createElement('h2', { textContent: 'Selecione a usina com rateio aprovado' }));
+    titleText.append(createElement('span', { className: 'eyebrow', textContent: 'Formulário Copel' }), createElement('h2', { textContent: 'Selecione a usina para gerar o formulário' }));
     const title = createElement('div', { className: 'panel-title' }); title.appendChild(titleText);
-    const select = createElement('select'); select.setAttribute('aria-label', 'Usina com rateio aprovado');
-    const placeholder = createElement('option', { textContent: 'Selecione uma usina...' }); placeholder.value = ''; select.appendChild(placeholder);
-    getPlants().forEach((plant) => {
-      const option = createElement('option', { textContent: `${plant.nome} — UC ${plant.uc ?? 'não informada'}` }); option.value = String(plant.id); select.appendChild(option);
+    const list = createElement('div', { className: 'rateio-plant-list' });
+    const plants = getPlants();
+    if (!plants.length) list.appendChild(createElement('p', { className: 'empty-state small', textContent: 'Nenhuma usina cadastrada ainda.' }));
+    plants.forEach((plant) => {
+      const row = createElement('button', { className: 'rateio-plant-row', type: 'button' });
+      const icon = createElement('span', { className: 'rateio-plant-icon' }); icon.appendChild(createIcon('plants'));
+      const info = createElement('div', { className: 'rateio-plant-row-info' });
+      info.append(createElement('strong', { textContent: plant.nome }), createElement('span', { textContent: `UC ${plant.uc || 'não informada'} · ${plant.kwPico || '-'} kWp` }));
+      row.append(icon, info, createStatusBadge(plant.status));
+      row.addEventListener('click', () => selectPlant(plant.id));
+      list.appendChild(row);
     });
-    select.addEventListener('change', () => selectPlant(Number(select.value) || null));
-    panel.append(title, createElement('label', { className: 'rateio-field-label', textContent: 'Usina' }), select, createElement('p', { className: 'settings-hint', textContent: 'Esta etapa apenas lê as conexões confirmadas; nenhum rateio será recalculado.' }));
+    panel.append(title, list, createElement('p', { className: 'settings-hint', textContent: 'Esta etapa apenas lê as conexões confirmadas; nenhum rateio será recalculado.' }));
     return panel;
   }
   function renderReview(plant: PlantRow): HTMLElement {

@@ -8,6 +8,7 @@ import re
 
 from services.invoice_parsers.schemas import ExtractedField, ExtractionIssue, FieldMap, ParsedInvoice, ParserIdentity
 from services.invoice_compensation import BillingEnergyInput, EnergyStatus, normalize_compensations
+from services.uc_code import normalize_uc_code
 
 
 def json_safe(value):
@@ -58,7 +59,8 @@ class InvoiceNormalizer:
     # equivalem automaticamente a injeção: só aliases explícitos são aceitos.
     MAPPINGS = {
         'classificacao': {key: key for key in (
-            'grupo_tarifario', 'subgrupo_tarifario', 'modalidade_tarifaria')},
+            'grupo_tarifario', 'subgrupo_tarifario', 'modalidade_tarifaria',
+            'classe_tarifaria', 'subclasse_tarifaria')},
         'identificacao_fiscal': {
             'concessionaria': 'concessionaria', 'codigo_uc_documental': 'codigo_uc',
             'numero_nota_fiscal': 'numero_nota_fiscal', 'serie_nota_fiscal': 'serie',
@@ -90,6 +92,13 @@ class InvoiceNormalizer:
         for section, mapping in self.MAPPINGS.items():
             for target, source in mapping.items():
                 canonical[target] = self._normalize_field(target, getattr(parsed, section).get(source))
+        code = canonical['codigo_uc_documental']
+        concessionaria = canonical['concessionaria']
+        if code.status == 'found' and concessionaria.status == 'found':
+            try:
+                canonical['codigo_uc_documental'] = replace(code, value=normalize_uc_code(code.value, concessionaria.value))
+            except ValueError:
+                canonical['codigo_uc_documental'] = replace(code, status='failed', value=None)
         for target, source in (('data_leitura', 'data_leitura_atual'),
                                ('data_leitura_anterior', 'data_leitura_anterior'),
                                ('data_proxima_leitura', 'data_proxima_leitura')):
@@ -100,7 +109,7 @@ class InvoiceNormalizer:
                 canonical[target] = ExtractedField('ambiguous', warnings=(issue,))
             else:
                 canonical[target] = self._normalize_field(target, candidates[0] if candidates else None)
-        # Número cadastral não é descoberto pelo parser nem derivado do código ANEEL.
+        # O identificador cadastral so e confirmado no matching com a UC.
         canonical['uc_numero'] = self._normalize_field('uc_numero', None)
         for value in canonical.values():
             issues.extend(i for i in value.warnings if i not in issues)

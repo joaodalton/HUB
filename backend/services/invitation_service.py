@@ -115,11 +115,16 @@ def revogar_convite(convite_id: int, empresa_id: int) -> dict | None:
     if convite.status != 'pending':
         raise ValueError('Somente convites pendentes podem ser revogados.')
     convite.status = 'revoked'
-    db.session.flush()
-    if not commit:
-        return convite.to_dict(), token_cru
     db.session.commit()
-    LogService.info(acao='convite_revogado', mensagem=f'Convite revogado para {convite.email}', entidade='Invitation', metadados={'invitationId': convite.id, 'empresaId': empresa_id})
+    LogService.info(
+        acao='convite_revogado',
+        mensagem=f'Convite revogado para {convite.email}',
+        entidade='Invitation',
+        metadados={
+            'invitationId': convite.id,
+            'empresaId': empresa_id,
+        },
+    )
     return convite.to_dict()
 
 

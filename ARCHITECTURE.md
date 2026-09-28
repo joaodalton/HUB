@@ -100,6 +100,7 @@ graph TD
     models_agenda_event["models.agenda_event"]
     models_api_credential["models.api_credential"]
     models_assinatura["models.assinatura"]
+    models_calculo_cobranca["models.calculo_cobranca"]
     models_category["models.category"]
     models_client["models.client"]
     models_consumer_unit["models.consumer_unit"]
@@ -122,6 +123,7 @@ graph TD
     models_plant["models.plant"]
     models_rateio_historico["models.rateio_historico"]
     models_regra_cobranca_assignment["models.regra_cobranca_assignment"]
+    models_regulatory_tariff["models.regulatory_tariff"]
     models_setting["models.setting"]
     models_user["models.user"]
     models_whatsapp["models.whatsapp"]
@@ -136,6 +138,8 @@ graph TD
     routes_agenda_routes["routes.agenda_routes"]
     routes_api_credential_routes["routes.api_credential_routes"]
     routes_auth_routes["routes.auth_routes"]
+    routes_billing_calculation_routes["routes.billing_calculation_routes"]
+    routes_billing_pdf_lab_routes["routes.billing_pdf_lab_routes"]
     routes_category_routes["routes.category_routes"]
     routes_client_routes["routes.client_routes"]
     routes_config_routes["routes.config_routes"]
@@ -157,6 +161,7 @@ graph TD
     routes_platform_routes["routes.platform_routes"]
     routes_rateio_routes["routes.rateio_routes"]
     routes_regra_cobranca_assignment_routes["routes.regra_cobranca_assignment_routes"]
+    routes_regulatory_tariff_routes["routes.regulatory_tariff_routes"]
     routes_settings_routes["routes.settings_routes"]
     routes_uc_routes["routes.uc_routes"]
     routes_user_routes["routes.user_routes"]
@@ -165,6 +170,7 @@ graph TD
   subgraph services["services"]
     services["services"]
     services_agenda_service["services.agenda_service"]
+    services_aneel_ckan_client["services.aneel_ckan_client"]
     services_api_credential_service["services.api_credential_service"]
     services_asaas_client["services.asaas_client"]
     services_asaas_webhook_service["services.asaas_webhook_service"]
@@ -172,11 +178,16 @@ graph TD
     services_automacao_service["services.automacao_service"]
     services_billing_calculation_contracts["services.billing_calculation_contracts"]
     services_billing_calculation_engine["services.billing_calculation_engine"]
+    services_billing_calculation_service["services.billing_calculation_service"]
+    services_billing_pdf_lab_service["services.billing_pdf_lab_service"]
     services_billing_rule_resolver["services.billing_rule_resolver"]
     services_client_service["services.client_service"]
+    services_commercial_deduction_resolver["services.commercial_deduction_resolver"]
+    services_commercial_tariff_selector["services.commercial_tariff_selector"]
     services_dashboard_service["services.dashboard_service"]
     services_database_config_service["services.database_config_service"]
     services_document_service["services.document_service"]
+    services_document_tariff_resolver["services.document_tariff_resolver"]
     services_drive_service["services.drive_service"]
     services_email_service["services.email_service"]
     services_email_template_defaults["services.email_template_defaults"]
@@ -185,6 +196,8 @@ graph TD
     services_fatura_concessionaria_upload_service["services.fatura_concessionaria_upload_service"]
     services_fatura_processing_service["services.fatura_processing_service"]
     services_fatura_service["services.fatura_service"]
+    services_fio_b_resolver["services.fio_b_resolver"]
+    services_gd_compensation_pending_service["services.gd_compensation_pending_service"]
     services_grupo_regra_cobranca_service["services.grupo_regra_cobranca_service"]
     services_import_service["services.import_service"]
     services_invitation_service["services.invitation_service"]
@@ -207,8 +220,11 @@ graph TD
     services_rateio_pdf_service["services.rateio_pdf_service"]
     services_rateio_service["services.rateio_service"]
     services_regra_cobranca_assignment_service["services.regra_cobranca_assignment_service"]
+    services_regulatory_tariff_import_service["services.regulatory_tariff_import_service"]
+    services_regulatory_tariff_repository["services.regulatory_tariff_repository"]
     services_settings_service["services.settings_service"]
     services_tariff_selector["services.tariff_selector"]
+    services_uc_discount["services.uc_discount"]
     services_uc_service["services.uc_service"]
     services_user_service["services.user_service"]
     services_whatsapp_service["services.whatsapp_service"]
@@ -224,6 +240,7 @@ graph TD
   app --> models_agenda_event
   app --> models_api_credential
   app --> models_assinatura
+  app --> models_calculo_cobranca
   app --> models_category
   app --> models_client
   app --> models_consumer_unit
@@ -245,12 +262,15 @@ graph TD
   app --> models_plant
   app --> models_rateio_historico
   app --> models_regra_cobranca_assignment
+  app --> models_regulatory_tariff
   app --> models_setting
   app --> models_user
   app --> models_whatsapp
   app --> routes_agenda_routes
   app --> routes_api_credential_routes
   app --> routes_auth_routes
+  app --> routes_billing_calculation_routes
+  app --> routes_billing_pdf_lab_routes
   app --> routes_category_routes
   app --> routes_client_routes
   app --> routes_config_routes
@@ -272,16 +292,20 @@ graph TD
   app --> routes_platform_routes
   app --> routes_rateio_routes
   app --> routes_regra_cobranca_assignment_routes
+  app --> routes_regulatory_tariff_routes
   app --> routes_settings_routes
   app --> routes_uc_routes
   app --> routes_user_routes
   app --> routes_whatsapp_routes
   app --> services_import_service
+  app --> services_regulatory_tariff_import_service
   app --> utils_auth
   models_agenda_event --> extensions
   models_api_credential --> extensions
   models_api_credential --> utils_crypto
   models_assinatura --> extensions
+  models_calculo_cobranca --> extensions
+  models_calculo_cobranca --> services_invoice_normalization_service
   models_category --> extensions
   models_client --> extensions
   models_consumer_unit --> extensions
@@ -306,6 +330,7 @@ graph TD
   models_rateio_historico --> extensions
   models_regra_cobranca_assignment --> extensions
   models_regra_cobranca_assignment --> services_billing_calculation_contracts
+  models_regulatory_tariff --> extensions
   models_setting --> extensions
   models_user --> extensions
   models_whatsapp --> extensions
@@ -325,6 +350,21 @@ graph TD
   routes_auth_routes --> services_user_service
   routes_auth_routes --> utils_api_response
   routes_auth_routes --> utils_auth
+  routes_billing_calculation_routes --> extensions
+  routes_billing_calculation_routes --> models_calculo_cobranca
+  routes_billing_calculation_routes --> models_client
+  routes_billing_calculation_routes --> models_consumer_unit
+  routes_billing_calculation_routes --> models_empresa
+  routes_billing_calculation_routes --> models_fatura
+  routes_billing_calculation_routes --> models_fatura_concessionaria
+  routes_billing_calculation_routes --> models_pendencia
+  routes_billing_calculation_routes --> routes_client_routes
+  routes_billing_calculation_routes --> services_billing_calculation_service
+  routes_billing_calculation_routes --> services_permission_service
+  routes_billing_calculation_routes --> utils_api_response
+  routes_billing_pdf_lab_routes --> services_billing_pdf_lab_service
+  routes_billing_pdf_lab_routes --> services_fatura_concessionaria_upload_service
+  routes_billing_pdf_lab_routes --> utils_api_response
   routes_category_routes --> extensions
   routes_category_routes --> models_category
   routes_category_routes --> services_permission_service
@@ -410,6 +450,13 @@ graph TD
   routes_regra_cobranca_assignment_routes --> services_permission_service
   routes_regra_cobranca_assignment_routes --> services_regra_cobranca_assignment_service
   routes_regra_cobranca_assignment_routes --> utils_api_response
+  routes_regulatory_tariff_routes --> config
+  routes_regulatory_tariff_routes --> extensions
+  routes_regulatory_tariff_routes --> services_aneel_ckan_client
+  routes_regulatory_tariff_routes --> services_log_service
+  routes_regulatory_tariff_routes --> services_permission_service
+  routes_regulatory_tariff_routes --> services_regulatory_tariff_import_service
+  routes_regulatory_tariff_routes --> utils_api_response
   routes_settings_routes --> services_drive_service
   routes_settings_routes --> services_permission_service
   routes_settings_routes --> services_settings_service
@@ -457,10 +504,35 @@ graph TD
   services_automacao_service --> models_pendencia
   services_automacao_service --> services_log_service
   services_automacao_service --> services_pendencia_service
+  services_billing_calculation_contracts --> services_invoice_compensation
   services_billing_calculation_contracts --> services_invoice_normalization_service
   services_billing_calculation_engine --> services_billing_calculation_contracts
+  services_billing_calculation_engine --> services_commercial_deduction_resolver
+  services_billing_calculation_engine --> services_commercial_tariff_selector
+  services_billing_calculation_engine --> services_document_tariff_resolver
+  services_billing_calculation_engine --> services_fio_b_resolver
   services_billing_calculation_engine --> services_invoice_compensation
   services_billing_calculation_engine --> services_invoice_normalization_service
+  services_billing_calculation_service --> extensions
+  services_billing_calculation_service --> models_calculo_cobranca
+  services_billing_calculation_service --> models_consumer_unit
+  services_billing_calculation_service --> models_fatura_concessionaria
+  services_billing_calculation_service --> services_billing_calculation_contracts
+  services_billing_calculation_service --> services_billing_calculation_engine
+  services_billing_calculation_service --> services_billing_rule_resolver
+  services_billing_calculation_service --> services_commercial_tariff_selector
+  services_billing_calculation_service --> services_document_tariff_resolver
+  services_billing_calculation_service --> services_invoice_compensation
+  services_billing_calculation_service --> services_invoice_normalization_service
+  services_billing_calculation_service --> services_invoice_parsers_schemas
+  services_billing_calculation_service --> services_invoice_validation_service
+  services_billing_calculation_service --> services_regulatory_tariff_repository
+  services_billing_calculation_service --> services_uc_discount
+  services_billing_pdf_lab_service --> services_billing_calculation_service
+  services_billing_pdf_lab_service --> services_invoice_compensation
+  services_billing_pdf_lab_service --> services_invoice_normalization_service
+  services_billing_pdf_lab_service --> services_invoice_parsers_extraction
+  services_billing_pdf_lab_service --> services_invoice_parsers_registry
   services_billing_rule_resolver --> extensions
   services_billing_rule_resolver --> models_client
   services_billing_rule_resolver --> models_consumer_unit
@@ -471,6 +543,14 @@ graph TD
   services_client_service --> models_client
   services_client_service --> models_consumer_unit
   services_client_service --> services_uc_service
+  services_commercial_deduction_resolver --> services_billing_calculation_contracts
+  services_commercial_deduction_resolver --> services_fio_b_resolver
+  services_commercial_deduction_resolver --> services_invoice_compensation
+  services_commercial_deduction_resolver --> services_invoice_normalization_service
+  services_commercial_deduction_resolver --> services_invoice_parsers_schemas
+  services_commercial_tariff_selector --> services_billing_calculation_contracts
+  services_commercial_tariff_selector --> services_document_tariff_resolver
+  services_commercial_tariff_selector --> services_invoice_normalization_service
   services_dashboard_service --> extensions
   services_dashboard_service --> models_client
   services_dashboard_service --> models_consumer_unit
@@ -485,6 +565,9 @@ graph TD
   services_document_service --> models_document
   services_document_service --> services_drive_service
   services_document_service --> services_log_service
+  services_document_tariff_resolver --> services_invoice_compensation
+  services_document_tariff_resolver --> services_invoice_normalization_service
+  services_document_tariff_resolver --> services_invoice_parsers_schemas
   services_drive_service --> config
   services_drive_service --> models_empresa
   services_drive_service --> models_google_account
@@ -509,14 +592,18 @@ graph TD
   services_empresa_service --> utils_auth
   services_fatura_concessionaria_upload_service --> extensions
   services_fatura_concessionaria_upload_service --> models_client
+  services_fatura_concessionaria_upload_service --> models_consumer_unit
   services_fatura_concessionaria_upload_service --> models_fatura_concessionaria
   services_fatura_concessionaria_upload_service --> services_document_service
+  services_fatura_concessionaria_upload_service --> services_invoice_parsers_extraction
+  services_fatura_concessionaria_upload_service --> services_invoice_parsers_registry
   services_fatura_processing_service --> extensions
   services_fatura_processing_service --> models_client
   services_fatura_processing_service --> models_consumer_unit
   services_fatura_processing_service --> models_document
   services_fatura_processing_service --> models_empresa
   services_fatura_processing_service --> models_fatura_concessionaria
+  services_fatura_processing_service --> services_gd_compensation_pending_service
   services_fatura_processing_service --> services_invoice_normalization_service
   services_fatura_processing_service --> services_invoice_parsers_extraction
   services_fatura_processing_service --> services_invoice_parsers_registry
@@ -530,8 +617,19 @@ graph TD
   services_fatura_service --> services_asaas_client
   services_fatura_service --> services_log_service
   services_fatura_service --> services_permission_service
+  services_fio_b_resolver --> services_invoice_compensation
+  services_fio_b_resolver --> services_invoice_normalization_service
+  services_fio_b_resolver --> services_invoice_parsers_schemas
+  services_fio_b_resolver --> services_regulatory_tariff_repository
+  services_gd_compensation_pending_service --> extensions
+  services_gd_compensation_pending_service --> models_consumer_unit
+  services_gd_compensation_pending_service --> models_fatura_concessionaria
+  services_gd_compensation_pending_service --> models_pendencia
+  services_gd_compensation_pending_service --> models_plant
+  services_gd_compensation_pending_service --> services_log_service
   services_grupo_regra_cobranca_service --> extensions
   services_grupo_regra_cobranca_service --> models_grupo_regra_cobranca
+  services_grupo_regra_cobranca_service --> models_regra_cobranca_assignment
   services_grupo_regra_cobranca_service --> services_billing_calculation_contracts
   services_import_service --> extensions
   services_import_service --> models_client
@@ -539,6 +637,7 @@ graph TD
   services_import_service --> models_import_preview
   services_import_service --> models_log_entry
   services_import_service --> models_plant
+  services_import_service --> services_uc_discount
   services_invitation_service --> config
   services_invitation_service --> extensions
   services_invitation_service --> models_empresa
@@ -616,9 +715,16 @@ graph TD
   services_regra_cobranca_assignment_service --> models_grupo_regra_cobranca
   services_regra_cobranca_assignment_service --> models_regra_cobranca_assignment
   services_regra_cobranca_assignment_service --> services_billing_calculation_contracts
+  services_regulatory_tariff_import_service --> config
+  services_regulatory_tariff_import_service --> extensions
+  services_regulatory_tariff_import_service --> models_regulatory_tariff
+  services_regulatory_tariff_import_service --> services_aneel_ckan_client
+  services_regulatory_tariff_repository --> models_regulatory_tariff
+  services_regulatory_tariff_repository --> services_fio_b_resolver
   services_settings_service --> extensions
   services_settings_service --> models_setting
   services_tariff_selector --> services_billing_calculation_contracts
+  services_tariff_selector --> services_document_tariff_resolver
   services_tariff_selector --> services_invoice_normalization_service
   services_uc_service --> extensions
   services_uc_service --> models_api_credential
@@ -626,6 +732,7 @@ graph TD
   services_uc_service --> models_consumer_unit
   services_uc_service --> models_plant
   services_uc_service --> services_log_service
+  services_uc_service --> services_uc_discount
   services_user_service --> config
   services_user_service --> extensions
   services_user_service --> models_user
@@ -651,17 +758,21 @@ graph TD
 ```mermaid
 graph TD
   subgraph components["components"]
+    components_BillingDiagnosticsPanel["components/BillingDiagnosticsPanel"]
     components_CategoryPicker["components/CategoryPicker"]
     components_ClientCard["components/ClientCard"]
     components_ClientDetailView["components/ClientDetailView"]
     components_ClientDocumentsPanel["components/ClientDocumentsPanel"]
+    components_ConcessionariaInvoicesPanel["components/ConcessionariaInvoicesPanel"]
     components_ConcessionariaPasswordField["components/ConcessionariaPasswordField"]
+    components_ContextHelp["components/ContextHelp"]
     components_DashboardCards["components/DashboardCards"]
     components_DataTable["components/DataTable"]
     components_DetailDrawer["components/DetailDrawer"]
     components_DetailHeader["components/DetailHeader"]
     components_DocumentLinkModal["components/DocumentLinkModal"]
     components_ErrorBoundary["components/ErrorBoundary"]
+    components_FaturasUi["components/FaturasUi"]
     components_Header["components/Header"]
     components_Icon["components/Icon"]
     components_IconStatCard["components/IconStatCard"]
@@ -671,11 +782,13 @@ graph TD
     components_PlantCard["components/PlantCard"]
     components_PlantConnectionsField["components/PlantConnectionsField"]
     components_PlantDistribuicaoModal["components/PlantDistribuicaoModal"]
+    components_RegulatoryTariffModal["components/RegulatoryTariffModal"]
     components_ReservedPanel["components/ReservedPanel"]
     components_ResultsList["components/ResultsList"]
     components_SearchPanel["components/SearchPanel"]
     components_Sidebar["components/Sidebar"]
     components_Toast["components/Toast"]
+    components_UcBillingRuleSection["components/UcBillingRuleSection"]
     components_UcCard["components/UcCard"]
     components_formFields["components/formFields"]
   end
@@ -688,6 +801,8 @@ graph TD
   end
   subgraph pages["pages"]
     pages_AgendaPage["pages/AgendaPage"]
+    pages_BillingRuleEditorPage["pages/BillingRuleEditorPage"]
+    pages_BillingRulesPage["pages/BillingRulesPage"]
     pages_ChangePasswordPage["pages/ChangePasswordPage"]
     pages_ClientsPage["pages/ClientsPage"]
     pages_DashboardPage["pages/DashboardPage"]
@@ -715,6 +830,9 @@ graph TD
     services_apiClient["services/apiClient"]
     services_apiCredentialsService["services/apiCredentialsService"]
     services_authService["services/authService"]
+    services_billingCalculationsService["services/billingCalculationsService"]
+    services_billingDiagnosticsService["services/billingDiagnosticsService"]
+    services_billingRulesService["services/billingRulesService"]
     services_clientsService["services/clientsService"]
     services_colorUtils["services/colorUtils"]
     services_config["services/config"]
@@ -739,15 +857,19 @@ graph TD
     services_rateioConfigService["services/rateioConfigService"]
     services_rateioFormularioService["services/rateioFormularioService"]
     services_rateioService["services/rateioService"]
+    services_regulatoryTariffsService["services/regulatoryTariffsService"]
     services_router["services/router"]
     services_settingsService["services/settingsService"]
     services_ucsService["services/ucsService"]
     services_userService["services/userService"]
     services_whatsappService["services/whatsappService"]
   end
+  components_BillingDiagnosticsPanel --> hooks_useToast
+  components_BillingDiagnosticsPanel --> services_billingDiagnosticsService
   components_CategoryPicker --> services_documentsService
   components_ClientCard --> components_ClientDocumentsPanel
   components_ClientCard --> components_ConcessionariaPasswordField
+  components_ClientCard --> components_ContextHelp
   components_ClientCard --> components_PlantConnectionsField
   components_ClientCard --> components_formFields
   components_ClientCard --> services_clientsService
@@ -756,6 +878,12 @@ graph TD
   components_ClientDocumentsPanel --> components_Icon
   components_ClientDocumentsPanel --> hooks_useToast
   components_ClientDocumentsPanel --> services_documentsService
+  components_ConcessionariaInvoicesPanel --> components_DataTable
+  components_ConcessionariaInvoicesPanel --> components_Icon
+  components_ConcessionariaInvoicesPanel --> hooks_useToast
+  components_ConcessionariaInvoicesPanel --> services_authService
+  components_ConcessionariaInvoicesPanel --> services_billingCalculationsService
+  components_ConcessionariaInvoicesPanel --> services_clientsService
   components_ConcessionariaPasswordField --> components_formFields
   components_ConcessionariaPasswordField --> hooks_useToast
   components_ConcessionariaPasswordField --> services_authService
@@ -765,6 +893,7 @@ graph TD
   components_DocumentLinkModal --> services_clientsService
   components_DocumentLinkModal --> services_documentsService
   components_ErrorBoundary --> components_Toast
+  components_FaturasUi --> services_faturasService
   components_IconStatCard --> components_Icon
   components_ImportacoesModal --> components_Icon
   components_ImportacoesModal --> pages_ImportacoesPage
@@ -775,13 +904,20 @@ graph TD
   components_PlantConnectionsField --> services_plantService
   components_PlantDistribuicaoModal --> services_plantService
   components_PlantDistribuicaoModal --> services_rateioService
+  components_RegulatoryTariffModal --> services_regulatoryTariffsService
   components_ReservedPanel --> components_Icon
   components_ReservedPanel --> services_documentRules
   components_ResultsList --> services_documentRules
   components_Sidebar --> components_Icon
   components_Sidebar --> services_authService
   components_Sidebar --> services_settingsService
+  components_UcBillingRuleSection --> components_ContextHelp
+  components_UcBillingRuleSection --> hooks_useToast
+  components_UcBillingRuleSection --> services_authService
+  components_UcBillingRuleSection --> services_billingRulesService
+  components_UcBillingRuleSection --> services_ucsService
   components_UcCard --> components_ConcessionariaPasswordField
+  components_UcCard --> components_ContextHelp
   components_UcCard --> components_PlantConnectionsField
   components_UcCard --> components_formFields
   components_UcCard --> services_clientsService
@@ -799,6 +935,21 @@ graph TD
   pages_AgendaPage --> layouts_BaseLayout
   pages_AgendaPage --> services_agendaService
   pages_AgendaPage --> services_pendenciasService
+  pages_BillingRuleEditorPage --> components_ContextHelp
+  pages_BillingRuleEditorPage --> components_formFields
+  pages_BillingRuleEditorPage --> hooks_useGlobalLoading
+  pages_BillingRuleEditorPage --> hooks_useToast
+  pages_BillingRuleEditorPage --> layouts_BaseLayout
+  pages_BillingRuleEditorPage --> services_authService
+  pages_BillingRuleEditorPage --> services_billingRulesService
+  pages_BillingRulesPage --> components_ContextHelp
+  pages_BillingRulesPage --> components_DataTable
+  pages_BillingRulesPage --> components_Icon
+  pages_BillingRulesPage --> hooks_useGlobalLoading
+  pages_BillingRulesPage --> hooks_useToast
+  pages_BillingRulesPage --> layouts_BaseLayout
+  pages_BillingRulesPage --> services_authService
+  pages_BillingRulesPage --> services_billingRulesService
   pages_ChangePasswordPage --> components_Icon
   pages_ChangePasswordPage --> services_authService
   pages_ClientsPage --> components_ClientCard
@@ -842,14 +993,18 @@ graph TD
   pages_EmpresasPage --> services_dashboardService
   pages_EmpresasPage --> services_empresaService
   pages_EmpresasPage --> services_platformService
-  pages_FaturasPage --> components_DashboardCards
+  pages_FaturasPage --> components_ConcessionariaInvoicesPanel
   pages_FaturasPage --> components_DataTable
+  pages_FaturasPage --> components_FaturasUi
   pages_FaturasPage --> components_Icon
   pages_FaturasPage --> hooks_useGlobalLoading
   pages_FaturasPage --> hooks_useToast
   pages_FaturasPage --> layouts_BaseLayout
+  pages_FaturasPage --> services_authService
+  pages_FaturasPage --> services_billingCalculationsService
   pages_FaturasPage --> services_clientsService
   pages_FaturasPage --> services_faturasService
+  pages_FaturasPage --> services_pendenciasService
   pages_FaturasPage --> services_ucsService
   pages_ForgotPasswordPage --> components_Icon
   pages_ForgotPasswordPage --> services_passwordResetService
@@ -907,21 +1062,25 @@ graph TD
   pages_RateioPage --> services_ucsService
   pages_ResetPasswordPage --> components_Icon
   pages_ResetPasswordPage --> services_passwordResetService
+  pages_SettingsPage --> components_BillingDiagnosticsPanel
   pages_SettingsPage --> components_DataTable
   pages_SettingsPage --> components_DetailDrawer
   pages_SettingsPage --> components_Icon
   pages_SettingsPage --> components_IconStatCard
   pages_SettingsPage --> components_IntegrationCard
+  pages_SettingsPage --> components_RegulatoryTariffModal
   pages_SettingsPage --> components_Sidebar
   pages_SettingsPage --> components_formFields
   pages_SettingsPage --> hooks_useToast
   pages_SettingsPage --> layouts_BaseLayout
+  pages_SettingsPage --> services_apiClient
   pages_SettingsPage --> services_apiCredentialsService
   pages_SettingsPage --> services_authService
   pages_SettingsPage --> services_empresaService
   pages_SettingsPage --> services_googleAccountService
   pages_SettingsPage --> services_logsService
   pages_SettingsPage --> services_rateioConfigService
+  pages_SettingsPage --> services_regulatoryTariffsService
   pages_SettingsPage --> services_settingsService
   pages_SettingsPage --> services_whatsappService
   pages_TemplatesPage --> components_DataTable
@@ -936,10 +1095,12 @@ graph TD
   pages_UcsPage --> components_Icon
   pages_UcsPage --> components_IconStatCard
   pages_UcsPage --> components_ImportacoesModal
+  pages_UcsPage --> components_UcBillingRuleSection
   pages_UcsPage --> components_UcCard
   pages_UcsPage --> hooks_useGlobalLoading
   pages_UcsPage --> hooks_useToast
   pages_UcsPage --> layouts_BaseLayout
+  pages_UcsPage --> services_billingRulesService
   pages_UcsPage --> services_clientsService
   pages_UcsPage --> services_plantService
   pages_UcsPage --> services_ucsService
@@ -959,6 +1120,10 @@ graph TD
   services_apiClient --> services_config
   services_apiCredentialsService --> services_apiClient
   services_authService --> services_apiClient
+  services_billingCalculationsService --> services_apiClient
+  services_billingCalculationsService --> services_faturasService
+  services_billingDiagnosticsService --> services_apiClient
+  services_billingRulesService --> services_apiClient
   services_clientsService --> services_apiClient
   services_dashboardService --> services_apiClient
   services_dashboardService --> services_pendenciasService
@@ -984,7 +1149,10 @@ graph TD
   services_rateioConfigService --> services_apiClient
   services_rateioFormularioService --> services_apiClient
   services_rateioService --> services_apiClient
+  services_regulatoryTariffsService --> services_apiClient
   services_router --> pages_AgendaPage
+  services_router --> pages_BillingRuleEditorPage
+  services_router --> pages_BillingRulesPage
   services_router --> pages_ChangePasswordPage
   services_router --> pages_ClientsPage
   services_router --> pages_DashboardPage

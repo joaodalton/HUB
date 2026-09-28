@@ -15,7 +15,7 @@ def _ascii(text):
 
 
 def _decimal(text):
-    if not re.fullmatch(r'(?:\d+|\d{1,3}(?:\.\d{3})+)(?:,\d+)?', text):
+    if not re.fullmatch(r'-?(?:\d+|\d{1,3}(?:\.\d{3})+)(?:,\d+)?', text):
         raise ValueError('Número documental inválido.')
     return Decimal(text.replace('.', '').replace(',', '.'))
 
@@ -65,20 +65,43 @@ def _field(name, candidates, convert=str, *, present=False, critical=False, sour
     )
 
 
+def _cpf_field(candidates, *, present, source):
+    """CPF mascarado é ausência documental intencional, não erro de OCR."""
+    values = [candidate.strip() for candidate in candidates if candidate.strip()]
+    if values and all('*' in candidate and len(re.sub(r'\D', '', candidate)) < 11 for candidate in values):
+        issue = ExtractionIssue('COPEL_CPF_MASKED', 'info',
+                                'CPF apresentado mascarado; nenhum identificador foi reconstruído.',
+                                'cpf_cnpj')
+        return ExtractedField('not_present', source=source, warnings=(issue,))
+    return _field('cpf_cnpj', values, lambda value: _digits(value, 11),
+                  present=present, source=source)
+
+
 class CopelDANF3EParser(InvoiceParser):
     identity = ParserIdentity('copel', '1.3.0', 'danf3e', 'DANF3EA4B-V1.06')
     item_matcher = ItemMatcher((
         ItemMatcherRule('exact', 'ENERGIA ELET CONSUMO', 'energia_elet_consumo', 100),
         ItemMatcherRule('exact', 'ENERGIA ELET USO SISTEMA', 'energia_elet_uso_sistema', 100),
-        ItemMatcherRule('exact', 'ENERGIA CONS. B.AMARELA', 'energia_cons_b_amarela', 100),
+        ItemMatcherRule('prefix', 'ENERGIA INJETADA ', 'energia_injetada', 100),
+        ItemMatcherRule('prefix', 'ENERGIA INJ. OUC MPT ', 'energia_inj_ouc_mpt', 100),
+        ItemMatcherRule('prefix', 'ENERGIA CONS. B.AMARELA', 'energia_cons_b_amarela', 100),
+        ItemMatcherRule('exact', 'ENERGIA INJ. BAND. AMARELA TE', 'energia_inj_band_amarela_te', 100),
         ItemMatcherRule('exact', 'CONT ILUMIN PUBLICA MUNICIPIO', 'cont_ilumin_publica_municipio', 100),
     ))
-    # ponytail: uma amostra sem GD; novas categorias exigem fixture real.
     energy_matcher = ItemMatcher((
         ItemMatcherRule('exact', 'ENERGIA ELET CONSUMO', 'consumed', 100),
         ItemMatcherRule('exact', 'ENERGIA ELET USO SISTEMA', 'other', 100),
-        ItemMatcherRule('exact', 'ENERGIA CONS. B.AMARELA', 'other', 100),
+        ItemMatcherRule('prefix', 'ENERGIA INJETADA ', 'injected', 100),
+        ItemMatcherRule('prefix', 'ENERGIA INJ. OUC MPT ', 'compensated', 100),
+        ItemMatcherRule('prefix', 'ENERGIA CONS. B.AMARELA', 'other', 100),
+        ItemMatcherRule('exact', 'ENERGIA INJ. BAND. AMARELA TE', 'other', 100),
     ))
+    energy_event_patterns = (
+        (re.compile(r'^ENERGIA INJETADA (?P<component>TE|TUSD) (?P<month>\d{2}/\d{4})\s*(?P<gd>GDI-I)$'),
+         'energia_injetada'),
+        (re.compile(r'^ENERGIA INJ\. OUC MPT (?P<component>TE|TUSD|TUS) (?P<month>\d{2}/\d{4})\s*(?P<gd>GDI-I|GDII-II|GDIII-III)$'),
+         'energia_inj_ouc_mpt'),
+    )
 
     def can_parse(self, raw):
         text = _ascii(raw.text).upper()
@@ -106,10 +129,10 @@ class CopelDANF3EParser(InvoiceParser):
         keys = re.findall(r'(?<!Consulte )Chave de Acesso[ \t]*\n([^\n]*)', core)
         # No PDF observado estes cabeçalhos são gráficos, não texto. A linha
         # isolada de 15 dígitos e os três valores do resumo são âncoras estruturais.
-        uc = re.findall(r'(?<!\S)\d{15}(?!\S)', core)
+        uc = re.findall(r'(?<!\S)(?:\d{12}|\d{15})(?!\S)', core)
         identification = {
             'concessionaria': _field('concessionaria', ['Copel'], source='p1:emissor/CNPJ/DANF3E'),
-            'codigo_uc': _field('codigo_uc', uc, lambda v: _digits(v, 15), critical=True,
+            'codigo_uc': _field('codigo_uc', uc, critical=True,
                                 source='p1:bloco superior/unidade consumidora'),
             'competencia': _field('competencia', [row[0] for row in summary], _reference,
                                   present='R$' in core, critical=True, source='p1:linha mês/ano-vencimento-total'),
@@ -145,24 +168,32 @@ class CopelDANF3EParser(InvoiceParser):
         }
         # Mantém a grafia original do titular. Colunas separadas por >=2 espaços
         # não pertencem ao endereço (UC/fiscal à direita na mesma altura).
-        personal = core[core.find('Nome:'):] if 'Nome:' in core else ''
+        personal = _ascii(core[core.find('Nome:'):]) if 'Nome:' in core else ''
 
         def labelled(label):
-            return [re.split(r'\s{2,}', value.strip())[0]
-                    for value in re.findall(re.escape(label) + r'([^\n]*)', personal)]
+            values = []
+            for value in re.findall(re.escape(label) + r'([^\n]*)', personal):
+                # A UC fica em coluna lateral na mesma linha do endereço; alguns
+                # extratores reduzem o espaçamento, mas o identificador tem 15 dígitos.
+                values.append(re.sub(r'(?:\s+)?\d{15}\s*$', '', re.split(r'\s{2,}', value.strip())[0]))
+            return values
 
-        addresses = labelled('Endereço:')
-        address_parts = [re.fullmatch(r'(.*?),\s*([^\s,]+)(?:\s+-\s+.*)?', value) for value in addresses]
+        addresses = labelled('Endereco:')
+        address_parts = [re.fullmatch(
+            r'(?P<logradouro>.*?),\s*(?P<numero>[^\s,]+)(?:\s+-\s*(?P<complemento>.*?))?', value
+        ) for value in addresses]
         towns = re.findall(r'Cidade:\s*(.*?)\s*-\s*Estado:\s*([A-Z]{2})', personal)
         taxpayer = labelled('CPF:')
         holder = {
             'nome': _field('nome', labelled('Nome:'), present='Nome:' in core, source='p1:Nome:'),
-            'cpf_cnpj': _field('cpf_cnpj', taxpayer, lambda v: _digits(v, 11),
-                               present='CPF:' in personal, source='p1:CPF: (pode estar mascarado)'),
-            'logradouro': _field('logradouro', [m[1] if m else '' for m in address_parts],
-                                 present=bool(addresses), source='p1:Endereço:'),
-            'numero': _field('numero', [m[2] if m else '' for m in address_parts],
-                             present=bool(addresses), source='p1:Endereço:/número'),
+            'cpf_cnpj': _cpf_field(taxpayer, present='CPF:' in personal,
+                                   source='p1:CPF: (pode estar mascarado)'),
+            'logradouro': _field('logradouro', [m['logradouro'] if m else '' for m in address_parts],
+                                 present=bool(addresses), source='p1:Endereco:'),
+            'numero': _field('numero', [m['numero'] if m else '' for m in address_parts],
+                             present=bool(addresses), source='p1:Endereco:/numero'),
+            'complemento': _field('complemento', [m['complemento'] if m else '' for m in address_parts],
+                                  source='p1:Endereco:/complemento'),
             'bairro': _field('bairro', re.findall(r'^\s*-\s+([^\n]+)', personal, re.M), source='p1:continuação Endereço:'),
             'cidade': _field('cidade', [row[0] for row in towns], present='Cidade:' in personal, source='p1:Cidade:'),
             'uf': _field('uf', [row[1] for row in towns], present='Estado:' in personal, source='p1:Estado:'),
@@ -170,6 +201,8 @@ class CopelDANF3EParser(InvoiceParser):
         }
         classification_line = re.findall(
             r'Grupo de Tensao / Modalidade Tarifaria:[ \t]*([^\s-]+)[ \t]*-[ \t]*([^\n]+)', _ascii(text))
+        residential_classification = re.findall(
+            r'^[ \t]*(B1) (Residencial) / (Residencial)(?=[ \t]{2,}|[ \t]*$)', core, re.M)
         classification = {
             'grupo_tarifario': _field('grupo_tarifario', [row[0] for row in classification_line],
                                       source='p1:Grupo de Tensao / Modalidade Tarifaria'),
@@ -177,20 +210,29 @@ class CopelDANF3EParser(InvoiceParser):
                                            source='p1:Grupo de Tensao / Modalidade Tarifaria'),
             # Somente o contexto B1 Residencial foi comprovado nesta amostra.
             'subgrupo_tarifario': _field('subgrupo_tarifario',
-                re.findall(r'^[ \t]*(B1) Residencial / Residencial(?=[ \t]{2,}|[ \t]*$)', core, re.M),
+                [row[0] for row in residential_classification],
                 source='p1:classificacao residencial'),
+            'classe_tarifaria': _field('classe_tarifaria', [row[1] for row in residential_classification],
+                                        source='p1:classificacao residencial'),
+            'subclasse_tarifaria': _field('subclasse_tarifaria', [row[2] for row in residential_classification],
+                                           source='p1:classificacao residencial'),
         }
         fields = (*identification.values(), *readings.values(), *result_summary.values(),
                   *holder.values(), *classification.values())
         issues = tuple(issue for value in fields for issue in value.warnings)
         items, taxes, history, meter, notices, deep_issues = self._deep(text, result_summary['consumo_kwh'])
         components, energy, energy_issues = self._energy(items, result_summary['consumo_kwh'])
+        compensation_supported = any(
+            component['category'].status == 'found' and component['category'].value == 'compensated'
+            for component in components
+        )
         return ParsedInvoice(
             identity=self.identity, source_metadata={'page_count': str(raw.page_count), 'core_page': '1'},
             identificacao_fiscal=identification, titular=holder, leituras=(readings,),
             resumo=result_summary, itens=items, tributos=taxes, classificacao=classification,
             historico_consumo=history, medidor=meter, avisos=notices,
             energy_components=components, energia=energy,
+            compensation_supported=compensation_supported,
             issues=issues + deep_issues + energy_issues,
         )
 
@@ -214,11 +256,31 @@ class CopelDANF3EParser(InvoiceParser):
                                         'Unidade ausente ou incompatível com kWh; quantidade original preservada.',
                                         f'itens.{index}.unidade')
                 amount = ExtractedField('failed', source=amount.source, warnings=(issue,))
-            components.append({
+            component = {
                 'original_label': label, 'category': category,
                 'amount_kwh': amount, 'unit': unit,
                 'item_index': ExtractedField('found', index, source=source),
-            })
+            }
+            for pattern, context in self.energy_event_patterns:
+                match = pattern.fullmatch(label.value or '')
+                if match is None:
+                    continue
+                gd = {'GDI-I': 'GD_I', 'GDII-II': 'GD_II', 'GDIII-III': 'GD_III'}[match['gd']]
+                month, year = match['month'].split('/')
+                component.update({
+                    'tariff_component': _field('tariff_component', [
+                        'TUSD' if match['component'] == 'TUS' else match['component']], source=source),
+                    'gd_classification': _field('gd_classification', [gd], source=source),
+                    'credit_month': _field('credit_month', [f'{year}-{month}'], source=source),
+                    'compensation_context': _field('compensation_context', [context], source=source),
+                })
+                if context == 'energia_inj_ouc_mpt':
+                    component.update({
+                        'origin': _field('origin', ['OUC'], source=source),
+                        'period': _field('period', ['MPT'], source=source),
+                    })
+                break
+            components.append(component)
             issues.extend(category.warnings)
             # Quantidade ilegível já tem sua issue F5; não duplicá-la.
             if amount is not item['quantidade']:
@@ -250,7 +312,7 @@ class CopelDANF3EParser(InvoiceParser):
                 ] + [(cells[7].end() + cells[8].start()) // 2 if len(cells) > 8 else cells[7].end() + 8]
                 names = ('descricao_original', 'unidade', 'quantidade', 'preco_unitario_com_tributos',
                          'valor', 'pis_cofins_valor', 'icms_valor', 'tarifa_unitaria')
-                for line_no in range(candidates[0], len(lines)):
+                for line_no in range(reference, len(lines)):
                     line = lines[line_no]
                     description = line[bounds[0]:bounds[1]].strip()
                     if description == 'TOTAL' or re.search(r'\bCONSUMO\s+kWh\s+TP\b', line):
@@ -258,17 +320,22 @@ class CopelDANF3EParser(InvoiceParser):
                     if not description:
                         continue
                     values = [line[bounds[i]:bounds[i + 1]].strip() for i in range(8)]
-                    # Não interpretar cabeçalhos/linhas laterais como itens.
-                    if not values[1] and not any(values[2:]):
-                        issues.append(ExtractionIssue('COPEL_ITEM_ROW_UNREADABLE', 'warning',
-                                                      'Linha de item sem colunas legíveis.', 'itens'))
+                    if values[0].startswith('ENERGIA ') and values[1].endswith('kWh') and values[1] != 'kWh':
+                        values[0] += values[1][:-3].strip()
+                        values[1] = 'kWh'
+                    # A tabela só aceita as unidades documentais observadas; texto
+                    # de "Segunda Via"/histórico não pode virar item financeiro.
+                    if values[1] and values[1] not in ('kWh', 'UN'):
                         continue
-                    row = {
-                        name: _field(f'itens.{len(items)}.{name}', [value] if value else [],
-                                     str if index < 2 else _decimal,
-                                     source=f'p1:itens/linha {line_no + 1}/coluna {name}')
-                        for index, (name, value) in enumerate(zip(names, values))
-                    }
+                    optional_lighting = values[0] == 'CONT ILUMIN PUBLICA MUNICIPIO' and values[1] == 'UN'
+                    row = {}
+                    for index, (name, value) in enumerate(zip(names, values)):
+                        source = f'p1:itens/linha {line_no + 1}/coluna {name}'
+                        if optional_lighting and name in ('quantidade', 'tarifa_unitaria') and not value:
+                            row[name] = ExtractedField('not_present', source=source)
+                        else:
+                            row[name] = _field(f'itens.{len(items)}.{name}', [value] if value else [],
+                                               str if index < 2 else _decimal, source=source)
                     targets = self.item_matcher.match(values[0])
                     row['descricao_normalizada'] = _field('descricao_normalizada', targets,
                                                           source='matcher documental')

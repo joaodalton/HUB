@@ -16,6 +16,8 @@ import { createTemplatesPage } from '../pages/TemplatesPage';
 import { createChangePasswordPage } from '../pages/ChangePasswordPage';
 import { createFaturasPage } from '../pages/FaturasPage';
 import { createMessagesPage } from '../pages/MessagesPage';
+import { createBillingRulesPage } from '../pages/BillingRulesPage';
+import { createBillingRuleEditorPage } from '../pages/BillingRuleEditorPage';
 import { ensureSession, getCurrentUser, isAuthenticated } from './authService';
 import { loadSettings } from './settingsService';
 
@@ -34,6 +36,8 @@ export function createRouter(root: HTMLElement) {
     { path: '/usinas', render: createPlantsPage },
     { path: '/rateio', render: createRateioPage },
     { path: '/faturas', render: createFaturasPage },
+    { path: '/regras-cobranca', render: createBillingRulesPage },
+    { path: '/regras-cobranca/nova', render: () => createBillingRuleEditorPage() },
     { path: '/pendencias', render: createPendenciasPage },
     { path: '/agenda', render: createAgendaPage },
     { path: '/usuarios', render: createUsersPage },
@@ -47,7 +51,15 @@ export function createRouter(root: HTMLElement) {
   let appearanceLoaded = false;
 
   function resolveRoute(): Route {
-    return routes.find((route) => route.path === window.location.pathname) ?? routes[0];
+    const path = window.location.pathname;
+    const exact = routes.find((route) => route.path === path);
+    if (exact) return exact;
+    const match = /^\/regras-cobranca\/([1-9]\d*)\/editar$/.exec(path);
+    if (match) {
+      const id = Number(match[1]);
+      if (Number.isSafeInteger(id)) return { path, render: () => createBillingRuleEditorPage(id) };
+    }
+    return routes[0];
   }
 
   function redirect(path: string): void {

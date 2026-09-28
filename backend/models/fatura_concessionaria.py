@@ -10,6 +10,7 @@ class FaturaConcessionaria(TenantMixin, db.Model):
             'empresa_id', 'arquivo_hash',
             name='uq_faturas_concessionarias_empresa_hash',
         ),
+        db.Index('uq_faturas_concessionarias_id_empresa', 'id', 'empresa_id', unique=True),
         db.Index(
             'ix_faturas_concessionarias_empresa_chave',
             'empresa_id', 'chave_acesso',

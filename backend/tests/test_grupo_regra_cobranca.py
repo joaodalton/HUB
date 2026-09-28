@@ -65,6 +65,7 @@ class GrupoRegraCobrancaTest(IsolatedTestRuntime, unittest.TestCase):
 
     def tearDown(self):
         with self.app.app_context():
+            RegraCobrancaAssignment.query.delete()
             GrupoRegraCobranca.query.delete()
             db.session.commit()
 
@@ -200,6 +201,42 @@ class GrupoRegraCobrancaTest(IsolatedTestRuntime, unittest.TestCase):
         with self.app.app_context():
             self.assertEqual(Fatura.query.count(), 0)
 
+    def test_active_assignment_blocks_rule_deactivation_only_in_its_tenant(self):
+        linked = self._request('owner@a.test', 'POST', body=self._payload(nome='Vinculada')).json['data']
+        free = self._request('owner@a.test', 'POST', body=self._payload(nome='Livre')).json['data']
+        other = self._request('owner@b.test', 'POST', body=self._payload(nome='Empresa B')).json['data']
+
+        for rule, owner in ((linked, 'owner@a.test'), (other, 'owner@b.test')):
+            response = self._request(
+                owner, 'POST', '/api/v1/billing-rule-assignments',
+                {'grupoRegraCobrancaId': rule['id'], 'scopeType': 'company'},
+            )
+            self.assertEqual(response.status_code, 201, response.json)
+            if owner == 'owner@a.test':
+                assignment_id = response.json['data']['id']
+
+        blocked = self._request(
+            'owner@a.test', 'PATCH', f"/api/v1/billing-rules/{linked['id']}", {'ativo': False},
+        )
+        self.assertEqual(blocked.status_code, 409, blocked.json)
+        self.assertEqual(blocked.json['code'], 'BILLING_RULE_IN_USE')
+        self.assertTrue(self._request('owner@a.test', path=f"/api/v1/billing-rules/{linked['id']}").json['data']['ativo'])
+
+        deactivated = self._request(
+            'owner@a.test', 'PATCH', f"/api/v1/billing-rules/{free['id']}", {'ativo': False},
+        )
+        self.assertEqual(deactivated.status_code, 200, deactivated.json)
+        self.assertFalse(deactivated.json['data']['ativo'])
+
+        self.assertEqual(self._request(
+            'owner@a.test', 'PATCH', f'/api/v1/billing-rule-assignments/{assignment_id}',
+            {'ativo': False},
+        ).status_code, 200)
+        released = self._request(
+            'owner@a.test', 'PATCH', f"/api/v1/billing-rules/{linked['id']}", {'ativo': False},
+        )
+        self.assertEqual(released.status_code, 200, released.json)
+
     def test_rbac_reads_for_financial_viewers_writes_only_financial_roles(self):
         for role in ('owner', 'admin', 'financial', 'operator', 'viewer'):
             self.assertEqual(self._request(f'{role}@a.test').status_code, 200)
@@ -243,6 +280,24 @@ class GrupoRegraCobrancaTest(IsolatedTestRuntime, unittest.TestCase):
             self.assertEqual(response.status_code, 201, response.json)
         with self.app.app_context():
             self.assertEqual(Fatura.query.count(), 0)
+
+    def test_fixed_with_uc_discount_can_be_configured_without_group_discount(self):
+        payload = self._payload(
+            calculationMethod='tarifa_fixa_com_desconto', discountType='none', discountValue=None,
+        )
+        created = self._request('owner@a.test', 'POST', body=payload)
+        self.assertEqual(created.status_code, 201, created.json)
+        rule_id = created.json['data']['id']
+        self.assertEqual((created.json['data']['discountType'], created.json['data']['discountValue']),
+                         ('none', None))
+        self.assertEqual(self._request('owner@b.test', path=f'/api/v1/billing-rules/{rule_id}').status_code, 404)
+        changed = self._request('owner@a.test', 'PATCH', f'/api/v1/billing-rules/{rule_id}',
+                                {'discountType': 'percentage', 'discountValue': '10'})
+        self.assertEqual(changed.status_code, 200, changed.json)
+        self.assertEqual(changed.json['data']['discountValue'], '10.000000')
+        restored = self._request('owner@a.test', 'PATCH', f'/api/v1/billing-rules/{rule_id}',
+                                 {'discountType': 'none', 'discountValue': None})
+        self.assertEqual(restored.status_code, 200, restored.json)
 
     def test_c41_structural_validation(self):
         cases = [

@@ -126,8 +126,10 @@ class BillingCalculationEngineTest(unittest.TestCase):
                 self.rule, calculation_method=method, discount_type='percentage', discount_value=Decimal('20')))
 
     def test_dispatch_uses_compensated_strategy(self):
-        with patch.object(CompensatedEnergyBillingStrategy, 'calculate', return_value='sentinel') as calculate:
-            self.assertEqual(self.calculate(), 'sentinel')
+        base = CompensatedEnergyBillingStrategy().calculate(
+            invoice=self.invoice, rule=self.rule, context=self.context)
+        with patch.object(CompensatedEnergyBillingStrategy, 'calculate', return_value=base) as calculate:
+            self.assertEqual(self.calculate().gross_base, base.gross_base)
             calculate.assert_called_once_with(invoice=self.invoice, rule=self.rule, context=self.context)
 
     def test_deterministic_snapshot_memory_serialization(self):
@@ -158,7 +160,7 @@ class BillingCalculationEngineTest(unittest.TestCase):
         self.assertIsNone(result.calculation_memory.concessionaria_reference_tariff)
 
     def test_modifiers_and_hourly_tariffs_blocked(self):
-        for modifiers in (BillingModifiers(exclude_pis_cofins=True), BillingModifiers(icms_policy='exclude'),
+        for modifiers in (BillingModifiers(icms_policy='exclude'),
                           BillingModifiers(exclude_tariff_flag=True),
                           BillingModifiers(grace_period=GracePeriod(True, True, 2)),
                           BillingModifiers(recurring_additional_cost=Decimal('0'))):
@@ -200,7 +202,7 @@ class BillingCalculationEngineTest(unittest.TestCase):
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
                 self.assertNotEqual(node.func.id, 'float')
         text = path.read_text(encoding='utf-8')
-        for field in ('itens_documentais', 'energy_components', 'compensacoes', 'campos', 'TE', 'TUSD'):
+        for field in ('itens_documentais', 'energy_components', 'campos', 'TE', 'TUSD'):
             self.assertNotIn(f'.{field}', text)
 
 

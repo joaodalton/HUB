@@ -1,7 +1,9 @@
 import { createElement } from '../dom';
+import { createContextHelp } from './ContextHelp';
 import { createConcessionariaPasswordField } from './ConcessionariaPasswordField';
 import { createClientDocumentsPanel } from './ClientDocumentsPanel';
 import { createCheckboxField, createFormSection, createInput, createSelect } from './formFields';
+import { cnpjError, cpfError, digits, phoneDigits, phoneError, ucError, validateField } from './cadastroFields';
 import { createPlantConnections, createTariffSelect } from './PlantConnectionsField';
 import { concessionarias, type ClientRow, type ClientUc } from '../services/clientsService';
 import type { PlantRow } from '../services/plantService';
@@ -33,6 +35,7 @@ export function createClientCard({
 }: ClientCardOptions): HTMLElement {
   const isEditing = Boolean(client);
   const currentUcs = [...(client?.ucs ?? [])];
+  const originalUcs = new Map((client?.ucs ?? []).map((uc) => [uc.id, { codigo: uc.codigo, concessionaria: uc.concessionaria }]));
   const overlay = createElement('section', { className: 'modal-overlay' });
   const panel = createElement('article', {
     className: isEditing ? 'client-card client-card-split' : 'client-card'
@@ -58,10 +61,16 @@ export function createClientCard({
   const email = createInput('Email', 'email', client?.email ?? '', true);
   const dataNascimento = createInput('Data de nascimento', 'date', client?.dataNascimento ?? '', false);
   const concessionaria = createSelect('Concessionaria', client?.concessionaria ?? concessionarias[0], concessionarias);
+  nome.input.maxLength = 200;
+  nome.input.addEventListener('input', () => validateField(nome.input, ''));
+  cpf.input.addEventListener('input', () => validateField(cpf.input, ''));
+  telefone.input.addEventListener('input', () => validateField(telefone.input, ''));
   const documentsPanel = createClientDocumentsPanel(client?.id);
   const actions = createElement('div', { className: 'form-actions' });
   const saveButton = createElement('button', { textContent: 'Salvar cliente', type: 'submit' });
   const ucPanel = createUcPanel(currentUcs, availablePlants);
+  concessionaria.select.addEventListener('change', () => ucPanel.querySelectorAll<HTMLInputElement>('[data-uc-code]')
+    .forEach((input) => validateField(input, '')));
 
   titleText.append(eyebrow, heading);
   header.append(titleText, closeButton);
@@ -86,12 +95,33 @@ export function createClientCard({
 
     if (isSubmitting) return;
 
-    if (!nome.input.value.trim() || !cpf.input.value.trim() || !email.input.value.trim()) {
+    if (!validateField(nome.input, nome.input.value.trim() ? '' : 'Informe o nome.') ||
+        !validateField(cpf.input, client && digits(cpf.input.value) === digits(client.cpf) ? '' : cpfError(cpf.input.value)) ||
+        (telefone.input.value.trim() && !validateField(telefone.input,
+          client && telefone.input.value === (client.telefone ?? '') ? '' : phoneError(telefone.input.value))) ||
+        !email.input.value.trim()) {
       nome.input.reportValidity();
       cpf.input.reportValidity();
       email.input.reportValidity();
       return;
     }
+    const invalidUc = [...ucPanel.querySelectorAll<HTMLInputElement>('[data-uc-code]')].find((input) => {
+      if (!input.value.trim() && input.dataset.existingUc !== 'true') return false;
+      if (input.value === input.dataset.originalValue &&
+          input.dataset.concessionaria === input.dataset.originalConcessionaria) return false;
+      return !validateField(input, input.value.trim() ?
+        ucError(input.value, input.dataset.concessionaria || concessionaria.select.value) : 'Informe a UC.');
+    });
+    if (invalidUc) { invalidUc.closest('details')?.setAttribute('open', ''); return; }
+    const invalidDocument = [...ucPanel.querySelectorAll<HTMLInputElement>('[data-uc-document]')].find((input) =>
+      input.value.trim() && input.value !== input.dataset.originalValue && !validateField(input,
+        digits(input.value).length === 11 ? cpfError(input.value) : cnpjError(input.value)));
+    if (invalidDocument) { invalidDocument.closest('details')?.setAttribute('open', ''); return; }
+    currentUcs.forEach((uc) => {
+      const original = originalUcs.get(uc.id);
+      if ((!original || original.codigo !== uc.codigo || original.concessionaria !== uc.concessionaria) &&
+          (uc.concessionaria || concessionaria.select.value).trim().toLowerCase() === 'copel' && /^\d{12}$/.test(uc.codigo)) uc.codigo = `000${uc.codigo}`;
+    });
 
     isSubmitting = true;
     saveButton.disabled = true;
@@ -99,9 +129,10 @@ export function createClientCard({
 
     onSave({
       nome: nome.input.value.trim(),
-      cpf: cpf.input.value.trim(),
+      cpf: digits(cpf.input.value),
       email: email.input.value.trim(),
-      telefone: telefone.input.value.trim(),
+      telefone: telefone.input.value.trim() ? (client && telefone.input.value === (client.telefone ?? '')
+        ? telefone.input.value : phoneDigits(telefone.input.value)) : '',
       dataNascimento: dataNascimento.input.value,
       concessionaria: concessionaria.select.value,
       ucs: currentUcs.filter((uc) => uc.codigo.trim())
@@ -182,18 +213,35 @@ function createUcEditor(uc: ClientUc, availablePlants: PlantRow[], onRemove: () 
   const grid = createElement('div', { className: 'uc-editor-grid' });
 
   const codigo = createInput('UC', 'text', uc.codigo, false);
-  const codigoAneel = createInput('Codigo ANEEL', 'text', uc.codigoAneel ?? '', false);
+  codigo.input.inputMode = 'numeric';
+  codigo.input.dataset.ucCode = 'true';
+  codigo.input.dataset.existingUc = String(typeof uc.id === 'number');
+  codigo.input.dataset.originalValue = uc.codigo;
+  codigo.input.dataset.originalConcessionaria = uc.concessionaria ?? '';
   const apelido = createInput('Subnome', 'text', uc.apelido, false);
   const documento = createInput('CPF/CNPJ da UC', 'text', uc.documento ?? '', false);
+  documento.input.dataset.ucDocument = 'true';
+  documento.input.dataset.originalValue = uc.documento ?? '';
+  documento.input.addEventListener('input', () => validateField(documento.input, ''));
+  documento.input.addEventListener('blur', () => {
+    if (documento.input.value.trim() && documento.input.value !== documento.input.dataset.originalValue) validateField(documento.input,
+      digits(documento.input.value).length === 11 ? cpfError(documento.input.value) : cnpjError(documento.input.value));
+  });
   const senhaConcessionaria = createConcessionariaPasswordField(uc);
   senhaConcessionaria.input.autocomplete = 'new-password';
   senhaConcessionaria.input.placeholder = 'Identificador automático: CPF/CNPJ da UC';
   const endereco = createInput('Endereco', 'text', uc.endereco ?? '', false);
   const cep = createInput('CEP', 'text', uc.cep ?? '', false);
   const concessionariaUc = createInput('Concessionaria', 'text', uc.concessionaria ?? '', false);
+  concessionariaUc.input.addEventListener('input', () => {
+    codigo.input.dataset.concessionaria = concessionariaUc.input.value; validateField(codigo.input, '');
+  });
+  codigo.input.dataset.concessionaria = concessionariaUc.input.value;
   const consumo = createInput('Consumo (kWh)', 'number', uc.consumo != null ? String(uc.consumo) : '', false);
   const baseTarifaria = createTariffSelect(uc.baseTarifaria);
   const desconto = createInput('Desconto (%)', 'text', uc.desconto, false);
+  desconto.field.querySelector('span')?.appendChild(createContextHelp('Desconto comercial da UC',
+    'Percentual usado nas novas cobranças dos métodos compatíveis. Exemplo: 20 ou 20% reduz em 20%; vazio não aplica desconto. Tarifa específica não soma outro desconto.'));
   const tipoLigacao = createSelect('Ligacao', uc.tipoLigacao, ['Monofasico', 'Bifasico', 'Trifasico']);
   const geracaoPropria = createCheckboxField('Geracao propria', uc.geracaoPropria);
   const diaEmissaoFatura = createInput('Dia de emissao da fatura', 'number', uc.diaEmissaoFatura != null ? String(uc.diaEmissaoFatura) : '', false);
@@ -214,10 +262,10 @@ function createUcEditor(uc: ClientUc, availablePlants: PlantRow[], onRemove: () 
   carenciaMeses.input.min = '0';
 
   codigo.input.addEventListener('input', () => {
+    validateField(codigo.input, '');
     uc.codigo = codigo.input.value;
     summaryTitle.textContent = uc.codigo || 'Nova UC';
   });
-  codigoAneel.input.addEventListener('input', () => { uc.codigoAneel = codigoAneel.input.value || null; });
   apelido.input.addEventListener('input', () => {
     uc.apelido = apelido.input.value;
     summaryMeta.textContent = uc.apelido || 'Mais informacoes';
@@ -253,7 +301,6 @@ function createUcEditor(uc: ClientUc, availablePlants: PlantRow[], onRemove: () 
 
   grid.append(
     codigo.field,
-    codigoAneel.field,
     apelido.field,
     documento.field,
     senhaConcessionaria.field,
@@ -282,7 +329,6 @@ function createEmptyUc(): ClientUc {
   return {
     id: crypto.randomUUID(),
     codigo: '',
-    codigoAneel: null,
     apelido: '',
     documento: null,
     endereco: null,

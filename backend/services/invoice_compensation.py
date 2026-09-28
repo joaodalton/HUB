@@ -54,6 +54,10 @@ class CompensacaoNormalizada:
         elif value is not None:
             raise ValueError('Compensação inválida não fornece quantidade.')
 
+    @property
+    def cobravel_ouc_mpt(self):
+        return self.origem == 'OUTRA_UC' and self.posto == 'MESMO_POSTO'
+
 
 @dataclass(frozen=True)
 class BillingEnergyInput:
@@ -69,12 +73,13 @@ class BillingEnergyInput:
         object.__setattr__(self, 'status', EnergyStatus(self.status))
         value = self.energia_compensada_cobravel_kwh
         if self.status == EnergyStatus.VALID:
+            billable = tuple(c for c in self.compensacoes if c.cobravel_ouc_mpt)
             if not isinstance(value, Decimal) or not value.is_finite() or value < 0:
                 raise ValueError('Energia VALID exige Decimal não negativo.')
-            if not self.compensacoes or any(c.status != EnergyStatus.VALID for c in self.compensacoes):
-                raise ValueError('Energia VALID exige compensações válidas.')
-            if value != _sum_exact([c.quantidade_kwh for c in self.compensacoes]):
-                raise ValueError('Energia cobrável deve derivar somente das compensações.')
+            if not billable or any(c.status != EnergyStatus.VALID for c in billable):
+                raise ValueError('Energia VALID exige compensações OUC/MPT válidas.')
+            if value != _sum_exact([c.quantidade_kwh for c in billable]):
+                raise ValueError('Energia cobrável deve derivar somente das compensações OUC/MPT.')
         elif value is not None:
             raise ValueError('Energia não VALID não pode fornecer quantidade cobrável.')
 
@@ -122,6 +127,8 @@ def normalize_compensations(parsed, competencia, fatura_id=None):
             origin = {'MUC': 'MESMA_UC', 'OUC': 'OUTRA_UC', None: None}[origin]
             period = value('period', True)
             period = {'MPT': 'MESMO_POSTO', 'OPT': 'OUTRO_POSTO', None: None}[period]
+            if origin is None or period is None:
+                raise ValueError('Origem e posto da compensação não comprovados.')
             gd = value('gd_classification', True)
             gd = 'UNKNOWN' if gd is None else gd
             if gd not in ('GD_I', 'GD_II', 'GD_III', 'UNKNOWN'):
@@ -147,6 +154,9 @@ def normalize_compensations(parsed, competencia, fatura_id=None):
         event_issues, components, amounts, confidences = [], [], [], []
         kinds = [kind for kind, _, _ in rows]
         status = EnergyStatus.VALID
+        if key[2] == 'GD_III':
+            status = EnergyStatus.UNSUPPORTED
+            event_issues.append(issue('COMPENSACAO_GD_NAO_SUPORTADA', 'GD-III está fora do escopo documental atual.'))
         if len(set(kinds)) != len(kinds):
             status = EnergyStatus.AMBIGUOUS
             event_issues.append(issue('COMPENSACAO_COMPONENTE_DUPLICADO', 'Não deduplicar componentes por texto ou quantidade.'))
@@ -183,13 +193,21 @@ def normalize_compensations(parsed, competencia, fatura_id=None):
             tuple(c.source for c in components), confidence, status, tuple(event_issues)))
         issues.extend(event_issues)
 
-    if issues:
-        status = EnergyStatus.AMBIGUOUS if any(e.status == EnergyStatus.AMBIGUOUS for e in events) or any(
-            i.code in ('COMPENSACAO_IDENTIDADE_INDEFINIDA', 'COMPENSACAO_CATEGORIA_INDEFINIDA') for i in issues
-        ) else EnergyStatus.MISSING
+    billable = tuple(event for event in events if event.cobravel_ouc_mpt)
+    if any(i.code in ('COMPENSACAO_IDENTIDADE_INDEFINIDA', 'COMPENSACAO_CATEGORIA_INDEFINIDA') for i in issues):
+        status = EnergyStatus.AMBIGUOUS
+    elif any(event.status == EnergyStatus.AMBIGUOUS for event in billable):
+        status = EnergyStatus.AMBIGUOUS
+    elif any(event.status == EnergyStatus.UNSUPPORTED for event in billable):
+        status = EnergyStatus.UNSUPPORTED
+    elif not billable or any(event.status == EnergyStatus.MISSING for event in billable):
+        status = EnergyStatus.MISSING
     else:
-        status = EnergyStatus.VALID if events else EnergyStatus.MISSING
+        status = EnergyStatus.VALID
     if not events and not issues:
         issues.append(issue('COMPENSACAO_AUSENTE', 'Nenhuma compensação comprovada; ausência não equivale a zero.'))
-    total = _sum_exact([e.quantidade_kwh for e in events]) if status == EnergyStatus.VALID else None
+    elif events and not billable:
+        issues.append(issue('COMPENSACAO_OUC_MPT_AUSENTE',
+                            'Nenhuma compensação OUTRA_UC/MESMO_POSTO comprovada.'))
+    total = _sum_exact([event.quantidade_kwh for event in billable]) if status == EnergyStatus.VALID else None
     return BillingEnergyInput(total, tuple(events), status, tuple(issues), parsed.identity, competencia, fatura_id)

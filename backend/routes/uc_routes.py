@@ -49,13 +49,13 @@ def store():
 
     if not data.get('clienteId'):
         return error_response('Cliente e obrigatorio.', 400)
-    if not data.get('codigo', '').strip():
+    if not isinstance(data.get('codigo'), str) or not data['codigo'].strip():
         return error_response('Codigo da UC e obrigatorio.', 400)
 
     try:
         uc = create_uc(data)
     except ValueError as exc:
-        return error_response(str(exc), 409)
+        return error_response(str(exc), 404 if str(exc) == 'Cliente informado nao existe.' else 400)
 
     return success_response(uc, 'UC cadastrada.', 201)
 
@@ -64,11 +64,13 @@ def store():
 @require_permission('consumer_units.update')
 def update(uc_id: int):
     data = request.get_json(silent=True) or {}
+    if 'codigo' in data and (not isinstance(data['codigo'], str) or not data['codigo'].strip()):
+        return error_response('Codigo da UC e obrigatorio.', 400)
 
     try:
         uc = update_uc(uc_id, data)
     except ValueError as exc:
-        return error_response(str(exc), 409)
+        return error_response(str(exc), 404 if str(exc) == 'Cliente informado nao existe.' else 400)
 
     if not uc:
         return error_response('UC nao encontrada.', 404)

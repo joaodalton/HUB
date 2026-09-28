@@ -45,8 +45,12 @@ import {
   deleteWhatsappIntegration, getWhatsappIntegration, saveWhatsappIntegration, testWhatsappIntegration,
   type WhatsappIntegration, type WhatsappIntegrationInput,
 } from '../services/whatsappService';
+import { createRegulatoryTariffModal } from '../components/RegulatoryTariffModal';
+import { getRegulatoryTariffStatus, type RegulatoryTariffStatus } from '../services/regulatoryTariffsService';
+import { ApiRequestError } from '../services/apiClient';
+import { createBillingDiagnosticsPanel } from '../components/BillingDiagnosticsPanel';
 
-type SettingsCategory = 'home' | 'geral' | 'database' | 'apis' | 'automations' | 'logs' | 'appearance';
+type SettingsCategory = 'home' | 'geral' | 'database' | 'apis' | 'automations' | 'logs' | 'appearance' | 'administration';
 
 type CategoryDefinition = {
   key: SettingsCategory;
@@ -63,7 +67,8 @@ const CATEGORIES: CategoryDefinition[] = [
   { key: 'apis', label: 'APIs e Integrações', ready: true },
   { key: 'automations', label: 'Automações', ready: false },
   { key: 'logs', label: 'Logs', ready: true },
-  { key: 'appearance', label: 'Aparência', ready: true }
+  { key: 'appearance', label: 'Aparência', ready: true },
+  { key: 'administration', label: 'Administração', ready: true }
 ];
 
 export function createSettingsPage(): HTMLElement {
@@ -86,6 +91,10 @@ export function createSettingsPage(): HTMLElement {
   let empresaAtualLoadError = false;
   let driveRootFolderId = '';
   let driveRootFolderLoaded = false;
+  let regulatoryTariffStatus: RegulatoryTariffStatus | null = null;
+  let regulatoryTariffLoaded = false;
+  let regulatoryTariffLoadError: 'permission' | 'unavailable' | 'internal' | 'unknown' | null = null;
+  let billingDiagnosticsPanel: HTMLElement | null = null;
 
   renderContent();
   loadGoogleAccounts();
@@ -93,6 +102,8 @@ export function createSettingsPage(): HTMLElement {
   loadRecentLogs();
   loadRateioConfig();
   loadDriveRootFolder();
+  if (isPlatformAdmin()) loadRegulatoryTariffs();
+  else regulatoryTariffLoaded = true;
   if (canManageSettings()) loadApiCredentials();
   else apiCredentialsLoaded = true;
   if (canManageSettings()) loadWhatsappIntegration();
@@ -301,6 +312,17 @@ export function createSettingsPage(): HTMLElement {
     }
   }
 
+  async function loadRegulatoryTariffs(): Promise<void> {
+    try { regulatoryTariffStatus = await getRegulatoryTariffStatus(); regulatoryTariffLoadError = null; }
+    catch (error) {
+      regulatoryTariffStatus = null;
+      const status = error instanceof ApiRequestError ? error.status : 0;
+      regulatoryTariffLoadError = status === 401 || status === 403 ? 'permission'
+        : status === 0 || status === 503 ? 'unavailable' : status >= 500 ? 'internal' : 'unknown';
+    }
+    finally { regulatoryTariffLoaded = true; renderContent(); }
+  }
+
   async function handleTestApiCredential(credential: ApiCredentialRow): Promise<void> {
     try {
       const result = await testApiCredential(credential.id);
@@ -368,7 +390,12 @@ export function createSettingsPage(): HTMLElement {
           rootFolderId: driveRootFolderId,
           rootFolderLoaded: driveRootFolderLoaded,
           canManage: canManageSettings(),
-          onSaveRootFolder: handleSaveDriveRootFolderId
+          onSaveRootFolder: handleSaveDriveRootFolderId,
+          regulatoryStatus: regulatoryTariffStatus,
+          regulatoryLoaded: regulatoryTariffLoaded,
+          regulatoryLoadError: regulatoryTariffLoadError,
+          canManageRegulatory: isPlatformAdmin(),
+          onRefreshRegulatory: loadRegulatoryTariffs
         });
 
       case 'apis':
@@ -394,6 +421,11 @@ export function createSettingsPage(): HTMLElement {
 
       case 'appearance':
         return createAppearancePanel(getSettings(), appearanceLoaded, toast.success, toast.error);
+
+      case 'administration':
+        if (!isPlatformAdmin()) return createElement('p', { className: 'settings-hint', textContent: 'Acesso restrito ao administrador da plataforma.' });
+        billingDiagnosticsPanel ??= createBillingDiagnosticsPanel();
+        return billingDiagnosticsPanel;
 
       default:
         return createComingSoonPanel(categoryMessage(activeCategory));
@@ -431,7 +463,7 @@ function createCategoryNav(active: SettingsCategory, onChange: (category: Settin
   const nav = createElement('nav', { className: 'settings-category-nav' });
   nav.appendChild(createElement('span', { className: 'settings-category-heading', textContent: 'Categorias' }));
 
-  CATEGORIES.forEach((category) => {
+  CATEGORIES.filter((category) => category.key !== 'administration' || isPlatformAdmin()).forEach((category) => {
     const link = createElement('button', {
       className: category.key === active ? 'settings-category-link active' : 'settings-category-link',
       type: 'button'
@@ -989,6 +1021,11 @@ function createDatabasePanel(googleAccounts: {
   rootFolderLoaded: boolean;
   canManage: boolean;
   onSaveRootFolder: (rootFolderId: string) => Promise<void>;
+  regulatoryStatus: RegulatoryTariffStatus | null;
+  regulatoryLoaded: boolean;
+  regulatoryLoadError: 'permission' | 'unavailable' | 'internal' | 'unknown' | null;
+  canManageRegulatory: boolean;
+  onRefreshRegulatory: () => Promise<void>;
 }): HTMLElement {
   const wrapper = createElement('section', { className: 'database-provider-stack' });
   wrapper.appendChild(createGoogleAccountsSection(googleAccounts.items, googleAccounts.onActivate, googleAccounts.onDisconnect));
@@ -998,7 +1035,43 @@ function createDatabasePanel(googleAccounts: {
     googleAccounts.canManage,
     googleAccounts.onSaveRootFolder
   ));
+  if (googleAccounts.canManageRegulatory) wrapper.appendChild(createRegulatoryTariffPanel(
+    googleAccounts.regulatoryStatus, googleAccounts.regulatoryLoaded, googleAccounts.regulatoryLoadError,
+    googleAccounts.onRefreshRegulatory));
   return wrapper;
+}
+
+function createRegulatoryTariffPanel(
+  status: RegulatoryTariffStatus | null, loaded: boolean,
+  loadError: 'permission' | 'unavailable' | 'internal' | 'unknown' | null, refresh: () => Promise<void>
+): HTMLElement {
+  const panel = createElement('section', { className: 'database-provider-card' });
+  panel.appendChild(createPanelHeader('Base tarifária ANEEL', 'Tarifas oficiais usadas no cálculo de Fio B'));
+  if (!loaded) { panel.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Carregando base regulatória...' })); return panel; }
+  if (loadError) {
+    const message = loadError === 'permission' ? 'Você não tem permissão para consultar a base regulatória.'
+      : loadError === 'unavailable' ? 'Base regulatória indisponível. Tente novamente mais tarde.'
+      : loadError === 'internal' ? 'Erro interno ao consultar a base regulatória.'
+      : 'Não foi possível consultar a base regulatória.';
+    const retry = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Tentar novamente' });
+    retry.addEventListener('click', () => void refresh());
+    panel.append(createElement('p', { className: 'importacao-error', textContent: message }), retry);
+    return panel;
+  }
+  const text = status?.status === 'updated'
+    ? `Atualizada: ${status.records} registro(s), cobertura ${formatDate(status.coverage.from)} a ${formatDate(status.coverage.until)}.`
+    : 'Sem importação concluída.';
+  panel.appendChild(createElement('p', { className: 'settings-hint', textContent: text }));
+  const update = createElement('button', { type: 'button', textContent: 'Atualizar tarifas' });
+  update.addEventListener('click', () => document.body.appendChild(createRegulatoryTariffModal(refresh)));
+  panel.appendChild(update);
+  return panel;
+}
+
+function formatDate(value: string | null): string {
+  if (!value) return '—';
+  const [year, month, day] = value.split('-');
+  return `${day}/${month}/${year}`;
 }
 
 function createDriveRootFolderPanel(
@@ -1307,4 +1380,8 @@ function createPanelHeader(eyebrowText: string, title: string, action?: HTMLElem
 function canManageSettings(): boolean {
   const role = getCurrentUser()?.role;
   return role === 'owner' || role === 'admin';
+}
+
+function isPlatformAdmin(): boolean {
+  return getCurrentUser()?.isPlatformAdmin === true;
 }

@@ -10,7 +10,6 @@ export type PlantConnection = {
 export type ClientUc = {
   id: number | string;
   codigo: string;
-  codigoAneel: string | null;
   apelido: string;
   documento: string | null;
   senhaConcessionariaConfigurada?: boolean;

@@ -100,6 +100,9 @@ class BillingContractsTest(unittest.TestCase):
                                   discount_type='percentage', discount_value=Decimal('10')).calculation_method, method)
         with self.assertRaises(ValueError):
             rule(calculation_method='inventado')
+        self.assertEqual(rule(calculation_method='tarifa_fixa_com_desconto',
+                              manual_tariff=Decimal('1'), discount_type='none').discount_type,
+                         DiscountType.NONE)
 
     def test_invoice_tariff_does_not_select_value(self):
         actual = rule(tariff_source='invoice')
@@ -241,10 +244,19 @@ class BillingContractsTest(unittest.TestCase):
         self.assertIn('calculate', BillingCalculationEngine.__abstractmethods__)
         self.assertIn('method', BillingCalculationStrategy.__abstractmethods__)
 
+    def test_fio_b_modifier_is_memory_only_and_snapshotted(self):
+        from services.billing_calculation_contracts import BillingModifiers
+        for state in (None, False, True):
+            snapshot = BillingRuleSnapshot(rule(billing_modifiers=BillingModifiers(
+                exclude_gdii_fio_b=state))).to_dict()
+            self.assertIs(snapshot['billing_modifiers']['exclude_gdii_fio_b'], state)
+        with self.assertRaises(ValueError):
+            BillingModifiers(exclude_gdii_fio_b=1)
+
     def test_contracts_have_no_database_provider_or_parser_dependency(self):
         path = Path(__file__).resolve().parents[1] / 'services/billing_calculation_contracts.py'
         allowed = {'abc', 'copy', 'dataclasses', 'datetime', 'decimal', 'enum', 'json', 're',
-                   'services.invoice_normalization_service'}
+                   'services.invoice_normalization_service', 'services.invoice_compensation'}
         for node in ast.walk(ast.parse(path.read_text(encoding='utf-8'))):
             if isinstance(node, ast.ImportFrom):
                 self.assertIn(node.module, allowed)

@@ -1,4 +1,5 @@
 @import './tokens.css';
+@import './design-system.css';
 @import './base.css';
 @import './layout.css';
 @import './buttons.css';
@@ -11,6 +12,7 @@
 @import './login.css';
 @import './agenda.css';
 @import './dashboard.css';
+@import './command-palette.css';
 @import './plants.css';
 @import './rateio.css';
 @import './pendencias.css';
@@ -20,3 +22,4 @@
 @import './billing-rules.css';
 @import './whatsapp.css';
 @import './shared.css';
+@import './platform.css';

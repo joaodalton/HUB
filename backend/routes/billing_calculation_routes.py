@@ -1,5 +1,7 @@
 """Consulta e execução auditável do cálculo de cobrança C5.5."""
-from flask import Blueprint, g, jsonify, request
+from io import BytesIO
+
+from flask import Blueprint, g, jsonify, request, send_file
 from sqlalchemy import and_, exists, or_, select
 from sqlalchemy.orm import selectinload
 
@@ -12,6 +14,8 @@ from models.fatura import Fatura
 from models.fatura_concessionaria import FaturaConcessionaria
 from models.pendencia import Pendencia
 from services.billing_calculation_service import BillingCalculationService
+from services.invoice_document_service import load_invoice_pdf
+from services.object_storage import ObjectStorageError
 from services.permission_service import require_permission
 from utils.api_response import error_response, success_response
 
@@ -156,7 +160,8 @@ def _invoices():
         'dataVencimento': row.data_vencimento.isoformat() if row.data_vencimento else None,
         'documentoId': row.document_id,
         'documentoDisponivel': bool(row.document and row.document.empresa_id == tenant
-                                    and row.document.storage_provider == 'google_drive'
+                                    and row.document.client_id == row.client_id
+                                    and row.document.storage_provider in ('google_drive', 'local', 's3')
                                     and row.document.storage_ref),
         'temPendencia': row.id in pending_ids,
         'contextualCharges': charges_by_context.get((row.consumer_unit_id, row.competencia), []),
@@ -187,6 +192,19 @@ def _execute(invoice_id):
     return success_response(_execution(execution, detail=True), 'Cálculo executado.', 201)
 
 
+def _download_invoice(invoice_id):
+    try:
+        result = load_invoice_pdf(invoice_id, g.current_empresa_id)
+    except ObjectStorageError:
+        return error_response('Armazenamento de documentos indisponivel.', 503,
+                              code='DOCUMENT_STORAGE_UNAVAILABLE')
+    if result is None:
+        return error_response('Fatura não encontrada.', 404)
+    data, filename = result
+    return send_file(BytesIO(data), mimetype='application/pdf', as_attachment=True,
+                     download_name=filename)
+
+
 def _detail(execution_id):
     row = BillingCalculationExecution.query.filter_by(
         id=execution_id, empresa_id=g.current_empresa_id).first()
@@ -203,6 +221,12 @@ def _snapshot_detail(snapshot_id):
 @require_permission('billing_calculations.read')
 def invoices():
     return _invoices()
+
+
+@billing_calculation_routes.get('/invoices/<int:invoice_id>/download')
+@require_permission('faturas.read')
+def download_invoice(invoice_id):
+    return _download_invoice(invoice_id)
 
 
 @billing_calculation_routes.post('/invoices/upload')
@@ -265,6 +289,12 @@ def platform_upload(empresa_id, client_id):
 @platform_billing_calculation_routes.get('/invoices')
 def platform_invoices(empresa_id):
     return _invoices()
+
+
+@platform_billing_calculation_routes.get('/invoices/<int:invoice_id>/download')
+@require_permission('faturas.read')
+def platform_download_invoice(empresa_id, invoice_id):
+    return _download_invoice(invoice_id)
 
 
 @platform_billing_calculation_routes.post('/invoices/upload')

@@ -162,6 +162,10 @@
   box-shadow: var(--shadow-md);
 }
 
+.global-loading[hidden] {
+  display: none;
+}
+
 .global-loading::before {
   content: '';
   width: 14px;
@@ -283,7 +287,7 @@
   z-index: 1000;
   display: flex;
   justify-content: flex-end;
-  background: rgba(0, 0, 0, 0.48);
+  background: var(--overlay-backdrop);
 }
 
 .detail-drawer {

@@ -66,6 +66,7 @@ def create_app() -> Flask:
     from models.grupo_regra_cobranca import GrupoRegraCobranca  # type: ignore
     from models.regra_cobranca_assignment import RegraCobrancaAssignment  # type: ignore
     from models.payment_webhook_event import PaymentWebhookEvent  # type: ignore
+    from models.platform_asaas_webhook_event import PlatformAsaasWebhookEvent  # type: ignore
     from models.assinatura import Assinatura  # type: ignore
     from models.limite_contratado import LimiteContratado  # type: ignore
     from models.whatsapp import WhatsappIntegration, WhatsappConversation, WhatsappMessage  # type: ignore
@@ -76,7 +77,8 @@ def create_app() -> Flask:
     if Config.DEBUG:
         cors_origins.append('http://localhost:5173')
         cors_origins.append('http://127.0.0.1:5173')
-    CORS(app, origins=cors_origins, supports_credentials=True)
+    CORS(app, origins=cors_origins, supports_credentials=True,
+         expose_headers=['Content-Disposition'])
 
     from routes.auth_routes import auth_routes
     from routes.config_routes import config_routes
@@ -153,6 +155,7 @@ def create_app() -> Flask:
         '/api/v1/empresas/registro',
         '/api/v1/oauth/google/callback',
         '/api/v1/webhooks/asaas',
+        '/api/v1/webhooks/asaas/platform',
         '/api/v1/webhooks/whatsapp',
         '/api/v1/auth/esqueci-senha', '/api/v1/auth/redefinir-senha'
     }, public_path_prefixes={

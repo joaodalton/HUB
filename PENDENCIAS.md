@@ -3,6 +3,8 @@ PENDENCIAS.md
 Especificação operacional do motor de pendências do HUB
 > **Documentos relacionados:** [[VISAO]] · [[ARCHITECTURE]] · [[API_CONTRACTS]]
 
+Na experiência operacional, itens abertos são apresentados por severidade e prazo. A interface diferencia “precisa de ação”, “aguardando informação” e “informativa” com texto, ícone e cor; quando há Cliente, UC, Usina, Fatura ou Documento vinculado, oferece navegação para o fluxo existente, e quando não há vínculo explica que não existe ação contextual disponível.
+
 HUB V1.5
 Operacional
 1. Objetivo

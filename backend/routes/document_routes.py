@@ -1,5 +1,7 @@
 # backend/routes/document_routes.py
-from flask import Blueprint, redirect, request, send_file
+from flask import Blueprint, g, redirect, request, send_file, url_for
+
+from models.fatura_concessionaria import FaturaConcessionaria
 
 from services.document_service import (
     create_document,
@@ -128,6 +130,21 @@ def download(document_id: int):
         # armazenamento (ver create_drive_document). Manda pra pagina de
         # visualizacao nativa do Drive em vez de tentar servir um binario.
         return redirect(f'https://drive.google.com/file/d/{document.storage_ref}/view')
+
+    if (document.storage_provider == 's3'
+            or (document.storage_provider == 'local' and document.storage_ref
+                and document.storage_ref.startswith(f'tenants/{g.current_empresa_id}/invoices/'))):
+        invoice = FaturaConcessionaria.query.filter_by(
+            empresa_id=g.current_empresa_id, document_id=document.id).first()
+        if invoice is None:
+            return error_response('Documento nao encontrado.', 404)
+        if g.current_user.is_platform_admin:
+            selected = getattr(g, 'platform_view_empresa_id', None)
+            if selected != document.empresa_id:
+                return error_response('Selecione explicitamente a empresa.', 403)
+            return redirect(url_for('platform_billing_calculation_routes.platform_download_invoice',
+                empresa_id=selected, invoice_id=invoice.id))
+        return redirect(url_for('billing_calculation_routes.download_invoice', invoice_id=invoice.id))
 
     file_path = resolve_file_path(document)
 

@@ -50,12 +50,28 @@ Existem **dois ambientes completamente separados**, cada um com seu próprio ban
 | `GOOGLE_DRIVE_ROOT_FOLDER_ID` | ID da pasta no Drive (pega da URL) | Opcional — vazio, os documentos vão pra raiz da conta conectada (funciona, só fica bagunçado) |
 | `FRONTEND_URL` | URL do frontend publicado no Render | Alimenta CORS (Etapa 4) e o redirect pós-OAuth |
 | `ASAAS_API_BASE_URL` | `https://api-sandbox.asaas.com/v3` no Sandbox | Produção usa a URL v3 do ASAAS de produção |
-| `ASAAS_WEBHOOK_TOKEN` | Token forte compartilhado configurado em cada webhook ASAAS | Validado no header `asaas-access-token`; nunca usar uma API key aqui |
+| `PLATFORM_ASAAS_API_BASE_URL` | URL v3 da conta ASAAS da plataforma | Independente do ambiente tenant; HTTPS ASAAS obrigatório. |
+| `PLATFORM_ASAAS_API_KEY` | Vazio | Segredo global da plataforma em env; não cadastrar como `ApiCredential` de empresa. |
+| `PLATFORM_ASAAS_WEBHOOK_TOKEN` | Vazio | Token global exclusivo de `/api/v1/webhooks/asaas/platform`; vazio rejeita o webhook. |
+| `STORAGE_PROVIDER` | `s3` em produção | Obrigatório para novos PDFs de fatura; `local` só é aceito em desenvolvimento/testes. Configuração ausente falha explicitamente no upload. |
+| `OBJECT_STORAGE_ENDPOINT` | `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` | Endpoint S3 do R2; produção exige HTTPS e domínio R2. |
+| `OBJECT_STORAGE_BUCKET` | Nome do bucket privado | Confirmar no Cloudflare que `r2.dev` e domínio público estão desabilitados. |
+| `OBJECT_STORAGE_ACCESS_KEY_ID` / `OBJECT_STORAGE_SECRET_ACCESS_KEY` | Credenciais R2 restritas ao bucket | Segredos só no Render; não expor no frontend ou banco. |
+| `OBJECT_STORAGE_REGION` | `auto` | Valor usado pelo cliente S3 do R2. |
+| Credenciais Asaas por empresa | Configurações → APIs e Integrações no HUB | Cadastre separadamente a chave de API e o token de autenticação do webhook no ambiente correto. O token é validado no header `asaas-access-token`; nunca use a chave de API como token. `ASAAS_WEBHOOK_TOKEN` global é legado e não autentica o webhook atual. |
 | `META_APP_SECRET` | App Secret da aplicação Meta do HUB | Valida `X-Hub-Signature-256` no webhook WhatsApp; nunca vai ao frontend ou banco por empresa |
 | `META_WEBHOOK_VERIFY_TOKEN` | Valor secreto escolhido ao configurar o callback Meta | Usado apenas no desafio `GET /api/v1/webhooks/whatsapp` |
 | `META_GRAPH_API_BASE_URL` / `META_GRAPH_API_VERSION` | Endpoint e versão Graph API em uso | Atualizar a versão de forma controlada conforme ciclo da Meta |
 
-`OAUTH_ALLOW_INSECURE_TRANSPORT` não deve ser configurada no Render. Ela só serve para OAuth local via HTTP e só tem efeito junto de `FLASK_DEBUG=true`, `GOOGLE_OAUTH_REDIRECT_URI` e `FRONTEND_URL` em `localhost`/loopback; produção falha fechada se callback ou frontend não forem URLs HTTPS absolutas, sem credenciais ou fragmentos.
+`OAUTH_ALLOW_INSECURE_TRANSPORT` não deve ser configurada no Render. Ela só serve para OAuth local via HTTP e só tem efeito junto de `FLASK_DEBUG=true`, `GOOGLE_OAUTH_REDIRECT_URI` e `FRONTEND_URL` em `localhost`/loopback; produção falha fechada se callback ou frontend não forem URLs HTTPS absolutas, sem credenciais ou fragmentos. Para rodar localmente, use os valores de `backend/.env.example` e cadastre `http://localhost:8000/api/v1/oauth/google/callback` como URI de redirecionamento autorizada no cliente OAuth do Google Cloud. Reinicie o backend após alterar o `.env`.
+
+### Ativação do R2 para PDFs de faturas (STORAGE-1A)
+
+O R2 deve estar habilitado na conta Cloudflare antes de criar bucket ou credenciais. Use um bucket privado exclusivo para cada ambiente. Confira no bucket que **Public Development URL (`r2.dev`) está desabilitada** e que não há domínio público ativo. Crie um token de API do R2 com permissão **Object Read & Write**, limitado ao bucket desse ambiente; o backend precisa de `PutObject`, `GetObject` e `DeleteObject`. Guarde o Access Key ID e o Secret Access Key somente no ambiente do backend. A [documentação de tokens R2](https://developers.cloudflare.com/r2/api/tokens/) e a [documentação de buckets públicos](https://developers.cloudflare.com/r2/buckets/public-buckets/) descrevem essas configurações.
+
+Em desenvolvimento, coloque `STORAGE_PROVIDER=s3`, `OBJECT_STORAGE_ENDPOINT=https://<ACCOUNT_ID>.r2.cloudflarestorage.com`, `OBJECT_STORAGE_BUCKET`, `OBJECT_STORAGE_ACCESS_KEY_ID`, `OBJECT_STORAGE_SECRET_ACCESS_KEY` e `OBJECT_STORAGE_REGION=auto` em `backend/.env`, que é ignorado pelo Git. Use uma credencial própria de desenvolvimento/teste e um bucket separado de produção. Não copie segredos para logs, documentação, frontend ou comandos que imprimam o ambiente.
+
+Antes de configurar o Render, valide no bucket de desenvolvimento: escrita, existência física, leitura e exclusão de um objeto descartável; upload de PDF de teste pela API do HUB; `Document.storage_provider=s3`, `storage_ref` opaca e hash da fatura; download autenticado com SHA-256, headers e nome; negação entre duas empresas; leitura de documento legado; e resposta controlada quando o provider falha. Só então configure as mesmas seis variáveis no **Web Service de backend** do Render, usando **outro bucket e outro token restrito** para produção. Confirme o serviço e workspace antes de alterar variáveis, pois a mudança pode iniciar um deploy. Faça o teste funcional de produção antes de registrar `R2_READY=true` e `STORAGE_1_DONE=true` no `PROGRESS.md`; esses dois nomes são marcadores documentais, não variáveis de ambiente do HUB.
 
 ### Frontend (Render Static Site → Environment)
 

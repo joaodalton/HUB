@@ -1,5 +1,6 @@
 import { apiRequest } from './apiClient';
 import { adjustLightness, hexToRgba } from './colorUtils';
+import { getResolvedTheme } from './themeService';
 
 export type AppSettings = {
   companyName: string;
@@ -31,14 +32,29 @@ type ApiResponse<T> = {
 };
 
 let cachedSettings: AppSettings = DEFAULT_SETTINGS;
+let settingsGeneration = 0;
 
 export function getSettings(): AppSettings {
   return cachedSettings;
 }
 
+/**
+ * Descarta toda aparência derivada do tenant anterior. O próximo contexto
+ * deve chamar loadSettings() antes de voltar a usar personalizações.
+ */
+export function invalidateSettingsCache(): void {
+  settingsGeneration += 1;
+  cachedSettings = { ...DEFAULT_SETTINGS };
+  applyAppearanceSettings();
+}
+
 export async function loadSettings(): Promise<AppSettings> {
+  const requestGeneration = settingsGeneration;
   const response = await apiRequest<ApiResponse<Record<string, string>>>('/settings');
 
+  // Uma troca de tenant pode ocorrer enquanto a requisição está em voo.
+  // Nesse caso a resposta pertence ao contexto anterior e deve ser ignorada.
+  if (requestGeneration !== settingsGeneration) return cachedSettings;
   cachedSettings = mergeWithDefaults(response.data);
   applyAppearanceSettings();
   return cachedSettings;
@@ -84,7 +100,12 @@ export function applyThemeVariables(theme: ThemeColors): void {
 }
 
 export function applyAppearanceSettings(): void {
-  applyThemeVariables(cachedSettings);
+  if (getResolvedTheme() === 'dark') applyThemeVariables(cachedSettings);
+  else {
+    const root = document.documentElement.style;
+    ['--bg', '--panel', '--panel-soft', '--panel-hover', '--text', '--accent', '--accent-hover', '--accent-bg', '--accent-border']
+      .forEach((property) => root.removeProperty(property));
+  }
   //Nessa parte que faz a mudança do nome, tanto oq aparece do lado da logo quanto o que aparece na aba do navegador.
   document.title = cachedSettings.companyName ? `${cachedSettings.companyName} · HUB` : 'HUB';
 }
@@ -114,6 +135,8 @@ function toStorageKeys(settings: Partial<AppSettings>): Record<string, string> {
 
   return payload;
 }
+
+window.addEventListener('hub-theme-change', applyAppearanceSettings);
 
 export async function loadGoogleDriveRootFolderId(): Promise<string> {
   const response = await apiRequest<ApiResponse<Record<string, string>>>('/settings');

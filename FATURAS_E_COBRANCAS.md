@@ -1118,6 +1118,24 @@ Uma mudança de parser que quebre um layout anterior deve falhar nos testes.
 
 ## 25. Model `FaturaConcessionaria`
 
+### STORAGE-1 — PDF original privado
+
+`FaturaConcessionaria.document_id` continua obrigatório e aponta para o único
+`Document` que guarda `storage_provider/storage_ref`. O hash SHA-256 permanece
+somente em `FaturaConcessionaria.arquivo_hash`. Novos PDFs de fatura são gravados
+em R2 privado (`s3`) em produção e localmente em desenvolvimento; o nome físico
+é UUID sob prefixo da empresa e não contém dados cadastrais. Upload valida
+tipo, 10 MiB, 10 páginas, integridade, UC/tenant e duplicidade antes de criar
+o objeto. Falha de commit tenta remover apenas a chave nova desta tentativa.
+
+Downloads tenant/admin autenticados verificam `faturas.read`, vínculo com o
+Document da mesma empresa e hash antes de servir o PDF com nome amigável.
+Referências `google_drive` e `local` antigas continuam legíveis, sem migração
+ou exclusão do original. O provider genérico não conhece entidades de negócio.
+`R2_READY` exige validação posterior de bucket privado/configuração/leitura real;
+testes S3 simulados não comprovam essa operação externa.
+
+
 Campos de consulta/operação sugeridos:
 
 - `id`

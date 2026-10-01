@@ -29,6 +29,25 @@ _PASSWORD_CHANGE_SAFE_PATHS = {
     '/api/v1/auth/logout',
     '/api/v1/auth/alterar-senha',
 }
+_PLATFORM_CONTEXT_SAFE_ENDPOINTS = {
+    'auth_routes.me',
+    'auth_routes.logout',
+    'auth_routes.alterar_senha',
+    'empresa_routes.index',
+    'empresa_routes.criar',
+    'empresa_routes.atualizar_qualquer',
+}
+_PLATFORM_CONTEXT_SAFE_ENDPOINT_PREFIXES = (
+    'platform_routes.',
+    'regulatory_tariff_routes.',
+    'config_routes.',
+)
+
+
+def _is_platform_context_safe_endpoint(endpoint: str | None) -> bool:
+    if endpoint in _PLATFORM_CONTEXT_SAFE_ENDPOINTS:
+        return True
+    return bool(endpoint and endpoint.startswith(_PLATFORM_CONTEXT_SAFE_ENDPOINT_PREFIXES))
 
 
 def hash_password(raw_password: str) -> str:
@@ -135,7 +154,7 @@ def register_auth_middleware(app, public_paths: set[str], public_path_prefixes: 
         # que nunca batem contra o set exato acima (ver comentario em app.py).
         # count('/') == 4 garante que so casa exatamente UM segmento depois
         # do prefixo (ex.: /api/v1/empresas/select), nao /api/v1/empresas/x/y.
-        if any(
+        if request.method == 'GET' and any(
             request.path.startswith(prefix) and request.path.count('/') == prefix.count('/') + 1
             for prefix in public_path_prefixes
         ):
@@ -186,6 +205,16 @@ def register_auth_middleware(app, public_paths: set[str], public_path_prefixes: 
                     g.current_empresa_id = empresa_visualizada.id
                     g.current_empresa = empresa_visualizada
                     g.platform_view_empresa_id = empresa_visualizada.id
+
+            if (
+                g.platform_view_empresa_id is None
+                and not _is_platform_context_safe_endpoint(request.endpoint)
+            ):
+                return error_response(
+                    'Entre explicitamente em uma empresa para acessar recursos operacionais.',
+                    403,
+                    code='PLATFORM_TENANT_CONTEXT_REQUIRED',
+                )
 
         if user.must_change_password and request.path not in _PASSWORD_CHANGE_SAFE_PATHS:
             return error_response(

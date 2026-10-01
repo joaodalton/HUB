@@ -2,6 +2,7 @@ from flask import Blueprint, g, request
 
 from services.asaas_client import AsaasError
 from services.asaas_webhook_service import WebhookError, processar_webhook
+from services.platform_asaas_webhook_service import receive_platform_webhook
 from services.fatura_service import EmissaoPendente, cancelar, emitir, listar, obter, resumo, sincronizar
 from services.permission_service import require_permission
 from utils.api_response import error_response, success_response
@@ -68,6 +69,15 @@ webhook_routes = Blueprint('webhook_routes', __name__, url_prefix='/api/v1/webho
 def asaas_webhook():
     try:
         processar_webhook(request.get_json(silent=True), request.headers.get('asaas-access-token', ''))
+    except WebhookError as exc:
+        return error_response(str(exc), exc.status)
+    return success_response({'received': True})
+
+
+@webhook_routes.route('/asaas/platform', methods=['POST'])
+def platform_asaas_webhook():
+    try:
+        receive_platform_webhook(request.get_json(silent=True), request.headers.get('asaas-access-token', ''))
     except WebhookError as exc:
         return error_response(str(exc), exc.status)
     return success_response({'received': True})

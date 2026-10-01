@@ -1,17 +1,21 @@
 import { createDataTable } from '../components/DataTable';
 import { createConcessionariaUploadButton } from '../components/ConcessionariaInvoicesPanel';
 import { createIcon } from '../components/Icon';
-import { createModal, detailSection, selectField, textField, option, filterSelect, createBadge, createChargeCell, statusLabel, formatCurrency, formatDate, formatReference, currentMonth } from '../components/FaturasUi';
+import { createIconStatCard } from '../components/IconStatCard';
+import { createModal, selectField, textField, option, filterSelect, createBadge, createChargeCell, statusLabel, formatCurrency, formatDate, formatReference, currentMonth } from '../components/FaturasUi';
 import { createElement } from '../dom';
+import { attachTooltip } from '../components/Tooltip';
 import { useGlobalLoading } from '../hooks/useGlobalLoading';
 import { useToast } from '../hooks/useToast';
 import { createBaseLayout } from '../layouts/BaseLayout';
 import { getCurrentUser } from '../services/authService';
-import { getBillingInvoicePage, type BillingInvoice, type BillingInvoiceFilters } from '../services/billingCalculationsService';
+import { downloadBillingInvoice, getBillingInvoicePage, type BillingInvoice, type BillingInvoiceFilters } from '../services/billingCalculationsService';
 import { getClients, type ClientRow } from '../services/clientsService';
-import { cancelFatura, createFatura, getFaturas, syncFatura, type FaturaRow } from '../services/faturasService';
+import { createFatura, getFaturas, type FaturaRow } from '../services/faturasService';
+import { createFaturaInvoiceDetail } from './faturasInvoiceDetail';
 import { getPendencias, type PendenciaRow } from '../services/pendenciasService';
 import { getUcs, type UcRow } from '../services/ucsService';
+import { createDebouncedInput, readListParam, readPositiveListParam, writeListState } from '../services/listState';
 
 const PAGE_SIZE = 25; type InvoiceFilters = Omit<BillingInvoiceFilters, 'page' | 'pageSize'>;
 
@@ -25,12 +29,25 @@ export function createFaturasPage(): HTMLElement {
   let invoices: BillingInvoice[] = [], charges: FaturaRow[] = [];
   let pendencias: PendenciaRow[] = [], clients: ClientRow[] = [], ucs: UcRow[] = [];
   let pagination = { page: 1, pageSize: PAGE_SIZE, total: 0, pages: 0 };
-  let page = 1;
-  let filters: InvoiceFilters = {};
+  let page = readPositiveListParam('pagina');
+  let filters: InvoiceFilters = {
+    q: readListParam('busca'), usinaId: Number(readListParam('usina')) || undefined,
+    competencia: readListParam('competencia'), statusProcessamento: readListParam('processamento'),
+    statusCobranca: readListParam('cobranca'),
+    comPendencia: readListParam('pendencia') === 'true' ? true : readListParam('pendencia') === 'false' ? false : undefined
+  };
   let error = false, busy = false, requestId = 0;
+  const requestedInvoiceId = Number(readListParam('selecionada'));
   let selectedInvoice: BillingInvoice | null = null;
+  let selectedInvoiceId: number | null = Number.isSafeInteger(requestedInvoiceId) && requestedInvoiceId > 0 ? requestedInvoiceId : null;
+  let openedSelection = false;
 
-  const layout = createBaseLayout({ content, eyebrow: 'Financeiro', title: 'Faturas' });
+  const layout = createBaseLayout({
+    content,
+    eyebrow: 'Financeiro',
+    title: 'Faturas',
+    description: 'Documentos da concessionária e acompanhamento das cobranças comerciais.'
+  });
   void load(); return layout;
 
   async function load(): Promise<void> {
@@ -58,7 +75,7 @@ export function createFaturasPage(): HTMLElement {
       ]);
       if (current !== requestId) return;
       invoices = invoicePage.data;
-      if (selectedInvoice) selectedInvoice = invoices.find((invoice) => invoice.id === selectedInvoice?.id) ?? null;
+      if (selectedInvoiceId) selectedInvoice = invoices.find((invoice) => invoice.id === selectedInvoiceId) ?? null;
       pagination = invoicePage.pagination;
       charges = chargeRows;
       pendencias = pendingRows;
@@ -74,6 +91,7 @@ export function createFaturasPage(): HTMLElement {
         busy = false;
         loading.hide();
         render();
+        if (selectedInvoice && !openedSelection) { openedSelection = true; openInvoiceDetail(selectedInvoice, false); }
       }
     }
   }
@@ -82,6 +100,9 @@ export function createFaturasPage(): HTMLElement {
     filters = next;
     page = 1;
     selectedInvoice = null;
+    selectedInvoiceId = null;
+    openedSelection = false;
+    writeListState({ busca: filters.q, usina: filters.usinaId, competencia: filters.competencia, processamento: filters.statusProcessamento, cobranca: filters.statusCobranca, pendencia: filters.comPendencia, pagina: null, selecionada: null });
     void load();
   }
 
@@ -100,10 +121,21 @@ export function createFaturasPage(): HTMLElement {
     return pendencias.filter((item) => item.status === 'aberta' && item.faturaId === invoice.id);
   }
 
+  function invoiceDownloadButton(invoice: BillingInvoice): HTMLButtonElement {
+    const button = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Baixar PDF' });
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      button.disabled = true;
+      void downloadBillingInvoice(invoice.id, empresaId).catch((cause) => {
+        toast.error(cause instanceof Error ? cause.message : 'Não foi possível baixar a fatura.');
+      }).finally(() => { button.disabled = false; });
+    });
+    button.addEventListener('keydown', (event) => event.stopPropagation());
+    return button;
+  }
+
   function render(): void {
     const toolbar = createElement('section', { className: 'faturas-toolbar' });
-    const copy = createElement('div', { className: 'faturas-toolbar-copy' });
-    copy.append(createElement('h2', { textContent: 'Faturas' }), createElement('p', { textContent: 'Documentos da concessionária e acompanhamento das cobranças comerciais.' }));
     const actions = createElement('div', { className: 'faturas-toolbar-actions' });
     const upload = createConcessionariaUploadButton(() => void load());
     if (upload) actions.appendChild(upload);
@@ -112,11 +144,27 @@ export function createFaturasPage(): HTMLElement {
       issue.append(createIcon('plus'), document.createTextNode('Emitir cobrança'));
       issue.disabled = !canIssueInvoice(selectedInvoice);
       issue.title = issue.disabled ? 'Selecione uma fatura validada, com UC, valor, vencimento e sem pendência operacional.' : '';
+      if (issue.disabled) attachTooltip(issue, issue.title);
       issue.addEventListener('click', () => { if (canIssueInvoice(selectedInvoice)) openCreateModal(selectedInvoice!); });
       actions.appendChild(issue);
     }
-    toolbar.append(copy, actions);
-    content.replaceChildren(toolbar, ...(canReadInvoices ? [createFilters(), createTable(), createPagination()] : [createReadOnlyChargeTable()]));
+    toolbar.append(actions);
+    content.replaceChildren(toolbar, ...(canReadInvoices
+      ? [createFilters(), createSummary(), createTable(), createPagination()]
+      : [createSummary(), createReadOnlyChargeTable()]));
+  }
+
+  function createSummary(): HTMLElement {
+    const grid = createElement('section', { className: 'metric-grid' });
+    const rows = canReadInvoices
+      ? [
+          { label: 'Faturas', value: String(pagination.total), chipColor: 'blue' as const, icon: 'faturas' as const },
+          { label: 'Com pendência', value: String(invoices.filter((item) => item.temPendencia).length), chipColor: 'amber' as const, icon: 'pending' as const },
+          { label: 'Cobranças', value: String(charges.length), chipColor: 'green' as const, icon: 'cobrancas' as const }
+        ]
+      : [{ label: 'Cobranças', value: String(charges.length), chipColor: 'green' as const, icon: 'cobrancas' as const }];
+    rows.forEach((item) => grid.appendChild(createIconStatCard(item)));
+    return grid;
   }
 
   function createFilters(): HTMLElement {
@@ -128,11 +176,14 @@ export function createFaturasPage(): HTMLElement {
     search.setAttribute('aria-label', 'Buscar por cliente ou UC');
     search.placeholder = 'Cliente ou UC';
     search.value = filters.q ?? '';
-    let timer: number | undefined;
+    let lastAppliedQuery = filters.q ?? '';
+    const applyQuery = createDebouncedInput((value) => {
+      if (value === lastAppliedQuery) return;
+      lastAppliedQuery = value;
+      applyFilters({ ...filters, q: value || undefined });
+    });
     search.addEventListener('input', () => {
-      const value = search.value;
-      window.clearTimeout(timer);
-      timer = window.setTimeout(() => applyFilters({ ...filters, q: value }), 300);
+      applyQuery(search.value);
     });
     searchWrap.appendChild(search);
     const plantIds = new Map<number, string>();
@@ -169,11 +220,18 @@ export function createFaturasPage(): HTMLElement {
   }
 
   function createTable(): HTMLElement {
+    const hasActiveFilters = Boolean(
+      filters.q || filters.usinaId || filters.competencia || filters.statusProcessamento || filters.statusCobranca || filters.comPendencia !== undefined
+    );
     const table = createDataTable<BillingInvoice>({
       title: 'Faturas da concessionária',
       eyebrow: busy ? 'Carregando…' : `${pagination.total} registro${pagination.total === 1 ? '' : 's'}`,
       rows: error || busy ? [] : invoices,
       emptyMessage: busy ? 'Carregando faturas…' : user?.isPlatformAdmin && !empresaId ? 'Selecione uma empresa.' : error ? 'Não foi possível carregar as faturas.' : 'Nenhuma fatura encontrada.',
+      state: busy ? 'loading' : error ? 'error' : hasActiveFilters ? 'filtered' : 'ready',
+      stateTitle: error ? 'Nao foi possivel carregar as faturas' : hasActiveFilters ? 'Nenhuma fatura corresponde aos filtros' : 'Nenhuma fatura encontrada',
+      emptyAction: { label: 'Limpar filtros', onClick: () => applyFilters({}) },
+      errorAction: { label: 'Tentar novamente', onClick: () => void load() },
       onRowClick: openInvoiceDetail,
       columns: [
         { key: 'usinas', label: 'Usina / contexto', render: (item) => item.usinas?.map((plant) => plant.nome).join(', ') || 'Sem vínculo de usina' },
@@ -184,7 +242,8 @@ export function createFaturasPage(): HTMLElement {
         { key: 'dataVencimento', label: 'Vencimento', render: (item) => formatDate(item.dataVencimento) },
         { key: 'statusProcessamento', label: 'Processamento', render: (item) => createBadge(item.statusValidacao === 'pendente' ? item.statusExtracao : item.statusValidacao) },
         { key: 'statusCobranca', label: 'Cobrança', render: (item) => createChargeCell(item.contextualCharges ?? contextualCharges(item)) },
-        { key: 'temPendencia', label: 'Pendência', render: (item) => item.temPendencia ? createBadge('Aberta', 'warning') : '—' }
+        { key: 'temPendencia', label: 'Pendência', render: (item) => item.temPendencia ? createBadge('Aberta', 'warning') : '—' },
+        { key: 'documentoDisponivel', label: 'PDF', render: (item) => item.documentoDisponivel ? invoiceDownloadButton(item) : '—' }
       ]
     });
     return table;
@@ -195,6 +254,8 @@ export function createFaturasPage(): HTMLElement {
       title: 'Cobranças ASAAS', eyebrow: `${charges.length} registro${charges.length === 1 ? '' : 's'}`,
       rows: error || busy ? [] : charges,
       emptyMessage: busy ? 'Carregando cobranças…' : error ? 'Não foi possível carregar as cobranças.' : 'Nenhuma cobrança encontrada.',
+      state: busy ? 'loading' : error ? 'error' : 'ready',
+      stateTitle: error ? 'Nao foi possivel carregar as cobrancas' : 'Nenhuma cobranca encontrada',
       columns: [
         { key: 'clienteNome', label: 'Cliente' },
         { key: 'ucCodigo', label: 'UC' },
@@ -211,88 +272,27 @@ export function createFaturasPage(): HTMLElement {
     nav.setAttribute('aria-label', 'Páginas de faturas');
     const previous = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Anterior' });
     previous.disabled = busy || page <= 1;
-    previous.addEventListener('click', () => { page--; void load(); });
+    previous.addEventListener('click', () => { page--; writeListState({ pagina: page }); void load(); });
     const next = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Próxima' });
     next.disabled = busy || page >= pagination.pages;
-    next.addEventListener('click', () => { page++; void load(); });
+    next.addEventListener('click', () => { page++; writeListState({ pagina: page }); void load(); });
     nav.append(previous, createElement('span', { textContent: `${pagination.pages ? page : 0} de ${pagination.pages}` }), next);
     return nav;
   }
 
-  function openInvoiceDetail(invoice: BillingInvoice): void {
+  function openInvoiceDetail(invoice: BillingInvoice, updateUrl = true): void {
     selectedInvoice = invoice;
-    render();
-    const overlay = createModal(`Fatura da concessionária #${invoice.id}`, 'Financeiro');
-    const body = overlay.querySelector('.modal-body') as HTMLElement;
-    const utility = detailSection('Fatura da concessionária', [
-      ['Cliente', invoice.clienteNome ?? clients.find((client) => client.id === invoice.clientId)?.nome ?? '—'],
-      ['UC', invoice.ucCodigo ?? 'Aguardando validação'],
-      ['Usinas vinculadas', invoice.usinas?.map((plant) => plant.nome).join(', ') || 'Sem vínculo comprovado'],
-      ['Competência', formatReference(invoice.competencia)],
-      ['Valor', formatCurrency(invoice.valorTotalConcessionaria)],
-      ['Vencimento', formatDate(invoice.dataVencimento)],
-      ['Extração', invoice.statusExtracao], ['Validação', invoice.statusValidacao]
-    ]);
-    const documents = createElement('section', { className: 'fatura-detail-section' });
-    documents.appendChild(createElement('h3', { textContent: 'Histórico e documentos' }));
-    documents.appendChild(createElement('p', { textContent: `Recebida em ${formatDate(invoice.createdAt)}.` }));
-    documents.appendChild(createElement('p', { textContent: 'PDF original da concessionária: acesso não disponível nesta página.' }));
-    const chargeSection = createElement('section', { className: 'fatura-detail-section' });
-    chargeSection.appendChild(createElement('h3', { textContent: 'Cobrança comercial ASAAS' }));
-    const linkedCharges = user?.isPlatformAdmin ? [] : contextualCharges(invoice);
-    const platformCharges = user?.isPlatformAdmin ? invoice.contextualCharges ?? [] : [];
-    if (!linkedCharges.length && !platformCharges.length) chargeSection.appendChild(createElement('p', { textContent: 'Nenhuma cobrança encontrada para esta UC e competência.' }));
-    else {
-      chargeSection.appendChild(createElement('p', { className: 'fatura-context-note', textContent: 'Cobranças encontradas pela UC e competência; o vínculo documental ainda não é confirmado pela API.' }));
-      platformCharges.forEach((charge) => chargeSection.appendChild(detailSection(`Cobrança #${charge.id}`, [
-        ['Valor comercial', formatCurrency(charge.valor)], ['Vencimento', formatDate(charge.mesVencimento)],
-        ['Situação', charge.asaasId ? statusLabel(charge.asaasStatus as FaturaRow['asaasStatus']) : charge.statusInterno ?? 'Aguardando emissão']
-      ])));
-      linkedCharges.forEach((charge) => {
-        const card = detailSection(`Cobrança #${charge.id}`, [
-          ['Valor comercial', formatCurrency(charge.valor)], ['Vencimento', formatDate(charge.mesVencimento)],
-          ['Situação', charge.asaasId ? statusLabel(charge.asaasStatus) : charge.statusInterno ?? 'Aguardando emissão']
-        ]);
-        const actions = createElement('div', { className: 'form-actions' });
-        if (charge.boletoUrl) {
-          const boleto = createElement('a', { className: 'secondary-button', textContent: 'Abrir boleto ASAAS' });
-          boleto.href = charge.boletoUrl; boleto.target = '_blank'; boleto.rel = 'noreferrer'; actions.appendChild(boleto);
-        }
-        if (canIssue) {
-          const sync = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Sincronizar' });
-          sync.addEventListener('click', () => void runChargeAction(sync, () => syncFatura(charge.id), 'Cobrança sincronizada.', overlay));
-          actions.appendChild(sync);
-          if (charge.asaasId && charge.asaasStatus === 'pending') {
-            const cancel = createElement('button', { className: 'danger-button', type: 'button', textContent: 'Cancelar cobrança' });
-            cancel.addEventListener('click', () => { if (window.confirm('Cancelar esta cobrança na ASAAS?')) void runChargeAction(cancel, () => cancelFatura(charge.id), 'Cobrança cancelada.', overlay); });
-            actions.appendChild(cancel);
-          }
-        }
-        card.appendChild(actions);
-        chargeSection.appendChild(card);
-      });
-    }
-    const pendingSection = createElement('section', { className: 'fatura-detail-section' });
-    pendingSection.appendChild(createElement('h3', { textContent: 'Pendências relacionadas' }));
-    const related = relatedPendencias(invoice);
-    if (!related.length) pendingSection.appendChild(createElement('p', { textContent: invoice.temPendencia ? 'Há pendência operacional. Consulte a central de pendências.' : 'Nenhuma pendência aberta vinculada.' }));
-    related.forEach((item) => {
-      const link = createElement('a', { textContent: item.titulo });
-      link.href = `/pendencias?selecionada=${item.id}`;
-      pendingSection.appendChild(link);
+    selectedInvoiceId = invoice.id;
+    if (updateUrl) writeListState({ selecionada: invoice.id });
+    createFaturaInvoiceDetail(invoice, {
+      content, clients, isPlatformAdmin: Boolean(user?.isPlatformAdmin), canIssue, empresaId,
+      contextualCharges, relatedPendencias, invoiceDownloadButton, canIssueInvoice, openCreateModal,
+      getSelectedInvoiceId: () => selectedInvoiceId, reload: load, toast,
+      onClose: () => {
+        selectedInvoice = null; selectedInvoiceId = null; openedSelection = false;
+        writeListState({ selecionada: null }, 'replace'); render();
+      }
     });
-    body.append(utility, chargeSection, pendingSection, documents);
-    if (canIssueInvoice(invoice)) {
-      const issue = createElement('button', { type: 'button', textContent: 'Emitir cobrança para esta fatura' });
-      issue.addEventListener('click', () => { overlay.remove(); openCreateModal(invoice); }); body.appendChild(issue);
-    }
-  }
-
-  async function runChargeAction(button: HTMLButtonElement, action: () => Promise<unknown>, message: string, overlay: HTMLElement): Promise<void> {
-    button.disabled = true;
-    try { await action(); toast.success(message); overlay.remove(); await load(); }
-    catch (cause) { toast.error(cause instanceof Error ? cause.message : 'Não foi possível concluir a ação.'); }
-    finally { button.disabled = false; }
   }
 
   function openCreateModal(invoice: BillingInvoice): void {

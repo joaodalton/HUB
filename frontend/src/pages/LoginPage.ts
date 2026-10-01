@@ -2,13 +2,13 @@ import { createElement } from '../dom';
 import { createIcon } from '../components/Icon';
 import { HUB_VERSION } from '../components/Sidebar';
 import { config } from '../services/config';
-import { login } from '../services/authService';
+import { login, type AuthUser } from '../services/authService';
 
 // Sem auto-cadastro publico (decisao 2026-08-19) -- todo acesso nasce de
 // convite (Invitation/aceitar-convite), inclusive pra empresa nova (ver
 // scripts/criar_empresa.py). Tela de login so mostra o formulario de login,
 // sem alternador de modo nem botao "Criar uma conta".
-export function createLoginPage(onSuccess: () => void): HTMLElement {
+export function createLoginPage(onSuccess: (user: AuthUser) => void): HTMLElement {
   const page = createElement('section', { className: 'login-page' });
 
   const formPanel = createElement('section', { className: 'login-form-panel' });
@@ -46,8 +46,8 @@ export function createLoginPage(onSuccess: () => void): HTMLElement {
       submitButton.classList.add('loading');
 
       try {
-        await login(emailField.input.value.trim(), senhaField.input.value, rememberInput.checked);
-        onSuccess();
+        const user = await login(emailField.input.value.trim(), senhaField.input.value, rememberInput.checked);
+        onSuccess(user);
       } catch (error) {
         errorText.textContent = error instanceof Error ? error.message : 'Não foi possível entrar.';
         errorText.hidden = false;

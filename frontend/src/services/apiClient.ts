@@ -69,6 +69,10 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 }
 
 export async function apiBlob(path: string, options: RequestOptions = {}): Promise<Blob> {
+  return (await apiBlobWithHeaders(path, options)).blob;
+}
+
+export async function apiBlobWithHeaders(path: string, options: RequestOptions = {}): Promise<{ blob: Blob; contentDisposition: string | null }> {
   const response = await fetch(`${config.apiBaseUrl}${config.apiPrefix}${path}`, {
     ...options,
     credentials: 'include',
@@ -79,7 +83,7 @@ export async function apiBlob(path: string, options: RequestOptions = {}): Promi
   if (response.status === 401) redirectToLogin();
   await notifyRequiredPasswordChange(response);
   if (!response.ok) throw new ApiRequestError(response.status, await readErrorMessage(response));
-  return response.blob();
+  return { blob: await response.blob(), contentDisposition: response.headers.get('Content-Disposition') };
 }
 
 export async function apiUpload<T>(path: string, formData: FormData): Promise<T> {

@@ -20,7 +20,7 @@ const actions: PaletteAction[] = [
   { label: 'Regras de cobrança', description: 'Configuração financeira', path: '/regras-cobranca', icon: 'cobrancas', shortcut: '9', allowed: roleIn('owner', 'admin', 'financial') },
   { label: 'Gerenciar usuários', description: 'Acessos da empresa', path: '/usuarios', icon: 'user', allowed: roleIn('owner', 'admin') },
   { label: 'Abrir configurações', description: 'Preferências e integrações', path: '/configuracoes', icon: 'settings', allowed: roleIn('owner', 'admin') },
-  { label: 'Gerenciar empresas', description: 'Administração da plataforma', path: '/empresas', icon: 'clients', allowed: platformAdmin }
+  { label: 'Gerenciar empresas', description: 'Administração da plataforma', path: '/platform/companies', icon: 'clients', allowed: platformAdmin }
 ];
 
 export function createCommandPalette(): { element: HTMLElement; trigger: HTMLButtonElement } {
@@ -78,7 +78,7 @@ export function createCommandPalette(): { element: HTMLElement; trigger: HTMLBut
     if (event.key === 'Tab') { const focusable = [input, ...list.querySelectorAll<HTMLButtonElement>('button')]; const first = focusable[0]; const last = focusable[focusable.length - 1]; if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); } else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); } }
   });
   input.addEventListener('input', () => { activeIndex = 0; render(); });
-  const shortcut = (event: KeyboardEvent): void => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); overlay.hidden ? open() : close(); } };
+  const shortcut = (event: KeyboardEvent): void => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); if (overlay.hidden) open(); else close(); } };
   window.addEventListener('keydown', shortcut);
   const observer = new MutationObserver(() => { if (!overlay.isConnected) { window.removeEventListener('keydown', shortcut); observer.disconnect(); } });
   observer.observe(document.body, { childList: true, subtree: true });

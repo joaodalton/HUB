@@ -1,5 +1,21 @@
 ADR — Financeiro V2.0 (Fatura via ASAAS)
 
+## ARCH-PLATFORM-1 — fronteira ASAAS da plataforma
+
+As cobranças B0–B3 em `Fatura` são das empresas contra seus clientes finais,
+com `AsaasClient(empresa_id)`, `ApiCredential` por empresa e webhook tenant em
+`/api/v1/webhooks/asaas`. O HUB como plataforma usa somente `PLATFORM_ASAAS_*`
+e a nova entrada `/api/v1/webhooks/asaas/platform`. Eventos autenticados de
+plataforma são recebidos em ledger próprio, sem payload completo e com unicidade
+por ID. Reentrega idêntica não duplica. Referências tenant antigas `hub-<uuid>`
+continuam no fluxo tenant; referências de plataforma, quando presentes, exigem
+`hub-platform-`.
+
+Esse recebimento não emite, concilia nem ativa assinatura SaaS. Preço, ciclo,
+inadimplência e homologação externa permanecem por definir:
+`SAAS_BILLING_READY=false`. `RESEND_API_KEY` e `EMAIL_FROM` continuam globais
+para e-mail transacional do HUB, distintos de credencial `resend` por empresa.
+
 ## B2 — Webhook multi-tenant e ledger (2026-09-14)
 
 Antes: token global, lookup `asaas_id.first()` sem resolver ambiguidade e apenas

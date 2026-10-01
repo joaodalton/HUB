@@ -5,6 +5,7 @@ import { createDataTable } from '../components/DataTable';
 import { createInfoField } from '../components/ClientDetailView';
 import { createIcon } from '../components/Icon';
 import { createFormSection, createInput, createSelect } from '../components/formFields';
+import { createStatusBadge as createSharedStatusBadge, type StatusTone } from '../components/StatusBadge';
 import { useGlobalLoading } from '../hooks/useGlobalLoading';
 import { useToast } from '../hooks/useToast';
 import { createBaseLayout } from '../layouts/BaseLayout';
@@ -38,6 +39,9 @@ import {
 import { addExtraCategoria, getExtraCategorias } from '../services/pendenciaCategoriasService';
 import { getPlants, type PlantRow } from '../services/plantService';
 import { getUcs, type UcRow } from '../services/ucsService';
+import { createDebouncedInput, pageSlice, readListParam, readPositiveListParam, writeListState } from '../services/listState';
+
+const PAGE_SIZE = 25;
 
 export function createPendenciasPage(): HTMLElement {
   const content = createElement('section', { className: 'content-stack' });
@@ -51,21 +55,25 @@ export function createPendenciasPage(): HTMLElement {
   let plants: PlantRow[] = [];
   let categoriaExtras: string[] = [];
   let loadError = false;
+  let isLoading = true;
 
   // Agenda navega com uma dica de seleção; a lista ainda busca e autoriza o
   // registro pelo endpoint normal antes de mostrá-lo.
-  const requestedId = Number(new URLSearchParams(window.location.search).get('selecionada'));
+  const requestedId = Number(readListParam('selecionada'));
   let selectedId: number | null = Number.isSafeInteger(requestedId) && requestedId > 0 ? requestedId : null;
-  let tipoFilter: PendenciaTipo | null = null;
-  let showAll = false;
-  let searchTerm = '';
+  let tipoFilter: PendenciaTipo | null = (readListParam('tipo') as PendenciaTipo) ?? null;
+  let showAll = readListParam('todas') === 'true';
+  let searchTerm = readListParam('busca') ?? '';
+  let page = readPositiveListParam('pagina');
 
   const layout = createBaseLayout({
     content,
-    eyebrow: 'Automações',
-    title: 'Central de ações do HUB — pendências, alertas e erros'
+    eyebrow: 'Operação',
+    title: 'Pendências',
+    description: 'Central de ações do HUB para pendências, alertas e erros.'
   });
 
+  renderContent();
   loadAll();
 
   return layout;
@@ -73,6 +81,7 @@ export function createPendenciasPage(): HTMLElement {
   let verificacaoEmAndamento = false;
 
   async function loadAll(): Promise<void> {
+    isLoading = true;
     loading.show();
     try {
       const [pendenciasData, resumoData, clientsData, ucsData, plantsData, categoriaExtrasData] = await Promise.all([
@@ -94,6 +103,7 @@ export function createPendenciasPage(): HTMLElement {
       loadError = true;
       toast.error('Não foi possível carregar pendências. Verifique se o backend está rodando.');
     } finally {
+      isLoading = false;
       loading.hide();
       renderContent();
     }
@@ -152,7 +162,7 @@ export function createPendenciasPage(): HTMLElement {
       }
 
       return true;
-    });
+    }).sort(compareOperationalPriority);
   }
 
   function renderContent(): void {
@@ -179,10 +189,8 @@ export function createPendenciasPage(): HTMLElement {
     searchInput.type = 'text';
     searchInput.placeholder = 'Pesquisar pendências...';
     searchInput.value = searchTerm;
-    searchInput.addEventListener('input', () => {
-      searchTerm = searchInput.value;
-      refresh();
-    });
+    const applySearch = createDebouncedInput((value) => { if (value !== searchTerm) { searchTerm = value; page = 1; selectedId = null; writeListState({ busca: value || null, pagina: null, selecionada: null }); refresh(); } });
+    searchInput.addEventListener('input', () => applySearch(searchInput.value));
 
     const toggleAllButton = createElement('button', {
       className: showAll ? 'secondary-button active' : 'secondary-button',
@@ -191,6 +199,8 @@ export function createPendenciasPage(): HTMLElement {
     });
     toggleAllButton.addEventListener('click', () => {
       showAll = !showAll;
+      page = 1; selectedId = null;
+      writeListState({ todas: showAll, pagina: null, selecionada: null });
       refresh();
     });
 
@@ -231,18 +241,23 @@ export function createPendenciasPage(): HTMLElement {
     newButton.append(createIcon('plus'), document.createTextNode('Nova Pendência'));
     newButton.addEventListener('click', () => openPendenciaEditor(null));
 
-    toolbar.append(searchInput, toggleAllButton, spacer, verifyButton, newButton);
+    toolbar.append(verifyButton, newButton);
+
+    const filtersRow = createElement('div', { className: 'page-actions' });
+    filtersRow.append(searchInput, toggleAllButton, spacer);
 
     const statsHolder = createElement('div');
     const tableHolder = createElement('div');
+    const paginationHolder = createElement('div');
 
     function refresh(): void {
       statsHolder.replaceChildren(createStatCards());
       tableHolder.replaceChildren(createPendenciasTable());
+      paginationHolder.replaceChildren(createPagination());
     }
 
     refresh();
-    fragment.append(toolbar, statsHolder, tableHolder);
+    fragment.append(toolbar, filtersRow, statsHolder, tableHolder, paginationHolder);
     return fragment;
 
     function createStatCards(): HTMLElement {
@@ -254,6 +269,7 @@ export function createPendenciasPage(): HTMLElement {
           icon: 'pending',
           onClick: () => {
             tipoFilter = tipoFilter === 'pendencia' ? null : 'pendencia';
+            page = 1; selectedId = null; writeListState({ tipo: tipoFilter, pagina: null, selecionada: null });
             refresh();
           }
         },
@@ -264,6 +280,7 @@ export function createPendenciasPage(): HTMLElement {
           icon: 'cobrancas',
           onClick: () => {
             tipoFilter = tipoFilter === 'alerta' ? null : 'alerta';
+            page = 1; selectedId = null; writeListState({ tipo: tipoFilter, pagina: null, selecionada: null });
             refresh();
           }
         },
@@ -274,6 +291,7 @@ export function createPendenciasPage(): HTMLElement {
           icon: 'x',
           onClick: () => {
             tipoFilter = tipoFilter === 'erro' ? null : 'erro';
+            page = 1; selectedId = null; writeListState({ tipo: tipoFilter, pagina: null, selecionada: null });
             refresh();
           }
         }
@@ -285,13 +303,14 @@ export function createPendenciasPage(): HTMLElement {
     }
 
     function createPendenciasTable(): HTMLElement {
-      const rows = getFilteredPendencias();
+      const filteredRows = getFilteredPendencias();
+      const paged = pageSlice(filteredRows, page, PAGE_SIZE); page = paged.page;
       const isFiltered = Boolean(searchTerm || tipoFilter);
 
       return createDataTable<PendenciaRow>({
         title: 'Fila de itens',
         eyebrow: 'Listagem',
-        rows,
+        rows: paged.rows,
         emptyMessage: loadError
           ? 'Não foi possível carregar pendências.'
           : isFiltered
@@ -299,12 +318,18 @@ export function createPendenciasPage(): HTMLElement {
             : showAll
               ? 'Nenhum item cadastrado ainda.'
               : 'Nenhuma pendência aberta. Tudo em dia!',
+        state: isLoading ? 'loading' : loadError ? 'error' : isFiltered ? 'filtered' : 'ready',
+        stateTitle: loadError ? 'Nao foi possivel carregar pendencias' : isFiltered ? 'Nenhum item corresponde aos filtros' : showAll ? 'Nenhum item cadastrado' : 'Nenhuma pendencia aberta',
+        emptyAction: { label: 'Limpar filtros', onClick: () => { searchTerm = ''; tipoFilter = null; showAll = false; page = 1; writeListState({ busca: null, tipo: null, todas: null, pagina: null }); refresh(); } },
+        errorAction: { label: 'Tentar novamente', onClick: () => void loadAll() },
         onRowClick: (item) => {
           selectedId = item.id;
+          writeListState({ selecionada: item.id });
           renderContent();
         },
         columns: [
           { key: 'tipo', label: 'Tipo', render: (item) => createTipoBadge(item.tipo) },
+          { key: 'atencao', label: 'Atenção', render: (item) => createAttentionBadge(item) },
           { key: 'titulo', label: 'Pendência' },
           { key: 'categoria', label: 'Categoria' },
           { key: 'origem', label: 'Origem' },
@@ -314,6 +339,17 @@ export function createPendenciasPage(): HTMLElement {
           { key: 'status', label: 'Status', render: (item) => createStatusDot(item.status) }
         ]
       });
+    }
+
+    function createPagination(): HTMLElement {
+      const rows = getFilteredPendencias(); const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+      const nav = createElement('nav', { className: 'faturas-pagination' });
+      const previous = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Anterior' });
+      previous.disabled = page <= 1; previous.addEventListener('click', () => { page--; writeListState({ pagina: page }); refresh(); });
+      const next = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Próxima' });
+      next.disabled = page >= pages || rows.length === 0; next.addEventListener('click', () => { page++; writeListState({ pagina: page }); refresh(); });
+      nav.append(previous, createElement('span', { textContent: `${rows.length ? page : 0} de ${rows.length ? pages : 0}` }), next);
+      return nav;
     }
   }
 
@@ -327,7 +363,7 @@ export function createPendenciasPage(): HTMLElement {
     closeButton.appendChild(createIcon('x'));
     closeButton.title = 'Fechar';
     closeButton.addEventListener('click', () => {
-      selectedId = null;
+      selectedId = null; writeListState({ selecionada: null }, 'replace');
       renderContent();
     });
 
@@ -359,6 +395,7 @@ export function createPendenciasPage(): HTMLElement {
     panel.append(
       header,
       description,
+      createNextAction(pendencia),
       infoGrid,
       createDetailsSection(pendencia),
       createDetailActions(pendencia),
@@ -367,6 +404,22 @@ export function createPendenciasPage(): HTMLElement {
     );
 
     return panel;
+  }
+
+  function createNextAction(pendencia: PendenciaRow): HTMLElement {
+    const section = createElement('div', { className: 'pendencia-next-action' });
+    const destination = contextualDestination(pendencia);
+    section.append(
+      createAttentionBadge(pendencia),
+      createElement('span', { textContent: destination ? 'Próxima ação: revisar o registro vinculado.' : 'Sem ação contextual: nenhum registro navegável está vinculado.' })
+    );
+    if (destination) {
+      const link = createElement('a', { className: 'secondary-button', textContent: destination.label });
+      link.href = destination.path;
+      link.addEventListener('click', event => { event.preventDefault(); navigateTo(destination.path); });
+      section.appendChild(link);
+    }
+    return section;
   }
 
   // Le pendencia.metadados (JSON livre, ja existe no model/banco -- ver
@@ -714,29 +767,22 @@ function createVinculacaoSelect(label: string, options: Array<{ id: number; labe
 
 function createTipoBadge(tipo: PendenciaTipo): HTMLElement {
   const tone = tipo === 'erro' ? 'danger' : tipo === 'alerta' ? 'warning' : 'info';
-  return createElement('span', { className: `status-badge tone-${tone}`, textContent: tipoLabel(tipo) });
+  return createSharedStatusBadge(tipoLabel(tipo), tone);
 }
 
 function createPrioridadeBadge(prioridade: PendenciaPrioridade): HTMLElement {
   const tone = prioridadeTone(prioridade);
-  const className = tone === 'neutral' ? 'status-badge' : `status-badge tone-${tone}`;
-  return createElement('span', { className, textContent: prioridadeLabel(prioridade) });
+  return createSharedStatusBadge(prioridadeLabel(prioridade), tone as StatusTone);
 }
 
 function createStatusBadge(status: PendenciaStatus): HTMLElement {
   const tone = status === 'aberta' ? 'warning' : status === 'resolvida' ? 'success' : 'neutral';
-  const className = tone === 'neutral' ? 'status-badge' : `status-badge tone-${tone}`;
-  return createElement('span', { className, textContent: statusLabel(status) });
+  return createSharedStatusBadge(statusLabel(status), tone);
 }
 
 function createStatusDot(status: PendenciaStatus): HTMLElement {
   const tone = status === 'aberta' ? 'warning' : status === 'resolvida' ? 'success' : 'neutral';
-  const wrap = createElement('span', { className: 'status-dot-label' });
-  wrap.append(
-    createElement('span', { className: `status-dot status-${tone}` }),
-    createElement('span', { textContent: statusLabel(status) })
-  );
-  return wrap;
+  return createSharedStatusBadge(statusLabel(status), tone);
 }
 
 function formatDate(value: string | null): string {
@@ -756,6 +802,37 @@ function normalize(value: string): string {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '');
 }
+
+function compareOperationalPriority(a: PendenciaRow, b: PendenciaRow): number {
+  const priority: Record<PendenciaPrioridade, number> = { critica: 0, alta: 1, media: 2, baixa: 3 };
+  const statusRank = (item: PendenciaRow): number => item.status === 'aberta' ? 0 : 1;
+  return statusRank(a) - statusRank(b) || priority[a.prioridade] - priority[b.prioridade] || deadline(a) - deadline(b) || a.id - b.id;
+}
+
+function deadline(item: PendenciaRow): number { return item.prazo ? new Date(item.prazo).getTime() : Number.MAX_SAFE_INTEGER; }
+
+function attentionKind(item: PendenciaRow): { label: string; tone: StatusTone } {
+  if (item.tipo === 'erro' || item.prioridade === 'critica' || item.prioridade === 'alta') return { label: 'Precisa de ação', tone: 'danger' };
+  const text = normalize(`${item.titulo} ${item.descricao ?? ''} ${item.origem}`);
+  if (text.includes('falt') || text.includes('aguard') || text.includes('sem ')) return { label: 'Aguardando informação', tone: 'warning' };
+  return { label: 'Informativa', tone: 'info' };
+}
+
+function createAttentionBadge(item: PendenciaRow): HTMLElement {
+  const kind = attentionKind(item);
+  return createSharedStatusBadge(kind.label, kind.tone);
+}
+
+function contextualDestination(item: PendenciaRow): { label: string; path: string } | null {
+  if (item.faturaId) return { label: 'Abrir faturas', path: `/faturas?selecionada=${item.faturaId}` };
+  if (item.ucId) return { label: 'Abrir UC', path: `/ucs?selecionada=${item.ucId}` };
+  if (item.usinaId) return { label: 'Abrir usina', path: `/usinas?selecionada=${item.usinaId}` };
+  if (item.clienteId) return { label: 'Abrir cliente', path: `/clientes?selecionada=${item.clienteId}` };
+  if (item.documentoId) return { label: 'Abrir documentos', path: '/documentos' };
+  return null;
+}
+
+function navigateTo(path: string): void { window.history.pushState({}, '', path); window.dispatchEvent(new PopStateEvent('popstate')); }
 
 // "erroRetornado" -> "Erro retornado". Generico de proposito -- nao sabemos
 // hoje quais chaves o backend vai mandar em metadados quando a Sprint 2

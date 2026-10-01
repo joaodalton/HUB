@@ -1,18 +1,11 @@
 import { createElement } from '../dom';
 import type { FaturaRow } from '../services/faturasService';
+import { createModalShell } from './Modal';
+import { createStatusBadge, type StatusTone } from './StatusBadge';
 
-export function createModal(title: string, eyebrow: string): HTMLElement {
-  const overlay = createElement('section', { className: 'modal-overlay' });
-  const card = createElement('article', { className: 'plant-card fatura-modal' });
-  const header = createElement('div', { className: 'modal-header' });
-  const heading = createElement('div');
-  heading.append(createElement('span', { className: 'eyebrow', textContent: eyebrow }), createElement('h2', { textContent: title }));
-  const close = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Fechar' });
-  close.addEventListener('click', () => overlay.remove());
-  header.append(heading, close);
-  card.append(header, createElement('div', { className: 'modal-body' }));
-  overlay.appendChild(card);
-  overlay.addEventListener('click', (event) => { if (event.target === overlay) overlay.remove(); });
+export function createModal(title: string, eyebrow: string, onClose?: () => void): HTMLElement {
+  const { overlay, dialog } = createModalShell(title, eyebrow, onClose);
+  dialog.classList.add('fatura-modal');
   document.body.appendChild(overlay);
   return overlay;
 }
@@ -49,8 +42,8 @@ export function filterSelect(label: string, value: string, options: Array<{ valu
   select.addEventListener('change', () => onChange(select.value));
   field.append(createElement('span', { textContent: label }), select); return field;
 }
-export function createBadge(label: string, tone: 'warning' | 'success' | 'danger' | 'neutral' = 'neutral'): HTMLElement {
-  return createElement('span', { className: tone === 'neutral' ? 'status-badge' : `status-badge tone-${tone}`, textContent: label });
+export function createBadge(label: string, tone: StatusTone = 'neutral'): HTMLElement {
+  return createStatusBadge(label, tone);
 }
 export function createChargeCell(charges: Array<{ asaasId: string | null; asaasStatus: FaturaRow['asaasStatus']; statusInterno: string | null }>): HTMLElement {
   if (!charges.length) return createBadge('Sem cobrança');

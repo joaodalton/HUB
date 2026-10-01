@@ -18,6 +18,9 @@ import {
   type ClientRow,
   updateClient
 } from '../services/clientsService';
+import { createDebouncedInput, matchesListSearch, pageSlice, readListParam, readPositiveListParam, writeListState } from '../services/listState';
+
+const PAGE_SIZE = 25;
 
 export function createClientsPage(): HTMLElement {
   const content = createElement('section', { className: 'content-stack' });
@@ -26,29 +29,38 @@ export function createClientsPage(): HTMLElement {
   let clients: ClientRow[] = [];
   let availablePlants: PlantRow[] = [];
  let selectedClient: ClientRow | null = null;
+  const requestedClientId = Number(readListParam('selecionada'));
   let viewingClient: ClientRow | null = null;
+  let searchTerm = readListParam('busca') ?? '';
+  let page = readPositiveListParam('pagina');
   let isCreating = false;
   let loadError = false;
+  let isLoading = true;
 
   const layout = createBaseLayout({
     content,
-    eyebrow: 'Clientes',
-    title: 'Acompanhe clientes, UCs vinculadas e status operacional'
+    eyebrow: 'Gestão',
+    title: 'Clientes',
+    description: 'Acompanhe clientes, UCs vinculadas e status operacional.'
   });
 
+  renderContent();
   loadClients();
 
   return layout;
 
   async function loadClients(): Promise<void> {
+    isLoading = true;
     loading.show();
     try {
       [clients, availablePlants] = await Promise.all([getClients(), getAvailablePlants()]);
+      if (Number.isSafeInteger(requestedClientId) && requestedClientId > 0) viewingClient = clients.find((client) => client.id === requestedClientId) ?? null;
       loadError = false;
     } catch {
       loadError = true;
       toast.error('Nao foi possivel carregar clientes. Verifique se o backend esta rodando.');
     } finally {
+      isLoading = false;
       loading.hide();
       renderContent();
     }
@@ -58,13 +70,21 @@ export function createClientsPage(): HTMLElement {
     const pageActions = createElement('div', { className: 'page-actions' });
     const newClientButton = createElement('button', { textContent: 'Novo cliente', type: 'button' });
     const importButton = createElement('button', { className: 'secondary-button', textContent: 'Importação/exportação', type: 'button' });
+    const filteredClients = clients.filter((client) => matchesListSearch(searchTerm, `${client.nome} ${client.cpf} ${client.email} ${client.uc} ${client.usina} ${client.status}`));
+    const paged = pageSlice(filteredClients, page, PAGE_SIZE);
+    page = paged.page;
     const table = createDataTable<ClientRow>({
       title: 'Clientes cadastrados',
       eyebrow: 'Listagem',
-      rows: clients,
+      rows: paged.rows,
       emptyMessage: loadError ? 'Nao foi possivel carregar clientes.' : 'Nenhum cliente cadastrado ainda.',
+      state: isLoading ? 'loading' : loadError ? 'error' : searchTerm ? 'filtered' : 'ready',
+      stateTitle: loadError ? 'Nao foi possivel carregar clientes' : searchTerm ? 'Nenhum cliente corresponde à busca' : 'Nenhum cliente cadastrado',
+      emptyAction: { label: 'Limpar filtros', onClick: () => { searchTerm = ''; page = 1; writeListState({ busca: null, pagina: null }); renderContent(); } },
+      errorAction: { label: 'Tentar novamente', onClick: () => void loadClients() },
       onRowClick: (client) => {
         viewingClient = client;
+        writeListState({ selecionada: client.id });
         renderContent();
       },
       columns: [
@@ -75,7 +95,12 @@ export function createClientsPage(): HTMLElement {
         { key: 'status', label: 'Status' }
       ]
     });
-    const blocks: HTMLElement[] = [createDashboardCards(getClientMetrics(clients)), pageActions];
+    const search = createElement('input');
+    search.type = 'search'; search.placeholder = 'Buscar clientes...'; search.value = searchTerm;
+    const applySearch = createDebouncedInput((value) => { if (value !== searchTerm) { searchTerm = value; page = 1; writeListState({ busca: value || null, pagina: null, selecionada: null }); viewingClient = null; renderContent(); } });
+    search.addEventListener('input', () => applySearch(search.value));
+    const filters = createElement('div', { className: 'page-actions' }); filters.appendChild(search);
+    const blocks: HTMLElement[] = [pageActions, filters, createDashboardCards(getClientMetrics(clients)), table, createPagination(page, paged.pages, filteredClients.length, (nextPage) => { page = nextPage; writeListState({ pagina: page }); renderContent(); })];
 
     newClientButton.addEventListener('click', () => {
       selectedClient = null;
@@ -148,7 +173,7 @@ export function createClientsPage(): HTMLElement {
     };
     return createDetailDrawer({
       title: client.nome,
-      onClose: () => { viewingClient = null; renderContent(); },
+      onClose: () => { viewingClient = null; writeListState({ selecionada: null }, 'replace'); renderContent(); },
       tabs: [
         { label: 'Visão geral', content: createClientDetailView({ client, onEdit: openEditor, onDelete: () => handleDeleteFromDetail(client) }) },
         { label: 'UCs', content: createClientUcPanel(client, openEditor) },
@@ -202,4 +227,16 @@ export function createClientsPage(): HTMLElement {
       loading.hide();
     }
   }
+}
+
+function createPagination(page: number, pages: number, total: number, onPage: (page: number) => void): HTMLElement {
+  const nav = createElement('nav', { className: 'faturas-pagination' });
+  const previous = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Anterior' });
+  previous.disabled = page <= 1;
+  previous.addEventListener('click', () => onPage(page - 1));
+  const next = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Próxima' });
+  next.disabled = page >= pages || total === 0;
+  next.addEventListener('click', () => onPage(page + 1));
+  nav.append(previous, createElement('span', { textContent: `${total ? page : 0} de ${total ? pages : 0}` }), next);
+  return nav;
 }

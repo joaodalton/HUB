@@ -6,6 +6,7 @@ import tempfile
 import threading
 import unittest
 from concurrent.futures import ThreadPoolExecutor
+from datetime import date
 from pathlib import Path
 from unittest.mock import patch
 
@@ -27,6 +28,7 @@ from models.google_account import GoogleAccount
 from models.user import User
 from services import fatura_concessionaria_upload_service as upload_service
 from services import drive_service
+from services.object_storage import LegacyDriveObjectStorage, LocalObjectStorage
 from services.uc_code import normalize_uc_code
 try:
     from .fixtures.invoices.copel.build_fixture import make_pdf
@@ -69,6 +71,31 @@ class FakeDrive:
         with self._lock:
             self.deleted.append(file_id)
             self.files.pop(file_id, None)
+
+    def download_file(self, file_id):
+        return self.files[file_id]['bytes']
+
+
+class FakeObjectStore:
+    provider = 's3'
+
+    def __init__(self):
+        self.files = {}
+        self.deleted = []
+        self._lock = threading.Lock()
+
+    def put(self, key, data, content_type):
+        with self._lock:
+            self.files[key] = data
+
+    def read(self, key, max_bytes):
+        with self._lock:
+            return self.files[key][:max_bytes + 1]
+
+    def delete(self, key):
+        with self._lock:
+            self.deleted.append(key)
+            self.files.pop(key, None)
 
 
 class FaturaConcessionariaUploadTest(IsolatedTestRuntime, unittest.TestCase):
@@ -190,9 +217,17 @@ class FaturaConcessionariaUploadTest(IsolatedTestRuntime, unittest.TestCase):
         self.drive = FakeDrive()
         self.drive_patch = patch('services.document_service.get_drive_service', return_value=self.drive)
         self.drive_patch.start()
+        self.store = FakeObjectStore()
+        self.store_patch = patch.object(upload_service, 'get_object_storage', return_value=self.store)
+        self.store_patch.start()
+        self.read_store_patch = patch('services.invoice_document_service.get_object_storage',
+            return_value=self.store)
+        self.read_store_patch.start()
 
     def tearDown(self):
         self.drive_patch.stop()
+        self.store_patch.stop()
+        self.read_store_patch.stop()
         with self.app.app_context():
             FaturaConcessionaria.query.delete()
             Document.query.delete()
@@ -242,7 +277,7 @@ class FaturaConcessionariaUploadTest(IsolatedTestRuntime, unittest.TestCase):
             self.assertEqual((invoice.empresa_id, invoice.client_id, document.client_id), (1, 1, 1))
             self.assertIsNone(invoice.consumer_unit_id)
 
-    def test_auto_upload_falls_back_when_oauth_token_cannot_be_decrypted(self):
+    def test_general_document_upload_falls_back_when_oauth_token_cannot_be_decrypted(self):
         with self.app.app_context():
             db.session.add(ConsumerUnit(empresa_id=1, client_id=1, codigo='000000000000001'))
             db.session.add(GoogleAccount(empresa_id=1, email='broken@test.local',
@@ -253,19 +288,24 @@ class FaturaConcessionariaUploadTest(IsolatedTestRuntime, unittest.TestCase):
         try:
             with patch('services.document_service.get_drive_service', side_effect=drive_service.get_drive_service), \
                  patch.object(drive_service, '_build_service_account_credentials', side_effect=FileNotFoundError):
-                unavailable = self._upload_auto(make_pdf())
-            self.assertEqual((unavailable.status_code, unavailable.json['code']),
-                             (503, 'DOCUMENT_STORAGE_UNAVAILABLE'))
+                unavailable = self.app.test_client().post('/api/v1/documents',
+                    headers={'Authorization': f'Bearer {self._token("owner@a.test")}'},
+                    data={'clienteId': '1', 'arquivo': (io.BytesIO(make_pdf()), 'legacy.pdf', 'application/pdf')},
+                    content_type='multipart/form-data')
+            self.assertEqual(unavailable.status_code, 503)
             with self.app.app_context():
                 self.assertEqual((Document.query.count(), FaturaConcessionaria.query.count()), (0, 0))
             with patch('services.document_service.get_drive_service', side_effect=drive_service.get_drive_service), \
                  patch.object(drive_service, '_build_service_account_credentials', return_value=object()), \
                  patch.object(drive_service, '_resolve_tenant_root_folder_id', return_value='test-root'), \
                  patch.object(drive_service, 'GoogleDriveService', return_value=self.drive):
-                response = self._upload_auto(make_pdf())
+                response = self.app.test_client().post('/api/v1/documents',
+                    headers={'Authorization': f'Bearer {self._token("owner@a.test")}'},
+                    data={'clienteId': '1', 'arquivo': (io.BytesIO(make_pdf()), 'legacy.pdf', 'application/pdf')},
+                    content_type='multipart/form-data')
             self.assertEqual(response.status_code, 201, response.json)
             with self.app.app_context():
-                self.assertEqual((Document.query.count(), FaturaConcessionaria.query.count()), (1, 1))
+                self.assertEqual((Document.query.count(), FaturaConcessionaria.query.count()), (1, 0))
         finally:
             drive_service.invalidate_drive_cache(1)
             self.drive_patch.start()
@@ -331,7 +371,7 @@ class FaturaConcessionariaUploadTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertEqual((response.status_code, response.json['code']), (409, 'UC_MATCH_AMBIGUOUS'))
         with self.app.app_context():
             self.assertEqual((Document.query.count(), FaturaConcessionaria.query.count()), (0, 0))
-        self.assertEqual(self.drive.files, {})
+        self.assertEqual(self.store.files, {})
 
     def test_auto_upload_rejects_unreadable_uc_and_unknown_layout(self):
         unreadable = self._upload_auto(make_pdf(changes={'uc': '000000000000001 000000000000002'}))
@@ -376,7 +416,7 @@ class FaturaConcessionariaUploadTest(IsolatedTestRuntime, unittest.TestCase):
         with self.app.app_context():
             invoice = FaturaConcessionaria.query.one()
             self.assertEqual((invoice.client_id, Document.query.one().client_id), (1, 1))
-        self.assertEqual(len(self.drive.files), 1)
+        self.assertEqual(len(self.store.files), 1)
 
     def test_valid_pdf_creates_document_and_immutable_source(self):
         body = self._pdf()
@@ -392,7 +432,8 @@ class FaturaConcessionariaUploadTest(IsolatedTestRuntime, unittest.TestCase):
             self.assertIsNone(invoice.consumer_unit_id)
             self.assertEqual(invoice.arquivo_hash, hashlib.sha256(body).hexdigest())
             self.assertEqual((invoice.status_extracao, invoice.status_validacao), ('recebida', 'pendente'))
-            self.assertEqual((document.mime_type, document.storage_provider), ('application/pdf', 'google_drive'))
+            self.assertEqual((document.mime_type, document.storage_provider), ('application/pdf', 's3'))
+            self.assertRegex(document.storage_ref, r'^tenants/1/invoices/\d{4}/\d{2}/[0-9a-f]{32}\.pdf$')
             self.assertEqual(document.nome, 'fatura_original.pdf')
 
     def test_existing_document_upload_flow_still_commits(self):
@@ -466,7 +507,7 @@ class FaturaConcessionariaUploadTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertEqual(second.json['data']['invoiceId'], first.json['data']['invoiceId'])
         with self.app.app_context():
             self.assertEqual((Document.query.count(), FaturaConcessionaria.query.count()), (1, 1))
-        self.assertEqual(len(self.drive.files), 1)
+        self.assertEqual(len(self.store.files), 1)
 
     def test_tenant_and_financial_permissions_are_enforced(self):
         body = self._pdf()
@@ -488,22 +529,161 @@ class FaturaConcessionariaUploadTest(IsolatedTestRuntime, unittest.TestCase):
         with self.app.app_context():
             self.assertEqual(FaturaConcessionaria.query.count(), 2)
 
+    def test_new_s3_download_checks_tenant_platform_link_hash_and_filename(self):
+        body = self._pdf()
+        created = self._upload(body, filename='fatura.pdf')
+        self.assertEqual(created.status_code, 201, created.json)
+        invoice_id = created.json['data']['invoiceId']
+        with self.app.app_context():
+            invoice = db.session.get(FaturaConcessionaria, invoice_id)
+            invoice.competencia = '2026-09'
+            invoice.data_vencimento = date(2026, 10, 5)
+            document_id = invoice.document_id
+            key = invoice.document.storage_ref
+            db.session.commit()
+        tenant_url = f'/api/v1/billing-calculations/invoices/{invoice_id}/download'
+        platform_url = f'/api/v1/platform/empresas/1/billing-calculations/invoices/{invoice_id}/download'
+        def get(url, email):
+            return self.app.test_client().get(url,
+                headers={'Authorization': f'Bearer {self._token(email)}'})
+        response = get(tenant_url, 'owner@a.test')
+        self.assertEqual((response.status_code, response.data), (200, body))
+        self.assertIn('Cliente_A_2026-09_Vencimento_2026-10-05.pdf', response.headers['Content-Disposition'])
+        self.assertEqual(get(tenant_url, 'owner@b.test').status_code, 404)
+        self.assertEqual(get(tenant_url, 'financial@a.test').status_code, 200)
+        self.assertEqual(get(tenant_url, 'platform@a.test').status_code, 403)
+        self.assertEqual(get(platform_url, 'owner@a.test').status_code, 403)
+        self.assertEqual(get(platform_url, 'platform@a.test').status_code, 200)
+        self.assertEqual(get(f'/api/v1/platform/empresas/2/billing-calculations/invoices/{invoice_id}/download',
+                             'platform@a.test').status_code, 404)
+        generic = get(f'/api/v1/documents/{document_id}/download', 'owner@a.test')
+        self.assertEqual(generic.status_code, 302)
+        self.assertIn(tenant_url, generic.headers['Location'])
+        platform_client = self.app.test_client()
+        admin_headers = {'Authorization': f'Bearer {self._token("platform@a.test")}' }
+        without_selection = platform_client.get(f'/api/v1/documents/{document_id}/download',
+            headers=admin_headers)
+        self.assertEqual(without_selection.status_code, 403)
+        platform_client.set_cookie('hub_platform_view', '1')
+        selected = platform_client.get(f'/api/v1/documents/{document_id}/download',
+            headers=admin_headers)
+        self.assertEqual(selected.status_code, 302)
+        self.assertIn(platform_url, selected.headers['Location'])
+        listed = get('/api/v1/billing-calculations/invoices', 'owner@a.test')
+        self.assertTrue(listed.json['data'][0]['documentoDisponivel'])
+        self.store.files[key] = b'%PDF-tampered'
+        corrupted = get(tenant_url, 'owner@a.test')
+        self.assertEqual((corrupted.status_code, corrupted.json['code']),
+                         (503, 'DOCUMENT_STORAGE_UNAVAILABLE'))
+
+    def test_invoice_document_from_other_tenant_is_never_read(self):
+        uploaded = self._upload(self._pdf())
+        invoice_id = uploaded.json['data']['invoiceId']
+        with self.app.app_context():
+            Document.query.one().empresa_id = 2
+            db.session.commit()
+        response = self.app.test_client().get(
+            f'/api/v1/billing-calculations/invoices/{invoice_id}/download',
+            headers={'Authorization': f'Bearer {self._token("owner@a.test")}'})
+        self.assertEqual(response.status_code, 404)
+
+    def test_legacy_drive_invoice_remains_downloadable(self):
+        body = self._pdf()
+        self.drive.files['file-legacy'] = {'bytes': body, 'name': 'old.pdf',
+            'mime': 'application/pdf', 'md5': hashlib.md5(body).hexdigest()}
+        with self.app.app_context():
+            document = Document(empresa_id=1, client_id=1, nome='old.pdf',
+                storage_provider='google_drive', storage_ref='file-legacy', mime_type='application/pdf')
+            db.session.add(document)
+            db.session.flush()
+            invoice = FaturaConcessionaria(empresa_id=1, client_id=1,
+                document_id=document.id, arquivo_hash=hashlib.sha256(body).hexdigest())
+            db.session.add(invoice)
+            db.session.commit()
+            invoice_id, document_id = invoice.id, document.id
+        with patch('services.invoice_document_service.get_object_storage',
+                   side_effect=lambda provider: LegacyDriveObjectStorage()
+                   if provider == 'google_drive' else self.store), \
+                patch('services.drive_service.get_drive_service', return_value=self.drive):
+            response = self.app.test_client().get(
+                f'/api/v1/billing-calculations/invoices/{invoice_id}/download',
+                headers={'Authorization': f'Bearer {self._token("owner@a.test")}'})
+        self.assertEqual((response.status_code, response.data), (200, body))
+        hidden = self.app.test_client().get(
+            f'/api/v1/billing-calculations/invoices/{invoice_id}/download',
+            headers={'Authorization': f'Bearer {self._token("owner@b.test")}'})
+        self.assertEqual(hidden.status_code, 404)
+        generic = self.app.test_client().get(f'/api/v1/documents/{document_id}/download',
+            headers={'Authorization': f'Bearer {self._token("owner@a.test")}'})
+        self.assertEqual(generic.status_code, 302)
+        self.assertIn('drive.google.com', generic.headers['Location'])
+
+    def test_legacy_local_invoice_remains_downloadable(self):
+        from services import document_service
+        body = self._pdf()
+        with tempfile.TemporaryDirectory() as folder, patch.object(document_service, 'UPLOAD_ROOT', Path(folder)):
+            (Path(folder) / 'old.pdf').write_bytes(body)
+            with self.app.app_context():
+                document = Document(empresa_id=1, client_id=1, nome='old.pdf',
+                    storage_provider='local', storage_ref='old.pdf', mime_type='application/pdf')
+                db.session.add(document)
+                db.session.flush()
+                invoice = FaturaConcessionaria(empresa_id=1, client_id=1,
+                    document_id=document.id, arquivo_hash=hashlib.sha256(body).hexdigest())
+                db.session.add(invoice)
+                db.session.commit()
+                invoice_id = invoice.id
+            response = self.app.test_client().get(
+                f'/api/v1/billing-calculations/invoices/{invoice_id}/download',
+                headers={'Authorization': f'Bearer {self._token("owner@a.test")}'})
+            self.assertEqual((response.status_code, response.data), (200, body))
+
+    def test_storage_failure_prevents_invoice_commit(self):
+        with patch.object(self.store, 'put', side_effect=RuntimeError('unavailable')):
+            response = self._upload(self._pdf())
+        self.assertEqual((response.status_code, response.json['code']),
+                         (503, 'DOCUMENT_STORAGE_UNAVAILABLE'))
+        with self.app.app_context():
+            self.assertEqual((Document.query.count(), FaturaConcessionaria.query.count()), (0, 0))
+
+    def test_local_development_upload_download_roundtrip(self):
+        body = self._pdf()
+        with tempfile.TemporaryDirectory() as folder:
+            storage = LocalObjectStorage(Path(folder))
+            with patch.object(upload_service, 'get_object_storage', return_value=storage), \
+                 patch('services.invoice_document_service.get_object_storage', return_value=storage):
+                uploaded = self._upload(body)
+                self.assertEqual(uploaded.status_code, 201, uploaded.json)
+                invoice_id = uploaded.json['data']['invoiceId']
+                with self.app.app_context():
+                    document = Document.query.one()
+                    self.assertEqual(document.storage_provider, 'local')
+                    self.assertTrue((Path(folder) / document.storage_ref).exists())
+                response = self.app.test_client().get(
+                    f'/api/v1/billing-calculations/invoices/{invoice_id}/download',
+                    headers={'Authorization': f'Bearer {self._token("owner@a.test")}'})
+                self.assertEqual((response.status_code, response.data), (200, body))
+                generic = self.app.test_client().get(
+                    f'/api/v1/documents/{document.id}/download',
+                    headers={'Authorization': f'Bearer {self._token("owner@a.test")}'})
+                self.assertEqual(generic.status_code, 302)
+
     def test_failure_after_storage_cleans_new_remote_file_and_database_rows(self):
         with patch.object(upload_service.db.session, 'commit', side_effect=RuntimeError('falha controlada')):
             response = self._upload(self._pdf())
         self.assertEqual((response.status_code, response.json['code']), (503, 'DOCUMENT_STORAGE_UNAVAILABLE'))
-        self.assertEqual(self.drive.deleted, ['file-1'])
-        self.assertEqual(self.drive.files, {})
+        self.assertEqual(len(self.store.deleted), 1)
+        self.assertEqual(self.store.files, {})
         with self.app.app_context():
             self.assertEqual((Document.query.count(), FaturaConcessionaria.query.count()), (0, 0))
 
     def test_concurrent_duplicate_returns_idempotently_and_cleans_loser(self):
         body = self._pdf()
         barrier = threading.Barrier(2)
-        original_prepare = upload_service.prepare_document
+        original_put = self.store.put
 
-        def synchronized_prepare(*args, **kwargs):
-            result = original_prepare(*args, **kwargs)
+        def synchronized_put(*args, **kwargs):
+            result = original_put(*args, **kwargs)
             barrier.wait(timeout=5)
             return result
 
@@ -517,7 +697,7 @@ class FaturaConcessionariaUploadTest(IsolatedTestRuntime, unittest.TestCase):
                 content_type='multipart/form-data',
             )
 
-        with patch.object(upload_service, 'prepare_document', side_effect=synchronized_prepare):
+        with patch.object(self.store, 'put', side_effect=synchronized_put):
             with ThreadPoolExecutor(max_workers=2) as executor:
                 responses = list(executor.map(lambda _: request_upload(), range(2)))
 
@@ -525,7 +705,7 @@ class FaturaConcessionariaUploadTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertEqual(sum(response.json['data']['duplicate'] for response in responses), 1)
         with self.app.app_context():
             self.assertEqual((Document.query.count(), FaturaConcessionaria.query.count()), (1, 1))
-        self.assertEqual(len(self.drive.files), 1)
+        self.assertEqual(len(self.store.files), 1)
 
 
 if __name__ == '__main__':

@@ -13,7 +13,16 @@ devem aplicar `empresa_id` explicitamente em fluxos autenticados.
 
 Cada rota de negocio usa `require_permission`; configuracoes de infraestrutura
 usam `require_platform_admin`. Administradores da plataforma tem todas as
-permissoes enquanto visualizam uma empresa.
+permissoes somente enquanto visualizam explicitamente uma empresa. Sem o cookie
+`hub_platform_view` validado no backend, APIs tenant respondem `403` com
+`PLATFORM_TENANT_CONTEXT_REQUIRED`; o `User.empresa_id` do administrador da
+plataforma nunca ativa implicitamente um Tenant Context.
+
+Entrar e sair de uma empresa exige `is_platform_admin`, valida a Empresa no
+backend, aplica CSRF nas mutacoes autenticadas por cookie e registra auditoria.
+Login, logout e a acao de sair removem o contexto anterior. A listagem e a acao
+de entrada retornam DTOs minimos, sem documentos, credenciais ou referencias de
+storage.
 
 ## Sessoes e cookies
 

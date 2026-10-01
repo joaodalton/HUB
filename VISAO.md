@@ -63,6 +63,13 @@ Este núcleo funciona, mas é o alvo direto da evolução descrita na seção 5,
 
 Cookie `HttpOnly` (não é JWT — token assinado via `itsdangerous`) + cookie CSRF duplo + rate limit no login + headers de segurança (`HSTS`, `X-Frame-Options`, etc.). Auto-cadastro público condicionado a `SIGNUP_CODE` (vazio = desligado); quando ligado, sempre cria `viewer`, nunca aceita `admin` vindo do formulário.
 
+O administrador da plataforma possui um contexto próprio em `/platform`,
+separado do contexto operacional de qualquer Empresa. Ele só acessa dados de
+tenant depois de escolher explicitamente uma Empresa; a saída remove esse
+contexto sem fazer logout. Portanto, `PLATFORM CONTEXT != TENANT CONTEXT` e a
+empresa vinculada ao cadastro do Platform Admin não funciona como tenant
+operacional implícito.
+
 Fluxo de **redefinição de senha por e-mail já existe** (`ForgotPasswordPage.ts`/`ResetPasswordPage.ts`, token SHA-256, TTL 1h, single-use, editável via `EmailTemplate`) — mas depende de e-mail transacional configurado (Resend, no-op sem chave). Ver seção 5, V1.5-B, pra padronizar isso junto do resto do fluxo de cadastro.
 
 ### 2.5 Integração planejada com o SunHub

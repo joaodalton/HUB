@@ -18,6 +18,8 @@ import { createFaturasPage } from '../pages/FaturasPage';
 import { createMessagesPage } from '../pages/MessagesPage';
 import { createBillingRulesPage } from '../pages/BillingRulesPage';
 import { createBillingRuleEditorPage } from '../pages/BillingRuleEditorPage';
+import { createPlatformOverviewPage } from '../pages/PlatformOverviewPage';
+import { createPlatformCompaniesPage } from '../pages/PlatformCompaniesPage';
 import { ensureSession, getCurrentUser, isAuthenticated } from './authService';
 import { loadSettings } from './settingsService';
 
@@ -45,7 +47,9 @@ export function createRouter(root: HTMLElement) {
     { path: '/templates', render: createTemplatesPage },
     { path: '/mensagens', render: createMessagesPage },
     { path: '/trocar-senha', render: createChangePasswordPage },
-    { path: '/configuracoes', render: createSettingsPage }
+    { path: '/configuracoes', render: createSettingsPage },
+    { path: '/platform', render: createPlatformOverviewPage },
+    { path: '/platform/companies', render: createPlatformCompaniesPage }
   ];
 
   let appearanceLoaded = false;
@@ -85,11 +89,16 @@ export function createRouter(root: HTMLElement) {
     if (isAuthenticated() && window.location.pathname !== '/trocar-senha') redirect('/trocar-senha');
   });
 
+  window.addEventListener('hub:tenant-context-changed', () => {
+    appearanceLoaded = false;
+  });
+
   function render(): void {
     const path = window.location.pathname;
     const isPublicAuthPath = PUBLIC_AUTH_PATHS.has(path);
 
     const mustChangePassword = getCurrentUser()?.mustChangePassword === true;
+    const platformAdmin = getCurrentUser()?.isPlatformAdmin === true;
     if (!isAuthenticated() && !isPublicAuthPath) {
       redirect('/login');
       return;
@@ -106,14 +115,40 @@ export function createRouter(root: HTMLElement) {
     }
 
     if (isAuthenticated() && isPublicAuthPath) {
-      redirect('/');
+      redirect(platformAdmin ? '/platform' : '/');
+      return;
+    }
+
+    if (isAuthenticated() && path.startsWith('/platform') && !platformAdmin) {
+      redirect('/dashboard');
+      return;
+    }
+
+    if (isAuthenticated() && platformAdmin && path.startsWith('/platform')
+      && path !== '/platform' && path !== '/platform/companies') {
+      redirect('/platform');
+      return;
+    }
+
+    // O shell da plataforma nunca coexiste com um tenant administrativo ativo.
+    // Para voltar à plataforma, o administrador usa "Sair da empresa", que
+    // limpa o cookie no backend antes da navegação.
+    if (isAuthenticated() && platformAdmin && getCurrentUser()?.platformViewEmpresaId
+      && path.startsWith('/platform')) {
+      redirect('/dashboard');
+      return;
+    }
+
+    if (isAuthenticated() && platformAdmin && !getCurrentUser()?.platformViewEmpresaId
+      && !path.startsWith('/platform') && path !== '/trocar-senha') {
+      redirect('/platform');
       return;
     }
 
     if (path === '/login') {
-      root.replaceChildren(createLoginPage(() => {
+      root.replaceChildren(createLoginPage((user) => {
         appearanceLoaded = false;
-        redirect('/');
+        redirect(user.isPlatformAdmin ? '/platform' : '/');
       }));
       return;
     }
@@ -128,7 +163,9 @@ export function createRouter(root: HTMLElement) {
       return;
     }
 
-    ensureAppearanceLoaded();
+    // O shell global usa os tokens do HUB. Aparência customizada pertence
+    // exclusivamente ao tenant operacional selecionado.
+    if (!path.startsWith('/platform')) ensureAppearanceLoaded();
 
     const route = resolveRoute();
     root.replaceChildren(route.render());

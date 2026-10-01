@@ -149,7 +149,10 @@ def resolve_file_path(document: Document) -> Path | None:
     if document.storage_provider != 'local' or not document.storage_ref:
         return None
 
-    file_path = UPLOAD_ROOT / document.storage_ref
+    root = UPLOAD_ROOT.resolve()
+    file_path = (root / document.storage_ref).resolve()
+    if not file_path.is_relative_to(root):
+        return None
     return file_path if file_path.exists() else None
 
 

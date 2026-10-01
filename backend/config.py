@@ -51,6 +51,19 @@ class Config:
     ASAAS_API_BASE_URL = os.getenv('ASAAS_API_BASE_URL', 'https://api-sandbox.asaas.com/v3')
     # Compatibilidade de configuracao apenas: B2 NAO usa este token global.
     ASAAS_WEBHOOK_TOKEN = os.getenv('ASAAS_WEBHOOK_TOKEN', '')
+    # Plataforma HUB: conta e webhook separados das credenciais ASAAS das empresas.
+    PLATFORM_ASAAS_API_BASE_URL = os.getenv('PLATFORM_ASAAS_API_BASE_URL', 'https://api-sandbox.asaas.com/v3')
+    PLATFORM_ASAAS_API_KEY = os.getenv('PLATFORM_ASAAS_API_KEY', '')
+    PLATFORM_ASAAS_WEBHOOK_TOKEN = os.getenv('PLATFORM_ASAAS_WEBHOOK_TOKEN', '')
+
+    # Novos PDFs de fatura: local somente em desenvolvimento/testes; R2 via S3 em producao.
+    STORAGE_PROVIDER = os.getenv('STORAGE_PROVIDER', '')
+    OBJECT_STORAGE_ENDPOINT = os.getenv('OBJECT_STORAGE_ENDPOINT', '')
+    OBJECT_STORAGE_BUCKET = os.getenv('OBJECT_STORAGE_BUCKET', '')
+    OBJECT_STORAGE_ACCESS_KEY_ID = os.getenv('OBJECT_STORAGE_ACCESS_KEY_ID', '')
+    OBJECT_STORAGE_SECRET_ACCESS_KEY = os.getenv('OBJECT_STORAGE_SECRET_ACCESS_KEY', '')
+    OBJECT_STORAGE_REGION = os.getenv('OBJECT_STORAGE_REGION', 'auto')
+    OBJECT_STORAGE_LOCAL_DIR = os.getenv('OBJECT_STORAGE_LOCAL_DIR', str(BASE_DIR / 'database' / 'objects'))
 
     FATURA_CONCESSIONARIA_MAX_BYTES = int(os.getenv(
         'FATURA_CONCESSIONARIA_MAX_BYTES', str(10 * 1024 * 1024)

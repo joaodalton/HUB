@@ -23,6 +23,26 @@ def _load_migration(filename: str):
 
 
 class SQLiteMigrationsTest(unittest.TestCase):
+    def test_platform_asaas_ledger_upgrade_preserves_previous_schema_and_guards_data(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'platform-asaas.db'
+            before = self._flask(path, 'upgrade', 'v6b9d4e8f3a1')
+            self.assertEqual(before.returncode, 0, before.stdout + before.stderr)
+            with closing(sqlite3.connect(path)) as connection:
+                tenant_schema = connection.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='payment_webhook_events'").fetchone()[0]
+            upgraded = self._flask(path, 'upgrade', 'head')
+            self.assertEqual(upgraded.returncode, 0, upgraded.stdout + upgraded.stderr)
+            with closing(sqlite3.connect(path)) as connection:
+                self.assertEqual(connection.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='payment_webhook_events'").fetchone()[0], tenant_schema)
+                self.assertEqual(connection.execute('SELECT version_num FROM alembic_version').fetchone()[0], 'w7c0e5f9a4b2')
+                connection.execute("INSERT INTO platform_asaas_webhook_events (event_id,event_type,external_payment_id,payload_hash,received_at) VALUES ('evt_1','PAYMENT_RECEIVED','pay_1',?,CURRENT_TIMESTAMP)", ('a' * 64,))
+                connection.commit()
+                with self.assertRaises(sqlite3.IntegrityError):
+                    connection.execute("INSERT INTO platform_asaas_webhook_events (event_id,event_type,external_payment_id,payload_hash,received_at) VALUES ('evt_1','PAYMENT_RECEIVED','pay_2',?,CURRENT_TIMESTAMP)", ('b' * 64,))
+            downgrade = self._flask(path, 'downgrade', 'v6b9d4e8f3a1')
+            self.assertNotEqual(downgrade.returncode, 0)
+            self.assertIn('preservar eventos ASAAS da plataforma', downgrade.stdout + downgrade.stderr)
+
     def test_cad1_client_name_upgrade_preserves_legacy_and_downgrade_guards_long_name(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / 'cad1.db'
@@ -308,7 +328,7 @@ class SQLiteMigrationsTest(unittest.TestCase):
                 preview_indexes = {row[1] for row in connection.execute("PRAGMA index_list('import_previews')")}
             finally:
                 connection.close()
-            self.assertEqual(revision, 'v6b9d4e8f3a1')
+            self.assertEqual(revision, 'w7c0e5f9a4b2')
             self.assertTrue({'empresa_id', 'fatura_concessionaria_id', 'fingerprint',
                              'regra_snapshot', 'entrada_normalizada', 'resultado',
                              'valor_final'}.issubset(snapshot_columns))
@@ -471,7 +491,7 @@ class SQLiteMigrationsTest(unittest.TestCase):
                     'SELECT empresa_id,titulo,fatura_concessionaria_id FROM pendencias WHERE id=91'
                 ).fetchone(), (91, 'Existente', None))
                 self.assertEqual(connection.execute('SELECT version_num FROM alembic_version').fetchone()[0],
-                                 'v6b9d4e8f3a1')
+                                 'w7c0e5f9a4b2')
 
     def test_fatura_concessionaria_downgrade_preserves_source_records(self):
         with tempfile.TemporaryDirectory() as folder:

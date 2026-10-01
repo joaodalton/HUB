@@ -67,18 +67,16 @@ Quando atuar como orquestrador:
 
 ## Orquestração em ondas
 
-Quando o ambiente suportar subagentes ou agentes especializados, use os papéis:
+Quando o ambiente suportar subagentes ou agentes especializados, use os papéis
+registrados em `.codex/config.toml` e definidos em `.codex/agents/`:
 
-- backend;
-- frontend;
-- banco/migrations;
-- revisão de backend;
-- revisão de frontend;
-- revisão geral;
-- segurança;
-- testes.
+- `backend` para Flask e SQLAlchemy;
+- `frontend` para React e Vite;
+- `data_migration` para schema, Alembic e dados;
+- `reviewer` para revisão transversal, incluindo segurança;
+- `tester` para testes e validação.
 
-Perfis específicos existentes em `.codex/agents/` podem ser usados pelo Codex.
+Esses perfis podem ser selecionados pelo Codex como tipos de subagente.
 
 Outros orquestradores, como Hermes, devem reproduzir as mesmas responsabilidades usando seus próprios mecanismos de delegação.
 
@@ -91,7 +89,7 @@ O agente pode decidir autonomamente:
 * textos de interface;
 * organização interna compatível com a arquitetura existente;
 * testes;
-* migrations reversíveis;notepad $HOME\.hermes\profiles\hub\SOUL.md
+* migrations reversíveis;
 * correções técnicas necessárias para completar a tarefa dentro do escopo.
 
 Solicite decisão do usuário antes de:

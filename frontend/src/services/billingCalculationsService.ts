@@ -1,4 +1,4 @@
-import { apiRequest, apiUpload } from './apiClient';
+import { apiBlobWithHeaders, apiRequest, apiUpload } from './apiClient';
 import type { FaturaStatus } from './faturasService';
 
 type ApiResponse<T> = { success: boolean; message: string; data: T };
@@ -99,6 +99,29 @@ export async function getTenantBillingInvoices(): Promise<BillingInvoice[]> {
   return (await getBillingInvoicePage({ pageSize: 100 })).data;
 }
 
+export async function downloadBillingInvoice(invoiceId: number, empresaId?: number): Promise<void> {
+  const path = empresaId
+    ? `${base(empresaId)}/invoices/${invoiceId}/download`
+    : `/billing-calculations/invoices/${invoiceId}/download`;
+  const { blob, contentDisposition } = await apiBlobWithHeaders(path);
+  const encodedName = contentDisposition?.match(/filename\*\s*=\s*UTF-8''([^;]+)/i)?.[1];
+  const regularName = contentDisposition?.match(/filename\s*=\s*(?:"([^"]+)"|([^;]+))/i);
+  let filename = regularName?.[1] ?? regularName?.[2] ?? '';
+  if (encodedName) {
+    try { filename = decodeURIComponent(encodedName); } catch { /* Keep the plain filename. */ }
+  }
+  filename = filename.replace(/[<>:"/\\|?*]/g, '_').replace(/\p{Cc}/gu, '_').trim().replace(/^\.+|\.+$/g, '').slice(0, 180);
+  if (!filename) filename = `fatura-${invoiceId}.pdf`;
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 export async function uploadTenantBillingInvoice(file: File): Promise<BillingUpload> {
   const body = new FormData();
   body.append('arquivo', file);
@@ -115,13 +138,15 @@ export async function executeBillingCalculation(empresaId: number, invoiceId: nu
   return (await apiRequest<ApiResponse<BillingExecution>>(`${base(empresaId)}/invoices/${invoiceId}/execute`, { method: 'POST' })).data;
 }
 
-export async function getBillingExecutions(empresaId: number, invoiceId?: number): Promise<BillingExecution[]> {
+export async function getBillingExecutions(empresaId: number | undefined, invoiceId?: number): Promise<BillingExecution[]> {
   const query = invoiceId === undefined ? '' : `?invoiceId=${invoiceId}`;
-  return (await apiRequest<ApiResponse<BillingExecution[]>>(`${base(empresaId)}${query}`)).data;
+  const path = empresaId ? base(empresaId) : '/billing-calculations';
+  return (await apiRequest<ApiResponse<BillingExecution[]>>(`${path}${query}`)).data;
 }
 
-export async function getBillingExecution(empresaId: number, executionId: number): Promise<BillingExecution> {
-  return (await apiRequest<ApiResponse<BillingExecution>>(`${base(empresaId)}/executions/${executionId}`)).data;
+export async function getBillingExecution(empresaId: number | undefined, executionId: number): Promise<BillingExecution> {
+  const path = empresaId ? base(empresaId) : '/billing-calculations';
+  return (await apiRequest<ApiResponse<BillingExecution>>(`${path}/executions/${executionId}`)).data;
 }
 
 export async function getBillingSnapshot(empresaId: number, snapshotId: number): Promise<BillingSnapshot> {

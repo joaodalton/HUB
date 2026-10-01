@@ -1,5 +1,56 @@
 # HUB — Contratos de API
 
+## Contexto administrativo da plataforma
+
+`PLATFORM CONTEXT` e `TENANT CONTEXT` são estados distintos. Um usuário com
+`isPlatformAdmin=true` inicia sem tenant operacional ativo e recebe `403` com
+`code: "PLATFORM_TENANT_CONTEXT_REQUIRED"` ao chamar APIs de negócio antes de
+entrar explicitamente em uma empresa. Usuários tenant não recebem acesso a
+nenhuma rota desta seção; sem autenticação, a resposta é `401`.
+
+### `GET /platform`
+
+Exclusivo de Platform Admin. Retorna contagens globais baratas:
+`{ "totalEmpresas": number, "totalUsuarios": number }`.
+
+### `GET /platform/empresas`
+
+Exclusivo de Platform Admin. Retorna a lista administrativa mínima, ordenada por
+nome, com `id`, `nome`, `slug`, `status`, `totalUsuarios` e `createdAt`. A
+contagem de usuários é agregada na mesma consulta; o contrato não expõe
+documentos, credenciais, referências de storage ou dados cadastrais adicionais.
+
+### `POST /platform/empresas/<empresaId>/entrar`
+
+Exclusivo de Platform Admin e protegido por CSRF quando a autenticação usa
+cookie. Valida a Empresa no backend, registra auditoria e estabelece o tenant
+administrativo no cookie `HttpOnly` `hub_platform_view`. Empresa inexistente
+retorna `404`. O payload de sucesso contém apenas `id`, `nome` e `status`.
+
+### `POST /platform/sair`
+
+Exclusivo de Platform Admin e protegido por CSRF quando aplicável. Registra a
+saída, remove `hub_platform_view` e retorna ao Platform Context sem encerrar a
+sessão HUB. Depois da saída, APIs tenant voltam a responder
+`PLATFORM_TENANT_CONTEXT_REQUIRED` até nova entrada explícita.
+
+`GET /auth/me` expõe `platformViewEmpresaId`, `platformViewEmpresaNome` e
+`homeEmpresaId` somente para Platform Admin. Login e logout removem qualquer
+cookie de visualização anterior, impedindo reativação de contexto obsoleto.
+
+## Fronteira ASAAS da plataforma
+
+`POST /webhooks/asaas/platform` é público e exige `asaas-access-token` igual a
+`PLATFORM_ASAAS_WEBHOOK_TOKEN`. Token ausente ou incorreto retorna `401` genérico.
+Aceita envelope ASAAS com `id`, `event`, `payment.id` e opcionalmente
+`payment.externalReference`, que, quando presente, deve começar com
+`hub-platform-` (`422` caso contrário). Estrutura inválida retorna `400`.
+O ID de evento é único em `platform_asaas_webhook_events`: reentrega idêntica
+retorna `200`, colisão divergente `409`, falha de banco `503`. `200` confirma
+somente recebimento, sem emissão, conciliação ou ativação SaaS. Token e payload
+completo não são armazenados. O endpoint tenant `/webhooks/asaas` e seus códigos,
+lookup de referências legadas e ledger `payment_webhook_events` permanecem iguais.
+
 ## Limite de plano
 
 Os `POST /clients`, `POST /ucs`, `POST /plants` e `POST /users` retornam `403` com `code: "QUOTA_EXCEEDED"` quando a empresa autenticada atingiu a cota. `details` contém `recurso`, `uso` e `limite`.
@@ -239,14 +290,14 @@ Ambos filtros opcionais e combináveis. `data` = array de `Document`:
 ### `POST /documents` — **multipart/form-data**, não JSON.
 Campos do form: `arquivo` (file, obrigatório), `nome` (opcional — usa o nome do arquivo se vazio), `clienteId` (opcional), `ucId` (opcional), `categoriaId` (**obrigatório**).
 
-Arquivo salvo em `backend/uploads/<clienteId ou 'sem-cliente'>/<uuid>_<nome-original>` (fora do git). Sucesso (201): `data` = `Document`.
+O upload geral atual usa Google Drive; `backend/uploads/` serve somente anexos locais legados. Sucesso (201): `data` = `Document`.
 Erros: 400 (sem arquivo / sem categoria), 409 (cliente, UC ou categoria informados não existem).
 
 ### `PUT /documents/<id>` — Body: `{ "nome": string }`. Só renomeia, não troca o arquivo. 404 se não existir.
 
-### `DELETE /documents/<id>` — apaga registro **e** arquivo físico do disco. 404 se não existir.
+### `DELETE /documents/<id>` — apaga registro e arquivo físico apenas quando for local; Drive vinculado permanece remoto. 404 se não existir.
 
-### `GET /documents/<id>/download` — retorna o arquivo (`send_file`, `as_attachment`). 404 se o documento ou o arquivo em disco não existir.
+### `GET /documents/<id>/download` — requer `documents.read`. Local legado usa `send_file`; Drive redireciona à visualização nativa. `Document` S3 de fatura redireciona à rota de download da fatura, que exige também `faturas.read`. 404 se o documento/arquivo local não existir.
 
 ---
 
@@ -259,6 +310,21 @@ Upload da página de Faturas sem seleção de cliente. Requer `faturas.create` e
 Para administrador da plataforma, a rota equivalente é `POST /platform/empresas/<empresaId>/billing-calculations/invoices/upload`, com empresa explícita e a mesma permissão. Erros antes do armazenamento: `INVOICE_LAYOUT_UNSUPPORTED` ou `UC_CODE_UNREADABLE` (422), `UC_NOT_FOUND` (422), `UC_MATCH_AMBIGUOUS` (409) e `CLIENT_NOT_FOUND` (404). Falha de vínculo não cria Documento nem fatura. Validação de arquivo, resposta e limites seguem o contrato abaixo. Uma duplicata por hash é conferida contra a UC atual: cliente divergente retorna `INVOICE_CLIENT_CONFLICT` (409), sem alterar a fonte histórica; cliente igual retorna a fonte imutável existente.
 
 O campo legado `codigoAneel` permanece no banco para preservar valores anteriores, mas não participa da correspondência e não é exposto e, se enviado, é ignorado no CRUD de UC. Para o layout Copel suportado, `codigo` deve conter o mesmo identificador documental de 15 dígitos do PDF. Ausência de compensação GD não impede o upload; afeta a elegibilidade posterior para cobrança.
+
+### `GET /billing-calculations/invoices/<invoiceId>/download`
+
+Requer autenticação e `faturas.read`, resolve `FaturaConcessionaria` e seu
+`Document` na mesma empresa e entrega o PDF pelo backend (`application/pdf`,
+`Content-Disposition: attachment`). O equivalente administrativo é
+`GET /platform/empresas/<empresaId>/billing-calculations/invoices/<invoiceId>/download`,
+exclusivo do administrador de plataforma e com empresa explícita. IDs alheios,
+fatura ou vínculo ausente retornam `404`; storage ausente, falha de leitura ou
+SHA-256 divergente retornam `503 DOCUMENT_STORAGE_UNAVAILABLE`.
+O nome sanitizado contém cliente, competência e vencimento quando disponíveis;
+a chave física nunca determina o nome exibido. O backend lê `s3` privado,
+`google_drive` ou `local` legado conforme `Document.storage_provider`.
+Nenhuma URL assinada é emitida ou persistida. A lista mantém `documentoId` e
+marca `documentoDisponivel` quando há referência em provider suportado.
 
 ### `POST /clients/<clientId>/invoices/upload` — **multipart/form-data**
 

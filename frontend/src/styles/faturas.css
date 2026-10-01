@@ -41,13 +41,25 @@
   color: var(--text-faint);
 }
 
-.faturas-search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-bg); }
+.faturas-search:focus-within { border-color: var(--hub-primary); box-shadow: 0 0 0 2px var(--hub-primary-subtle); }
 .faturas-search .icon { width: 17px; height: 17px; flex: 0 0 17px; }
 .faturas-search input { width: 100%; min-width: 0; padding: 0; border: 0; outline: 0; background: transparent; }
 .faturas-search input::placeholder { color: var(--text-faint); }
 .faturas-filter-field { display: grid; gap: 6px; min-width: 0; }
 .faturas-filter-field span { color: var(--text-faint); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
 .faturas-filter-field select, .faturas-filter-field input { width: 100%; min-width: 0; }
+.faturas-filter-field input[type="month"] {
+  min-height: var(--control-height);
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-input);
+  background: var(--panel-soft);
+  color: var(--text);
+  color-scheme: dark;
+}
+[data-theme="light"] .faturas-filter-field input[type="month"] { color-scheme: light; }
+.faturas-filter-field input[type="month"]:hover { border-color: var(--border-soft); }
+.faturas-filter-field input[type="month"]:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-bg); }
 .faturas-page .data-panel-scroll { min-height: 300px; }
 .fatura-charge-cell { display: flex; gap: 4px; flex-wrap: wrap; }
 .faturas-pagination { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-2); color: var(--text-dim); }
@@ -57,8 +69,18 @@
 .fatura-detail-section h3 { margin: 0; color: var(--text); font-size: 15px; }
 .fatura-detail-section p { margin: 0; color: var(--text-dim); font-size: 13px; }
 .fatura-detail-section .detail-info-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.fatura-context-note { color: var(--warning) !important; }
-.fatura-notice { margin: 0; padding: 12px 14px; border: 1px solid var(--accent-border); border-radius: var(--radius-input); background: var(--accent-bg); color: var(--text-dim); font-size: 12px; line-height: 1.5; }
+.fatura-context-note { color: var(--hub-warning) !important; }
+.fatura-drawer-content { display: grid; gap: var(--space-3); }
+.fatura-context-path { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-1); color: var(--text-dim); font-size: 13px; }
+.fatura-context-path a { color: var(--hub-primary); font-weight: 600; }
+.fatura-context-separator { color: var(--text-faint); }
+.fatura-timeline { display: grid; gap: var(--space-3); margin: 0; padding: 0 0 0 22px; list-style: none; border-left: 2px solid var(--border); }
+.fatura-timeline li { position: relative; display: grid; gap: 4px; }
+.fatura-timeline li::before { content: ''; position: absolute; top: 4px; left: -29px; width: 12px; height: 12px; border: 2px solid var(--panel); border-radius: 50%; background: var(--hub-primary); }
+.fatura-timeline strong { color: var(--text); font-size: 13px; }
+.fatura-timeline span { color: var(--text-faint); font-size: 12px; }
+.fatura-history-empty { padding-top: var(--space-2); }
+.fatura-notice { margin: 0; padding: 12px 14px; border: 1px solid var(--hub-primary-border); border-radius: var(--radius-input); background: var(--hub-primary-subtle); color: var(--hub-text-muted); font-size: 12px; line-height: 1.5; }
 
 @media (max-width: 1280px) { .faturas-filter-panel { grid-template-columns: repeat(3, minmax(160px, 1fr)); } }
 @media (max-width: 760px) {

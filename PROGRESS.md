@@ -1,5 +1,7 @@
 # HUB — Progresso
 
+- [x] CI de promoção reconstruído em 2026-09-28: testes de backend e frontend em `develop`, `main` e PRs para `main`; após cinco execuções aprovadas de `develop` desde o último commit de `main`, o workflow abre PR, valida a integração antes do merge e registra falha em Issue. O secret `PROMOTION_TOKEN` foi criado no GitHub. Validação: parser YAML aceitou os gatilhos e os quatro jobs; a primeira execução remota (`36433236092`) passou em backend, lint/build frontend e contagem de promoção. As actions foram atualizadas para v7 após o runner alertar sobre a descontinuação do Node 20 na execução delas.
+
 - [x] Configurações → Geral → Rateio agora permite desativar temporariamente, por empresa, as exigências de CNPJ, estatuto e Termos de Adesão para testar a geração de PDF/XLSX sem anexos. O padrão continua seguro (todas ligadas); soma de percentuais, UC geradora e responsável permanecem obrigatórios.
 
 - [x] Refatoração estrutural da tela de Rateio: `RateioPage.ts` passou de 1.159 para 67 linhas; wizard, formulário Copel e utilitários foram separados por responsabilidade em `frontend/src/pages/rateio/`, todos abaixo de 350 linhas. A regra de qualidade voltou a validar `RateioPage.ts`. Evidência: build e lint do frontend aprovados em 2026-09-09.

@@ -45,9 +45,18 @@ _PLATFORM_CONTEXT_SAFE_ENDPOINT_PREFIXES = (
 
 
 def _is_platform_context_safe_endpoint(endpoint: str | None) -> bool:
+    # Deixe o Flask responder normalmente (404/405) quando nenhuma rota foi
+    # resolvida. O guard de contexto não deve transformar caminhos inexistentes
+    # em respostas que revelem a existência de um handler.
+    if endpoint is None:
+        return True
     if endpoint in _PLATFORM_CONTEXT_SAFE_ENDPOINTS:
         return True
-    return bool(endpoint and endpoint.startswith(_PLATFORM_CONTEXT_SAFE_ENDPOINT_PREFIXES))
+    if endpoint == 'billing_pdf_lab_routes.diagnose_pdf':
+        return True
+    if endpoint.startswith('platform_billing_calculation_routes.'):
+        return isinstance(request.view_args, dict) and 'empresa_id' in request.view_args
+    return endpoint.startswith(_PLATFORM_CONTEXT_SAFE_ENDPOINT_PREFIXES)
 
 
 def hash_password(raw_password: str) -> str:

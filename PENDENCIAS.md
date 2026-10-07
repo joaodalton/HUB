@@ -704,3 +704,7 @@ Upload e download de fatura via `platform_billing_calculation_routes` por Platfo
 ## Manutenção de testes de segurança
 
 A regra `backend/tests/*` no `.gitignore` ignora arquivos novos de testes, exigindo `git add -f` para versioná-los. Propor a correção da regra como tarefa separada; nenhuma alteração ao `.gitignore` foi aplicada nesta entrega.
+
+## ARCH-TENANT-1 — decisões para a fase arquitetural
+
+A fase arquitetural será disparada quando houver jobs multi-tenant ou antes do lançamento comercial. Nesta fase de contenção, mismatch de tenant deve ser tratado como recurso inexistente, retornando `None` no helper e `404` na camada HTTP, sem revelar a existência do ID. Trocas de contexto com trabalho pendente devem falhar de forma explícita; não há decisão de flush, commit ou descarte implícito.

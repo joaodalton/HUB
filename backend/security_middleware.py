@@ -141,7 +141,7 @@ def require_tenant_access(model_factory, empresa_id: int):
         empresa_id: ID da empresa do usuário atual
 
     Uso:
-        @require_tenant_access(lambda: Pendencia.query.get(pendencia_id), g.current_empresa_id)
+        @require_tenant_access(lambda: get_tenant_scoped(Pendencia, pendencia_id), g.current_empresa_id)
         def ver_pendencia(pendencia_id):
             ...
     """

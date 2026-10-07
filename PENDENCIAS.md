@@ -696,3 +696,11 @@ Evento + mensagem
 Nenhuma ação operacional deve depender exclusivamente da memória humana.
 
 O sistema deve lembrar, priorizar, alertar, acompanhar e registrar toda a operação de cadastro, rateio, cobrança e cancelamento, criando uma base preparada para automações futuras, integração com concessionárias e inteligência artificial.
+
+## TC-2 — Auditoria de upload/download de faturas na plataforma
+
+Upload e download de fatura via `platform_billing_calculation_routes` por Platform Admin não geram `LogEntry`. Registrar a ação, a empresa e o recurso, sem incluir PII. Esta pendência está registrada para trabalho futuro e não faz parte da alteração atual.
+
+## Manutenção de testes de segurança
+
+A regra `backend/tests/*` no `.gitignore` ignora arquivos novos de testes, exigindo `git add -f` para versioná-los. Propor a correção da regra como tarefa separada; nenhuma alteração ao `.gitignore` foi aplicada nesta entrega.

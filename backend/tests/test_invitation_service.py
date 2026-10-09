@@ -12,6 +12,7 @@ from models.empresa import Empresa  # noqa: E402
 from models.invitation import Invitation  # noqa: E402
 from services.invitation_service import (  # noqa: E402
     criar_convite,
+    listar_convites,
     revogar_convite,
     verificar_convite,
 )
@@ -61,6 +62,27 @@ class InvitationServiceTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertEqual(Invitation.query.get(convite['id']).status, 'revoked')
         with self.assertRaisesRegex(ValueError, 'revogado'):
             verificar_convite(token)
+
+    def test_pending_invitation_email_cannot_belong_to_two_companies(self):
+        other_empresa = Empresa(nome='Outra empresa', slug='outra-empresa-teste')
+        db.session.add(other_empresa)
+        db.session.commit()
+
+        criar_convite(self.empresa.id, 'pessoa@exemplo.test', 'viewer', None)
+
+        with self.assertRaisesRegex(ValueError, 'outra empresa'):
+            criar_convite(other_empresa.id, 'pessoa@exemplo.test', 'viewer', None)
+
+    def test_listing_invitations_is_scoped_to_the_requested_company(self):
+        other_empresa = Empresa(nome='Outra empresa', slug='outra-listagem-teste')
+        db.session.add(other_empresa)
+        db.session.commit()
+
+        convite_a, _ = criar_convite(self.empresa.id, 'a@exemplo.test', 'viewer', None)
+        convite_b, _ = criar_convite(other_empresa.id, 'b@exemplo.test', 'viewer', None)
+
+        self.assertEqual([item['id'] for item in listar_convites(self.empresa.id)], [convite_a['id']])
+        self.assertEqual([item['id'] for item in listar_convites(other_empresa.id)], [convite_b['id']])
 
 
 if __name__ == '__main__':

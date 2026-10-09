@@ -5,8 +5,13 @@
 `PLATFORM CONTEXT` e `TENANT CONTEXT` são estados distintos. Um usuário com
 `isPlatformAdmin=true` inicia sem tenant operacional ativo e recebe `403` com
 `code: "PLATFORM_TENANT_CONTEXT_REQUIRED"` ao chamar APIs de negócio antes de
-entrar explicitamente em uma empresa. Usuários tenant não recebem acesso a
-nenhuma rota desta seção; sem autenticação, a resposta é `401`.
+entrar explicitamente em uma empresa. Isso se aplica às rotas tenant sem escopo
+explícito; rotas administrativas que recebem `empresaId` no caminho validam
+novamente o papel Platform Admin e a existência da empresa antes de definir
+`g.current_empresa_id`. O laboratório `/platform/billing-diagnostics/pdf` é
+global, não consulta dados de tenant e exige Platform Admin sem selecionar
+empresa. Usuários tenant não recebem acesso às rotas administrativas; sem
+autenticação, a resposta é `401`.
 
 ### `GET /platform`
 
@@ -26,6 +31,8 @@ Exclusivo de Platform Admin e protegido por CSRF quando a autenticação usa
 cookie. Valida a Empresa no backend, registra auditoria e estabelece o tenant
 administrativo no cookie `HttpOnly` `hub_platform_view`. Empresa inexistente
 retorna `404`. O payload de sucesso contém apenas `id`, `nome` e `status`.
+Se a auditoria obrigatória não puder ser persistida, retorna `500` com
+`code: "PLATFORM_AUDIT_FAILED"` e não altera o cookie/contexto vigente.
 
 ### `POST /platform/sair`
 
@@ -33,6 +40,8 @@ Exclusivo de Platform Admin e protegido por CSRF quando aplicável. Registra a
 saída, remove `hub_platform_view` e retorna ao Platform Context sem encerrar a
 sessão HUB. Depois da saída, APIs tenant voltam a responder
 `PLATFORM_TENANT_CONTEXT_REQUIRED` até nova entrada explícita.
+Se a auditoria da saída falhar, retorna `500` com
+`code: "PLATFORM_AUDIT_FAILED"` e preserva o cookie/contexto atual.
 
 `GET /auth/me` expõe `platformViewEmpresaId`, `platformViewEmpresaNome` e
 `homeEmpresaId` somente para Platform Admin. Login e logout removem qualquer
@@ -115,9 +124,43 @@ Body: `{ "token": string, "senha": string (min. 6) }`. Token vem do link do e-ma
 
 ## Usuários (`/users`)
 
-### `PUT /users/<id>/ativo`
+### `PUT /users/<id>`
 
-Exige `users.deactivate` ou `users.reactivate`; só alcança usuários da empresa autenticada. Body obrigatório: `{ "ativo": boolean }` — strings, números e ausência do campo retornam `400`. Não permite desativar o próprio usuário nem o `owner` da empresa. Cada transição entre `ativo` e `inativo` incrementa a versão de sessão, invalidando tokens emitidos antes da transição.
+Exige `users.update`; só acessa usuários da empresa autenticada (`User.query.filter_by(id=<id>, empresa_id=g.current_empresa_id)`). Body permitido (opcional): `nome`, `email`, `role` e `senha` (opcional). Campos não listados retornam `400`.
+
+- `nome`: trim e não vazio; senha nunca é persistido nem retornado.
+- `email`: trim e minúsculo; rejeita já existente para outro usuário (409/400) e mantém a unicidade global.
+- `role`: `owner`/`admin`/`operator`/`financial`/`viewer`; `owner` é imutável — tentar alterá-lo retorna erro em qualquer caso (incluído o fluxo `admin → owner`).
+- `senha`: se presente, deve ter pelo menos 6 caracteres; se omitido/vazio, **não altera** a senha. Ao mudar, invalida tokens anteriores da sessão (`session_version += 1`) e o audit `password_changed` não contém o valor.
+- Retorna `404` se o usuário não pertencer à empresa autenticada.
+- `GET /users` e `POST /users` seguem o contrato existente de listagem/criação (`users.read`/`users.create`).
+- A resposta `User` nunca exposes `password_hash`.
+
+## Convites (`/convites`)
+
+### `GET /convites`
+
+Exige `invitations.read`; lista somente convites da `empresa_id` do usuário autenticado (`listar_convites(g.current_empresa_id)`). Outras empresas respondem 404/403 e não expõem o e-mail do convite.
+
+### `POST /convites`
+
+Exige `invitations.create`; cria convite na `empresa_id` do usuário autenticado (`criar_convite(g.current_empresa_id, email, role, invited_by_id)`). Regras de negócio:
+- e-mail globalmente único: não pode ser usado por outro usuário.
+- e-mail não pode ter convite pendente em outra empresa; os pendentes de **outra** empresa bloqueiam o envio imediatamente.
+- Convite pendente anterior para o mesmo `empresa_id + email` é revogado antes de criar um novo link.
+- Caso de proposta/aceite (flow de convite para empresa B de um e-mail que já pertence à empresa A) retorna erro no `POST /convites` e no fluxo de aceite.
+
+### `POST /convites/<id>/revogar`
+
+Exige `invitations.revoke`; revogamento só da empresa que mandou a requisição (`revogar_convite(<id>, g.current_empresa_id)`). `404` se o convite não for da empresa autenticada; `400` se já não estiver pendente. Apenas o `empresa_id` da requisição é respeitado — não confia em `empresa_id` vindo do body/frontend.
+
+### `GET /convites/verificar`
+
+Pública. Valida token de convite e retorna `email`, `role` e `empresaNome` do convite único (sem expor `empresa_id`), para a tela de aceite.
+
+### Aceite (`POST /auth/aceitar-convite`)
+
+Token do convite; `empresa_id` é derivado do convite validado (`user.empresa_id = convite.empresa_id`), nunca de um `empresa_id` enviado pelo frontend. Ao aceitar, `usuario@email.com` que já pertence a outra empresa é rejeitado com erro de conflito (cada e-mail pertence a apenas uma empresa).
 
 ## Templates de e-mail (`/email-templates`)
 

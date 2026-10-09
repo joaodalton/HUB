@@ -100,6 +100,26 @@ class UserActivationSecurityTest(IsolatedTestRuntime, unittest.TestCase):
             200,
         )
 
+    def test_password_update_revokes_existing_sessions_without_exposing_password(self):
+        old_token = self._token(self.viewer_id)
+
+        response = self.app.test_client().put(
+            f'/api/v1/users/{self.viewer_id}',
+            headers={'Authorization': f'Bearer {self._token(self.admin_id)}'},
+            json={'senha': 'senha-atualizada'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn('senha-atualizada', response.get_data(as_text=True))
+        self.assertEqual(
+            self.app.test_client().get('/api/v1/clients', headers={'Authorization': f'Bearer {old_token}'}).status_code,
+            401,
+        )
+        login = self.app.test_client().post(
+            '/api/v1/auth/login', json={'email': 'viewer@activation.test', 'senha': 'senha-atualizada'},
+        )
+        self.assertEqual(login.status_code, 200)
+
     def test_forced_password_change_blocks_business_routes_then_refreshes_session(self):
         login = self.app.test_client().post(
             '/api/v1/auth/login', json={'email': 'forced@activation.test', 'senha': 'senha-atual'},

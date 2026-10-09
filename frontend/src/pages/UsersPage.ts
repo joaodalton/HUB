@@ -8,7 +8,7 @@ import { createDataTable } from '../components/DataTable';
 import { createIconStatCard } from '../components/IconStatCard';
 import { createInvitation, getInvitations, revokeInvitation, type InvitationRow } from '../services/invitationService';
 import { getCurrentUser } from '../services/authService';
-import { createUser, getUsers, setUserActive, updateUser, type UserPayload, type UserRole, type UserRow } from '../services/userService';
+import { createUser, deleteUser, getUsers, setUserActive, updateUser, type UserPayload, type UserRole, type UserRow, type UserUpdatePayload } from '../services/userService';
 
 export function createUsersPage(): HTMLElement {
   const content = createElement('section', { className: 'content-stack' });
@@ -86,7 +86,7 @@ export function createUsersPage(): HTMLElement {
     } catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível alterar o acesso.'); }
     finally { loading.hide(); renderContent(); }
   }
-  async function handleEdit(user: UserRow, data: Partial<Pick<UserRow, 'nome' | 'email' | 'role'>>): Promise<void> { const updated = await updateUser(user.id, data); users = users.map(item => item.id === user.id ? updated : item); toast.success('Usuário atualizado.'); renderContent(); }
+  async function handleEdit(user: UserRow, data: UserUpdatePayload): Promise<void> { const updated = await updateUser(user.id, data); users = users.map(item => item.id === user.id ? updated : item); toast.success('Usuário atualizado.'); renderContent(); }
   async function loadInvitations(): Promise<void> { try { invitations = await getInvitations(); } catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível carregar convites.'); } finally { renderContent(); } }
   async function handleInvite(data: { email: string; role: Exclude<UserRole, 'owner'> }): Promise<void> { await createInvitation(data); toast.success('Convite criado.'); await loadInvitations(); }
   async function handleRevoke(invite: InvitationRow): Promise<void> { if (!window.confirm(`Revogar convite para ${invite.email}?`)) return; await revokeInvitation(invite.id); toast.success('Convite revogado.'); await loadInvitations(); }
@@ -136,7 +136,7 @@ function createInvitationModal(onCreate: (data: { email: string; role: Exclude<U
   overlay.addEventListener('click', event => { if (event.target === overlay) close(); }); panel.appendChild(form); overlay.appendChild(panel); return overlay;
 }
 
-function createUsersTable(users: UserRow[], onSetActive: (user: UserRow, ativo: boolean) => Promise<void>, onEdit: (user: UserRow, data: Partial<Pick<UserRow, 'nome' | 'email' | 'role'>>) => Promise<void>): HTMLElement {
+function createUsersTable(users: UserRow[], onSetActive: (user: UserRow, ativo: boolean) => Promise<void>, onEdit: (user: UserRow, data: UserUpdatePayload) => Promise<void>): HTMLElement {
   const wrapper = createElement('div', { className: 'table-wrap' });
   const table = createElement('table', { className: 'data-table' });
   const head = createElement('thead');
@@ -150,9 +150,8 @@ function createUsersTable(users: UserRow[], onSetActive: (user: UserRow, ativo: 
     const roleCell = createElement('td'); roleCell.appendChild(role);
     const status = createElement('td'); status.append(createElement('span', { className: user.status === 'ativo' ? 'status-dot status-success' : 'status-dot status-danger' }), document.createTextNode(user.status === 'ativo' ? ' Ativo' : ' Inativo'));
     const actionCell = createElement('td');
-    if (user.role === 'owner') actionCell.appendChild(createElement('span', { className: 'settings-hint', textContent: 'Protegido' }));
-    else {
-      const edit = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Editar' }); edit.addEventListener('click', () => document.body.appendChild(createUserEditModal(user, data => onEdit(user, data)))); actionCell.appendChild(edit);
+    const edit = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Editar' }); edit.addEventListener('click', () => document.body.appendChild(createUserEditModal(user, data => onEdit(user, data)))); actionCell.appendChild(edit);
+    if (user.role !== 'owner') {
       const nextActive = user.status !== 'ativo';
       const button = createElement('button', { className: 'secondary-button', type: 'button', textContent: nextActive ? 'Ativar' : 'Desativar' });
       button.addEventListener('click', () => void onSetActive(user, nextActive));
@@ -164,8 +163,46 @@ function createUsersTable(users: UserRow[], onSetActive: (user: UserRow, ativo: 
   table.append(head, body); wrapper.appendChild(table); return wrapper;
 }
 
-function createUserEditModal(user: UserRow, onSave: (data: Partial<Pick<UserRow, 'nome' | 'email' | 'role'>>) => Promise<void>): HTMLElement {
-  const overlay = createElement('section', { className: 'modal-overlay' }); const form = createElement('form', { className: 'client-card client-form' }); const nome = createInput('Nome', 'text', user.nome, true); const email = createInput('E-mail', 'email', user.email, true); const role = createSelectField('Papel', user.role, [{ value: 'viewer', label: 'Visualizador' }, { value: 'operator', label: 'Operacional' }, { value: 'financial', label: 'Financeiro' }, { value: 'admin', label: 'Administrador' }]); const save = createElement('button', { type: 'submit', textContent: 'Salvar' }); form.append(createElement('h2', { textContent: 'Editar usuário' }), nome.field, email.field, role.field, save); form.addEventListener('submit', async event => { event.preventDefault(); if (!form.reportValidity()) return; await onSave({ nome: nome.input.value.trim(), email: email.input.value.trim(), role: role.select.value as UserRole }); overlay.remove(); }); overlay.appendChild(form); return overlay;
+function createUserEditModal(user: UserRow, onSave: (data: UserUpdatePayload) => Promise<void>): HTMLElement {
+  const overlay = createElement('section', { className: 'modal-overlay' });
+  const form = createElement('form', { className: 'client-card client-form' });
+  const nome = createInput('Nome', 'text', user.nome, true);
+  const email = createInput('E-mail', 'email', user.email, true);
+  const senha = createInput('Nova senha (opcional)', 'password', '');
+  senha.input.minLength = 6;
+  const roleOptions = user.role === 'owner'
+    ? [{ value: 'owner', label: 'Proprietário' }]
+    : [{ value: 'viewer', label: 'Visualizador' }, { value: 'operator', label: 'Operacional' }, { value: 'financial', label: 'Financeiro' }, { value: 'admin', label: 'Administrador' }];
+  const role = createSelectField('Papel', user.role, roleOptions);
+  role.select.disabled = user.role === 'owner';
+  const save = createElement('button', { type: 'submit', textContent: 'Salvar' });
+  const formActions = createElement('div', { className: 'form-actions' });
+  const cancel = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Cancelar' });
+  const destroy = createElement('button', { className: 'danger-button small-button', type: 'button', textContent: 'Excluir' });
+  formActions.append(cancel, save, destroy);
+  form.append(createElement('h2', { textContent: 'Editar usuário' }), nome.field, email.field, senha.field, role.field, formActions);
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (!form.reportValidity()) return;
+    const data: UserUpdatePayload = { nome: nome.input.value.trim(), email: email.input.value.trim() };
+    if (user.role !== 'owner') data.role = role.select.value as UserRole;
+    if (senha.input.value) data.senha = senha.input.value;
+    await onSave(data);
+    overlay.remove();
+  });
+  destroy.addEventListener('click', async () => {
+    const confirmed = window.confirm(`Excluir o usuário '${user.nome}'? Este usuário permanecerá inativo e não poderá acessar o HUB.`);
+    if (!confirmed) return;
+    try {
+      await deleteUser(user.id);
+      overlay.remove();
+    } catch (error) {
+      useToast().error(error instanceof Error ? error.message : 'Nao foi possivel excluir o usuario.');
+    }
+  });
+  overlay.addEventListener('click', event => { if (event.target === overlay) overlay.remove(); });
+  overlay.appendChild(form);
+  return overlay;
 }
 
 function createUserModal(onCreate: (data: UserPayload) => Promise<void>): HTMLElement {

@@ -13,6 +13,7 @@ from app import create_app  # noqa: E402
 from extensions import db  # noqa: E402
 from models.client import Client  # noqa: E402
 from models.empresa import Empresa  # noqa: E402
+from models.log_entry import LogEntry  # noqa: E402
 from models.user import User  # noqa: E402
 from utils.auth import generate_token, hash_password  # noqa: E402
 try:
@@ -139,6 +140,81 @@ class PlatformBoundaryTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertEqual(after_exit.get_json()['code'], 'PLATFORM_TENANT_CONTEXT_REQUIRED')
         self.assertEqual(client.post(f'/api/v1/platform/empresas/{self.b_id}/entrar', headers=csrf).status_code, 200)
         self.assertEqual([row['nome'] for row in client.get('/api/v1/clients').get_json()['data']], ['Cliente B'])
+
+    def test_platform_entry_audits_target_before_changing_view(self):
+        client = self.app.test_client()
+        client.set_cookie('hub_token', self._token(self.platform_id))
+        client.set_cookie('hub_csrf', 'csrf')
+
+        response = client.post(
+            f'/api/v1/platform/empresas/{self.a_id}/entrar',
+            headers={'X-CSRF-Token': 'csrf'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(client.get_cookie('hub_platform_view').value, str(self.a_id))
+        self.assertEqual(client.get('/api/v1/auth/me').get_json()['data']['platformViewEmpresaId'], self.a_id)
+        with self.app.app_context():
+            event = LogEntry.query.filter_by(acao='platform_enter_tenant', entidade_id=self.a_id).order_by(LogEntry.id.desc()).first()
+            self.assertIsNotNone(event)
+            self.assertEqual(event.empresa_id, self.a_id)
+            self.assertEqual(event.metadados['empresaId'], self.a_id)
+
+    def test_platform_entry_audit_failure_preserves_previous_view(self):
+        from unittest.mock import patch
+
+        client = self.app.test_client()
+        client.set_cookie('hub_token', self._token(self.platform_id))
+        client.set_cookie('hub_csrf', 'csrf')
+        client.set_cookie('hub_platform_view', str(self.a_id))
+
+        with patch('services.log_service.db.session.commit', side_effect=RuntimeError('audit secret')):
+            response = client.post(
+                f'/api/v1/platform/empresas/{self.b_id}/entrar',
+                headers={'X-CSRF-Token': 'csrf'},
+            )
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.get_json()['code'], 'PLATFORM_AUDIT_FAILED')
+        self.assertNotIn('audit secret', response.get_data(as_text=True))
+        self.assertEqual(client.get_cookie('hub_platform_view').value, str(self.a_id))
+        self.assertEqual(client.get('/api/v1/auth/me').get_json()['data']['platformViewEmpresaId'], self.a_id)
+        self.assertEqual([row['nome'] for row in client.get('/api/v1/clients').get_json()['data']], ['Cliente A'])
+
+    def test_platform_exit_audits_viewed_company_before_clearing_view(self):
+        client = self.app.test_client()
+        client.set_cookie('hub_token', self._token(self.platform_id))
+        client.set_cookie('hub_csrf', 'csrf')
+        client.set_cookie('hub_platform_view', str(self.a_id))
+
+        response = client.post('/api/v1/platform/sair', headers={'X-CSRF-Token': 'csrf'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(client.get_cookie('hub_platform_view'))
+        self.assertIsNone(client.get('/api/v1/auth/me').get_json()['data']['platformViewEmpresaId'])
+        with self.app.app_context():
+            event = LogEntry.query.filter_by(acao='platform_exit_tenant', entidade_id=self.a_id).order_by(LogEntry.id.desc()).first()
+            self.assertIsNotNone(event)
+            self.assertEqual(event.empresa_id, self.a_id)
+            self.assertEqual(event.metadados['empresaId'], self.a_id)
+
+    def test_platform_exit_audit_failure_preserves_current_view(self):
+        from unittest.mock import patch
+
+        client = self.app.test_client()
+        client.set_cookie('hub_token', self._token(self.platform_id))
+        client.set_cookie('hub_csrf', 'csrf')
+        client.set_cookie('hub_platform_view', str(self.a_id))
+
+        with patch('services.log_service.db.session.commit', side_effect=RuntimeError('audit secret')):
+            response = client.post('/api/v1/platform/sair', headers={'X-CSRF-Token': 'csrf'})
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.get_json()['code'], 'PLATFORM_AUDIT_FAILED')
+        self.assertNotIn('audit secret', response.get_data(as_text=True))
+        self.assertEqual(client.get_cookie('hub_platform_view').value, str(self.a_id))
+        self.assertEqual(client.get('/api/v1/auth/me').get_json()['data']['platformViewEmpresaId'], self.a_id)
+        self.assertEqual([row['nome'] for row in client.get('/api/v1/clients').get_json()['data']], ['Cliente A'])
 
     def test_invalid_id_and_public_prefix_method_bypass(self):
         client = self.app.test_client()

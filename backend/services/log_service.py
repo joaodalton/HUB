@@ -13,12 +13,16 @@ class LogService:
         mensagem: str,
         entidade: str | None = None,
         entidade_id: int | None = None,
-        metadados: dict | None = None
+        metadados: dict | None = None,
+        empresa_id: int | None = None,
+        strict: bool = False,
     ) -> None:
-        empresa_id = getattr(g, 'current_empresa_id', None) if has_request_context() else None
+        empresa_id = empresa_id or (getattr(g, 'current_empresa_id', None) if has_request_context() else None)
         if empresa_id is None and metadados:
             empresa_id = metadados.get('empresaId')
         if empresa_id is None:
+            if strict:
+                raise RuntimeError('Empresa de auditoria obrigatoria.')
             return
 
         entry = LogEntry(
@@ -35,10 +39,12 @@ class LogService:
             db.session.commit()
         except Exception:
             db.session.rollback()
+            if strict:
+                raise
 
     @staticmethod
-    def info(acao: str, mensagem: str, entidade: str | None = None, entidade_id: int | None = None, metadados: dict | None = None) -> None:
-        LogService._write('info', acao, mensagem, entidade, entidade_id, metadados)
+    def info(acao: str, mensagem: str, entidade: str | None = None, entidade_id: int | None = None, metadados: dict | None = None, *, empresa_id: int | None = None, strict: bool = False) -> None:
+        LogService._write('info', acao, mensagem, entidade, entidade_id, metadados, empresa_id, strict)
 
     @staticmethod
     def warning(acao: str, mensagem: str, entidade: str | None = None, entidade_id: int | None = None, metadados: dict | None = None) -> None:

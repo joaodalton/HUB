@@ -63,6 +63,8 @@ def update_user(user_id: int, data: dict, empresa_id: int) -> dict | None:
     user = User.query.filter_by(id=user_id, empresa_id=empresa_id).first()
     if not user:
         return None
+    if not data or set(data) - {'nome', 'email', 'role', 'senha'}:
+        raise ValueError('Campos nao permitidos para atualizacao do usuario.')
     if 'nome' in data:
         user.nome = (data['nome'] or '').strip()
         if not user.nome:
@@ -80,8 +82,13 @@ def update_user(user_id: int, data: dict, empresa_id: int) -> dict | None:
         if data['role'] not in VALID_ROLES:
             raise ValueError(f'Papel invalido. Use um de: {", ".join(sorted(VALID_ROLES))}.')
         user.role = data['role']
-    if not data or set(data) - {'nome', 'email', 'role'}:
-        raise ValueError('Campos nao permitidos para atualizacao do usuario.')
+    if 'senha' in data:
+        senha = data['senha'] or ''
+        if len(senha) < 6:
+            raise ValueError('Senha precisa ter pelo menos 6 caracteres.')
+        user.password_hash = hash_password(senha)
+        user.must_change_password = False
+        user.session_version += 1
     db.session.commit()
     LogService.info(acao='update', mensagem=f'Usuario {user.email} atualizado', entidade='User', metadados={'userId': user.id, 'empresaId': empresa_id})
     return user.to_dict()
@@ -99,6 +106,24 @@ def register_with_code(data: dict, provided_code: str, empresa_id: int) -> dict:
         raise ValueError('Codigo de acesso invalido.')
 
     return create_user({**data, 'role': 'viewer'}, empresa_id)
+
+
+def delete_user(user_id: int, empresa_id: int) -> dict | None:
+    user = User.query.filter_by(id=user_id, empresa_id=empresa_id).first()
+    if not user:
+        return None
+    # A exclusao e feita com cadastro-inativo para preservar auditoria e
+    # relacoes (logs, convites, agendamentos). O status vira 'inativo'.
+    user.status = 'inativo'
+    user.session_version += 1
+    db.session.commit()
+    LogService.info(
+        acao='delete',
+        mensagem=f'Usuario {user.email} excluido (inativado)',
+        entidade='User',
+        metadados={'userId': user.id, 'empresaId': empresa_id},
+    )
+    return user.to_dict()
 
 
 def set_user_active(user_id: int, empresa_id: int, ativo: bool) -> dict | None:
@@ -127,3 +152,4 @@ def set_user_active(user_id: int, empresa_id: int, ativo: bool) -> dict | None:
         metadados={'userId': user.id}
     )
     return user.to_dict()
+

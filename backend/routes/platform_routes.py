@@ -61,6 +61,19 @@ def entrar_na_empresa(empresa_id: int):
     if not empresa:
         return error_response('Empresa nao encontrada.', 404)
 
+    try:
+        LogService.info(
+            acao='platform_enter_tenant',
+            mensagem=f'Administrador da plataforma entrou na empresa {empresa.id}.',
+            entidade='Empresa',
+            entidade_id=empresa.id,
+            metadados={'platformAdminUserId': g.current_user.id, 'empresaId': empresa.id},
+            empresa_id=empresa.id,
+            strict=True,
+        )
+    except Exception:
+        return error_response('Falha ao registrar auditoria da plataforma.', 500, code='PLATFORM_AUDIT_FAILED')
+
     response = jsonify({
         'success': True,
         'message': f'Visualizando "{empresa.nome}".',
@@ -70,14 +83,6 @@ def entrar_na_empresa(empresa_id: int):
             'status': empresa.status,
         },
     })
-    g.current_empresa_id = empresa.id
-    LogService.info(
-        acao='platform_enter_tenant',
-        mensagem=f'Administrador da plataforma entrou na empresa {empresa.id}.',
-        entidade='Empresa',
-        entidade_id=empresa.id,
-        metadados={'platformAdminUserId': g.current_user.id, 'empresaId': empresa.id},
-    )
     set_platform_view_cookie(response, empresa.id)
     return response
 
@@ -87,13 +92,18 @@ def entrar_na_empresa(empresa_id: int):
 def sair_da_empresa():
     empresa_id = getattr(g, 'platform_view_empresa_id', None)
     if empresa_id is not None:
-        LogService.info(
-            acao='platform_exit_tenant',
-            mensagem=f'Administrador da plataforma saiu da empresa {empresa_id}.',
-            entidade='Empresa',
-            entidade_id=empresa_id,
-            metadados={'platformAdminUserId': g.current_user.id, 'empresaId': empresa_id},
-        )
+        try:
+            LogService.info(
+                acao='platform_exit_tenant',
+                mensagem=f'Administrador da plataforma saiu da empresa {empresa_id}.',
+                entidade='Empresa',
+                entidade_id=empresa_id,
+                metadados={'platformAdminUserId': g.current_user.id, 'empresaId': empresa_id},
+                empresa_id=empresa_id,
+                strict=True,
+            )
+        except Exception:
+            return error_response('Falha ao registrar auditoria da plataforma.', 500, code='PLATFORM_AUDIT_FAILED')
     response = jsonify({'success': True, 'message': 'Voltou para a empresa padrão.', 'data': None})
     clear_platform_view_cookie(response)
     return response

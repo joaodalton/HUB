@@ -29,6 +29,15 @@ def upgrade():
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('email')
     )
+    with op.batch_alter_table('password_reset_tokens', schema=None) as batch_op:
+        batch_op.drop_constraint('fk_password_reset_tokens_user_id', type_='foreignkey')
+        batch_op.create_foreign_key('fk_password_reset_tokens_user_id', 'users', ['user_id'], ['id'], ondelete='CASCADE')
+    with op.batch_alter_table('import_previews', schema=None) as batch_op:
+        batch_op.drop_constraint('fk_import_previews_created_by_id', type_='foreignkey')
+        batch_op.create_foreign_key('fk_import_previews_created_by_id', 'users', ['created_by_id'], ['id'], ondelete='CASCADE')
+    with op.batch_alter_table('regulatory_tariffs', schema=None) as batch_op:
+        batch_op.drop_constraint('fk_regulatory_tariffs_created_by_id', type_='foreignkey')
+        batch_op.create_foreign_key('fk_regulatory_tariffs_created_by_id', 'users', ['created_by_id'], ['id'], ondelete='CASCADE')
     # ### end Alembic commands ###
 
 

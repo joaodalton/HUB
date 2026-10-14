@@ -1,10 +1,11 @@
 from flask import g
+from sqlalchemy.orm import selectinload
 import re
 
 from extensions import db
 from sqlalchemy.exc import IntegrityError
 from models.client import Client
-from models.consumer_unit import ConsumerUnit
+from models.consumer_unit import ConsumerUnit, PlantConnection
 from services.uc_service import apply_uc_fields, sync_connections, _parse_date
 from services.cad_identity import normalize_name, normalize_phone, normalize_cpf
 
@@ -14,7 +15,14 @@ def _uc(uc_id): return ConsumerUnit.query.filter_by(id=uc_id, empresa_id=g.curre
 
 def list_clients() -> list[dict]:
     # Filtro automatico via TenantMixin (extensions.py)
-    clients = Client.query.order_by(Client.created_at.desc()).all()
+    # Client.to_dict() percorre ucs -> conexoes -> plant: sem eager load sao
+    # 3 queries por cliente (N+1). selectinload resolve cada nivel em 1 query.
+    clients = (
+        Client.query
+        .options(selectinload(Client.ucs).selectinload(ConsumerUnit.conexoes).selectinload(PlantConnection.plant))
+        .order_by(Client.created_at.desc())
+        .all()
+    )
     return [client.to_dict() for client in clients]
 
 

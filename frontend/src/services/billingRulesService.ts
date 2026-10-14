@@ -1,6 +1,5 @@
-import { apiRequest } from './apiClient';
+import { apiRequest, type ApiResponse } from './apiClient';
 
-type ApiResponse<T> = { success: boolean; message: string; data: T };
 
 export type BillingRule = {
   id: number;

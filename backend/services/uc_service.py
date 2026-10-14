@@ -2,6 +2,7 @@
 from datetime import date, datetime
 
 from flask import g
+from sqlalchemy.orm import selectinload
 
 from extensions import db
 from models.client import Client
@@ -23,7 +24,12 @@ def list_ucs() -> list[dict]:
     # Por updated_at, nao created_at -- assim uma UC editada agora aparece no
     # topo, mesmo se foi criada ha meses. updated_at ja e mantido sozinho pelo
     # SQLAlchemy (onupdate=datetime.utcnow no model) a cada save.
-    ucs = ConsumerUnit.query.order_by(ConsumerUnit.updated_at.desc()).all()
+    ucs = (
+        ConsumerUnit.query
+        .options(selectinload(ConsumerUnit.client), selectinload(ConsumerUnit.conexoes).selectinload(PlantConnection.plant))
+        .order_by(ConsumerUnit.updated_at.desc())
+        .all()
+    )
     return [uc.to_dict() for uc in ucs]
 
 

@@ -1,14 +1,27 @@
-from flask import g
+import os
+from flask import g, request
 from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
 from sqlalchemy import event
 from sqlalchemy.orm import with_loader_criteria
 
 db = SQLAlchemy()
 migrate = Migrate()
-limiter = Limiter(key_func=get_remote_address, storage_uri='memory://')
+
+
+def client_ip() -> str:
+    """IP real do cliente. Atras do proxy do Render, request.remote_addr e o IP
+    do balanceador; com ProxyFix (app.py) o primeiro item de access_route e o
+    IP de origem. Sem isso todos os usuarios caem no mesmo bucket de rate limit."""
+    route = request.access_route
+    return route[0] if route else (request.remote_addr or '127.0.0.1')
+
+
+limiter = Limiter(
+    key_func=client_ip,
+    storage_uri=os.environ.get('RATELIMIT_STORAGE_URI', 'memory://'),
+)
 
 
 class TenantMixin:

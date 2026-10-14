@@ -603,32 +603,9 @@ As chaves de Rateio são tenant-scoped: `rateioBufferHabilitado`, `rateioBufferP
 
 ---
 
-## Configurações — banco de dados (`/config`)
+## Configurações — banco de dados (`/config`) — REMOVIDO (2026-10-11)
 
-Controla qual provedor de dados o backend usa (Google Drive service-account, ou SQL — SQL ainda é só cadastro de credenciais, sem driver real conectado). Persistido direto no `.env` do backend via `dotenv`.
-
-### `GET /config/database`
-```json
-{
-  "provider": "google_drive",
-  "googleDrive": {
-    "configured": true, "credentialsFile": "credentials.json",
-    "rootFolderId": "", "dataFile": "hub-data.json", "credentialsFound": true
-  },
-  "sql": {
-    "configured": false, "driver": "", "host": "", "port": "",
-    "database": "", "user": "", "passwordConfigured": false
-  }
-}
-```
-
-### `POST /config/database/provider` — Body: `{ "provider": "google_drive" | "sql" }`. Erro 400 se vier outro valor.
-
-### `POST /config/database/google-drive` — Body: `{ credentialsFile?, rootFolderId?, dataFile? }`. Sempre também seta `provider=google_drive`.
-
-### `POST /config/database/sql` — Body: `{ driver?, host?, port?, database?, user?, password? }`. Senha nunca volta em nenhum `GET` (só `passwordConfigured: true/false`). Sempre também seta `provider=sql`.
-
-### `POST /config/database/test` — Body: `{ "provider": "google_drive" | "sql" }`. `data` = `{ "ok": boolean }`, `message` explica o motivo se `ok=false`. **Não testa conexão real** hoje — só confere se os campos obrigatórios estão preenchidos (SQL) ou se `credentials.json` + pasta raiz existem (Drive).
+As rotas `GET /config/database` e `POST /config/database/{provider,google-drive,sql,test}` foram removidas: gravavam o `.env` do servidor via HTTP (inclusive senha SQL em texto puro e caminho arbitrário de credencial), as chaves `SQL_*`/`DATA_PROVIDER` não eram lidas por nenhum código e o frontend não as consumia. O caminho do `credentials.json` vem exclusivamente de `GOOGLE_SERVICE_ACCOUNT_FILE` (variável de ambiente).
 
 ---
 

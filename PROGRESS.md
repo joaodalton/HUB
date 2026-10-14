@@ -1546,3 +1546,40 @@ Pendente de teste/validação antes de marcar `[x]`: sprint desta mesma sessão 
   - VALIDAÇÃO: suíte backend **674 testes OK** (SQLite, venv .venv-tenant311), frontend `tsc && vite build` OK, ESLint **0 erros**; `git diff --check` OK (apenas CRLF presistidos de edições anteriores). Nenhum deploy.
   - Documentação: `API_CONTRACTS.md` atualizada (contrato de `PUT /users/<id>`); `docs/architecture/tenant_isolation.md` reforçada; `PROGRESS.md` registra esta entrega.
   - NOTAS: `backend/.env` continua apontando para PostgreSQL (não persistível local); o comando do dev `backend/venv/Scripts/python.exe hub.py iniciar` usa o venv do projeto. O novo cargo `financial` não alterou a regra proibindo `admin → owner` (owner é imutável). Sem alteração de `SECURITY.md`, `docs/architecture` original e arquivos preservados.
+
+- [x] FASE-0 — Estabilização verificada em ambiente limpo — 2026-10-11.
+  - Causa raiz da suíte vermelha: `061e810abc38_add_users_table.py` referenciava `password_reset_tokens`, `import_previews` e `regulatory_tariffs` (tabelas criadas em revisões posteriores); `flask db upgrade` em banco vazio abortava com `NoSuchTableError`. Removido o bloco; as FKs são definidas nas revisões que criam as tabelas. Produção (já em `w7c0e5f9a4b2`) não é afetada.
+  - `ProxyFix` fora do debug + `key_func` por IP de origem (`access_route[0]`) + `RATELIMIT_STORAGE_URI` configurável. Antes, atrás do Render, todos os clientes compartilhavam um único bucket de rate limit.
+  - `MAX_CONTENT_LENGTH` global (25 MiB, env) com handler 413 `PAYLOAD_TOO_LARGE`.
+  - Owner protegido: admin não altera senha/e-mail/nome do owner (403 `OWNER_PROTECTED`) nem o exclui (400). Teste novo `tests/test_owner_protection.py`.
+  - CI: service PostgreSQL 16, gates de `flask db upgrade` em banco vazio (SQLite e Postgres), `pip-audit` (aviso, não bloqueante até o pin), timeout de 20 min na suíte; removida a etapa temporária de verificação de dependências.
+  - README corrigido (frontend é TypeScript vanilla + Vite). `.env.example` e `DEPLOY.md` documentam as variáveis novas.
+  - Validação: `flask db upgrade` SQLite vazio → head OK; suíte completa **676 testes, 0 falhas, 2 ignorados, 2 falhas esperadas** (267 s, Python 3.13); build frontend OK (327 módulos); lint 0 erros / 127 avisos. Pendente desta fase: pin de versões com `pip-compile` (requer decisão de versão do Python de produção).
+
+- [x] FASE-1 — Blindagem para o segundo tenant — 2026-10-11.
+  - OAuth Google: nonce em cookie `HttpOnly` (path do callback, 10 min) com SHA-256 guardado no `state`; callback rejeita nonce ausente/divergente. Erro inesperado no callback nao expoe mais `str(exc)` na URL de retorno.
+  - `hub_platform_view` assinado e amarrado ao `user_id`; valor cru ou de outro usuario e ignorado. Testes do boundary atualizados para usar `sign_platform_view`.
+  - `LogService`: se a sessao tem trabalho pendente ou flushado-sem-commit, o log entra na mesma transacao (flush) e o chamador comita; sessao limpa ou `strict=True` comitam na hora. Corrige commit parcial em `automacao_service.resolver_pendencias_resolvidas`.
+  - `utils/observability.py`: logging JSON em stdout, `X-Request-ID` por requisicao, `@app.errorhandler` para `HTTPException` (JSON uniforme) e `Exception` (500 `INTERNAL_ERROR` + Sentry + rollback). `drive_routes` passa a logar o motivo da indisponibilidade.
+  - Removidos: `routes/config_routes.py` + `services/database_config_service.py` (escrita de `.env` via HTTP, sem consumidor), `frontend/src/services/databaseConfigService.ts`, `security_middleware.py` (nao importado), corpos mortos apos `return 410` em `email_template_routes.py`. `drive_service` le `GOOGLE_SERVICE_ACCOUNT_FILE` de `Config`.
+  - `drive_service._escape_drive_literal`: escapa `\\` antes de `'` e remove caracteres de controle (injecao na query do Drive).
+  - Mensagens internas removidas das respostas 503 de `document_routes`, `empresa_routes`, `drive_routes`.
+  - Testes novos: `tests/test_fase1_hardening.py` (9). `API_CONTRACTS.md`, `README.md`, `SECURITY.md` atualizados.
+  - Fora desta entrega (proxima): politica de senha >= 10, `Category` por tenant, `resend_api_key` em `ApiCredential`, pin de versoes.
+
+- [x] FASE-2 (parte 1) — Convergência de qualidade: rateio, automação, listagens, frontend — 2026-10-11.
+  - `services/rateio_math.py`: aritmética do rateio em `Decimal` com `ROUND_HALF_UP` (mesma política do motor de cobrança), funções puras sem banco. `rateio_service` passa a usá-lo: percentuais validados (0–100, 2 casas), soma em Decimal, persistência Decimal em `PlantConnection`/`RateioHistorico`, float só na fronteira JSON. `_conexoes_por_uc()` substitui o `count()` por UC (N+1) no funil e no preview. Suíte nova `tests/test_rateio_calculo.py` (17 testes: half-up, ruído binário, limites, reserva, buffer, divisão entre usinas, soma 100, manual vs automático).
+  - `automacao_service`: regras carimbadas em `Pendencia.metadados['regra']` (`uc_sem_usina`, `cliente_sem_uc`, `campos_obrigatorios`, `documentos_obrigatorios`); deduplicação e auto-resolução usam a chave, com fallback por título para pendências legadas. Uma query para todas as abertas em vez de três `ilike`. `tests/test_automacao_pendencias.py` (3).
+  - `services/asaas_status.py`: mapa único ASAAS → interno usado por `fatura_service` e `asaas_webhook_service` (antes divergiam em `RECEIVED_IN_CASH`/`CANCELLED`/`DELETED`).
+  - `client_service.list_clients` e `uc_service.list_ucs` com `selectinload` (ucs → conexoes → plant; client): elimina o N+1 do `to_dict`.
+  - Frontend: `ApiResponse<T>` declarado uma vez em `apiClient.ts` e importado pelos 29 services; pipeline fetch/401/403 unificado em `execute()`; `NetworkError` para falha de rede. Busca de Clientes e UCs não perde mais o foco (input criado fora do `renderContent`) e ganhou `aria-label`. Badge "Termo de adesão" do formulário de rateio renderiza o elemento (antes aparecia `<span>` literal). Vitest + jsdom configurados; `npm test` no CI; 17 testes (`cadastroFields`, `listState`, `apiClient`).
+  - Validação: backend completo **705 testes, 0 falhas, 2 ignorados, 2 falhas esperadas**, `tsc` OK, lint 0 erros / 126 avisos, build OK, `vitest run` 17/17.
+  - Pendente da Fase 2: `desconto`/`percentual_desconto_carencia` de `String` para `Numeric` (migration), envelope de resposta único, validação por schema, pytest com fixtures compartilhadas, `createListPage()`, quebra de `PendenciasPage.ts`, unificação de acentuação.
+
+- [x] FASE-2 (parte 2) — Suíte de testes rápida e versionada — 2026-10-11.
+  - `tests/test_sqlite_migrations.py`: `flask db upgrade/downgrade` executado em processo (`_run_migration_in_process`, app Flask mínimo + `flask_migrate.upgrade/downgrade`, stdout/stderr capturados) em vez de 56 subprocessos que importavam `app.py` inteiro. Mesma interface `returncode/stdout/stderr`; os 21 testes não mudaram. 21 testes: ~120 s → 31 s.
+  - pytest + pytest-xdist (`requirements-dev.txt`, `pytest.ini`): suíte completa **701 passed, 2 skipped, 2 xfailed em 78 s** com `-n auto` (era 287 s em `unittest discover`). As classes `unittest` existentes são coletadas sem alteração.
+  - CI: instala `requirements-dev.txt`, roda `python -m pytest -n auto`, timeout 15 min; `pip-audit` vem do dev requirements.
+  - `.gitignore`: a regra `backend/tests/*` (que exigia `git add -f` para cada teste novo e deixava 25 arquivos de teste fora do controle de versão no export) foi substituída por ignorar só `*.db` e fixtures privadas da Copel não listadas. Todo `.py` em `tests/` passa a ser versionado por padrão.
+  - `README.md` ganhou seção Testes; `SECURITY.md` aponta para os testes de segurança atuais (o `security_regression_test.py` citado não existe).
+  - Decisão registrada (não executado): migrar `ConsumerUnit.desconto`/`percentual_desconto_carencia` de `String` para `Numeric` muda o contrato da API (`desconto` hoje trafega como texto `"15%"`) e exige mudança coordenada no frontend + migration de dados; a validação na escrita (`parse_uc_discount`) já bloqueia valor inválido novo e o cálculo sinaliza `REVIEW_REQUIRED` para legado. Fica para um patch próprio com o frontend.

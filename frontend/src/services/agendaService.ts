@@ -1,7 +1,6 @@
-import { apiRequest } from './apiClient';
+import { apiRequest, type ApiResponse } from './apiClient';
 import type { PendenciaPrioridade, PendenciaStatus, PendenciaTipo } from './pendenciasService';
 
-type ApiResponse<T> = { success: boolean; message: string; data: T };
 
 export type AgendaModo = 'dia' | 'semana' | 'mes';
 

@@ -34,6 +34,8 @@ def store():
 def update(user_id: int):
     try:
         user = update_user(user_id, request.get_json(silent=True) or {}, g.current_empresa_id)
+    except PermissionError as exc:
+        return error_response(str(exc), 403, code='OWNER_PROTECTED')
     except ValueError as exc:
         return error_response(str(exc), 400)
     if not user:

@@ -12,6 +12,13 @@ from config import Config
 from utils.files import safe_filename, unique_filename
 
 
+def _escape_drive_literal(value: str) -> str:
+    """Escapa um literal para a query da API do Drive. Escapar so a aspa deixava
+    `\\'` fechar a string e injetar operadores (ex.: relaxar `in parents`)."""
+    cleaned = ''.join(ch for ch in (value or '') if ch >= ' ')
+    return cleaned.replace('\\', '\\\\').replace("'", "\\'")
+
+
 class GoogleDriveService:
     def __init__(self, credentials, root_folder_id: str) -> None:
         self.client = build('drive', 'v3', credentials=credentials)
@@ -33,7 +40,7 @@ class GoogleDriveService:
         # buscar por termo com apostrofo (ex.: "O'Brien") quebra a sintaxe da
         # query do Drive (erro 400 da API do Google, sem tratamento especifico
         # em drive_routes.py -- vira 500 cru pro usuario).
-        escaped_query_text = query_text.replace("'", "\\'")
+        escaped_query_text = _escape_drive_literal(query_text)
         mime_filter = ' or '.join(f"mimeType='{mime}'" for mime in self._SEARCHABLE_MIME_TYPES)
         query = (
             f"name contains '{escaped_query_text}' "
@@ -202,11 +209,11 @@ def _build_oauth_credentials():
 
 
 def _build_service_account_credentials():
-    # Le o caminho do credentials.json direto do .env a cada chamada (nao de Config, que so foi lido uma vez quando o processo subiu) -- assim uma credencial trocada pela tela de Configuracoes vale na hora, sem reiniciar.
-    from services.database_config_service import resolve_google_credentials_path  # import tardio: evita ciclo
-
+    # Caminho vem exclusivamente de variavel de ambiente (Config). A escrita do
+    # .env via HTTP (database_config_service) foi removida: era superficie de
+    # ataque e nao tinha consumidor no frontend.
     return service_account.Credentials.from_service_account_file(
-        str(resolve_google_credentials_path()),
+        str(Config.GOOGLE_SERVICE_ACCOUNT_FILE),
         scopes=Config.GOOGLE_DRIVE_SCOPES
     )
 

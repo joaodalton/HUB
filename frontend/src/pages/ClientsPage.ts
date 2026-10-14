@@ -66,6 +66,12 @@ export function createClientsPage(): HTMLElement {
     }
   }
 
+ const search = createElement('input');
+ search.type = 'search'; search.placeholder = 'Buscar clientes...'; search.setAttribute('aria-label', 'Buscar clientes');
+ const applySearch = createDebouncedInput((value) => { if (value !== searchTerm) { searchTerm = value; page = 1; writeListState({ busca: value || null, pagina: null, selecionada: null }); viewingClient = null; renderContent(); } });
+ search.addEventListener('input', () => applySearch(search.value));
+ const filters = createElement('div', { className: 'page-actions' }); filters.appendChild(search);
+
  function renderContent(): void {
     const pageActions = createElement('div', { className: 'page-actions' });
     const newClientButton = createElement('button', { textContent: 'Novo cliente', type: 'button' });
@@ -95,11 +101,9 @@ export function createClientsPage(): HTMLElement {
         { key: 'status', label: 'Status' }
       ]
     });
-    const search = createElement('input');
-    search.type = 'search'; search.placeholder = 'Buscar clientes...'; search.value = searchTerm;
-    const applySearch = createDebouncedInput((value) => { if (value !== searchTerm) { searchTerm = value; page = 1; writeListState({ busca: value || null, pagina: null, selecionada: null }); viewingClient = null; renderContent(); } });
-    search.addEventListener('input', () => applySearch(search.value));
-    const filters = createElement('div', { className: 'page-actions' }); filters.appendChild(search);
+    // `search` e `filters` vivem fora do renderContent (ver topo): recria-los a
+    // cada render destruia o input com foco no meio da digitacao.
+    if (search.value !== searchTerm) search.value = searchTerm;
     const blocks: HTMLElement[] = [pageActions, filters, createDashboardCards(getClientMetrics(clients)), table, createPagination(page, paged.pages, filteredClients.length, (nextPage) => { page = nextPage; writeListState({ pagina: page }); renderContent(); })];
 
     newClientButton.addEventListener('click', () => {

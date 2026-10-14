@@ -16,8 +16,7 @@ from services.asaas_client import AsaasError, ambiente_asaas
 from utils.crypto import decrypt_value
 
 
-STATUS = {'PENDING': 'pending', 'RECEIVED': 'received', 'CONFIRMED': 'received',
-          'RECEIVED_IN_CASH': 'received', 'OVERDUE': 'overdue', 'REFUNDED': 'refunded'}
+from services.asaas_status import ASAAS_STATUS_MAP as STATUS  # fonte unica (sincronizacao e webhook)
 EVENTS = frozenset({
     'PAYMENT_CREATED', 'PAYMENT_UPDATED', 'PAYMENT_CONFIRMED', 'PAYMENT_RECEIVED',
     'PAYMENT_OVERDUE', 'PAYMENT_DELETED', 'PAYMENT_RESTORED', 'PAYMENT_REFUNDED',

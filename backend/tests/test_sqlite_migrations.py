@@ -11,6 +11,44 @@ from pathlib import Path
 
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(BACKEND_DIR))
+
+
+def _run_migration_in_process(database_path: Path, command: str, revision: str | None = None) -> subprocess.CompletedProcess:
+    import contextlib
+    import io
+    import logging
+
+    from flask import Flask
+    from flask_migrate import Migrate, downgrade, upgrade
+
+    from extensions import db
+
+    app = Flask('hub-migrations-test')
+    app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{database_path.as_posix()}"
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    db.init_app(app)
+    Migrate(app, db, directory=str(BACKEND_DIR / 'migrations'), render_as_batch=True)
+
+    # migrations/env.py chama fileConfig(alembic.ini), que reconfigura o logging
+    # (handlers para sys.stderr) a cada execucao -- um handler proprio seria
+    # descartado. Redirecionar stdout/stderr durante a execucao captura tudo,
+    # inclusive o "Error: <guarda>" que flask_migrate loga antes do sys.exit(1).
+    out, err = io.StringIO(), io.StringIO()
+    returncode = 0
+    try:
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err), app.app_context():
+            runner = {'upgrade': upgrade, 'downgrade': downgrade}[command]
+            runner(revision=revision or ('head' if command == 'upgrade' else '-1'))
+    except BaseException as exc:  # SystemExit(1) de flask_migrate ou excecao direta da migration
+        returncode = 1
+        err.write(f'\n{type(exc).__name__}: {exc}')
+    finally:
+        logging.getLogger('alembic').handlers.clear()
+        logging.getLogger('flask_migrate').handlers.clear()
+        with app.app_context():
+            db.engine.dispose()
+    return subprocess.CompletedProcess(args=[command, revision], returncode=returncode, stdout=out.getvalue(), stderr=err.getvalue())
 
 
 def _load_migration(filename: str):
@@ -229,24 +267,14 @@ class SQLiteMigrationsTest(unittest.TestCase):
                 self.assertEqual(connection.execute('SELECT * FROM faturas').fetchall(), original)
                 self.assertEqual(connection.execute('SELECT version_num FROM alembic_version').fetchone()[0], 'k5e0f4a9b7c1')
 
-    def _environment(self, database_path: Path) -> dict:
-        environment = os.environ.copy()
-        environment.update({
-            'DATABASE_URL': f"sqlite:///{database_path.as_posix()}",
-            'SECRET_KEY': 'sqlite-migration-test-secret',
-            'FLASK_DEBUG': 'true',
-        })
-        return environment
-
     def _flask(self, database_path: Path, *args: str) -> subprocess.CompletedProcess:
-        return subprocess.run(
-            [sys.executable, '-m', 'flask', '--app', 'app', 'db', *args],
-            cwd=BACKEND_DIR,
-            env=self._environment(database_path),
-            text=True,
-            capture_output=True,
-            check=False,
-        )
+        """Executa `flask db <upgrade|downgrade> [rev]` EM PROCESSO.
+
+        A versao anterior abria um subprocesso por chamada (56 por suite), cada
+        um importando app.py inteiro (google-api-client, boto3, reportlab,
+        sentry): era a causa estrutural do timeout de 180 s no CI. Mantem a
+        mesma interface (returncode/stdout/stderr) para os testes nao mudarem."""
+        return _run_migration_in_process(database_path, *args)
 
     def test_legacy_numeric_normalizers_accept_valid_and_reject_malformed_data(self):
         migration = _load_migration('e5f9a3b2c7d4_consumo_percentual_numeric.py')

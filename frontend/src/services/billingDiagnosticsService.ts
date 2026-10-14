@@ -1,6 +1,5 @@
-import { apiUpload } from './apiClient';
+import { apiUpload, type ApiResponse } from './apiClient';
 
-type ApiResponse<T> = { success: boolean; message: string; data: T };
 
 export type PdfDiagnosticStage = {
   stage: string;

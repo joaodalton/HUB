@@ -1,4 +1,4 @@
-import { apiRequest } from './apiClient';
+import { apiRequest, type ApiResponse } from './apiClient';
 
 export type TemplateCanal = 'email' | 'whatsapp';
 
@@ -18,7 +18,6 @@ export type MessageTemplateRow = {
   metaSubmittedAt?: string | null;
 };
 
-type ApiResponse<T> = { success: boolean; message: string; data: T };
 
 export type MessageTemplateInput = {
   nome: string;

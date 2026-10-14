@@ -63,21 +63,21 @@ test_hub.py
 .claude-flow/logs/
 .claude-flow/sessions/
 
-# Local swarm, security fixes and tests
+# Local swarm e security fixes
 .swarm/
 security_fixes/
-backend/tests/*
-!backend/tests/fixtures/
-!backend/tests/fixtures/invoices/
-!backend/tests/fixtures/invoices/copel/
+
+# Testes: todo arquivo .py e versionado (a regra antiga `backend/tests/*`
+# exigia `git add -f` para cada teste novo e deixava testes de fora do repo).
+# Continuam fora do git: bancos temporarios e qualquer PDF/fixture privada da
+# Copel que nao esteja na lista explicita abaixo.
+backend/tests/**/*.db
 backend/tests/fixtures/invoices/copel/*
+!backend/tests/fixtures/invoices/copel/README.md
 !backend/tests/fixtures/invoices/copel/gd_events_sanitized.json
 !backend/tests/fixtures/invoices/copel/build_fixture.py
-!backend/tests/test_fatura_concessionaria_upload.py
-!backend/tests/test_cad_identity.py
-!backend/tests/test_regra_cobranca_assignment.py
-!backend/tests/test_grupo_regra_cobranca.py
-!backend/tests/test_billing_rule_resolver.py
+!backend/tests/fixtures/invoices/copel/core_anon.pdf
+!backend/tests/fixtures/invoices/copel/core_anon.expected.json
 !backend/tests/test_regulatory_fio_b_e2e.py
 !backend/tests/test_tariff_selector.py
 !backend/tests/test_billing_calculation_contracts.py

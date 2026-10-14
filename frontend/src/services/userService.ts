@@ -1,4 +1,4 @@
-import { apiRequest } from './apiClient';
+import { apiRequest, type ApiResponse } from './apiClient';
 
 export type UserRole = 'owner' | 'admin' | 'operator' | 'financial' | 'viewer';
 
@@ -24,11 +24,6 @@ export type UserUpdatePayload = Partial<Pick<UserRow, 'nome' | 'email' | 'role'>
   senha?: string;
 };
 
-type ApiResponse<T> = {
-  success: boolean;
-  message: string;
-  data: T;
-};
 
 export async function getUsers(): Promise<UserRow[]> {
   const response = await apiRequest<ApiResponse<UserRow[]>>('/users');

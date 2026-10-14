@@ -1,4 +1,4 @@
-import { apiRequest } from './apiClient';
+import { apiRequest, type ApiResponse } from './apiClient';
 
 export type EmpresaRow = {
   id: number;
@@ -9,7 +9,6 @@ export type EmpresaRow = {
   totalUsuarios: number;
 };
 
-type ApiResponse<T> = { data: T };
 
 export async function getEmpresas(): Promise<EmpresaRow[]> {
   const response = await apiRequest<ApiResponse<EmpresaRow[]>>('/empresas');

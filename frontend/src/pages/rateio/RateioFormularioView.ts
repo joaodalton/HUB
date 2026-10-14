@@ -104,7 +104,7 @@ export function createRateioFormularioView(getPlants: () => PlantRow[]): RateioF
         { key: 'documento', label: 'CPF/CNPJ', editable: true, onChange: (row, value) => { row.documento = value; } },
         { key: 'ucIdentificacao', label: 'UC', editable: true, onChange: (row, value) => { row.ucIdentificacao = value; } },
         { key: 'percentual', label: '%', align: 'right', editable: true, onChange: (row, value) => { row.percentual = Number(value.replace(',', '.')) || 0; } },
-        { key: 'termoAdesaoOk', label: 'Termo de adesão', render: (row) => createTermoAdesaoBadge(row).outerHTML }
+        { key: 'termoAdesaoOk', label: 'Termo de adesão', render: (row) => createTermoAdesaoBadge(row) }
       ], rows: tableRows, emptyMessage: 'Nenhuma UC beneficiária conectada a esta usina ainda.', getRowKey: (row) => row.ordem,
       onChange: () => { current.somaPercentual = round2(current.linhas.reduce((sum, line) => sum + line.percentual, 0)); verification = null; render(); }
     });

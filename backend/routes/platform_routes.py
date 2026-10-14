@@ -83,7 +83,7 @@ def entrar_na_empresa(empresa_id: int):
             'status': empresa.status,
         },
     })
-    set_platform_view_cookie(response, empresa.id)
+    set_platform_view_cookie(response, empresa.id, g.current_user.id)
     return response
 
 

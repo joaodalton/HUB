@@ -13,6 +13,7 @@ em processos diferentes (bug real, ja aconteceu em producao). Setting resolve
 isso porque todo worker le do mesmo Postgres.
 """
 import datetime
+import hashlib
 import json
 import os
 import secrets
@@ -44,12 +45,12 @@ def _scopes() -> list[str]:
     return [*Config.GOOGLE_DRIVE_SCOPES, *_IDENTITY_SCOPES]
 
 
-def _store_pending_state(state: str, code_verifier: str, empresa_id: int) -> None:
+def _store_pending_state(state: str, code_verifier: str, empresa_id: int, nonce_hash: str | None = None) -> None:
     _cleanup_expired_states(empresa_id)
     # Guarda code_verifier (PKCE) E a empresa que iniciou o fluxo juntos --
     # o /callback e chamado direto pelo Google, sem sessao/cookie util pra
     # saber isso, entao precisa vir carregado dentro do proprio state.
-    valor = json.dumps({'codeVerifier': code_verifier, 'empresaId': empresa_id})
+    valor = json.dumps({'codeVerifier': code_verifier, 'empresaId': empresa_id, 'nonceHash': nonce_hash})
     db.session.add(Setting(empresa_id=empresa_id, chave=f'{_STATE_KEY_PREFIX}{state}', valor=valor))
     db.session.commit()
 
@@ -163,7 +164,15 @@ def _build_flow() -> Flow:
     )
 
 
-def build_authorize_url(empresa_id: int) -> str:
+def hash_nonce(nonce: str) -> str:
+    return hashlib.sha256(nonce.encode('utf-8')).hexdigest()
+
+
+def build_authorize_url(empresa_id: int, nonce: str | None = None) -> str:
+    """`nonce` e o valor que a rota grava em cookie HttpOnly no navegador de
+    quem clicou "Conectar". O callback exige o mesmo cookie: assim a URL de
+    consentimento nao pode ser enviada a terceiros para que autorizem a conta
+    Google DELES dentro da empresa de quem gerou o link."""
     flow = _build_flow()
     state = secrets.token_urlsafe(24)
 
@@ -178,11 +187,11 @@ def build_authorize_url(empresa_id: int) -> str:
     # Precisa guardar o code_verifier junto do state, senao o Flow novo do callback
     # nao tem como reproduzir o code_challenge e a troca do code por token falha.
     # empresa_id viaja junto pelo mesmo motivo -- ver _store_pending_state.
-    _store_pending_state(state, flow.code_verifier, empresa_id)
+    _store_pending_state(state, flow.code_verifier, empresa_id, hash_nonce(nonce) if nonce else None)
     return auth_url
 
 
-def handle_callback(request_url: str, state: str) -> dict:
+def handle_callback(request_url: str, state: str, nonce: str | None = None) -> dict:
     """Troca o 'code' que o Google devolveu por credenciais, descobre o email
     da conta e cria/atualiza o GoogleAccount correspondente -- SEMPRE dentro
     da empresa que iniciou o fluxo (empresa_id vindo do state, nao de
@@ -197,6 +206,10 @@ def handle_callback(request_url: str, state: str) -> dict:
 
     if not code_verifier or not empresa_id:
         raise ValueError('Link de autorizacao invalido ou expirado. Conecte a conta de novo.')
+
+    expected_nonce_hash = dados_state.get('nonceHash')
+    if expected_nonce_hash and (not nonce or not secrets.compare_digest(hash_nonce(nonce), expected_nonce_hash)):
+        raise ValueError('Autorizacao iniciada em outro navegador ou sessao. Conecte a conta de novo.')
 
     flow = _build_flow()
     flow.code_verifier = code_verifier  # mesmo verifier do authorize -- exigido pelo PKCE

@@ -1,4 +1,4 @@
-import { apiRequest } from './apiClient';
+import { apiRequest, type ApiResponse } from './apiClient';
 
 export type EmailTemplateRow = {
   chave: string;
@@ -8,11 +8,6 @@ export type EmailTemplateRow = {
   variaveisDisponiveis: string[];
 };
 
-type ApiResponse<T> = {
-  success: boolean;
-  message: string;
-  data: T;
-};
 
 export async function getEmailTemplates(): Promise<EmailTemplateRow[]> {
   const response = await apiRequest<ApiResponse<EmailTemplateRow[]>>('/email-templates');
@@ -38,5 +33,5 @@ export async function sendTestEmail(chave: string): Promise<string> {
   const response = await apiRequest<ApiResponse<null>>(`/email-templates/${chave}/testar`, {
     method: 'POST'
   });
-  return response.message;
+  return response.message ?? '';
 }

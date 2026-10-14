@@ -62,6 +62,8 @@ Existem **dois ambientes completamente separados**, cada um com seu próprio ban
 | `META_APP_SECRET` | App Secret da aplicação Meta do HUB | Valida `X-Hub-Signature-256` no webhook WhatsApp; nunca vai ao frontend ou banco por empresa |
 | `META_WEBHOOK_VERIFY_TOKEN` | Valor secreto escolhido ao configurar o callback Meta | Usado apenas no desafio `GET /api/v1/webhooks/whatsapp` |
 | `META_GRAPH_API_BASE_URL` / `META_GRAPH_API_VERSION` | Endpoint e versão Graph API em uso | Atualizar a versão de forma controlada conforme ciclo da Meta |
+| `RATELIMIT_STORAGE_URI` | `redis://...` do Render Key Value (ou Upstash) | **Obrigatório em produção.** O padrão `memory://` é por processo, zera a cada deploy e, com `gunicorn -w 2+`, cada worker conta separado. O backend aplica `ProxyFix` fora do debug, então o limite é por IP real de origem (`X-Forwarded-For`), não pelo IP do balanceador do Render. |
+| `MAX_CONTENT_LENGTH` | `26214400` (25 MiB) | Limite global de corpo de requisição; rotas com limite próprio (tarifas ANEEL, 100 MiB) sobrescrevem por requisição. Acima do limite a API responde `413 PAYLOAD_TOO_LARGE`. |
 
 `OAUTH_ALLOW_INSECURE_TRANSPORT` não deve ser configurada no Render. Ela só serve para OAuth local via HTTP e só tem efeito junto de `FLASK_DEBUG=true`, `GOOGLE_OAUTH_REDIRECT_URI` e `FRONTEND_URL` em `localhost`/loopback; produção falha fechada se callback ou frontend não forem URLs HTTPS absolutas, sem credenciais ou fragmentos. Para rodar localmente, use os valores de `backend/.env.example` e cadastre `http://localhost:8000/api/v1/oauth/google/callback` como URI de redirecionamento autorizada no cliente OAuth do Google Cloud. Reinicie o backend após alterar o `.env`.
 

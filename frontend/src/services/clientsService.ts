@@ -1,4 +1,4 @@
-import { apiRequest } from './apiClient';
+import { apiRequest, type ApiResponse } from './apiClient';
 
 export type PlantConnection = {
   id: number;
@@ -57,11 +57,6 @@ export type ClientPayload = {
 
 export const concessionarias = ['Copel'];
 
-type ApiResponse<T> = {
-  success: boolean;
-  message: string;
-  data: T;
-};
 
 export async function getClients(): Promise<ClientRow[]> {
   const response = await apiRequest<ApiResponse<ClientRow[]>>('/clients');

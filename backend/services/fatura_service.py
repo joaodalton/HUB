@@ -18,7 +18,7 @@ from services.log_service import LogService
 from services.permission_service import can
 
 
-STATUS_MAP = {'PENDING': 'pending', 'RECEIVED': 'received', 'CONFIRMED': 'received', 'OVERDUE': 'overdue', 'CANCELLED': 'canceled', 'DELETED': 'canceled', 'REFUNDED': 'refunded'}
+from services.asaas_status import ASAAS_STATUS_MAP as STATUS_MAP  # fonte unica (sincronizacao e webhook)
 
 
 class EmissaoPendente(AsaasError):

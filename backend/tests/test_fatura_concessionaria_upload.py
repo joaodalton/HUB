@@ -564,7 +564,10 @@ class FaturaConcessionariaUploadTest(IsolatedTestRuntime, unittest.TestCase):
         without_selection = platform_client.get(f'/api/v1/documents/{document_id}/download',
             headers=admin_headers)
         self.assertEqual(without_selection.status_code, 403)
-        platform_client.set_cookie('hub_platform_view', '1')
+        from utils.auth import sign_platform_view
+        with self.app.app_context():
+            signed_view = sign_platform_view(self.user_ids['platform@a.test'], 1)
+        platform_client.set_cookie('hub_platform_view', signed_view)
         selected = platform_client.get(f'/api/v1/documents/{document_id}/download',
             headers=admin_headers)
         self.assertEqual(selected.status_code, 302)

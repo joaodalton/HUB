@@ -38,6 +38,46 @@ DOCUMENTOS_OBRIGATORIOS = [
 PRAZO_DIAS_SEM_USINA = 7
 
 
+# Chave estruturada de cada regra automatica. Fica em Pendencia.metadados['regra']
+# e e o que a deduplicacao e a auto-resolucao usam -- antes dependiam do texto
+# do titulo (`ilike('%sem usina%')`): renomear a mensagem desligava a regra.
+# Pendencias legadas (sem 'regra') continuam reconhecidas pelo titulo.
+REGRA_UC_SEM_USINA = 'uc_sem_usina'
+REGRA_CLIENTE_SEM_UC = 'cliente_sem_uc'
+REGRA_CAMPOS_OBRIGATORIOS = 'campos_obrigatorios'
+REGRA_DOCUMENTOS_OBRIGATORIOS = 'documentos_obrigatorios'
+_TITULO_LEGADO = {
+    REGRA_UC_SEM_USINA: 'sem usina',
+    REGRA_CLIENTE_SEM_UC: 'sem uc',
+    REGRA_CAMPOS_OBRIGATORIOS: 'falta ',
+    REGRA_DOCUMENTOS_OBRIGATORIOS: 'falta documento',
+}
+
+
+def _regra_de(pendencia: Pendencia) -> str | None:
+    metadados = pendencia.metadados or {}
+    regra = metadados.get('regra') if isinstance(metadados, dict) else None
+    if regra:
+        return regra
+    titulo = (pendencia.titulo or '').lower()
+    # Ordem importa: 'falta documento' e mais especifico que 'falta '
+    for chave in (REGRA_DOCUMENTOS_OBRIGATORIOS, REGRA_CAMPOS_OBRIGATORIOS, REGRA_UC_SEM_USINA, REGRA_CLIENTE_SEM_UC):
+        if _TITULO_LEGADO[chave] in titulo:
+            return chave
+    return None
+
+
+def _pendencias_abertas_por_regra() -> dict[str, list[Pendencia]]:
+    """Uma query para todas as pendencias abertas de automacao, agrupadas por regra."""
+    abertas = Pendencia.query.filter(Pendencia.status == 'aberta').all()
+    grupos: dict[str, list[Pendencia]] = {}
+    for pendencia in abertas:
+        regra = _regra_de(pendencia)
+        if regra:
+            grupos.setdefault(regra, []).append(pendencia)
+    return grupos
+
+
 def verificar_e_criar_pendencias():
     """
     Executa todas as verificações automáticas e cria pendências/alertas/erros
@@ -109,7 +149,7 @@ def _verificar_ucs_sem_usina() -> int:
             continue
 
         # Verifica se já existe pendência aberta para esta UC
-        if _ja_existe_pendencia_ativa(uc_id=uc.id, titulo_contem='sem usina'):
+        if _ja_existe_pendencia_ativa(uc_id=uc.id, regra=REGRA_UC_SEM_USINA):
             continue
 
         inicio_sem_usina = uc.sem_usina_desde or uc.created_at
@@ -128,6 +168,7 @@ def _verificar_ucs_sem_usina() -> int:
                 'ucId': uc.id,
                 'prioridade': 'alta',
                 'metadados': {
+                    'regra': REGRA_UC_SEM_USINA,
                     'diasSemUsina': dias_sem_usina,
                     'semUsinaDesde': inicio_sem_usina.isoformat(),
                 }
@@ -150,11 +191,12 @@ def _verificar_clientes_sem_uc() -> int:
             continue
 
         # Verifica se já existe pendência aberta para este cliente
-        if _ja_existe_pendencia_ativa(cliente_id=cliente.id, titulo_contem='sem UC'):
+        if _ja_existe_pendencia_ativa(cliente_id=cliente.id, regra=REGRA_CLIENTE_SEM_UC):
             continue
 
         criar_pendencia_alerta({
             'categoria': 'UCs',
+            'metadados': {'regra': REGRA_CLIENTE_SEM_UC},
             'titulo': f'Cliente {cliente.nome} sem UC cadastrada',
             'descricao': (
                 f'O cliente {cliente.nome} foi criado, porém ainda não possui '
@@ -196,10 +238,7 @@ def _verificar_campos_obrigatorios() -> int:
             continue
 
         # Verifica se já existe pendência aberta para este cliente + campos
-        if _ja_existe_pendencia_ativa(
-            cliente_id=cliente.id,
-            titulo_contem='Falta'
-        ):
+        if _ja_existe_pendencia_ativa(cliente_id=cliente.id, regra=REGRA_CAMPOS_OBRIGATORIOS):
             continue
 
         campos_str = ', '.join(campos_faltando)
@@ -213,6 +252,7 @@ def _verificar_campos_obrigatorios() -> int:
             'clienteId': cliente.id,
             'prioridade': 'alta',
             'metadados': {
+                'regra': REGRA_CAMPOS_OBRIGATORIOS,
                 'camposFaltando': campos_faltando,
             }
         })
@@ -252,10 +292,7 @@ def _verificar_documentos_obrigatorios() -> int:
             continue
 
         # Verifica se já existe pendência aberta para este cliente + documentos
-        if _ja_existe_pendencia_ativa(
-            cliente_id=cliente.id,
-            titulo_contem='documento'
-        ):
+        if _ja_existe_pendencia_ativa(cliente_id=cliente.id, regra=REGRA_DOCUMENTOS_OBRIGATORIOS):
             continue
 
         docs_str = ', '.join(documentos_faltando)
@@ -269,6 +306,7 @@ def _verificar_documentos_obrigatorios() -> int:
             'clienteId': cliente.id,
             'prioridade': 'alta',
             'metadados': {
+                'regra': REGRA_DOCUMENTOS_OBRIGATORIOS,
                 'documentosFaltando': documentos_faltando,
             }
         })
@@ -301,11 +339,11 @@ def _cliente_tem_documentos_obrigatorios(cliente_id: int) -> bool:
 def _ja_existe_pendencia_ativa(
     cliente_id: int = None,
     uc_id: int = None,
-    titulo_contem: str = None
+    regra: str = None
 ) -> bool:
     """
     Verifica se já existe uma pendência/alerta/erro ativa (não resolvida, não cancelada)
-    para o cliente ou UC especificada.
+    para o cliente ou UC especificada, opcionalmente da mesma regra automática.
     """
     query = Pendencia.query.filter(
         Pendencia.status == 'aberta'
@@ -318,15 +356,10 @@ def _ja_existe_pendencia_ativa(
 
     pendencias = query.all()
 
-    if not titulo_contem:
+    if not regra:
         return len(pendencias) > 0
 
-    # Filtra por título
-    for p in pendencias:
-        if titulo_contem.lower() in p.titulo.lower():
-            return True
-
-    return False
+    return any(_regra_de(p) == regra for p in pendencias)
 
 
 def criar_pendencia_alerta(data: dict) -> dict:
@@ -346,14 +379,10 @@ def resolver_pendencias_resolvidas():
     - Documentos faltando: se foram adicionados
     """
     resolvidas = 0
+    por_regra = _pendencias_abertas_por_regra()
 
     # 1. UC sem usina - resolve se agora tem conexão
-    pendencias_uc_sem_usina = Pendencia.query.filter(
-        Pendencia.status == 'aberta',
-        Pendencia.titulo.ilike('%sem usina%')
-    ).all()
-
-    for pendencia in pendencias_uc_sem_usina:
+    for pendencia in por_regra.get(REGRA_UC_SEM_USINA, []):
         if not pendencia.consumer_unit_id:
             continue
 
@@ -381,12 +410,7 @@ def resolver_pendencias_resolvidas():
             resolvidas += 1
 
     # 2. Campos faltando - resolve se foram preenchidos
-    pendencias_campos = Pendencia.query.filter(
-        Pendencia.status == 'aberta',
-        Pendencia.titulo.ilike('%Falta%')
-    ).all()
-
-    for pendencia in pendencias_campos:
+    for pendencia in por_regra.get(REGRA_CAMPOS_OBRIGATORIOS, []):
         if not pendencia.client_id:
             continue
 
@@ -417,12 +441,7 @@ def resolver_pendencias_resolvidas():
             resolvidas += 1
 
     # 3. Cliente sem UC - resolve se ganhou UC
-    pendencias_sem_uc = Pendencia.query.filter(
-        Pendencia.status == 'aberta',
-        Pendencia.titulo.ilike('%sem UC%')
-    ).all()
-
-    for pendencia in pendencias_sem_uc:
+    for pendencia in por_regra.get(REGRA_CLIENTE_SEM_UC, []):
         if not pendencia.client_id:
             continue
 

@@ -1,14 +1,29 @@
-from flask import g
+import os
+from flask import g, request
 from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
 from sqlalchemy import event
 from sqlalchemy.orm import with_loader_criteria
 
 db = SQLAlchemy()
 migrate = Migrate()
-limiter = Limiter(key_func=get_remote_address, storage_uri='memory://')
+
+
+def client_ip() -> str:
+    """IP real do cliente. access_route[0] e o primeiro IP do cabecalho
+    X-Forwarded-For, escrito pelo proprio cliente -- quem tenta adivinhar
+    senha troca esse valor a cada tentativa e foge do rate limit. remote_addr
+    e o que o ProxyFix (app.py) corrige para o IP de origem real, usando
+    apenas os proxies configurados em TRUSTED_PROXY_COUNT; sem ProxyFix
+    (modo debug) remote_addr já é o IP real da conexão TCP."""
+    return request.remote_addr or '127.0.0.1'
+
+
+limiter = Limiter(
+    key_func=client_ip,
+    storage_uri=os.environ.get('RATELIMIT_STORAGE_URI', 'memory://'),
+)
 
 
 class TenantMixin:

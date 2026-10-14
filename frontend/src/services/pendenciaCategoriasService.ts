@@ -3,15 +3,10 @@
 // padrao em CATEGORIAS_PADRAO/pendenciasService.ts). Guardadas na tabela
 // Setting generica (mesma chave/valor que Aparencia ja usa via /settings) --
 // decisao deliberada pra nao precisar de tabela/rota nova no backend agora.
-import { apiRequest } from './apiClient';
+import { apiRequest, type ApiResponse } from './apiClient';
 
 const SETTINGS_KEY = 'pendenciaCategoriasExtras';
 
-type ApiResponse<T> = {
-  success: boolean;
-  message: string;
-  data: T;
-};
 
 export async function getExtraCategorias(): Promise<string[]> {
   const response = await apiRequest<ApiResponse<Record<string, string>>>('/settings');

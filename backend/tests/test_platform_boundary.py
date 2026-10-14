@@ -74,6 +74,16 @@ class PlatformBoundaryTest(IsolatedTestRuntime, unittest.TestCase):
         with self.app.app_context():
             return generate_token(user_id)
 
+    def _view_cookie(self, user_id, empresa_id):
+        from utils.auth import sign_platform_view
+        with self.app.app_context():
+            return sign_platform_view(user_id, empresa_id)
+
+    def _view_from(self, value, user_id):
+        from utils.auth import platform_view_from_cookie
+        with self.app.app_context():
+            return platform_view_from_cookie(value, user_id)
+
     def _auth(self, user_id):
         return {'Authorization': f'Bearer {self._token(user_id)}'}
 
@@ -103,12 +113,10 @@ class PlatformBoundaryTest(IsolatedTestRuntime, unittest.TestCase):
         client = self.app.test_client()
         platform_headers = self._auth(self.platform_id)
         self.assertEqual(client.get('/api/v1/regulatory-tariffs/status', headers=platform_headers).status_code, 200)
-        self.assertEqual(client.get('/api/v1/config/database', headers=platform_headers).status_code, 200)
         self.assertEqual(client.get('/api/v1/empresas', headers=platform_headers).status_code, 200)
 
         tenant_headers = self._auth(self.tenant_ids[0])
         self.assertEqual(client.get('/api/v1/regulatory-tariffs/status', headers=tenant_headers).status_code, 403)
-        self.assertEqual(client.get('/api/v1/config/database', headers=tenant_headers).status_code, 403)
         self.assertEqual(client.get('/api/v1/empresas', headers=tenant_headers).status_code, 403)
 
     def test_a_to_exit_to_b_has_no_stale_tenant_data(self):
@@ -152,7 +160,7 @@ class PlatformBoundaryTest(IsolatedTestRuntime, unittest.TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(client.get_cookie('hub_platform_view').value, str(self.a_id))
+        self.assertEqual(self._view_from(client.get_cookie('hub_platform_view').value, self.platform_id), self.a_id)
         self.assertEqual(client.get('/api/v1/auth/me').get_json()['data']['platformViewEmpresaId'], self.a_id)
         with self.app.app_context():
             event = LogEntry.query.filter_by(acao='platform_enter_tenant', entidade_id=self.a_id).order_by(LogEntry.id.desc()).first()
@@ -166,7 +174,7 @@ class PlatformBoundaryTest(IsolatedTestRuntime, unittest.TestCase):
         client = self.app.test_client()
         client.set_cookie('hub_token', self._token(self.platform_id))
         client.set_cookie('hub_csrf', 'csrf')
-        client.set_cookie('hub_platform_view', str(self.a_id))
+        client.set_cookie('hub_platform_view', self._view_cookie(self.platform_id, self.a_id))
 
         with patch('services.log_service.db.session.commit', side_effect=RuntimeError('audit secret')):
             response = client.post(
@@ -177,7 +185,7 @@ class PlatformBoundaryTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertEqual(response.status_code, 500)
         self.assertEqual(response.get_json()['code'], 'PLATFORM_AUDIT_FAILED')
         self.assertNotIn('audit secret', response.get_data(as_text=True))
-        self.assertEqual(client.get_cookie('hub_platform_view').value, str(self.a_id))
+        self.assertEqual(self._view_from(client.get_cookie('hub_platform_view').value, self.platform_id), self.a_id)
         self.assertEqual(client.get('/api/v1/auth/me').get_json()['data']['platformViewEmpresaId'], self.a_id)
         self.assertEqual([row['nome'] for row in client.get('/api/v1/clients').get_json()['data']], ['Cliente A'])
 
@@ -185,7 +193,7 @@ class PlatformBoundaryTest(IsolatedTestRuntime, unittest.TestCase):
         client = self.app.test_client()
         client.set_cookie('hub_token', self._token(self.platform_id))
         client.set_cookie('hub_csrf', 'csrf')
-        client.set_cookie('hub_platform_view', str(self.a_id))
+        client.set_cookie('hub_platform_view', self._view_cookie(self.platform_id, self.a_id))
 
         response = client.post('/api/v1/platform/sair', headers={'X-CSRF-Token': 'csrf'})
 
@@ -204,7 +212,7 @@ class PlatformBoundaryTest(IsolatedTestRuntime, unittest.TestCase):
         client = self.app.test_client()
         client.set_cookie('hub_token', self._token(self.platform_id))
         client.set_cookie('hub_csrf', 'csrf')
-        client.set_cookie('hub_platform_view', str(self.a_id))
+        client.set_cookie('hub_platform_view', self._view_cookie(self.platform_id, self.a_id))
 
         with patch('services.log_service.db.session.commit', side_effect=RuntimeError('audit secret')):
             response = client.post('/api/v1/platform/sair', headers={'X-CSRF-Token': 'csrf'})
@@ -212,7 +220,7 @@ class PlatformBoundaryTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertEqual(response.status_code, 500)
         self.assertEqual(response.get_json()['code'], 'PLATFORM_AUDIT_FAILED')
         self.assertNotIn('audit secret', response.get_data(as_text=True))
-        self.assertEqual(client.get_cookie('hub_platform_view').value, str(self.a_id))
+        self.assertEqual(self._view_from(client.get_cookie('hub_platform_view').value, self.platform_id), self.a_id)
         self.assertEqual(client.get('/api/v1/auth/me').get_json()['data']['platformViewEmpresaId'], self.a_id)
         self.assertEqual([row['nome'] for row in client.get('/api/v1/clients').get_json()['data']], ['Cliente A'])
 

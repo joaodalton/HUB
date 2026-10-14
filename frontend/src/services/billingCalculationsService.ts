@@ -1,7 +1,6 @@
-import { apiBlobWithHeaders, apiRequest, apiUpload } from './apiClient';
+import { apiBlobWithHeaders, apiRequest, apiUpload, type ApiResponse } from './apiClient';
 import type { FaturaStatus } from './faturasService';
 
-type ApiResponse<T> = { success: boolean; message: string; data: T };
 
 const base = (empresaId: number) => `/platform/empresas/${empresaId}/billing-calculations`;
 

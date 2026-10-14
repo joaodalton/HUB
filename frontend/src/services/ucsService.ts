@@ -1,5 +1,5 @@
 // frontend/src/services/ucService.ts
-import { apiRequest } from './apiClient';
+import { apiRequest, type ApiResponse } from './apiClient';
 import type { PlantConnection } from './clientsService';
 
 export type UcRow = {
@@ -48,11 +48,6 @@ export type UcPayload = {
   conexoes: Array<{ plantId: number; percentual: string }>;
 };
 
-type ApiResponse<T> = {
-  success: boolean;
-  message: string;
-  data: T;
-};
 
 export async function getUcs(): Promise<UcRow[]> {
   const response = await apiRequest<ApiResponse<UcRow[]>>('/ucs');

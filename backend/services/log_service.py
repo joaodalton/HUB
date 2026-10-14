@@ -5,6 +5,24 @@ from extensions import db
 from models.log_entry import LogEntry
 
 
+def _session_has_uncommitted_work() -> bool:
+    """True se a sessao tem mudancas pendentes (ainda nao flushadas) OU ja
+    flushadas mas nao comitadas na transacao corrente."""
+    session = db.session()
+    if session.new or session.dirty or session.deleted:
+        return True
+    transaction = session.get_transaction()
+    if transaction is None:
+        return False
+    # Snapshot que o SQLAlchemy mantem para restaurar objetos no rollback:
+    # preenchido a cada flush, esvaziado no commit.
+    return bool(
+        getattr(transaction, '_new', None)
+        or getattr(transaction, '_dirty', None)
+        or getattr(transaction, '_deleted', None)
+    )
+
+
 class LogService:
     @staticmethod
     def _write(
@@ -34,9 +52,18 @@ class LogService:
             mensagem=mensagem,
             metadados=metadados
         )
+        # Se o chamador tem trabalho pendente na sessao, o log entra na MESMA
+        # transacao (flush) e quem comita e o chamador -- antes, o commit daqui
+        # persistia parcialmente loops de negocio (ex.: automacao_service).
+        # Sessao limpa (log depois do commit do chamador) ou modo strict
+        # (auditoria fail-closed da plataforma) comitam na hora.
+        caller_owns_transaction = not strict and _session_has_uncommitted_work()
         try:
             db.session.add(entry)
-            db.session.commit()
+            if caller_owns_transaction:
+                db.session.flush()
+            else:
+                db.session.commit()
         except Exception:
             db.session.rollback()
             if strict:

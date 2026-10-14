@@ -1,4 +1,4 @@
-import { apiRequest } from './apiClient';
+import { apiRequest, type ApiResponse } from './apiClient';
 
 export type PendenciaTipo = 'pendencia' | 'alerta' | 'erro';
 export type PendenciaPrioridade = 'baixa' | 'media' | 'alta' | 'critica';
@@ -79,11 +79,6 @@ export type PendenciaPayload = {
   prioridade: PendenciaPrioridade;
 };
 
-type ApiResponse<T> = {
-  success: boolean;
-  message: string;
-  data: T;
-};
 
 export async function getPendencias(filtros: PendenciaFiltros = {}): Promise<PendenciaRow[]> {
   const params = new URLSearchParams();

@@ -1,4 +1,4 @@
-import { apiRequest } from './apiClient';
+import { apiRequest, type ApiResponse } from './apiClient';
 import { adjustLightness, hexToRgba } from './colorUtils';
 import { getResolvedTheme } from './themeService';
 
@@ -25,11 +25,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   logoDataUrl: ''
 };
 
-type ApiResponse<T> = {
-  success: boolean;
-  message: string;
-  data: T;
-};
 
 let cachedSettings: AppSettings = DEFAULT_SETTINGS;
 let settingsGeneration = 0;

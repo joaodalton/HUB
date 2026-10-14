@@ -1,3 +1,4 @@
+import os
 import sentry_sdk
 import click
 from flask import Flask
@@ -24,6 +25,21 @@ def create_app() -> Flask:
 
     app = Flask(__name__)
     app.config.from_object(Config)
+    from utils.observability import configure_logging, register_error_handlers, register_request_id
+    configure_logging(app)
+    register_request_id(app)
+    register_error_handlers(app)
+    # Render (e qualquer LB) termina TLS e repassa X-Forwarded-For/Proto.
+    # Sem ProxyFix, remote_addr e o IP do proxy e url_scheme e http.
+    # TRUSTED_PROXY_COUNT conta quantos proxies confiaveis ficam na frente do
+    # app (hoje 1, o LB do Render); se entrar outro proxy (ex.: Cloudflare),
+    # ajustar essa variavel em vez de mudar codigo.
+    if not app.config.get('DEBUG'):
+        from werkzeug.middleware.proxy_fix import ProxyFix
+        trusted_proxy_count = int(os.environ.get('TRUSTED_PROXY_COUNT', '1'))
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=trusted_proxy_count, x_proto=1, x_host=1)
+    # Limite global de corpo de requisicao (uploads genericos nao tinham nenhum).
+    app.config.setdefault('MAX_CONTENT_LENGTH', int(os.environ.get('MAX_CONTENT_LENGTH', 25 * 1024 * 1024)))
 
     db.init_app(app)
     migrate.init_app(app, db)
@@ -81,7 +97,6 @@ def create_app() -> Flask:
          expose_headers=['Content-Disposition'])
 
     from routes.auth_routes import auth_routes
-    from routes.config_routes import config_routes
     from routes.drive_routes import drive_routes
     from routes.empresa_routes import empresa_routes
     from routes.health_routes import health_routes
@@ -115,7 +130,6 @@ def create_app() -> Flask:
     app.register_blueprint(health_routes)
     app.register_blueprint(auth_routes)
     app.register_blueprint(drive_routes)
-    app.register_blueprint(config_routes)
     app.register_blueprint(empresa_routes)
     app.register_blueprint(client_routes)
     app.register_blueprint(plant_routes)
@@ -164,6 +178,11 @@ def create_app() -> Flask:
         # nunca cai no set exato acima. Prefixo dedicado, checado a parte.
         '/api/v1/empresas/'
     })
+
+    @app.errorhandler(413)
+    def _too_large(_exc):
+        from utils.api_response import error_response
+        return error_response('Corpo da requisicao excede o limite permitido.', 413, code='PAYLOAD_TOO_LARGE')
 
     @app.after_request
     def _set_security_headers(response):

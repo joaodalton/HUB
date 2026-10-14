@@ -1,6 +1,5 @@
-import { apiRequest, apiUpload } from './apiClient';
+import { apiRequest, apiUpload, type ApiResponse } from './apiClient';
 
-type ApiResponse<T> = { success: boolean; data: T };
 
 export type RegulatoryTariffStatus = {
   status: 'missing' | 'updated'; records: number; coverage: { from: string | null; until: string | null };

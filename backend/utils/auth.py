@@ -40,7 +40,6 @@ _PLATFORM_CONTEXT_SAFE_ENDPOINTS = {
 _PLATFORM_CONTEXT_SAFE_ENDPOINT_PREFIXES = (
     'platform_routes.',
     'regulatory_tariff_routes.',
-    'config_routes.',
 )
 
 
@@ -117,10 +116,30 @@ def clear_auth_cookies(response) -> None:
     response.delete_cookie(COOKIE_NAME, path='/', samesite='Lax', secure=is_prod)
     response.delete_cookie(CSRF_COOKIE_NAME, path='/', samesite='Lax', secure=is_prod)
 
-def set_platform_view_cookie(response, empresa_id: int) -> None:
+def sign_platform_view(user_id: int, empresa_id: int) -> str:
+    """Cookie de contexto de plataforma assinado e amarrado ao usuario. Sem
+    assinatura, um platform admin trocava de tenant editando o cookie e
+    pulava a auditoria de /platform/empresas/<id>/entrar."""
+    return _get_serializer().dumps({'u': user_id, 'e': empresa_id}, salt='platform-view')
+
+
+def platform_view_from_cookie(value: str | None, user_id: int) -> int | None:
+    if not value:
+        return None
+    try:
+        data = _get_serializer().loads(value, max_age=TOKEN_MAX_AGE_SECONDS, salt='platform-view')
+    except (BadSignature, SignatureExpired):
+        return None
+    if not isinstance(data, dict) or data.get('u') != user_id:
+        return None
+    empresa_id = data.get('e')
+    return empresa_id if isinstance(empresa_id, int) else None
+
+
+def set_platform_view_cookie(response, empresa_id: int, user_id: int) -> None:
     is_prod = not Config.DEBUG
     response.set_cookie(
-        VIEW_COOKIE_NAME, str(empresa_id), httponly=True, secure=is_prod,
+        VIEW_COOKIE_NAME, sign_platform_view(user_id, empresa_id), httponly=True, secure=is_prod,
         samesite='Lax', max_age=TOKEN_MAX_AGE_SECONDS, path='/'
     )
 
@@ -207,9 +226,9 @@ def register_auth_middleware(app, public_paths: set[str], public_path_prefixes: 
         # Cookie sozinho nunca é suficiente: só vale se o USUÁRIO LOGADO
         # (não o cookie) for is_platform_admin de verdade.
         if user.is_platform_admin:
-            view_cookie = request.cookies.get(VIEW_COOKIE_NAME)
-            if view_cookie and view_cookie.isdigit():
-                empresa_visualizada = db.session.get(Empresa, int(view_cookie))
+            view_empresa_id = platform_view_from_cookie(request.cookies.get(VIEW_COOKIE_NAME), user.id)
+            if view_empresa_id is not None:
+                empresa_visualizada = db.session.get(Empresa, view_empresa_id)
                 if empresa_visualizada:
                     g.current_empresa_id = empresa_visualizada.id
                     g.current_empresa = empresa_visualizada

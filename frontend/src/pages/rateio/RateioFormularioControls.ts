@@ -3,7 +3,7 @@ import { createElement } from '../../dom';
 import type { FormularioLinha } from '../../services/rateioFormularioService';
 
 export function createEditableTable<T extends { ordem: number; fixa?: boolean }>({ columns, rows, emptyMessage, getRowKey, onChange }: {
-  columns: Array<{ key: keyof T; label: string; align?: 'right'; render?: (row: T) => string; editable?: boolean; onChange?: (row: T, value: string) => void }>;
+  columns: Array<{ key: keyof T; label: string; align?: 'right'; render?: (row: T) => string | HTMLElement; editable?: boolean; onChange?: (row: T, value: string) => void }>;
   rows: T[];
   emptyMessage?: string;
   getRowKey: (row: T) => number | string;
@@ -24,7 +24,8 @@ export function createEditableTable<T extends { ordem: number; fixa?: boolean }>
     tr.dataset.rowKey = String(getRowKey(row));
     columns.forEach((column) => {
       const cell = createElement('div', { className: `rateio-table-cell ${column.align === 'right' ? 'right' : ''}` });
-      cell.textContent = column.render ? column.render(row) : String(row[column.key] ?? '');
+      const rendered = column.render ? column.render(row) : String(row[column.key] ?? '');
+      if (rendered instanceof HTMLElement) cell.replaceChildren(rendered); else cell.textContent = rendered;
       const update = column.onChange;
       if (column.editable && update && !row.fixa) {
         const input = createElement('input'); input.type = 'text'; input.value = String(row[column.key] ?? '');

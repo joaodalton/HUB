@@ -1,11 +1,6 @@
-import { apiRequest } from './apiClient';
+import { apiRequest, type ApiResponse } from './apiClient';
 import type { EmpresaRow } from './empresaService';
 
-type ApiResponse<T> = {
-  success: boolean;
-  message: string;
-  data: T;
-};
 
 export type PlatformOverview = {
   totalEmpresas: number;

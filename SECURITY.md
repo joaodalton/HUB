@@ -43,8 +43,14 @@ continua de uso unico com TTL curto.
 ## Rate limit e proxy
 
 Fora do modo debug o app aplica `ProxyFix` (`X-Forwarded-For`/`Proto`), e o
-limiter usa o IP de origem (`request.access_route[0]`). `RATELIMIT_STORAGE_URI`
-deve apontar para um storage compartilhado em producao (ver `DEPLOY.md`).
+limiter usa `request.remote_addr` -- o IP que o `ProxyFix` corrige para a
+origem real, usando apenas os proxies configurados em `TRUSTED_PROXY_COUNT`
+(padrao 1, o LB do Render; aumentar se entrar outro proxy na frente, ex.:
+Cloudflare). Nunca usar `request.access_route[0]`: e o primeiro IP do
+cabecalho `X-Forwarded-For`, escrito pelo proprio cliente -- quem tenta
+adivinhar senha trocaria esse valor a cada tentativa e escaparia do limite
+de 5 logins por minuto. `RATELIMIT_STORAGE_URI` deve apontar para um storage
+compartilhado em producao (ver `DEPLOY.md`).
 Corpo de requisicao acima de `MAX_CONTENT_LENGTH` (25 MiB) recebe `413`.
 
 ## Usuarios

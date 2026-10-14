@@ -31,9 +31,13 @@ def create_app() -> Flask:
     register_error_handlers(app)
     # Render (e qualquer LB) termina TLS e repassa X-Forwarded-For/Proto.
     # Sem ProxyFix, remote_addr e o IP do proxy e url_scheme e http.
+    # TRUSTED_PROXY_COUNT conta quantos proxies confiaveis ficam na frente do
+    # app (hoje 1, o LB do Render); se entrar outro proxy (ex.: Cloudflare),
+    # ajustar essa variavel em vez de mudar codigo.
     if not app.config.get('DEBUG'):
         from werkzeug.middleware.proxy_fix import ProxyFix
-        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+        trusted_proxy_count = int(os.environ.get('TRUSTED_PROXY_COUNT', '1'))
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=trusted_proxy_count, x_proto=1, x_host=1)
     # Limite global de corpo de requisicao (uploads genericos nao tinham nenhum).
     app.config.setdefault('MAX_CONTENT_LENGTH', int(os.environ.get('MAX_CONTENT_LENGTH', 25 * 1024 * 1024)))
 

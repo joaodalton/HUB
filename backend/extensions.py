@@ -11,11 +11,13 @@ migrate = Migrate()
 
 
 def client_ip() -> str:
-    """IP real do cliente. Atras do proxy do Render, request.remote_addr e o IP
-    do balanceador; com ProxyFix (app.py) o primeiro item de access_route e o
-    IP de origem. Sem isso todos os usuarios caem no mesmo bucket de rate limit."""
-    route = request.access_route
-    return route[0] if route else (request.remote_addr or '127.0.0.1')
+    """IP real do cliente. access_route[0] e o primeiro IP do cabecalho
+    X-Forwarded-For, escrito pelo proprio cliente -- quem tenta adivinhar
+    senha troca esse valor a cada tentativa e foge do rate limit. remote_addr
+    e o que o ProxyFix (app.py) corrige para o IP de origem real, usando
+    apenas os proxies configurados em TRUSTED_PROXY_COUNT; sem ProxyFix
+    (modo debug) remote_addr já é o IP real da conexão TCP."""
+    return request.remote_addr or '127.0.0.1'
 
 
 limiter = Limiter(

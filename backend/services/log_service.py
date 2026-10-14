@@ -24,6 +24,24 @@ def _session_has_uncommitted_work() -> bool:
 
 
 class LogService:
+    """Grava `LogEntry` de auditoria.
+
+    Semantica de commit (ver `_session_has_uncommitted_work`): se a sessao do
+    SQLAlchemy ja tem trabalho do chamador pendente (objetos novos/sujos/
+    deletados, ainda nao flushados, OU ja flushados mas nao comitados), o log
+    entra na MESMA transacao via `flush()` e quem comita e o chamador -- isso
+    evita que o commit interno do LogService persista parcialmente um loop de
+    negocio que ainda nao terminou (ex.: `automacao_service.
+    resolver_pendencias_resolvidas`, que grava varios logs no meio de um loop
+    e so deveria comitar tudo no final).
+
+    Sessao limpa (nenhum trabalho pendente do chamador) ou `strict=True`
+    (auditoria fail-closed usada pela plataforma) comitam o log na hora,
+    sozinhos. `strict=True` tambem propaga excecao se o commit falhar, em vez
+    de engolir o erro -- usar so quando a ausencia do log de auditoria deve
+    interromper a operacao.
+    """
+
     @staticmethod
     def _write(
         nivel: str,

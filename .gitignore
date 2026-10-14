@@ -67,6 +67,9 @@ test_hub.py
 .swarm/
 security_fixes/
 
+# Helpers gerados/sincronizados pelo ruflo/claude-flow (manifest assinado, nao editado a mao)
+.claude/helpers/
+
 # Testes: todo arquivo .py e versionado (a regra antiga `backend/tests/*`
 # exigia `git add -f` para cada teste novo e deixava testes de fora do repo).
 # Continuam fora do git: bancos temporarios e qualquer PDF/fixture privada da

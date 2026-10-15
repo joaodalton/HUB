@@ -2,8 +2,7 @@
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import Mock
-from unittest.mock import patch
+from unittest.mock import ANY, Mock, patch
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -34,7 +33,8 @@ class ObjectStorageTest(unittest.TestCase):
             self.assertIsInstance(get_object_storage(), S3ObjectStorage)
             client.assert_called_once_with('s3',
                 endpoint_url='https://account.r2.cloudflarestorage.com',
-                aws_access_key_id='id', aws_secret_access_key='secret', region_name='auto')
+                aws_access_key_id='id', aws_secret_access_key='secret', region_name='auto',
+                config=ANY)
             app.config['OBJECT_STORAGE_ENDPOINT'] = 'http://account.r2.cloudflarestorage.com'
             with self.assertRaises(ObjectStorageError):
                 get_object_storage()
@@ -52,7 +52,8 @@ class ObjectStorageTest(unittest.TestCase):
             self.assertIsInstance(get_object_storage(), S3ObjectStorage)
             client.assert_called_once_with('s3',
                 endpoint_url='https://s3.us-west-002.backblazeb2.com',
-                aws_access_key_id='id', aws_secret_access_key='secret', region_name='us-west-002')
+                aws_access_key_id='id', aws_secret_access_key='secret', region_name='us-west-002',
+                config=ANY)
             app.config['OBJECT_STORAGE_ENDPOINT'] = 'http://s3.us-west-002.backblazeb2.com'
             with self.assertRaises(ObjectStorageError):
                 get_object_storage()

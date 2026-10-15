@@ -5,7 +5,12 @@ from pathlib import Path, PurePosixPath
 from uuid import uuid4
 from urllib.parse import urlparse
 
+from botocore.config import Config as BotoConfig
 from flask import current_app
+
+
+def _remove_expect_header(request, **kwargs):
+    request.headers.pop('Expect', None)
 
 
 class ObjectStorageError(RuntimeError):
@@ -139,7 +144,9 @@ def get_object_storage(provider=None):
             client = boto3.client('s3', endpoint_url=endpoint,
                 aws_access_key_id=config['OBJECT_STORAGE_ACCESS_KEY_ID'],
                 aws_secret_access_key=config['OBJECT_STORAGE_SECRET_ACCESS_KEY'],
-                region_name=config['OBJECT_STORAGE_REGION'])
+                region_name=config['OBJECT_STORAGE_REGION'],
+                config=BotoConfig(s3={'addressing_style': 'path', 'payload_signing_enabled': True}))
+            client.meta.events.register('before-send', _remove_expect_header)
         except Exception as exc:
             raise ObjectStorageError('Armazenamento de objetos indisponivel.') from exc
         return S3ObjectStorage(client, config['OBJECT_STORAGE_BUCKET'])

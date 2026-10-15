@@ -1,5 +1,6 @@
 """Domain-neutral private object storage for local development and S3 APIs."""
 import os
+import re
 from pathlib import Path, PurePosixPath
 from uuid import uuid4
 from urllib.parse import urlparse
@@ -121,11 +122,13 @@ def get_object_storage(provider=None):
     if provider == 's3':
         endpoint = config.get('OBJECT_STORAGE_ENDPOINT', '')
         parsed = urlparse(endpoint)
+        allowed_host = bool(parsed.hostname) and (
+            parsed.hostname.endswith('.r2.cloudflarestorage.com')
+            or bool(re.fullmatch(r's3\.[a-z0-9-]+\.backblazeb2\.com', parsed.hostname)))
         if (not endpoint or not parsed.hostname or parsed.username or parsed.password
                 or parsed.query or parsed.fragment or (parsed.scheme != 'https' and not local_allowed)
                 or parsed.scheme not in ('https', 'http')
-                or (not local_allowed and (not parsed.hostname.endswith('.r2.cloudflarestorage.com')
-                                           or parsed.path not in ('', '/')))):
+                or (not local_allowed and (not allowed_host or parsed.path not in ('', '/')))):
             raise ObjectStorageError('Configuracao de object storage invalida.')
         if not all(config.get(name) for name in (
                 'OBJECT_STORAGE_BUCKET', 'OBJECT_STORAGE_ACCESS_KEY_ID',

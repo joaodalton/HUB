@@ -138,13 +138,25 @@ class FaturaProcessingService:
                     'serie_nota_fiscal': 'serie_nota_fiscal', 'chave_acesso': 'chave_acesso',
                     'data_emissao': 'data_emissao', 'data_leitura_anterior': 'data_leitura_anterior',
                     'data_leitura_atual': 'data_leitura', 'data_proxima_leitura': 'data_proxima_leitura',
-                    'data_vencimento': 'data_vencimento',
+                    'data_vencimento': 'data_vencimento', 'consumo_kwh': 'consumo_kwh',
+                    'energia_compensada_kwh': 'energia_compensada_kwh',
+                    'injecao_gd1_kwh': 'injecao_gdi_kwh', 'injecao_gd2_kwh': 'injecao_gdii_kwh',
+                    'saldo_creditos_kwh': 'saldo_credito_kwh',
+                    'valor_total_concessionaria': 'valor_total_concessionaria',
+                }
+                decimal_scales = {
+                    'valor_total_concessionaria': 2, 'consumo_kwh': 6, 'energia_compensada_kwh': 6,
+                    'injecao_gd1_kwh': 6, 'injecao_gd2_kwh': 6, 'saldo_creditos_kwh': 6,
                 }
                 for column, name in mapping.items():
                     value = normalized.campos[name]
-                    if value.status == 'found':
-                        values[column] = value.value
-                # Numeric do model tem escala limitada: JSON é a fonte exata.
+                    if value.status != 'found':
+                        continue
+                    scale = decimal_scales.get(column)
+                    # Numeric do model tem escala limitada: só grava quando não exige arredondar; JSON é a fonte exata.
+                    if scale is not None and -value.value.as_tuple().exponent > scale:
+                        continue
+                    values[column] = value.value
                 self._save(original, values)
                 register_gd_compensation_pending(invoice.id, normalized, validation)
             return ProcessingResult(

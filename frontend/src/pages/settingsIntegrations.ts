@@ -1,17 +1,17 @@
 import { createElement } from '../dom';
 import { createInput, createSelectField } from '../components/formFields';
 import { createIntegrationCard } from '../components/IntegrationCard';
-import type { IconName } from '../components/Icon';
+import { createBrandLogo, type BrandName } from '../components/BrandLogo';
+import { createModalShell } from '../components/Modal';
 import { type ApiCredentialPayload, type ApiCredentialProvider, type ApiCredentialRow } from '../services/apiCredentialsService';
 import { type WhatsappIntegration, type WhatsappIntegrationInput } from '../services/whatsappService';
 import { createPanelHeader, createToggle } from './settingsShared';
 
 // ---------- APIs e integrações ----------
 
-const API_PROVIDER_OPTIONS: Array<{ value: ApiCredentialProvider; label: string; descricao: string; icon: IconName }> = [
-  { value: 'resend', label: 'Resend (e-mail)', descricao: 'Envio de e-mails transacionais.', icon: 'mensagens' },
-  { value: 'asaas', label: 'Asaas (financeiro)', descricao: 'Cobranças e faturas da empresa.', icon: 'cobrancas' },
-  { value: 'concessionaria', label: 'Concessionária', descricao: 'Credenciais de serviços das concessionárias.', icon: 'plants' }
+const API_PROVIDER_OPTIONS: Array<{ value: ApiCredentialProvider; label: string; descricao: string; logo: BrandName }> = [
+  { value: 'resend', label: 'Resend (e-mail)', descricao: 'Envio de e-mails transacionais.', logo: 'resend' },
+  { value: 'asaas', label: 'Asaas (financeiro)', descricao: 'Cobranças e faturas da empresa.', logo: 'asaas' }
 ];
 
 function asaasCredentialLabel(nome: string): string {
@@ -77,38 +77,62 @@ export function createApiCredentialsPanel(
   }
 
   const grid = createElement('div', { className: 'integration-card-grid' });
-  const editor = createElement('div', { className: 'integration-editor' });
-  editor.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Selecione uma integração para configurar suas credenciais.' }));
+
+  // O formulario so existe dentro do modal, aberto ao clicar no card. Salvar/remover fecham o modal
+  // (a tela inteira e re-renderizada pelo estado); testar mantem aberto.
+  const openModal = (title: string, build: (close: () => void) => HTMLElement[]): void => {
+    const modal = createModalShell(title, 'Integração');
+    const content = createElement('div', { className: 'integration-modal-content' });
+    content.append(...build(modal.close));
+    modal.body.appendChild(content);
+    document.body.appendChild(modal.overlay);
+  };
 
   API_PROVIDER_OPTIONS.forEach((provider) => {
     const providerCredentials = credentials.filter((credential) => credential.provider === provider.value);
     grid.appendChild(createIntegrationCard({
       nome: provider.label,
       descricao: provider.descricao,
-      icon: provider.icon,
+      logo: provider.logo,
       status: providerCredentials.some((credential) => credential.configurada) ? 'conectado' : 'nao_configurado',
-      onConfigurar: () => {
-        if (providerCredentials.length === 0) {
-          editor.replaceChildren(createApiCredentialForm(onCreate, provider.value));
-          return;
-        }
+      onConfigurar: () => openModal(provider.label, (close) => {
+        const create = async (data: Required<ApiCredentialPayload>) => { await onCreate(data); close(); };
+        if (providerCredentials.length === 0) return [createApiCredentialForm(create, provider.value)];
         const cards = providerCredentials.map((credential) => {
-          const card = createApiCredentialCard(credential, onUpdate, onTest, onDelete) as HTMLDetailsElement;
+          const card = createApiCredentialCard(
+            credential,
+            async (id, data) => { await onUpdate(id, data); close(); },
+            onTest,
+            async (id) => { await onDelete(id); close(); }
+          ) as HTMLDetailsElement;
           card.open = true;
           return card;
         });
+        const content = createElement('div', { className: 'integration-modal-content' });
         const add = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Adicionar outra credencial' });
-        add.addEventListener('click', () => editor.replaceChildren(createApiCredentialForm(onCreate, provider.value)));
-        editor.replaceChildren(...cards, add);
-      }
+        add.addEventListener('click', () => content.replaceChildren(createApiCredentialForm(create, provider.value)));
+        content.append(...cards, add);
+        return [content];
+      })
     }));
   });
   grid.appendChild(createIntegrationCard({
-    nome: 'WhatsApp Meta Cloud API', descricao: 'Número, token permanente e aprovação de templates por empresa.', icon: 'mensagens',
+    nome: 'WhatsApp Meta Cloud API', descricao: 'Número, token permanente e aprovação de templates por empresa.', logo: 'whatsapp',
     status: whatsapp?.configured ? 'conectado' : 'nao_configurado',
-    onConfigurar: () => editor.replaceChildren(createWhatsappIntegrationForm(whatsapp, whatsappLoaded, onSaveWhatsapp, onTestWhatsapp, onDeleteWhatsapp))
+    onConfigurar: () => openModal('WhatsApp Meta Cloud API', (close) => [createWhatsappIntegrationForm(
+      whatsapp,
+      whatsappLoaded,
+      async (input) => { await onSaveWhatsapp(input); close(); },
+      onTestWhatsapp,
+      async () => { await onDeleteWhatsapp(); close(); }
+    )])
   }));
-  panel.append(grid, editor);
+  const soon = createElement('div', { className: 'integration-soon-card' });
+  const soonChip = createElement('span', { className: 'icon-stat-chip icon-stat-chip-logo' });
+  soonChip.appendChild(createBrandLogo('google'));
+  soon.append(soonChip, createElement('strong', { textContent: 'Login com Google' }), createElement('span', { textContent: 'Login social via Google. Em breve.' }));
+  grid.appendChild(soon);
+  panel.appendChild(grid);
   return panel;
 }
 
@@ -209,10 +233,9 @@ function createApiCredentialCard(
   return card;
 }
 
-function createApiCredentialForm(onCreate: (data: Required<ApiCredentialPayload>) => Promise<void>, provider = 'resend'): HTMLElement {
+function createApiCredentialForm(onCreate: (data: Required<ApiCredentialPayload>) => Promise<void>, provider: ApiCredentialProvider): HTMLElement {
   const form = createElement('form', { className: 'settings-form api-credential-form' });
   form.appendChild(createElement('h3', { textContent: 'Adicionar integração' }));
-  const providerField = createSelectField('Provedor', provider, API_PROVIDER_OPTIONS);
   const nameField = createInput('Nome da integração', 'text', '', true);
   const asaasType = createSelectField('Credencial Asaas', 'api_key', [
     { value: 'api_key', label: 'Chave de API (envio e consulta de cobranças)' },
@@ -226,20 +249,19 @@ function createApiCredentialForm(onCreate: (data: Required<ApiCredentialPayload>
   secretField.input.autocomplete = 'new-password';
   const hint = createElement('p', { className: 'settings-hint' });
   const webhookHint = createElement('p', { className: 'settings-hint api-webhook-hint', textContent: 'O ambiente ativo é definido por ASAAS_API_BASE_URL no servidor. Use credenciais da mesma conta e ambiente. Configure no Asaas o webhook para /api/v1/webhooks/asaas com o mesmo token cadastrado aqui. O teste do token verifica apenas se ele foi armazenado corretamente.' });
+  const isAsaas = provider === 'asaas';
   function refreshProviderCopy(): void {
-    const isAsaas = providerField.select.value === 'asaas';
     const nome = `${asaasType.select.value}_${asaasEnvironment.select.value}`;
-    const copy = credentialCopy(providerField.select.value as ApiCredentialProvider, false, nome);
+    const copy = credentialCopy(provider, false, nome);
     secretField.field.firstElementChild!.textContent = copy.label;
     secretField.input.placeholder = copy.placeholder;
     hint.textContent = copy.hint;
-    nameField.field.hidden = isAsaas;
-    nameField.input.required = !isAsaas;
-    asaasType.field.hidden = !isAsaas;
-    asaasEnvironment.field.hidden = !isAsaas;
-    webhookHint.hidden = !isAsaas;
   }
-  providerField.select.addEventListener('change', refreshProviderCopy);
+  nameField.field.hidden = isAsaas;
+  nameField.input.required = !isAsaas;
+  asaasType.field.hidden = !isAsaas;
+  asaasEnvironment.field.hidden = !isAsaas;
+  webhookHint.hidden = !isAsaas;
   asaasType.select.addEventListener('change', refreshProviderCopy);
   asaasEnvironment.select.addEventListener('change', refreshProviderCopy);
   refreshProviderCopy();
@@ -247,7 +269,7 @@ function createApiCredentialForm(onCreate: (data: Required<ApiCredentialPayload>
   const submit = createElement('button', { type: 'submit', textContent: 'Adicionar' });
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
-    const nome = providerField.select.value === 'asaas'
+    const nome = isAsaas
       ? `${asaasType.select.value}_${asaasEnvironment.select.value}`
       : nameField.input.value.trim();
     const segredo = secretField.input.value;
@@ -256,13 +278,13 @@ function createApiCredentialForm(onCreate: (data: Required<ApiCredentialPayload>
     submit.disabled = true;
     submit.textContent = 'Adicionando...';
     try {
-      await onCreate({ provider: providerField.select.value as ApiCredentialProvider, nome, segredo });
+      await onCreate({ provider, nome, segredo });
     } catch {
       submit.disabled = false;
       submit.textContent = 'Adicionar';
     }
   });
   actions.appendChild(submit);
-  form.append(providerField.field, nameField.field, asaasType.field, asaasEnvironment.field, secretField.field, hint, webhookHint, actions);
+  form.append(nameField.field, asaasType.field, asaasEnvironment.field, secretField.field, hint, webhookHint, actions);
   return form;
 }

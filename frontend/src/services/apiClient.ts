@@ -9,7 +9,7 @@ const CSRF_COOKIE_NAME = 'hub_csrf';
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 export class ApiRequestError extends Error {
-  constructor(public readonly status: number, message: string) {
+  constructor(public readonly status: number, message: string, public readonly code?: string, public readonly details?: unknown) {
     super(message);
     this.name = 'ApiRequestError';
   }
@@ -39,9 +39,9 @@ function redirectToLogin(): void {
   }
 }
 
-async function readErrorMessage(response: Response): Promise<string> {
-  const payload = await response.json().catch(() => null) as { message?: string; error?: string } | null;
-  return payload?.message ?? payload?.error ?? 'Falha na comunicacao com a API.';
+async function readErrorPayload(response: Response): Promise<{ message: string; code?: string; details?: unknown }> {
+  const payload = await response.json().catch(() => null) as { message?: string; error?: string; code?: string; details?: unknown } | null;
+  return { message: payload?.message ?? payload?.error ?? 'Falha na comunicacao com a API.', code: payload?.code, details: payload?.details };
 }
 
 async function notifyRequiredPasswordChange(response: Response): Promise<void> {
@@ -74,7 +74,10 @@ async function execute(path: string, init: RequestInit): Promise<Response> {
   }
   if (response.status === 401) redirectToLogin();
   await notifyRequiredPasswordChange(response);
-  if (!response.ok) throw new ApiRequestError(response.status, await readErrorMessage(response));
+  if (!response.ok) {
+    const payload = await readErrorPayload(response);
+    throw new ApiRequestError(response.status, payload.message, payload.code, payload.details);
+  }
   return response;
 }
 

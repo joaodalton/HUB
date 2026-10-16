@@ -54,7 +54,7 @@ Existem **dois ambientes completamente separados**, cada um com seu próprio ban
 | `PLATFORM_ASAAS_API_KEY` | Vazio | Segredo global da plataforma em env; não cadastrar como `ApiCredential` de empresa. |
 | `PLATFORM_ASAAS_WEBHOOK_TOKEN` | Vazio | Token global exclusivo de `/api/v1/webhooks/asaas/platform`; vazio rejeita o webhook. |
 | `STORAGE_PROVIDER` | `s3` em produção | Obrigatório para novos PDFs de fatura; `local` só é aceito em desenvolvimento/testes. Configuração ausente falha explicitamente no upload. |
-| `OBJECT_STORAGE_ENDPOINT` | `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` | Endpoint S3 do R2; produção exige HTTPS e domínio R2. |
+| `OBJECT_STORAGE_ENDPOINT` | `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` | Endpoint S3 do R2; produção exige HTTPS e domínio R2. Backblaze B2 (S3 Compatible API) também é aceito, no formato `https://s3.<regiao>.backblazeb2.com` (ex.: `https://s3.us-west-002.backblazeb2.com`). |
 | `OBJECT_STORAGE_BUCKET` | Nome do bucket privado | Confirmar no Cloudflare que `r2.dev` e domínio público estão desabilitados. |
 | `OBJECT_STORAGE_ACCESS_KEY_ID` / `OBJECT_STORAGE_SECRET_ACCESS_KEY` | Credenciais R2 restritas ao bucket | Segredos só no Render; não expor no frontend ou banco. |
 | `OBJECT_STORAGE_REGION` | `auto` | Valor usado pelo cliente S3 do R2. |

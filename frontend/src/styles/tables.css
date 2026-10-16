@@ -160,6 +160,9 @@
 .icon-stat-chip-amber { background: var(--chip-amber-bg); color: var(--chip-amber-fg); }
 .icon-stat-chip-red { background: var(--chip-red-bg); color: var(--chip-red-fg); }
 .icon-stat-chip-purple { background: var(--chip-purple-bg); color: var(--chip-purple-fg); }
+.icon-stat-chip-logo { background: #fff; }
+.icon-stat-chip-logo .brand-logo { display: grid; width: 24px; height: 24px; }
+.icon-stat-chip-logo .brand-logo svg { width: 100%; height: 100%; }
 .icon-stat-card-interactive { cursor: pointer; font: inherit; text-align: left; }
 .icon-stat-card-interactive:hover { border-color: var(--accent-secondary-border); box-shadow: var(--shadow-md); transform: translateY(-2px); }
 

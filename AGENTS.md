@@ -16,6 +16,21 @@ Em caso de conflito, siga esta ordem de precedência:
 
 Se documentação e implementação divergirem de forma relevante para a tarefa, não escolha silenciosamente. Identifique a divergência e determine se ela exige decisão do usuário conforme as regras de autonomia deste arquivo.
 
+## Fonte canônica dos agentes
+
+As definições autoritativas dos agentes estão em `.claude/agents/`. Outras superfícies (`.paperclip-agent-bundles/`, `.codex/agents/`) são legadas e podem divergir; em caso de conflito, `.claude/agents/` prevalece.
+
+## Mapeamento de agentes
+
+| Agente | Arquivo | Modelo |
+|--------|---------|--------|
+| HUB Backend Developer | `.claude/agents/hub-backend-developer.md` | Sonnet 5 |
+| HUB Backend Reviewer | `.claude/agents/hub-backend-reviewer.md` | Sonnet 5 |
+| HUB Frontend Developer | `.claude/agents/hub-frontend-developer.md` | Sonnet 5 |
+| HUB Frontend Reviewer | `.claude/agents/hub-frontend-reviewer.md` | Sonnet 5 |
+| HUB Security Reviewer | `.claude/agents/hub-security-reviewer.md` | Sonnet 5 |
+| HUB Code Reviewer | `.claude/agents/hub-code-reviewer.md` | Sonnet 5 |
+
 ---
 
 ## Prioridade de entrega
@@ -24,7 +39,7 @@ Se documentação e implementação divergirem de forma relevante para a tarefa,
 2. Fluxos operacionais usáveis de ponta a ponta, incluindo backend, frontend e documentação na mesma entrega.
 3. V1.5 conforme `VISAO.md`, depois V2 financeiro e os itens posteriores na ordem definida pela visão.
 
-Não declarar uma tarefa concluída sem evidência de validação registrada em `PROGRESS.md`.
+Não declarar uma tarefa concluída sem evidência de validação, registrada em `PROGRESS.md` pelo orquestrador.
 
 ---
 
@@ -123,7 +138,7 @@ Não solicitar ao usuário decisões que possam ser determinadas com segurança 
 * Não introduzir dependências novas sem necessidade.
 * Uma funcionalidade só está pronta quando interface e API correspondentes estiverem conectadas, quando ambas fizerem parte do fluxo.
 * Atualizar `API_CONTRACTS.md` no mesmo commit de qualquer alteração de contrato ou endpoint.
-* Atualizar `PROGRESS.md` no mesmo commit de qualquer entrega.
+* O orquestrador (sessão principal/lead) é o responsável por atualizar `PROGRESS.md` no mesmo commit de qualquer entrega. Os agentes individuais reportam seus resultados e evidências; o orquestrador os registra.
 * Atualizar também a documentação operacional ou de domínio afetada.
 
 ---
@@ -306,7 +321,7 @@ Antes de considerar uma implementação concluída:
 8. verifique migrations;
 9. execute a validação proporcional ao risco;
 10. atualize a documentação exigida;
-11. registre evidência de validação em `PROGRESS.md`.
+11. reporte a evidência de validação ao orquestrador, que a registra em `PROGRESS.md`.
 
 Não reverta alterações existentes do usuário que não pertençam à tarefa.
 

@@ -52,6 +52,11 @@ export function createUcsPage(): HTMLElement {
     description: 'Unidades consumidoras vinculadas a clientes e usinas.'
   });
 
+  const search = createElement('input'); search.type = 'search'; search.placeholder = 'Buscar UCs...'; search.setAttribute('aria-label', 'Buscar UCs');
+  const applySearch = createDebouncedInput((value) => { if (value !== searchTerm) { searchTerm = value; page = 1; selectedUcId = null; writeListState({ busca: value || null, pagina: null, ucId: null }); renderContent(); } });
+  search.addEventListener('input', () => applySearch(search.value));
+  const filters = createElement('div', { className: 'page-actions' }); filters.appendChild(search);
+
   renderContent();
   loadAll();
 
@@ -78,11 +83,6 @@ export function createUcsPage(): HTMLElement {
       renderContent();
     }
   }
-
-  const search = createElement('input'); search.type = 'search'; search.placeholder = 'Buscar UCs...'; search.setAttribute('aria-label', 'Buscar UCs');
-  const applySearch = createDebouncedInput((value) => { if (value !== searchTerm) { searchTerm = value; page = 1; selectedUcId = null; writeListState({ busca: value || null, pagina: null, ucId: null }); renderContent(); } });
-  search.addEventListener('input', () => applySearch(search.value));
-  const filters = createElement('div', { className: 'page-actions' }); filters.appendChild(search);
 
   function renderContent(): void {
     const selectedUc = ucs.find((item) => item.id === selectedUcId) ?? null;

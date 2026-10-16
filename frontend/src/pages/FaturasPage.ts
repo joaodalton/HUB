@@ -23,9 +23,13 @@ export function createFaturasPage(): HTMLElement {
   const content = createElement('section', { className: 'content-stack faturas-page' });
   const toast = useToast(), loading = useGlobalLoading();
   const user = getCurrentUser();
-  const canIssue = !user?.isPlatformAdmin && ['owner', 'admin', 'financial'].includes(user?.role ?? '');
-  const canReadInvoices = Boolean(user?.isPlatformAdmin || canIssue);
+  // Exceção de teste: plataforma admin pode agir como owner só na empresa de testes (id 1).
+  // Não afeta nenhuma outra empresa real. Remover/revisar se o fluxo de teste mudar.
+  const PLATFORM_ADMIN_TEST_EMPRESA_ID = 1;
   const empresaId = user?.isPlatformAdmin ? user.platformViewEmpresaId ?? undefined : undefined;
+  const isPlatformAdminTestEmpresa = Boolean(user?.isPlatformAdmin && empresaId === PLATFORM_ADMIN_TEST_EMPRESA_ID);
+  const canIssue = isPlatformAdminTestEmpresa || (!user?.isPlatformAdmin && ['owner', 'admin', 'financial'].includes(user?.role ?? ''));
+  const canReadInvoices = Boolean(user?.isPlatformAdmin || canIssue);
   let invoices: BillingInvoice[] = [], charges: FaturaRow[] = [];
   let pendencias: PendenciaRow[] = [], clients: ClientRow[] = [], ucs: UcRow[] = [];
   let pagination = { page: 1, pageSize: PAGE_SIZE, total: 0, pages: 0 };
@@ -68,10 +72,10 @@ export function createFaturasPage(): HTMLElement {
       }
       const [invoicePage, chargeRows, pendingRows, clientRows, ucRows] = await Promise.all([
         getBillingInvoicePage({ ...filters, page, pageSize: PAGE_SIZE }, empresaId),
-        user?.isPlatformAdmin ? Promise.resolve([]) : getFaturas(),
-        user?.isPlatformAdmin ? Promise.resolve([]) : getPendencias(),
-        user?.isPlatformAdmin ? Promise.resolve([]) : getClients(),
-        user?.isPlatformAdmin ? Promise.resolve([]) : getUcs()
+        user?.isPlatformAdmin && !isPlatformAdminTestEmpresa ? Promise.resolve([]) : getFaturas(),
+        user?.isPlatformAdmin && !isPlatformAdminTestEmpresa ? Promise.resolve([]) : getPendencias(),
+        user?.isPlatformAdmin && !isPlatformAdminTestEmpresa ? Promise.resolve([]) : getClients(),
+        user?.isPlatformAdmin && !isPlatformAdminTestEmpresa ? Promise.resolve([]) : getUcs()
       ]);
       if (current !== requestId) return;
       invoices = invoicePage.data;

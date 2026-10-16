@@ -16,6 +16,7 @@ from models.consumer_unit import ConsumerUnit
 from models.fatura_concessionaria import FaturaConcessionaria
 from models.document import Document
 from services.object_storage import get_object_storage
+from services.fatura_processing_service import FaturaProcessingService
 from services.invoice_parsers.extraction import MinimalExtractor
 from services.invoice_parsers.registry import default_registry
 from services.uc_code import find_document_ucs
@@ -155,6 +156,11 @@ def upload_invoice(client_id: int | None, file_storage) -> tuple[dict, bool]:
             _discard_attempt(storage, storage_key)
         raise
 
+    # Falha de extracao nao invalida o upload ja persistido; process() grava seu proprio status/erro.
+    try:
+        FaturaProcessingService().process(invoice.id, document=file_bytes)
+    except Exception:
+        current_app.logger.error('Falha ao disparar extracao automatica da fatura: %s', invoice.id)
     return _result(invoice, False), False
 
 

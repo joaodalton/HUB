@@ -1,10 +1,17 @@
 import { createDetailDrawer } from '../components/DetailDrawer';
 import { createBadge, detailSection, formatCurrency, formatDate, formatReference, statusLabel } from '../components/FaturasUi';
+import { attachTooltip } from '../components/Tooltip';
 import { createElement } from '../dom';
-import { getBillingExecution, getBillingExecutions, type BillingExecution, type BillingInvoice } from '../services/billingCalculationsService';
+import { ApiRequestError } from '../services/apiClient';
+import { gerarBoletoConcessionaria, getBillingExecution, getBillingExecutions, type BillingExecution, type BillingInvoice } from '../services/billingCalculationsService';
 import { cancelFatura, syncFatura, type FaturaRow } from '../services/faturasService';
 import type { ClientRow } from '../services/clientsService';
 import type { PendenciaRow } from '../services/pendenciasService';
+
+const MISSING_FIELD_LABELS: Record<string, string> = {
+  ucId: 'UC', valor: 'valor da concessionária', dataVencimento: 'vencimento',
+  competencia: 'competência', statusValidacao: 'validação da fatura'
+};
 
 interface InvoiceDetailOptions {
   content: HTMLElement;
@@ -42,6 +49,12 @@ export function createFaturaInvoiceDetail(invoice: BillingInvoice, options: Invo
     if (!href) context.appendChild(createElement('span', { textContent: label }));
     else { const link = createElement('a', { textContent: label }); link.href = href; context.appendChild(link); }
   });
+  // Exceção de teste: plataforma admin pode agir como owner só na empresa de testes (id 1).
+  // Não afeta nenhuma outra empresa real. Remover/revisar se o fluxo de teste mudar.
+  const PLATFORM_ADMIN_TEST_EMPRESA_ID = 1;
+  const isPlatformAdminTestEmpresa = isPlatformAdmin && empresaId === PLATFORM_ADMIN_TEST_EMPRESA_ID;
+  const linkedCharges = isPlatformAdmin && !isPlatformAdminTestEmpresa ? [] : contextualCharges(invoice);
+  const cancelableCharge = linkedCharges.find((charge) => charge.asaasId && charge.asaasStatus === 'pending');
   const utility = detailSection('Fatura da concessionária', [
     ['Cliente', invoice.clienteNome ?? clients.find((client) => client.id === invoice.clientId)?.nome ?? '—'],
     ['UC', invoice.ucCodigo ?? 'Aguardando validação'],
@@ -52,12 +65,13 @@ export function createFaturaInvoiceDetail(invoice: BillingInvoice, options: Invo
     ['Extração', invoice.statusExtracao], ['Validação', invoice.statusValidacao]
   ]);
   if (invoice.documentoDisponivel) utility.appendChild(invoiceDownloadButton(invoice));
+  if (canIssue) utility.appendChild(gerarBoletoButton(invoice));
+  if (canIssue && cancelableCharge) utility.appendChild(cancelChargeButton(cancelableCharge, 'Excluir boleto'));
   const history = createElement('section', { className: 'fatura-detail-section' });
   history.append(createElement('h3', { textContent: 'Histórico auditável' }), createElement('p', { textContent: 'Carregando execuções persistidas…' }));
   const chargeSection = createElement('section', { className: 'fatura-detail-section' });
   chargeSection.appendChild(createElement('h3', { textContent: 'Cobrança comercial ASAAS' }));
-  const linkedCharges = isPlatformAdmin ? [] : contextualCharges(invoice);
-  const platformCharges = isPlatformAdmin ? invoice.contextualCharges ?? [] : [];
+  const platformCharges = isPlatformAdmin && !isPlatformAdminTestEmpresa ? invoice.contextualCharges ?? [] : [];
   if (!linkedCharges.length && !platformCharges.length) chargeSection.appendChild(createElement('p', { textContent: 'Nenhuma cobrança encontrada para esta UC e competência.' }));
   else {
     chargeSection.appendChild(createElement('p', { className: 'fatura-context-note', textContent: 'Cobranças encontradas pela UC e competência; o vínculo documental ainda não é confirmado pela API.' }));
@@ -79,11 +93,7 @@ export function createFaturaInvoiceDetail(invoice: BillingInvoice, options: Invo
         const sync = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Sincronizar' });
         sync.addEventListener('click', () => void runChargeAction(sync, () => syncFatura(charge.id), 'Cobrança sincronizada.', drawer));
         actions.appendChild(sync);
-        if (charge.asaasId && charge.asaasStatus === 'pending') {
-          const cancel = createElement('button', { className: 'danger-button', type: 'button', textContent: 'Cancelar cobrança' });
-          cancel.addEventListener('click', () => { if (window.confirm('Cancelar esta cobrança na ASAAS?')) void runChargeAction(cancel, () => cancelFatura(charge.id), 'Cobrança cancelada.', drawer); });
-          actions.appendChild(cancel);
-        }
+        if (charge.asaasId && charge.asaasStatus === 'pending') actions.appendChild(cancelChargeButton(charge, 'Cancelar cobrança'));
       }
       card.appendChild(actions);
       chargeSection.appendChild(card);
@@ -156,5 +166,37 @@ export function createFaturaInvoiceDetail(invoice: BillingInvoice, options: Invo
     try { await action(); toast.success(message); overlay.remove(); await reload(); }
     catch (cause) { toast.error(cause instanceof Error ? cause.message : 'Não foi possível concluir a ação.'); }
     finally { button.disabled = false; }
+  }
+
+  function cancelChargeButton(charge: FaturaRow, label: string): HTMLButtonElement {
+    const button = createElement('button', { className: 'danger-button', type: 'button', textContent: label });
+    button.addEventListener('click', () => { if (window.confirm('Cancelar esta cobrança na ASAAS?')) void runChargeAction(button, () => cancelFatura(charge.id), 'Cobrança cancelada.', drawer); });
+    return button;
+  }
+
+  function gerarBoletoButton(target: BillingInvoice): HTMLButtonElement {
+    const button = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Gerar boleto' });
+    const enabled = canIssueInvoice(target);
+    button.disabled = !enabled;
+    if (!enabled) attachTooltip(button, 'Fatura precisa estar validada, com UC, valor, vencimento e sem pendência para gerar boleto.');
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      button.disabled = true;
+      void gerarBoletoConcessionaria(target.id, isPlatformAdminTestEmpresa ? empresaId : undefined)
+        .then(() => { toast.success('Boleto gerado.'); drawer.remove(); return reload(); })
+        .catch((cause) => {
+          if (cause instanceof ApiRequestError && cause.code === 'INVOICE_DATA_INCOMPLETE') {
+            const missing = ((cause.details as { missing?: string[] } | undefined)?.missing ?? []).map((field) => MISSING_FIELD_LABELS[field] ?? field);
+            toast.error(`Dados incompletos para gerar boleto: ${missing.join(', ')}.`);
+          } else if (cause instanceof ApiRequestError && cause.code === 'EMISSAO_PENDENTE') {
+            toast.error('Emissão deste boleto já está em andamento. Aguarde a conclusão.');
+          } else {
+            toast.error(cause instanceof Error ? cause.message : 'Não foi possível gerar o boleto.');
+          }
+        })
+        .finally(() => { button.disabled = !enabled; });
+    });
+    button.addEventListener('keydown', (event) => event.stopPropagation());
+    return button;
   }
 }

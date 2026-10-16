@@ -46,8 +46,8 @@ class ReportsServiceTest(unittest.TestCase):
     def test_coletar_financeiro_agrupa_por_competencia(self, mock_listar):
         from services.reports_service import _coletar_financeiro
         mock_listar.return_value = [
-            {'competencia': '2026-09', 'valor': 560.0, 'mesVencimento': '2026-09-10', 'asaasStatus': 'received'},
-            {'competencia': '2026-09', 'valor': 700.0, 'mesVencimento': '2026-09-15', 'asaasStatus': 'overdue'},
+            {'competencia': '2026-09', 'valor': 560.0, 'mesVencimento': '2026-09-10', 'statusInterno': 'emitida', 'asaasStatus': 'received'},
+            {'competencia': '2026-09', 'valor': 700.0, 'mesVencimento': '2026-09-15', 'statusInterno': 'aguardando_emissao', 'asaasStatus': 'pending'},
         ]
 
         tabela = _coletar_financeiro(empresa_id=1, competencia='2026-09')

@@ -50,10 +50,20 @@ def _coletar_financeiro(empresa_id: int, competencia: str | None) -> ReportTable
     filtros = {'competencia': competencia} if competencia else {}
     faturas = listar_faturas(empresa_id, filtros)
     linhas = [
-        [fatura.get('competencia') or '', fatura.get('valor') or '', fatura.get('mesVencimento') or '', fatura.get('asaasStatus') or '']
+        [
+            fatura.get('competencia') or '',
+            fatura.get('valor') or '',
+            fatura.get('mesVencimento') or '',
+            fatura.get('statusInterno') or '',
+            fatura.get('asaasStatus') or '',
+        ]
         for fatura in faturas
     ]
-    return ReportTable(title='Relatorio Financeiro', headers=['Competencia', 'Valor', 'Vencimento', 'Status'], rows=linhas)
+    return ReportTable(
+        title='Relatorio Financeiro',
+        headers=['Competencia', 'Valor', 'Vencimento', 'Status Emissão', 'Status Pagamento'],
+        rows=linhas,
+    )
 
 
 _COLETORES['financeiro'] = _coletar_financeiro

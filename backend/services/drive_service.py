@@ -273,3 +273,9 @@ def invalidate_drive_cache(empresa_id: int | None = None) -> None:
         _drive_service_cache.clear()
     else:
         _drive_service_cache.pop(empresa_id, None)
+
+
+def build_oauth_credentials_for_empresa():
+    """Wrapper publico de _build_oauth_credentials(), pra reuso fora deste modulo
+    (ex.: services/google_reports_auth.py). Mesma funcao, mesmo cache/refresh."""
+    return _build_oauth_credentials()

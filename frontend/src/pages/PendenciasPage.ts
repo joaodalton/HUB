@@ -73,12 +73,12 @@ export function createPendenciasPage(): HTMLElement {
     description: 'Central de ações do HUB para pendências, alertas e erros.'
   });
 
+  let verificacaoEmAndamento = false;
+
   renderContent();
   loadAll();
 
   return layout;
-
-  let verificacaoEmAndamento = false;
 
   async function loadAll(): Promise<void> {
     isLoading = true;

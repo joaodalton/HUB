@@ -42,6 +42,19 @@ class ReportsServiceTest(unittest.TestCase):
         self.assertEqual(result, {'driveFileId': 'abc', 'webViewLink': 'https://x'})
         mock_render.assert_called_once_with('creds', mock_coletor.return_value, parent_folder_id='folder-1')
 
+    @patch('services.reports_service.listar_faturas')
+    def test_coletar_financeiro_agrupa_por_competencia(self, mock_listar):
+        from services.reports_service import _coletar_financeiro
+        mock_listar.return_value = [
+            {'competencia': '2026-09', 'valor': 560.0, 'mesVencimento': '2026-09-10', 'asaasStatus': 'received'},
+            {'competencia': '2026-09', 'valor': 700.0, 'mesVencimento': '2026-09-15', 'asaasStatus': 'overdue'},
+        ]
+
+        tabela = _coletar_financeiro(empresa_id=1, competencia='2026-09')
+
+        mock_listar.assert_called_once_with(1, {'competencia': '2026-09'})
+        self.assertEqual(len(tabela.rows), 2)
+
     @patch('services.reports_service.list_plants')
     @patch('services.reports_service.list_ucs')
     @patch('services.reports_service.list_clients')

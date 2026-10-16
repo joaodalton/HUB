@@ -8,6 +8,7 @@ from services.google_report_renderers import ReportTable, render_as_doc, render_
 from services.client_service import list_clients
 from services.uc_service import list_ucs
 from services.plant_service import list_plants
+from services.fatura_service import listar as listar_faturas
 
 _RENDERERS = {'doc': render_as_doc, 'sheet': render_as_sheet, 'slide': render_as_slide}
 _TIPOS_VALIDOS = {'cadastro', 'financeiro', 'rateio'}
@@ -43,6 +44,19 @@ def _coletar_cadastro(empresa_id: int, competencia: str | None) -> ReportTable:
 
 
 _COLETORES['cadastro'] = _coletar_cadastro
+
+
+def _coletar_financeiro(empresa_id: int, competencia: str | None) -> ReportTable:
+    filtros = {'competencia': competencia} if competencia else {}
+    faturas = listar_faturas(empresa_id, filtros)
+    linhas = [
+        [fatura.get('competencia') or '', fatura.get('valor') or '', fatura.get('mesVencimento') or '', fatura.get('asaasStatus') or '']
+        for fatura in faturas
+    ]
+    return ReportTable(title='Relatorio Financeiro', headers=['Competencia', 'Valor', 'Vencimento', 'Status'], rows=linhas)
+
+
+_COLETORES['financeiro'] = _coletar_financeiro
 
 
 def gerar_relatorio(empresa_id: int, tipo: str, formato: str, competencia: str | None = None) -> dict:

@@ -1,5 +1,5 @@
 import { apiBlobWithHeaders, apiRequest, apiUpload, type ApiResponse } from './apiClient';
-import type { FaturaStatus } from './faturasService';
+import type { FaturaRow, FaturaStatus } from './faturasService';
 
 
 const base = (empresaId: number) => `/platform/empresas/${empresaId}/billing-calculations`;
@@ -119,6 +119,10 @@ export async function downloadBillingInvoice(invoiceId: number, empresaId?: numb
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+export async function gerarBoletoConcessionaria(invoiceId: number): Promise<FaturaRow> {
+  return (await apiRequest<ApiResponse<FaturaRow>>(`/billing-calculations/invoices/${invoiceId}/gerar-boleto`, { method: 'POST' })).data;
 }
 
 export async function uploadTenantBillingInvoice(file: File): Promise<BillingUpload> {

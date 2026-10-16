@@ -36,16 +36,18 @@ export function createReportsPage(): HTMLElement {
   function createReportCard(tipo: ReportTypeOption): HTMLElement {
     const card = createElement('section', { className: 'report-card' });
     card.appendChild(createElement('h2', { textContent: tipo.label }));
+    const formatField = createElement('label', { className: 'form-field' });
     const format = createElement('select') as HTMLSelectElement;
     (Object.keys(FORMAT_LABELS) as ReportFormat[]).forEach((value) => {
       const option = createElement('option', { textContent: FORMAT_LABELS[value] }) as HTMLOptionElement;
       option.value = value;
       format.appendChild(option);
     });
+    formatField.append(createElement('span', { textContent: 'Formato' }), format);
     const generate = createElement('button', { type: 'button', textContent: 'Gerar' });
     const result = createElement('div', { className: 'report-card-result' });
     generate.addEventListener('click', () => void handleGenerate(tipo.tipo, format.value as ReportFormat, generate, result));
-    card.append(format, generate, result);
+    card.append(formatField, generate, result);
     return card;
   }
 

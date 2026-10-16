@@ -288,6 +288,10 @@
 .integration-soon-card strong { color: var(--text); font-size: 14px; }
 .integration-soon-card span { font-size: 13px; line-height: 1.5; }
 
+.reports-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--space-3); }
+.report-card { display: grid; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--panel); }
+.report-card-result { font-size: 13px; }
+
 .integration-modal-content { display: grid; gap: var(--space-3); }
 
 /* ---------- Geral ---------- */

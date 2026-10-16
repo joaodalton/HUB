@@ -1,18 +1,17 @@
 import { createElement } from '../dom';
 import { createInput, createSelectField } from '../components/formFields';
 import { createIntegrationCard } from '../components/IntegrationCard';
+import { createBrandLogo, type BrandName } from '../components/BrandLogo';
 import { createModalShell } from '../components/Modal';
-import type { IconName } from '../components/Icon';
 import { type ApiCredentialPayload, type ApiCredentialProvider, type ApiCredentialRow } from '../services/apiCredentialsService';
 import { type WhatsappIntegration, type WhatsappIntegrationInput } from '../services/whatsappService';
 import { createPanelHeader, createToggle } from './settingsShared';
 
 // ---------- APIs e integrações ----------
 
-const API_PROVIDER_OPTIONS: Array<{ value: ApiCredentialProvider; label: string; descricao: string; icon: IconName; chipColor: 'blue' | 'green' | 'amber' | 'red' | 'purple' }> = [
-  { value: 'resend', label: 'Resend (e-mail)', descricao: 'Envio de e-mails transacionais.', icon: 'mensagens', chipColor: 'purple' },
-  { value: 'asaas', label: 'Asaas (financeiro)', descricao: 'Cobranças e faturas da empresa.', icon: 'cobrancas', chipColor: 'blue' },
-  { value: 'concessionaria', label: 'Concessionária', descricao: 'Credenciais de serviços das concessionárias.', icon: 'plants', chipColor: 'amber' }
+const API_PROVIDER_OPTIONS: Array<{ value: ApiCredentialProvider; label: string; descricao: string; logo: BrandName }> = [
+  { value: 'resend', label: 'Resend (e-mail)', descricao: 'Envio de e-mails transacionais.', logo: 'resend' },
+  { value: 'asaas', label: 'Asaas (financeiro)', descricao: 'Cobranças e faturas da empresa.', logo: 'asaas' }
 ];
 
 function asaasCredentialLabel(nome: string): string {
@@ -94,8 +93,7 @@ export function createApiCredentialsPanel(
     grid.appendChild(createIntegrationCard({
       nome: provider.label,
       descricao: provider.descricao,
-      icon: provider.icon,
-      chipColor: provider.chipColor,
+      logo: provider.logo,
       status: providerCredentials.some((credential) => credential.configurada) ? 'conectado' : 'nao_configurado',
       onConfigurar: () => openModal(provider.label, (close) => {
         const create = async (data: Required<ApiCredentialPayload>) => { await onCreate(data); close(); };
@@ -119,8 +117,7 @@ export function createApiCredentialsPanel(
     }));
   });
   grid.appendChild(createIntegrationCard({
-    nome: 'WhatsApp Meta Cloud API', descricao: 'Número, token permanente e aprovação de templates por empresa.', icon: 'mensagens',
-    chipColor: 'green',
+    nome: 'WhatsApp Meta Cloud API', descricao: 'Número, token permanente e aprovação de templates por empresa.', logo: 'whatsapp',
     status: whatsapp?.configured ? 'conectado' : 'nao_configurado',
     onConfigurar: () => openModal('WhatsApp Meta Cloud API', (close) => [createWhatsappIntegrationForm(
       whatsapp,
@@ -131,7 +128,9 @@ export function createApiCredentialsPanel(
     )])
   }));
   const soon = createElement('div', { className: 'integration-soon-card' });
-  soon.append(createElement('strong', { textContent: 'Novas integrações' }), createElement('span', { textContent: 'Google Drive e outros serviços. Em breve.' }));
+  const soonChip = createElement('span', { className: 'icon-stat-chip icon-stat-chip-logo' });
+  soonChip.appendChild(createBrandLogo('google'));
+  soon.append(soonChip, createElement('strong', { textContent: 'Login com Google' }), createElement('span', { textContent: 'Login social via Google. Em breve.' }));
   grid.appendChild(soon);
   panel.appendChild(grid);
   return panel;

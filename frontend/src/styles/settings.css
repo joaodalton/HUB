@@ -266,13 +266,14 @@
 .integration-soon-card {
   display: grid;
   align-content: center;
-  gap: var(--space-1);
+  gap: var(--space-2);
   min-height: 140px;
   padding: var(--space-3);
   border: 1px dashed var(--border);
   border-radius: var(--radius-card);
   color: var(--text-dim);
 }
+.integration-soon-card .icon-stat-chip { opacity: 0.85; }
 .integration-soon-card strong { color: var(--text); font-size: 14px; }
 .integration-soon-card span { font-size: 13px; line-height: 1.5; }
 

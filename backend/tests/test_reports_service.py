@@ -41,6 +41,21 @@ class ReportsServiceTest(unittest.TestCase):
         self.assertEqual(result, {'driveFileId': 'abc', 'webViewLink': 'https://x'})
         mock_render.assert_called_once_with('creds', mock_coletar.return_value, parent_folder_id='folder-1')
 
+    @patch('services.reports_service.list_plants')
+    @patch('services.reports_service.list_ucs')
+    @patch('services.reports_service.list_clients')
+    def test_coletar_cadastro_mascara_documento_e_monta_linhas(self, mock_clients, mock_ucs, mock_plants):
+        from services.reports_service import _coletar_cadastro
+        mock_clients.return_value = [{'id': 1, 'nome': 'Cliente A', 'documento': '123.456.789-00'}]
+        mock_ucs.return_value = [{'id': 10, 'codigo': 'UC-1', 'clientId': 1}]
+        mock_plants.return_value = [{'id': 100, 'nome': 'Usina X'}]
+
+        tabela = _coletar_cadastro(empresa_id=1, competencia=None)
+
+        self.assertIn('Nome', tabela.headers)
+        self.assertNotIn('123.456.789-00', str(tabela.rows))
+        self.assertTrue(any('Cliente A' in row for row in tabela.rows))
+
 
 if __name__ == '__main__':
     unittest.main()

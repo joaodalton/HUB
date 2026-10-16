@@ -236,25 +236,46 @@
 
 .integration-card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: var(--space-3);
 }
 
 .integration-card {
   display: grid;
-  gap: var(--space-2);
-  padding: var(--space-3);
-  border: 1px solid var(--border-deep);
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-4) var(--space-3);
+  border: 1px solid var(--border);
   border-radius: var(--radius-card);
-  background: var(--panel-deep);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--transition-normal) ease, background var(--transition-normal) ease, transform var(--transition-normal) ease;
 }
 
-.integration-card-heading { display: flex; align-items: center; gap: var(--space-2); color: var(--text); }
-.integration-card-heading .icon { width: 20px; height: 20px; color: var(--accent-secondary); }
-.integration-card p { min-height: 34px; margin: 0; color: var(--text-dim); font-size: 12px; line-height: 1.4; }
-.integration-card .provider-badge { justify-self: start; }
-.integration-card .secondary-button { justify-self: start; }
-.integration-editor { display: grid; gap: var(--space-3); margin-top: var(--space-4); }
+.integration-card:hover { background: var(--panel-hover); border-color: var(--accent-border); transform: translateY(-1px); }
+
+.integration-card-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.integration-card-text { display: grid; gap: var(--space-1); }
+.integration-card-text strong { font-size: 15px; }
+.integration-card-text p { margin: 0; color: var(--text-dim); font-size: 13px; line-height: 1.5; }
+
+.integration-soon-card {
+  display: grid;
+  align-content: center;
+  gap: var(--space-1);
+  min-height: 140px;
+  padding: var(--space-3);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-card);
+  color: var(--text-dim);
+}
+.integration-soon-card strong { color: var(--text); font-size: 14px; }
+.integration-soon-card span { font-size: 13px; line-height: 1.5; }
+
+.integration-modal-content { display: grid; gap: var(--space-3); }
 
 /* ---------- Geral ---------- */
 

@@ -1,6 +1,7 @@
 import { createElement } from '../dom';
 import { createInput, createSelectField } from '../components/formFields';
 import { createIntegrationCard } from '../components/IntegrationCard';
+import { createModalShell } from '../components/Modal';
 import type { IconName } from '../components/Icon';
 import { type ApiCredentialPayload, type ApiCredentialProvider, type ApiCredentialRow } from '../services/apiCredentialsService';
 import { type WhatsappIntegration, type WhatsappIntegrationInput } from '../services/whatsappService';
@@ -8,10 +9,10 @@ import { createPanelHeader, createToggle } from './settingsShared';
 
 // ---------- APIs e integrações ----------
 
-const API_PROVIDER_OPTIONS: Array<{ value: ApiCredentialProvider; label: string; descricao: string; icon: IconName }> = [
-  { value: 'resend', label: 'Resend (e-mail)', descricao: 'Envio de e-mails transacionais.', icon: 'mensagens' },
-  { value: 'asaas', label: 'Asaas (financeiro)', descricao: 'Cobranças e faturas da empresa.', icon: 'cobrancas' },
-  { value: 'concessionaria', label: 'Concessionária', descricao: 'Credenciais de serviços das concessionárias.', icon: 'plants' }
+const API_PROVIDER_OPTIONS: Array<{ value: ApiCredentialProvider; label: string; descricao: string; icon: IconName; chipColor: 'blue' | 'green' | 'amber' | 'red' | 'purple' }> = [
+  { value: 'resend', label: 'Resend (e-mail)', descricao: 'Envio de e-mails transacionais.', icon: 'mensagens', chipColor: 'purple' },
+  { value: 'asaas', label: 'Asaas (financeiro)', descricao: 'Cobranças e faturas da empresa.', icon: 'cobrancas', chipColor: 'blue' },
+  { value: 'concessionaria', label: 'Concessionária', descricao: 'Credenciais de serviços das concessionárias.', icon: 'plants', chipColor: 'amber' }
 ];
 
 function asaasCredentialLabel(nome: string): string {
@@ -77,8 +78,16 @@ export function createApiCredentialsPanel(
   }
 
   const grid = createElement('div', { className: 'integration-card-grid' });
-  const editor = createElement('div', { className: 'integration-editor' });
-  editor.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Selecione uma integração para configurar suas credenciais.' }));
+
+  // O formulario so existe dentro do modal, aberto ao clicar no card. Salvar/remover fecham o modal
+  // (a tela inteira e re-renderizada pelo estado); testar mantem aberto.
+  const openModal = (title: string, build: (close: () => void) => HTMLElement[]): void => {
+    const modal = createModalShell(title, 'Integração');
+    const content = createElement('div', { className: 'integration-modal-content' });
+    content.append(...build(modal.close));
+    modal.body.appendChild(content);
+    document.body.appendChild(modal.overlay);
+  };
 
   API_PROVIDER_OPTIONS.forEach((provider) => {
     const providerCredentials = credentials.filter((credential) => credential.provider === provider.value);
@@ -86,29 +95,45 @@ export function createApiCredentialsPanel(
       nome: provider.label,
       descricao: provider.descricao,
       icon: provider.icon,
+      chipColor: provider.chipColor,
       status: providerCredentials.some((credential) => credential.configurada) ? 'conectado' : 'nao_configurado',
-      onConfigurar: () => {
-        if (providerCredentials.length === 0) {
-          editor.replaceChildren(createApiCredentialForm(onCreate, provider.value));
-          return;
-        }
+      onConfigurar: () => openModal(provider.label, (close) => {
+        const create = async (data: Required<ApiCredentialPayload>) => { await onCreate(data); close(); };
+        if (providerCredentials.length === 0) return [createApiCredentialForm(create, provider.value)];
         const cards = providerCredentials.map((credential) => {
-          const card = createApiCredentialCard(credential, onUpdate, onTest, onDelete) as HTMLDetailsElement;
+          const card = createApiCredentialCard(
+            credential,
+            async (id, data) => { await onUpdate(id, data); close(); },
+            onTest,
+            async (id) => { await onDelete(id); close(); }
+          ) as HTMLDetailsElement;
           card.open = true;
           return card;
         });
+        const content = createElement('div', { className: 'integration-modal-content' });
         const add = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Adicionar outra credencial' });
-        add.addEventListener('click', () => editor.replaceChildren(createApiCredentialForm(onCreate, provider.value)));
-        editor.replaceChildren(...cards, add);
-      }
+        add.addEventListener('click', () => content.replaceChildren(createApiCredentialForm(create, provider.value)));
+        content.append(...cards, add);
+        return [content];
+      })
     }));
   });
   grid.appendChild(createIntegrationCard({
     nome: 'WhatsApp Meta Cloud API', descricao: 'Número, token permanente e aprovação de templates por empresa.', icon: 'mensagens',
+    chipColor: 'green',
     status: whatsapp?.configured ? 'conectado' : 'nao_configurado',
-    onConfigurar: () => editor.replaceChildren(createWhatsappIntegrationForm(whatsapp, whatsappLoaded, onSaveWhatsapp, onTestWhatsapp, onDeleteWhatsapp))
+    onConfigurar: () => openModal('WhatsApp Meta Cloud API', (close) => [createWhatsappIntegrationForm(
+      whatsapp,
+      whatsappLoaded,
+      async (input) => { await onSaveWhatsapp(input); close(); },
+      onTestWhatsapp,
+      async () => { await onDeleteWhatsapp(); close(); }
+    )])
   }));
-  panel.append(grid, editor);
+  const soon = createElement('div', { className: 'integration-soon-card' });
+  soon.append(createElement('strong', { textContent: 'Novas integrações' }), createElement('span', { textContent: 'Google Drive e outros serviços. Em breve.' }));
+  grid.appendChild(soon);
+  panel.appendChild(grid);
   return panel;
 }
 

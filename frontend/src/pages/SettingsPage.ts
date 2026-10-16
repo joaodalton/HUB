@@ -106,9 +106,6 @@ export function createSettingsPage(): HTMLElement {
 
       case 'database':
         return createDatabasePanel({
-          items: state.googleAccounts,
-          onActivate: actions.handleActivateAccount,
-          onDisconnect: actions.handleDisconnectAccount,
           rootFolderId: state.driveRootFolderId,
           rootFolderLoaded: state.driveRootFolderLoaded,
           canManage: canManageSettings(),
@@ -135,7 +132,10 @@ export function createSettingsPage(): HTMLElement {
           state.whatsappIntegrationLoaded,
           actions.handleSaveWhatsappIntegration,
           actions.handleTestWhatsappIntegration,
-          actions.handleDeleteWhatsappIntegration
+          actions.handleDeleteWhatsappIntegration,
+          state.googleAccounts,
+          actions.handleActivateAccount,
+          actions.handleDisconnectAccount
         );
 
       case 'logs':

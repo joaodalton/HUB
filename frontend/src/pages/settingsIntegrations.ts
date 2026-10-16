@@ -1,9 +1,10 @@
 import { createElement } from '../dom';
 import { createInput, createSelectField } from '../components/formFields';
 import { createIntegrationCard } from '../components/IntegrationCard';
-import { createBrandLogo, type BrandName } from '../components/BrandLogo';
+import { type BrandName } from '../components/BrandLogo';
 import { createModalShell } from '../components/Modal';
 import { type ApiCredentialPayload, type ApiCredentialProvider, type ApiCredentialRow } from '../services/apiCredentialsService';
+import { getGoogleAuthorizeUrl, type GoogleAccountRow } from '../services/googleAccountService';
 import { type WhatsappIntegration, type WhatsappIntegrationInput } from '../services/whatsappService';
 import { createPanelHeader, createToggle } from './settingsShared';
 
@@ -53,7 +54,10 @@ export function createApiCredentialsPanel(
   whatsappLoaded: boolean,
   onSaveWhatsapp: (input: WhatsappIntegrationInput) => Promise<void>,
   onTestWhatsapp: () => Promise<void>,
-  onDeleteWhatsapp: () => Promise<void>
+  onDeleteWhatsapp: () => Promise<void>,
+  googleAccounts: GoogleAccountRow[],
+  onActivateGoogleAccount: (id: number) => void,
+  onDisconnectGoogleAccount: (id: number) => void
 ): HTMLElement {
   const panel = createElement('section', { className: 'settings-panel' });
   panel.appendChild(createPanelHeader('APIs e Integrações', 'Credenciais por empresa para serviços externos. O segredo nunca é exibido depois de salvo.'));
@@ -127,13 +131,74 @@ export function createApiCredentialsPanel(
       async () => { await onDeleteWhatsapp(); close(); }
     )])
   }));
-  const soon = createElement('div', { className: 'integration-soon-card' });
-  const soonChip = createElement('span', { className: 'icon-stat-chip icon-stat-chip-logo' });
-  soonChip.appendChild(createBrandLogo('google'));
-  soon.append(soonChip, createElement('strong', { textContent: 'Login com Google' }), createElement('span', { textContent: 'Login social via Google. Em breve.' }));
-  grid.appendChild(soon);
+  grid.appendChild(createIntegrationCard({
+    nome: 'Login com Google', descricao: 'Contas Google conectadas via OAuth, usadas pelo Drive e outros serviços.', logo: 'google',
+    status: googleAccounts.some((account) => account.ativa) ? 'conectado' : 'nao_configurado',
+    onConfigurar: () => openModal('Login com Google', () => [createGoogleAccountsSection(googleAccounts, onActivateGoogleAccount, onDisconnectGoogleAccount)])
+  }));
   panel.appendChild(grid);
   return panel;
+}
+
+// Contas Google conectadas via OAuth real (multiplas, com refresh token no banco).
+function createGoogleAccountsSection(
+  accounts: GoogleAccountRow[],
+  onActivate: (id: number) => void,
+  onDisconnect: (id: number) => void
+): HTMLElement {
+  const section = createElement('section', { className: 'database-provider-card' });
+  const header = createElement('div', { className: 'provider-header' });
+  const text = createElement('div');
+  const eyebrow = createElement('span', { className: 'eyebrow', textContent: 'OAuth' });
+  const heading = createElement('h2', { textContent: 'Contas Google conectadas' });
+  const connectLink = createElement('a', { className: 'small-button', textContent: 'Conectar nova conta' });
+
+  connectLink.href = getGoogleAuthorizeUrl();
+
+  text.append(eyebrow, heading);
+  header.append(text, connectLink);
+  section.appendChild(header);
+
+  if (accounts.length === 0) {
+    section.appendChild(createElement('p', {
+      className: 'settings-hint',
+      textContent: 'Nenhuma conta conectada ainda. Conecte, aprove no Google e use os arquivos da conta: não é preciso informar ID de pasta.'
+    }));
+    return section;
+  }
+
+  const list = createElement('dl', { className: 'settings-list compact' });
+
+  accounts.forEach((account) => {
+    const label = createElement('dt', { textContent: account.email });
+    const valueRow = createElement('dd', { className: 'account-row' });
+    const status = createElement('span', {
+      className: account.ativa ? 'provider-badge success' : 'provider-badge',
+      textContent: account.ativa ? 'Ativa' : 'Inativa'
+    });
+    const activateButton = createElement('button', {
+      className: 'secondary-button',
+      textContent: 'Usar esta conta',
+      type: 'button'
+    });
+    const disconnectButton = createElement('button', {
+      className: 'danger-button',
+      textContent: 'Desconectar',
+      type: 'button'
+    });
+
+    activateButton.disabled = account.ativa;
+    activateButton.addEventListener('click', () => onActivate(account.id));
+    disconnectButton.addEventListener('click', () => {
+      if (window.confirm(`Desconectar a conta ${account.email}?`)) onDisconnect(account.id);
+    });
+
+    valueRow.append(status, activateButton, disconnectButton);
+    list.append(label, valueRow);
+  });
+
+  section.appendChild(list);
+  return section;
 }
 
 function createWhatsappIntegrationForm(

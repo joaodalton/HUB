@@ -1,15 +1,11 @@
 import { createElement } from '../dom';
 import { createInput } from '../components/formFields';
 import { createRegulatoryTariffModal } from '../components/RegulatoryTariffModal';
-import { getGoogleAuthorizeUrl, type GoogleAccountRow } from '../services/googleAccountService';
 import { type RegulatoryTariffStatus } from '../services/regulatoryTariffsService';
 import { createPanelHeader } from './settingsShared';
 
 // ---------- Banco de dados ----------
 export function createDatabasePanel(googleAccounts: {
-  items: GoogleAccountRow[];
-  onActivate: (id: number) => void;
-  onDisconnect: (id: number) => void;
   rootFolderId: string;
   rootFolderLoaded: boolean;
   canManage: boolean;
@@ -21,7 +17,6 @@ export function createDatabasePanel(googleAccounts: {
   onRefreshRegulatory: () => Promise<void>;
 }): HTMLElement {
   const wrapper = createElement('section', { className: 'database-provider-stack' });
-  wrapper.appendChild(createGoogleAccountsSection(googleAccounts.items, googleAccounts.onActivate, googleAccounts.onDisconnect));
   wrapper.appendChild(createDriveRootFolderPanel(
     googleAccounts.rootFolderId,
     googleAccounts.rootFolderLoaded,
@@ -104,65 +99,5 @@ function createDriveRootFolderPanel(
     }
   });
   section.appendChild(saveButton);
-  return section;
-}
-// Contas Google conectadas via OAuth real (multiplas, com refresh token no banco).
-function createGoogleAccountsSection(
-  accounts: GoogleAccountRow[],
-  onActivate: (id: number) => void,
-  onDisconnect: (id: number) => void
-): HTMLElement {
-  const section = createElement('section', { className: 'database-provider-card' });
-  const header = createElement('div', { className: 'provider-header' });
-  const text = createElement('div');
-  const eyebrow = createElement('span', { className: 'eyebrow', textContent: 'OAuth' });
-  const heading = createElement('h2', { textContent: 'Contas Google conectadas' });
-  const connectLink = createElement('a', { className: 'small-button', textContent: 'Conectar nova conta' });
-
-  connectLink.href = getGoogleAuthorizeUrl();
-
-  text.append(eyebrow, heading);
-  header.append(text, connectLink);
-  section.appendChild(header);
-
-  if (accounts.length === 0) {
-    section.appendChild(createElement('p', {
-      className: 'settings-hint',
-      textContent: 'Nenhuma conta conectada ainda. Conecte, aprove no Google e use os arquivos da conta: não é preciso informar ID de pasta.'
-    }));
-    return section;
-  }
-
-  const list = createElement('dl', { className: 'settings-list compact' });
-
-  accounts.forEach((account) => {
-    const label = createElement('dt', { textContent: account.email });
-    const valueRow = createElement('dd', { className: 'account-row' });
-    const status = createElement('span', {
-      className: account.ativa ? 'provider-badge success' : 'provider-badge',
-      textContent: account.ativa ? 'Ativa' : 'Inativa'
-    });
-    const activateButton = createElement('button', {
-      className: 'secondary-button',
-      textContent: 'Usar esta conta',
-      type: 'button'
-    });
-    const disconnectButton = createElement('button', {
-      className: 'danger-button',
-      textContent: 'Desconectar',
-      type: 'button'
-    });
-
-    activateButton.disabled = account.ativa;
-    activateButton.addEventListener('click', () => onActivate(account.id));
-    disconnectButton.addEventListener('click', () => {
-      if (window.confirm(`Desconectar a conta ${account.email}?`)) onDisconnect(account.id);
-    });
-
-    valueRow.append(status, activateButton, disconnectButton);
-    list.append(label, valueRow);
-  });
-
-  section.appendChild(list);
   return section;
 }

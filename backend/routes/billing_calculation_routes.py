@@ -338,6 +338,12 @@ def platform_execute(empresa_id, invoice_id):
     return _execute(invoice_id)
 
 
+@platform_billing_calculation_routes.post('/invoices/<int:invoice_id>/gerar-boleto')
+@require_permission('faturas.create')
+def platform_gerar_boleto(empresa_id, invoice_id):
+    return _gerar_boleto(invoice_id)
+
+
 @platform_billing_calculation_routes.get('/executions/<int:execution_id>')
 def platform_detail(empresa_id, execution_id):
     return _detail(execution_id)

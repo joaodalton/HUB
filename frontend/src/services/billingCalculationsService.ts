@@ -121,8 +121,11 @@ export async function downloadBillingInvoice(invoiceId: number, empresaId?: numb
   URL.revokeObjectURL(url);
 }
 
-export async function gerarBoletoConcessionaria(invoiceId: number): Promise<FaturaRow> {
-  return (await apiRequest<ApiResponse<FaturaRow>>(`/billing-calculations/invoices/${invoiceId}/gerar-boleto`, { method: 'POST' })).data;
+export async function gerarBoletoConcessionaria(invoiceId: number, empresaId?: number): Promise<FaturaRow> {
+  const path = empresaId
+    ? `${base(empresaId)}/invoices/${invoiceId}/gerar-boleto`
+    : `/billing-calculations/invoices/${invoiceId}/gerar-boleto`;
+  return (await apiRequest<ApiResponse<FaturaRow>>(path, { method: 'POST' })).data;
 }
 
 export async function uploadTenantBillingInvoice(file: File): Promise<BillingUpload> {

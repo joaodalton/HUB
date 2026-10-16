@@ -207,6 +207,33 @@ class BillingCalculationRoutesTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertEqual(self.client.post('/api/v1/billing-calculations/invoices/999/gerar-boleto',
                                           headers=self.headers(1)).status_code, 404)
 
+    def test_platform_gerar_boleto_emits_for_selected_company(self):
+        base = '/api/v1/platform/empresas/20/billing-calculations/invoices/20/gerar-boleto'
+        db.session.add(ConsumerUnit(id=20, empresa_id=20, client_id=20, codigo='UC-20'))
+        invoice = db.session.get(FaturaConcessionaria, 20)
+        invoice.consumer_unit_id = 20
+        invoice.valor_total_concessionaria = Decimal('50.00')
+        invoice.data_vencimento = date(2026, 10, 5)
+        invoice.competencia = '2026-09'
+        invoice.status_validacao = 'valida'
+        db.session.get(Client, 20).asaas_customer_id = 'cus_20'
+        db.session.commit()
+
+        with patch.object(service, 'AsaasClient') as asaas_cls:
+            asaas = asaas_cls.return_value
+            asaas.criar_cobranca.side_effect = lambda payload: {
+                'id': 'pay_2', 'externalReference': payload['externalReference'],
+                'customer': 'cus_20', 'billingType': 'BOLETO', 'value': '50.00',
+                'dueDate': '2026-10-05', 'status': 'PENDING',
+                'bankSlipUrl': 'https://example.test/boleto',
+            }
+            response = self.client.post(base, headers=self.headers(6))
+        self.assertEqual(response.status_code, 201, response.json)
+        self.assertEqual(response.json['data']['asaasId'], 'pay_2')
+        self.assertEqual(self.client.post('/api/v1/platform/empresas/999/billing-calculations'
+                                          '/invoices/20/gerar-boleto',
+                                          headers=self.headers(6)).status_code, 404)
+
     def test_platform_upload_reuses_existing_validation_and_tenant_client_check(self):
         base = '/api/v1/platform/empresas/20/billing-calculations/clients'
         url = base + '/10/invoices/upload'

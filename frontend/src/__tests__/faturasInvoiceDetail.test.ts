@@ -56,6 +56,8 @@ function render(invoice: BillingInvoice, canIssueInvoice: (invoice: BillingInvoi
   reload?: ReturnType<typeof vi.fn>;
   charges?: FaturaRow[];
   canIssue?: boolean;
+  isPlatformAdmin?: boolean;
+  empresaId?: number;
 } = {}) {
   const toast = opts.toast ?? { success: vi.fn(), error: vi.fn() };
   const reload = opts.reload ?? vi.fn().mockResolvedValue(undefined);
@@ -63,9 +65,9 @@ function render(invoice: BillingInvoice, canIssueInvoice: (invoice: BillingInvoi
   createFaturaInvoiceDetail(invoice, {
     content,
     clients: [],
-    isPlatformAdmin: false,
+    isPlatformAdmin: opts.isPlatformAdmin ?? false,
     canIssue: opts.canIssue ?? true,
-    empresaId: undefined,
+    empresaId: opts.empresaId,
     contextualCharges: () => opts.charges ?? [],
     relatedPendencias: () => [],
     invoiceDownloadButton: () => document.createElement('button'),
@@ -98,9 +100,17 @@ describe('faturasInvoiceDetail - botao Gerar boleto', () => {
     expect(button.disabled).toBe(false);
     button.click();
     await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
-    expect(gerarBoletoConcessionaria).toHaveBeenCalledWith(10);
+    expect(gerarBoletoConcessionaria).toHaveBeenCalledWith(10, undefined);
     expect(toast.success).toHaveBeenCalledWith('Boleto gerado.');
     expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('platform admin testando empresa 1 chama o servico com o empresaId da rota de plataforma', async () => {
+    vi.mocked(gerarBoletoConcessionaria).mockResolvedValue({ id: 99 } as never);
+    const { button } = render(baseInvoice(), () => true, { isPlatformAdmin: true, empresaId: 1 });
+    button.click();
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    expect(gerarBoletoConcessionaria).toHaveBeenCalledWith(10, 1);
   });
 
   it('erro 422 INVOICE_DATA_INCOMPLETE lista os campos faltando traduzidos', async () => {

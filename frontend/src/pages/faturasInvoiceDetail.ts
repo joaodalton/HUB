@@ -182,7 +182,7 @@ export function createFaturaInvoiceDetail(invoice: BillingInvoice, options: Invo
     button.addEventListener('click', (event) => {
       event.stopPropagation();
       button.disabled = true;
-      void gerarBoletoConcessionaria(target.id)
+      void gerarBoletoConcessionaria(target.id, isPlatformAdminTestEmpresa ? empresaId : undefined)
         .then(() => { toast.success('Boleto gerado.'); drawer.remove(); return reload(); })
         .catch((cause) => {
           if (cause instanceof ApiRequestError && cause.code === 'INVOICE_DATA_INCOMPLETE') {

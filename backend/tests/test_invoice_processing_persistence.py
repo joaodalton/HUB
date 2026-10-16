@@ -1,4 +1,6 @@
+from dataclasses import replace
 from datetime import date, timedelta
+from decimal import Decimal
 import hashlib
 from pathlib import Path
 import sys
@@ -18,6 +20,7 @@ from models.fatura_concessionaria import FaturaConcessionaria
 from models.pendencia import Pendencia
 from models.plant import Plant
 from services.fatura_processing_service import FaturaProcessingService
+from services.invoice_normalization_service import InvoiceNormalizer
 from services.invoice_parsers.registry import ParserRegistry
 try:
     from .support import IsolatedTestRuntime
@@ -91,6 +94,21 @@ class InvoicePersistenceTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertIsNone(energy['energia_compensada_cobravel_kwh'])
         self.assertEqual(energy['fatura_concessionaria_id'], invoice.id)
         self.assertEqual(energy['competencia'], invoice.competencia)
+
+    def test_numeric_fields_persist_column_when_within_scale(self):
+        original_normalize = InvoiceNormalizer.normalize
+
+        def patched(self, *args, **kwargs):
+            normalized = original_normalize(self, *args, **kwargs)
+            campos = dict(normalized.campos)
+            campos['valor_total_concessionaria'] = replace(
+                campos['valor_total_concessionaria'], value=Decimal('222.09'))
+            return replace(normalized, campos=campos)
+
+        with patch.object(InvoiceNormalizer, 'normalize', patched):
+            result = self.process()
+        self.assertEqual(result.status, 'parsed')
+        self.assertEqual(self.invoice().valor_total_concessionaria, Decimal('222.09'))
 
     def test_operational_processing_creates_one_gd_pending_only_when_expectation_is_proven(self):
         plant = Plant(empresa_id=1, nome='Ativa', uc='P-1', kw_pico=1, status='Ativa', data_ativacao=date(2030, 1, 1))

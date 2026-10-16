@@ -9,6 +9,7 @@ from services.client_service import list_clients
 from services.uc_service import list_ucs
 from services.plant_service import list_plants
 from services.fatura_service import listar as listar_faturas
+from services.rateio_service import list_historico as list_historico_rateio
 
 _RENDERERS = {'doc': render_as_doc, 'sheet': render_as_sheet, 'slide': render_as_slide}
 _TIPOS_VALIDOS = {'cadastro', 'financeiro', 'rateio'}
@@ -67,6 +68,18 @@ def _coletar_financeiro(empresa_id: int, competencia: str | None) -> ReportTable
 
 
 _COLETORES['financeiro'] = _coletar_financeiro
+
+
+def _coletar_rateio(empresa_id: int, competencia: str | None) -> ReportTable:
+    historico = list_historico_rateio(competencia=competencia)
+    linhas = [
+        [item.get('competencia') or '', item.get('usinaNome') or '', item.get('ucCodigo') or '', f"{item.get('percentual', 0)}%"]
+        for item in historico
+    ]
+    return ReportTable(title='Relatorio de Rateio', headers=['Competencia', 'Usina', 'UC', 'Percentual'], rows=linhas)
+
+
+_COLETORES['rateio'] = _coletar_rateio
 
 
 def gerar_relatorio(empresa_id: int, tipo: str, formato: str, competencia: str | None = None) -> dict:

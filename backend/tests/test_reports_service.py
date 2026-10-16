@@ -70,6 +70,18 @@ class ReportsServiceTest(unittest.TestCase):
         self.assertNotIn('123.456.789-00', str(tabela.rows))
         self.assertTrue(any('Cliente A' in row for row in tabela.rows))
 
+    @patch('services.reports_service.list_historico_rateio')
+    def test_coletar_rateio_monta_linhas_usina_uc(self, mock_historico):
+        from services.reports_service import _coletar_rateio
+        mock_historico.return_value = [
+            {'competencia': '2026-09', 'usinaNome': 'Usina X', 'ucCodigo': 'UC-1', 'percentual': 50.0},
+        ]
+
+        tabela = _coletar_rateio(empresa_id=1, competencia='2026-09')
+
+        mock_historico.assert_called_once_with(competencia='2026-09')
+        self.assertEqual(tabela.rows[0][1], 'Usina X')
+
 
 if __name__ == '__main__':
     unittest.main()

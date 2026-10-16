@@ -46,21 +46,27 @@ class ReportsServiceTest(unittest.TestCase):
     def test_coletar_financeiro_agrupa_por_competencia(self, mock_listar):
         from services.reports_service import _coletar_financeiro
         mock_listar.return_value = [
-            {'competencia': '2026-09', 'valor': 560.0, 'mesVencimento': '2026-09-10', 'statusInterno': 'emitida', 'asaasStatus': 'received'},
-            {'competencia': '2026-09', 'valor': 700.0, 'mesVencimento': '2026-09-15', 'statusInterno': 'aguardando_emissao', 'asaasStatus': 'pending'},
+            {'competencia': '2026-09', 'clienteNome': 'Cliente A', 'ucCodigo': 'UC-1', 'valor': 560.0, 'mesVencimento': '2026-09-10', 'statusInterno': 'emitida', 'asaasStatus': 'received'},
+            {'competencia': '2026-09', 'clienteNome': 'Cliente B', 'ucCodigo': 'UC-2', 'valor': 0.0, 'mesVencimento': '2026-09-15', 'statusInterno': 'aguardando_emissao', 'asaasStatus': 'pending'},
         ]
 
         tabela = _coletar_financeiro(empresa_id=1, competencia='2026-09')
 
         mock_listar.assert_called_once_with(1, {'competencia': '2026-09'})
         self.assertEqual(len(tabela.rows), 2)
+        self.assertIn('Cliente', tabela.headers)
+        self.assertIn('UC', tabela.headers)
+        self.assertEqual(tabela.rows[0][1], 'Cliente A')
+        self.assertEqual(tabela.rows[0][2], 'UC-1')
+        self.assertEqual(tabela.rows[0][3], '560.00')
+        self.assertEqual(tabela.rows[1][3], '0.00')
 
     @patch('services.reports_service.list_plants')
     @patch('services.reports_service.list_ucs')
     @patch('services.reports_service.list_clients')
     def test_coletar_cadastro_mascara_documento_e_monta_linhas(self, mock_clients, mock_ucs, mock_plants):
         from services.reports_service import _coletar_cadastro
-        mock_clients.return_value = [{'id': 1, 'nome': 'Cliente A', 'documento': '123.456.789-00'}]
+        mock_clients.return_value = [{'id': 1, 'nome': 'Cliente A', 'cpf': '123.456.789-00'}]
         mock_ucs.return_value = [{'id': 10, 'codigo': 'UC-1', 'clientId': 1}]
         mock_plants.return_value = [{'id': 100, 'nome': 'Usina X'}]
 

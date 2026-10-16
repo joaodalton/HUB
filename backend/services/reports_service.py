@@ -36,7 +36,7 @@ def _mascarar_documento(valor: str | None) -> str:
 def _coletar_cadastro(empresa_id: int, competencia: str | None) -> ReportTable:
     linhas = []
     for cliente in list_clients():
-        linhas.append(['Cliente', cliente.get('nome') or '', _mascarar_documento(cliente.get('documento'))])
+        linhas.append(['Cliente', cliente.get('nome') or '', _mascarar_documento(cliente.get('cpf'))])
     for uc in list_ucs():
         linhas.append(['UC', uc.get('codigo') or '', ''])
     for usina in list_plants():
@@ -50,19 +50,22 @@ _COLETORES['cadastro'] = _coletar_cadastro
 def _coletar_financeiro(empresa_id: int, competencia: str | None) -> ReportTable:
     filtros = {'competencia': competencia} if competencia else {}
     faturas = listar_faturas(empresa_id, filtros)
-    linhas = [
-        [
+    linhas = []
+    for fatura in faturas:
+        valor = fatura.get('valor')
+        valor_str = f'{valor:.2f}' if valor is not None else ''
+        linhas.append([
             fatura.get('competencia') or '',
-            fatura.get('valor') or '',
+            fatura.get('clienteNome') or '',
+            fatura.get('ucCodigo') or '',
+            valor_str,
             fatura.get('mesVencimento') or '',
             fatura.get('statusInterno') or '',
             fatura.get('asaasStatus') or '',
-        ]
-        for fatura in faturas
-    ]
+        ])
     return ReportTable(
         title='Relatorio Financeiro',
-        headers=['Competencia', 'Valor', 'Vencimento', 'Status Emissão', 'Status Pagamento'],
+        headers=['Competencia', 'Cliente', 'UC', 'Valor', 'Vencimento', 'Status Emissão', 'Status Pagamento'],
         rows=linhas,
     )
 

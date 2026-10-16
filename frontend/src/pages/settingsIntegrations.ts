@@ -234,10 +234,9 @@ function createApiCredentialCard(
   return card;
 }
 
-function createApiCredentialForm(onCreate: (data: Required<ApiCredentialPayload>) => Promise<void>, provider = 'resend'): HTMLElement {
+function createApiCredentialForm(onCreate: (data: Required<ApiCredentialPayload>) => Promise<void>, provider: ApiCredentialProvider): HTMLElement {
   const form = createElement('form', { className: 'settings-form api-credential-form' });
   form.appendChild(createElement('h3', { textContent: 'Adicionar integração' }));
-  const providerField = createSelectField('Provedor', provider, API_PROVIDER_OPTIONS);
   const nameField = createInput('Nome da integração', 'text', '', true);
   const asaasType = createSelectField('Credencial Asaas', 'api_key', [
     { value: 'api_key', label: 'Chave de API (envio e consulta de cobranças)' },
@@ -251,20 +250,19 @@ function createApiCredentialForm(onCreate: (data: Required<ApiCredentialPayload>
   secretField.input.autocomplete = 'new-password';
   const hint = createElement('p', { className: 'settings-hint' });
   const webhookHint = createElement('p', { className: 'settings-hint api-webhook-hint', textContent: 'O ambiente ativo é definido por ASAAS_API_BASE_URL no servidor. Use credenciais da mesma conta e ambiente. Configure no Asaas o webhook para /api/v1/webhooks/asaas com o mesmo token cadastrado aqui. O teste do token verifica apenas se ele foi armazenado corretamente.' });
+  const isAsaas = provider === 'asaas';
   function refreshProviderCopy(): void {
-    const isAsaas = providerField.select.value === 'asaas';
     const nome = `${asaasType.select.value}_${asaasEnvironment.select.value}`;
-    const copy = credentialCopy(providerField.select.value as ApiCredentialProvider, false, nome);
+    const copy = credentialCopy(provider, false, nome);
     secretField.field.firstElementChild!.textContent = copy.label;
     secretField.input.placeholder = copy.placeholder;
     hint.textContent = copy.hint;
-    nameField.field.hidden = isAsaas;
-    nameField.input.required = !isAsaas;
-    asaasType.field.hidden = !isAsaas;
-    asaasEnvironment.field.hidden = !isAsaas;
-    webhookHint.hidden = !isAsaas;
   }
-  providerField.select.addEventListener('change', refreshProviderCopy);
+  nameField.field.hidden = isAsaas;
+  nameField.input.required = !isAsaas;
+  asaasType.field.hidden = !isAsaas;
+  asaasEnvironment.field.hidden = !isAsaas;
+  webhookHint.hidden = !isAsaas;
   asaasType.select.addEventListener('change', refreshProviderCopy);
   asaasEnvironment.select.addEventListener('change', refreshProviderCopy);
   refreshProviderCopy();
@@ -272,7 +270,7 @@ function createApiCredentialForm(onCreate: (data: Required<ApiCredentialPayload>
   const submit = createElement('button', { type: 'submit', textContent: 'Adicionar' });
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
-    const nome = providerField.select.value === 'asaas'
+    const nome = isAsaas
       ? `${asaasType.select.value}_${asaasEnvironment.select.value}`
       : nameField.input.value.trim();
     const segredo = secretField.input.value;
@@ -281,13 +279,13 @@ function createApiCredentialForm(onCreate: (data: Required<ApiCredentialPayload>
     submit.disabled = true;
     submit.textContent = 'Adicionando...';
     try {
-      await onCreate({ provider: providerField.select.value as ApiCredentialProvider, nome, segredo });
+      await onCreate({ provider, nome, segredo });
     } catch {
       submit.disabled = false;
       submit.textContent = 'Adicionar';
     }
   });
   actions.appendChild(submit);
-  form.append(providerField.field, nameField.field, asaasType.field, asaasEnvironment.field, secretField.field, hint, webhookHint, actions);
+  form.append(nameField.field, asaasType.field, asaasEnvironment.field, secretField.field, hint, webhookHint, actions);
   return form;
 }

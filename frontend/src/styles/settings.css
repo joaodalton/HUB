@@ -258,6 +258,7 @@
 .integration-card:hover { background: var(--panel-hover); border-color: var(--accent-border); transform: translateY(-1px); }
 
 .integration-card-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.integration-card-heading .provider-badge { white-space: nowrap; flex-shrink: 0; }
 .integration-card-text { display: grid; gap: var(--space-1); }
 .integration-card-text strong { font-size: 15px; }
 .integration-card-text p { margin: 0; color: var(--text-dim); font-size: 13px; line-height: 1.5; }

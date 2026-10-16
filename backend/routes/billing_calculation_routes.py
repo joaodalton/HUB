@@ -13,7 +13,9 @@ from models.empresa import Empresa
 from models.fatura import Fatura
 from models.fatura_concessionaria import FaturaConcessionaria
 from models.pendencia import Pendencia
+from services.asaas_client import AsaasError
 from services.billing_calculation_service import BillingCalculationService
+from services.fatura_service import DadosIncompletosError, EmissaoPendente, gerar_boleto_concessionaria
 from services.invoice_document_service import load_invoice_pdf
 from services.object_storage import ObjectStorageError
 from services.permission_service import require_permission
@@ -205,6 +207,23 @@ def _download_invoice(invoice_id):
                      download_name=filename)
 
 
+def _gerar_boleto(invoice_id):
+    try:
+        return success_response(
+            gerar_boleto_concessionaria(invoice_id, g.current_empresa_id, g.current_user.id),
+            'Boleto gerado.', 201)
+    except LookupError:
+        return error_response('Fatura não encontrada.', 404)
+    except PermissionError as exc:
+        return error_response(str(exc), 403)
+    except EmissaoPendente as exc:
+        return error_response(str(exc), 409, code='EMISSAO_PENDENTE', details={'faturaId': exc.fatura_id})
+    except DadosIncompletosError as exc:
+        return error_response(str(exc), 422, code='INVOICE_DATA_INCOMPLETE', details={'missing': exc.missing})
+    except (ValueError, AsaasError) as exc:
+        return error_response(str(exc), 400)
+
+
 def _detail(execution_id):
     row = BillingCalculationExecution.query.filter_by(
         id=execution_id, empresa_id=g.current_empresa_id).first()
@@ -245,6 +264,12 @@ def index():
 @require_permission('billing_calculations.execute')
 def execute(invoice_id):
     return _execute(invoice_id)
+
+
+@billing_calculation_routes.post('/invoices/<int:invoice_id>/gerar-boleto')
+@require_permission('faturas.create')
+def gerar_boleto(invoice_id):
+    return _gerar_boleto(invoice_id)
 
 
 @billing_calculation_routes.get('/executions/<int:execution_id>')

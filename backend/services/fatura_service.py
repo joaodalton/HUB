@@ -12,6 +12,7 @@ from extensions import db
 from models.client import Client
 from models.consumer_unit import ConsumerUnit
 from models.fatura import Fatura
+from models.fatura_concessionaria import FaturaConcessionaria
 from models.user import User
 from services.asaas_client import AsaasClient, AsaasError, customer_payload, payment_payload
 from services.log_service import LogService
@@ -25,6 +26,12 @@ class EmissaoPendente(AsaasError):
     def __init__(self, fatura_id):
         super().__init__('Emissao pendente de conciliacao. Repita o mesmo comando; nao crie outra cobranca.')
         self.fatura_id = fatura_id
+
+
+class DadosIncompletosError(ValueError):
+    def __init__(self, missing: list[str]):
+        super().__init__('Dados insuficientes para gerar boleto: ' + ', '.join(missing))
+        self.missing = missing
 
 
 def _autorizar_emissao(empresa_id, user_id):
@@ -170,6 +177,34 @@ def _concluir_emissao(fatura, payment):
     LogService.info(acao='fatura_emitida', mensagem='Fatura emitida/conciliada via ASAAS.',
                     entidade='Fatura', entidade_id=fatura.id, metadados={'faturaId': fatura.id})
     return fatura.to_dict()
+
+
+def gerar_boleto_concessionaria(fatura_concessionaria_id: int, empresa_id: int, user_id: int) -> dict:
+    invoice = FaturaConcessionaria.query.filter_by(
+        id=fatura_concessionaria_id, empresa_id=empresa_id).first()
+    if invoice is None:
+        raise LookupError('Fatura da concessionaria nao encontrada.')
+    missing = []
+    if invoice.consumer_unit_id is None:
+        missing.append('ucId')
+    if invoice.valor_total_concessionaria is None or invoice.valor_total_concessionaria <= 0:
+        missing.append('valor')
+    if invoice.data_vencimento is None:
+        missing.append('dataVencimento')
+    if not invoice.competencia or not re.fullmatch(r'[0-9]{4}-(0[1-9]|1[0-2])', invoice.competencia):
+        missing.append('competencia')
+    if invoice.status_validacao != 'valida':
+        missing.append('statusValidacao')
+    if missing:
+        raise DadosIncompletosError(missing)
+    payload = {
+        'clienteId': invoice.client_id,
+        'ucId': invoice.consumer_unit_id,
+        'valor': str(invoice.valor_total_concessionaria),
+        'mesVencimento': invoice.data_vencimento.isoformat(),
+        'competencia': invoice.competencia,
+    }
+    return emitir(payload, empresa_id, user_id)
 
 
 def listar(empresa_id: int, filtros: dict) -> list[dict]:

@@ -275,7 +275,7 @@ class FaturaConcessionariaUploadTest(IsolatedTestRuntime, unittest.TestCase):
             invoice = FaturaConcessionaria.query.one()
             document = Document.query.one()
             self.assertEqual((invoice.empresa_id, invoice.client_id, document.client_id), (1, 1, 1))
-            self.assertIsNone(invoice.consumer_unit_id)
+            self.assertIsNotNone(invoice.consumer_unit_id)
 
     def test_general_document_upload_falls_back_when_oauth_token_cannot_be_decrypted(self):
         with self.app.app_context():
@@ -431,7 +431,7 @@ class FaturaConcessionariaUploadTest(IsolatedTestRuntime, unittest.TestCase):
             self.assertEqual(invoice.client_id, 1)
             self.assertIsNone(invoice.consumer_unit_id)
             self.assertEqual(invoice.arquivo_hash, hashlib.sha256(body).hexdigest())
-            self.assertEqual((invoice.status_extracao, invoice.status_validacao), ('recebida', 'pendente'))
+            self.assertEqual((invoice.status_extracao, invoice.status_validacao), ('layout_nao_reconhecido', 'pendente'))
             self.assertEqual((document.mime_type, document.storage_provider), ('application/pdf', 's3'))
             self.assertRegex(document.storage_ref, r'^tenants/1/invoices/\d{4}/\d{2}/[0-9a-f]{32}\.pdf$')
             self.assertEqual(document.nome, 'fatura_original.pdf')

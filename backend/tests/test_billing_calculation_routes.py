@@ -6,6 +6,7 @@ from io import BytesIO
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app import create_app
@@ -18,6 +19,7 @@ from models.empresa import Empresa
 from models.fatura import Fatura
 from models.fatura_concessionaria import FaturaConcessionaria
 from models.user import User
+from services import fatura_service as service
 from utils.auth import generate_token
 
 try:
@@ -171,6 +173,39 @@ class BillingCalculationRoutesTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertEqual(len(charges), 1)
         self.assertEqual(charges[0]['valor'], 40.0)
         self.assertEqual(response.json['data'][0]['ucCodigo'], 'UC-10')
+
+    def test_gerar_boleto_validates_completeness_then_emits(self):
+        url = '/api/v1/billing-calculations/invoices/10/gerar-boleto'
+        for user_id in (3, 4):
+            self.assertEqual(self.client.post(url, headers=self.headers(user_id)).status_code, 403)
+        incomplete = self.client.post(url, headers=self.headers(1))
+        self.assertEqual(incomplete.status_code, 422)
+        self.assertEqual(incomplete.json['code'], 'INVOICE_DATA_INCOMPLETE')
+        self.assertIn('ucId', incomplete.json['details']['missing'])
+
+        db.session.add(ConsumerUnit(id=10, empresa_id=10, client_id=10, codigo='UC-10'))
+        invoice = db.session.get(FaturaConcessionaria, 10)
+        invoice.consumer_unit_id = 10
+        invoice.valor_total_concessionaria = Decimal('50.00')
+        invoice.data_vencimento = date(2026, 10, 5)
+        invoice.competencia = '2026-09'
+        invoice.status_validacao = 'valida'
+        db.session.get(Client, 10).asaas_customer_id = 'cus_10'
+        db.session.commit()
+
+        with patch.object(service, 'AsaasClient') as asaas_cls:
+            asaas = asaas_cls.return_value
+            asaas.criar_cobranca.side_effect = lambda payload: {
+                'id': 'pay_1', 'externalReference': payload['externalReference'],
+                'customer': 'cus_10', 'billingType': 'BOLETO', 'value': '50.00',
+                'dueDate': '2026-10-05', 'status': 'PENDING',
+                'bankSlipUrl': 'https://example.test/boleto',
+            }
+            response = self.client.post(url, headers=self.headers(1))
+        self.assertEqual(response.status_code, 201, response.json)
+        self.assertEqual(response.json['data']['asaasId'], 'pay_1')
+        self.assertEqual(self.client.post('/api/v1/billing-calculations/invoices/999/gerar-boleto',
+                                          headers=self.headers(1)).status_code, 404)
 
     def test_platform_upload_reuses_existing_validation_and_tenant_client_check(self):
         base = '/api/v1/platform/empresas/20/billing-calculations/clients'

@@ -38,7 +38,8 @@ const sections: SidebarSection[] = [
     title: 'Financeiro',
     items: [
       { label: 'Faturas', path: '/faturas', icon: 'faturas', enabled: true },
-      { label: 'Regras de cobrança', path: '/regras-cobranca', icon: 'cobrancas', enabled: true }
+      { label: 'Regras de cobrança', path: '/regras-cobranca', icon: 'cobrancas', enabled: true },
+      { label: 'Relatórios', path: '/relatorios', icon: 'relatorios', enabled: true }
     ]
   },
   {

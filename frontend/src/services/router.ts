@@ -16,6 +16,7 @@ import { createTemplatesPage } from '../pages/TemplatesPage';
 import { createChangePasswordPage } from '../pages/ChangePasswordPage';
 import { createFaturasPage } from '../pages/FaturasPage';
 import { createMessagesPage } from '../pages/MessagesPage';
+import { createReportsPage } from '../pages/ReportsPage';
 import { createBillingRulesPage } from '../pages/BillingRulesPage';
 import { createBillingRuleEditorPage } from '../pages/BillingRuleEditorPage';
 import { createPlatformOverviewPage } from '../pages/PlatformOverviewPage';
@@ -46,6 +47,7 @@ export function createRouter(root: HTMLElement) {
     { path: '/empresas', render: createEmpresasPage },
     { path: '/templates', render: createTemplatesPage },
     { path: '/mensagens', render: createMessagesPage },
+    { path: '/relatorios', render: createReportsPage },
     { path: '/trocar-senha', render: createChangePasswordPage },
     { path: '/configuracoes', render: createSettingsPage },
     { path: '/platform', render: createPlatformOverviewPage },

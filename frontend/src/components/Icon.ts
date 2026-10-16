@@ -28,6 +28,7 @@ export type IconName =
   | 'cobrancas'
   | 'templates'
   | 'mensagens'
+  | 'relatorios'
   | 'integracoes'
   | 'permissoes'
   | 'check'
@@ -58,6 +59,7 @@ const paths: Record<IconName, string> = {
   cobrancas: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v5.5"/><path d="M12 16.2v.1"/>',
   templates: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 9v12"/>',
   mensagens: '<path d="M4 5.5h16a1 1 0 0 1 1 1V15a1 1 0 0 1-1 1H9l-4.5 4V16H4a1 1 0 0 1-1-1V6.5a1 1 0 0 1 1-1z"/>',
+  relatorios: '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M9 12v5M12 9v8M15 14v3"/>',
   integracoes: '<path d="M9 15 15 9"/><path d="M7 12.5 5.5 14a3 3 0 0 0 4.2 4.2L11 17"/><path d="M17 11.5 18.5 10a3 3 0 0 0-4.2-4.2L13 7"/>',
   permissoes: '<path d="M12 3.5 19 6v6c0 4.5-3 7.5-7 8.5-4-1-7-4-7-8.5V6z"/><path d="M9.5 12l1.8 1.8L14.5 10"/>',
   check: '<path d="M5 12.5 9.5 17 19 7.5"/>',

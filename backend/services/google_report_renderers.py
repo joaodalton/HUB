@@ -59,9 +59,11 @@ def render_as_slide(credentials, table: ReportTable, parent_folder_id: str) -> d
         {'createTable': {'objectId': table_id, 'elementProperties': {'pageObjectId': slide_id}, 'rows': rows, 'columns': cols}},
     ]
     for col_index, header in enumerate(table.headers):
-        requests.append({'insertText': {'objectId': table_id, 'cellLocation': {'rowIndex': 0, 'columnIndex': col_index}, 'text': header}})
+        if header:
+            requests.append({'insertText': {'objectId': table_id, 'cellLocation': {'rowIndex': 0, 'columnIndex': col_index}, 'text': header}})
     for row_index, row in enumerate(table.rows, start=1):
         for col_index, value in enumerate(row):
-            requests.append({'insertText': {'objectId': table_id, 'cellLocation': {'rowIndex': row_index, 'columnIndex': col_index}, 'text': value}})
+            if value:
+                requests.append({'insertText': {'objectId': table_id, 'cellLocation': {'rowIndex': row_index, 'columnIndex': col_index}, 'text': value}})
     slides.presentations().batchUpdate(presentationId=created['id'], body={'requests': requests}).execute()
     return {'id': created['id'], 'webViewLink': created['webViewLink']}

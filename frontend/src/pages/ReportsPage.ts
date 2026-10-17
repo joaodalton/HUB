@@ -44,19 +44,28 @@ export function createReportsPage(): HTMLElement {
       format.appendChild(option);
     });
     formatField.append(createElement('span', { textContent: 'Formato' }), format);
+    card.appendChild(formatField);
+    let competencia: HTMLInputElement | undefined;
+    if (tipo.tipo === 'financeiro' || tipo.tipo === 'rateio') {
+      const competenciaField = createElement('label', { className: 'form-field' });
+      competencia = createElement('input') as HTMLInputElement;
+      competencia.type = 'month';
+      competenciaField.append(createElement('span', { textContent: 'Competência (opcional)' }), competencia);
+      card.appendChild(competenciaField);
+    }
     const generate = createElement('button', { type: 'button', textContent: 'Gerar' });
     const result = createElement('div', { className: 'report-card-result' });
-    generate.addEventListener('click', () => void handleGenerate(tipo.tipo, format.value as ReportFormat, generate, result));
-    card.append(formatField, generate, result);
+    generate.addEventListener('click', () => void handleGenerate(tipo.tipo, format.value as ReportFormat, competencia?.value || undefined, generate, result));
+    card.append(generate, result);
     return card;
   }
 
-  async function handleGenerate(tipo: ReportTypeOption['tipo'], formato: ReportFormat, button: HTMLElement, result: HTMLElement): Promise<void> {
+  async function handleGenerate(tipo: ReportTypeOption['tipo'], formato: ReportFormat, competencia: string | undefined, button: HTMLElement, result: HTMLElement): Promise<void> {
     (button as HTMLButtonElement).disabled = true;
     loading.show();
     result.replaceChildren();
     try {
-      const report = await generateReport(tipo, formato);
+      const report = await generateReport(tipo, formato, competencia);
       const link = createElement('a', { textContent: 'Abrir no Google' }) as HTMLAnchorElement;
       link.href = report.webViewLink;
       link.target = '_blank';

@@ -37,4 +37,18 @@ describe('ReportsPage', () => {
     const reconnect = page.querySelector('a[href="https://accounts.google.com/x"]');
     expect(reconnect).not.toBeNull();
   });
+
+  it('envia a competencia preenchida ao gerar relatorio financeiro', async () => {
+    vi.spyOn(reportsService, 'getReportTypes').mockResolvedValue([{ tipo: 'financeiro', label: 'Financeiro' }]);
+    const generateReportSpy = vi.spyOn(reportsService, 'generateReport').mockResolvedValue({ driveFileId: 'x', webViewLink: 'https://drive.google.com/x' });
+    const page = createReportsPage();
+    document.body.appendChild(page);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const competenciaInput = page.querySelector('input[type="month"]') as HTMLInputElement;
+    competenciaInput.value = '2026-09';
+    const button = page.querySelector('button') as HTMLButtonElement;
+    button.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(generateReportSpy).toHaveBeenCalledWith('financeiro', 'doc', '2026-09');
+  });
 });

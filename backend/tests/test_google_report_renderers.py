@@ -45,6 +45,21 @@ class GoogleReportRenderersTest(unittest.TestCase):
         self.assertEqual(result, {'id': 'slide-1', 'webViewLink': 'https://slide-link'})
         slides_client.presentations().batchUpdate.assert_called()
 
+    @patch('services.google_report_renderers.build')
+    def test_render_as_slide_skips_insert_text_for_empty_cells(self, mock_build):
+        drive_client = MagicMock()
+        drive_client.files().create().execute.return_value = {'id': 'slide-2', 'webViewLink': 'https://slide-link-2'}
+        slides_client = MagicMock()
+        mock_build.side_effect = lambda name, version, credentials: {'drive': drive_client, 'slides': slides_client}[name]
+        table = ReportTable(title='Cadastro', headers=['Nome', 'Codigo', 'UC'], rows=[['Cliente A', 'UC-1', '']])
+
+        render_as_slide('fake-creds', table, parent_folder_id='folder-1')
+
+        requests = slides_client.presentations().batchUpdate.call_args.kwargs['body']['requests']
+        insert_text_requests = [r for r in requests if 'insertText' in r]
+        self.assertTrue(all(r['insertText']['text'] != '' for r in insert_text_requests))
+        self.assertLess(len(insert_text_requests), len(table.headers) * (len(table.rows) + 1))
+
     def test_empty_rows_do_not_raise(self):
         table = ReportTable(title='Vazio', headers=['Nome'], rows=[])
         with patch('services.google_report_renderers.build') as mock_build:

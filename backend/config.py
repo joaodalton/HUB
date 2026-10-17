@@ -29,10 +29,7 @@ class Config:
     GOOGLE_DRIVE_SCOPES = os.getenv(
         'GOOGLE_DRIVE_SCOPES',
         'https://www.googleapis.com/auth/drive.readonly,'
-        'https://www.googleapis.com/auth/drive.file,'
-        'https://www.googleapis.com/auth/documents,'
-        'https://www.googleapis.com/auth/spreadsheets,'
-        'https://www.googleapis.com/auth/presentations'
+        'https://www.googleapis.com/auth/drive.file'
     ).split(',')
 
     # OAuth 2.0 de usuario real (substitui/complementa o credentials.json de service account).

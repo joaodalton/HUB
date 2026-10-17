@@ -1,14 +1,13 @@
 """Checagem de scope OAuth e obtencao de credencial pra geracao de relatorios
 Google (Docs/Sheets/Slides). Nunca chama a API do Google se o scope concedido
-pela conta ativa nao cobrir os 4 scopes de escrita exigidos."""
+pela conta ativa nao cobrir o scope de escrita exigido. drive.file basta: o
+Google permite usar as APIs do Docs/Sheets/Slides em arquivos criados via
+Drive API sob esse mesmo scope, sem precisar dos scopes amplos de cada app."""
 from models.google_account import GoogleAccount
 from services.drive_service import _build_oauth_credentials
 
 REQUIRED_REPORT_SCOPES = [
     'https://www.googleapis.com/auth/drive.file',
-    'https://www.googleapis.com/auth/documents',
-    'https://www.googleapis.com/auth/spreadsheets',
-    'https://www.googleapis.com/auth/presentations',
 ]
 
 

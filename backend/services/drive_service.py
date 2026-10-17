@@ -187,13 +187,18 @@ def _build_oauth_credentials():
         refresh_token = account.get_refresh_token()
         if not refresh_token:
             return None
+        # Usa os scopes realmente concedidos na conta, nao Config.GOOGLE_DRIVE_SCOPES:
+        # contas conectadas antes de uma reducao de scope so tem o conjunto antigo
+        # autorizado, e pedir refresh com scopes nunca concedidos o Google rejeita
+        # (invalid_scope), derrubando o Drive de leitura que ja funcionava.
+        granted_scopes = [s for s in (account.scopes or '').split(',') if s] or None
         credentials = OAuthCredentials(
             token=None,
             refresh_token=refresh_token,
             token_uri='https://oauth2.googleapis.com/token',
             client_id=Config.GOOGLE_OAUTH_CLIENT_ID,
             client_secret=Config.GOOGLE_OAUTH_CLIENT_SECRET,
-            scopes=Config.GOOGLE_DRIVE_SCOPES
+            scopes=granted_scopes
         )
         credentials.refresh(GoogleAuthRequest())
     except Exception as exc:  # RefreshError (token revogado/expirado) ou falha de rede -- nunca derruba a rota
@@ -275,7 +280,3 @@ def invalidate_drive_cache(empresa_id: int | None = None) -> None:
         _drive_service_cache.pop(empresa_id, None)
 
 
-def build_oauth_credentials_for_empresa():
-    """Wrapper publico de _build_oauth_credentials(), pra reuso fora deste modulo
-    (ex.: services/google_reports_auth.py). Mesma funcao, mesmo cache/refresh."""
-    return _build_oauth_credentials()

@@ -1,5 +1,6 @@
 from flask import Blueprint, g, request
 
+from extensions import limiter
 from services.google_reports_auth import ReportAccountMissingError, ReportScopeError
 from services.permission_service import require_permission
 from services.reports_service import gerar_relatorio
@@ -22,6 +23,7 @@ def tipos():
 
 @report_routes.post('/gerar')
 @require_permission('reports.read')
+@limiter.limit('10 per minute')
 def gerar():
     body = request.get_json(silent=True) or {}
     try:

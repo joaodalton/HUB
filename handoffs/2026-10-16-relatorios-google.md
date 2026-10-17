@@ -96,6 +96,21 @@ ambos corrigidos nesta entrega:
    `drive.readonly`) teria o refresh rejeitado pelo Google (`invalid_scope`).
    Corrigido pra usar os scopes realmente concedidos (`account.scopes`).
 
+## Ajuste pós-review final (findings do whole-branch review)
+
+A revisão final de branch completo encontrou e corrigiu mais 2 pontos antes
+do merge:
+
+1. **Campo de competência adicionado na UI.** A spec pedia esse campo e a
+   Task 11 não incluiu — `ReportsPage.ts` agora mostra `<input type="month">`
+   nos cards Financeiro/Rateio (não no Cadastro, que não usa esse filtro).
+   Isso também reduz o risco de timeout do item 6 abaixo, já que o usuário
+   pode escopar o relatório por competência em vez de sempre pegar o
+   histórico inteiro do tenant.
+2. **Slides não tenta mais `insertText` com célula vazia** (`_render_as_slide`),
+   evitando uma rejeição provável da API do Google quando Cadastro/Financeiro
+   têm campo em branco (ex. UC/Usina sem documento, fatura sem status).
+
 ## Riscos e limitações que NÃO foram corrigidos nesta entrega (ação necessária antes/durante produção)
 
 1. **[Validar antes de depender da feature] Pasta de destino pode falhar com `drive.file`.**

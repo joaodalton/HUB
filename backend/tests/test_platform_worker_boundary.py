@@ -42,9 +42,14 @@ class PlatformWorkerBoundaryTest(IsolatedTestRuntime, unittest.TestCase):
                           password_hash=hash_password('senha-segura'), role='viewer',
                           is_platform_worker=True)
             db.session.add_all([owner, worker])
+            b = Empresa(nome='Empresa Worker B', slug='worker-b', status='ativa')
+            db.session.add(b)
+            db.session.flush()
             db.session.add(Client(empresa_id=a.id, nome='Cliente A', cpf='111', email='a@client.test'))
+            db.session.add(Client(empresa_id=b.id, nome='Cliente B', cpf='222', email='b@client.test'))
             db.session.commit()
             cls.a_id = a.id
+            cls.b_id = b.id
             cls.worker_id = worker.id
 
     @classmethod
@@ -103,13 +108,14 @@ class PlatformWorkerBoundaryTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertEqual(client.get('/api/v1/platform/empresas', headers=headers).status_code, 200)
 
     def test_worker_can_enter_and_exit_company_via_real_routes(self):
+        # Worker pertence a A (casa); entra em B pela rota real e volta pra A.
         client = self.app.test_client()
         client.set_cookie('hub_token', self._token(self.worker_id))
         client.set_cookie('hub_csrf', 'csrf')
         csrf = {'X-CSRF-Token': 'csrf'}
-        entered = client.post(f'/api/v1/platform/empresas/{self.a_id}/entrar', headers=csrf)
+        entered = client.post(f'/api/v1/platform/empresas/{self.b_id}/entrar', headers=csrf)
         self.assertEqual(entered.status_code, 200)
-        self.assertEqual([row['nome'] for row in client.get('/api/v1/clients').get_json()['data']], ['Cliente A'])
+        self.assertEqual([row['nome'] for row in client.get('/api/v1/clients').get_json()['data']], ['Cliente B'])
         self.assertEqual(client.post('/api/v1/platform/sair', headers=csrf).status_code, 200)
         self.assertEqual(client.get('/api/v1/clients').get_json()['code'], 'PLATFORM_TENANT_CONTEXT_REQUIRED')
 

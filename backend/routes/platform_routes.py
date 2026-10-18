@@ -16,7 +16,7 @@ from extensions import db
 from models.empresa import Empresa
 from models.user import User
 from services.log_service import LogService
-from services.permission_service import require_platform_admin
+from services.permission_service import require_platform_access
 from utils.api_response import error_response, success_response
 from utils.auth import clear_platform_view_cookie, set_platform_view_cookie
 
@@ -25,7 +25,7 @@ platform_routes = Blueprint('platform_routes', __name__, url_prefix='/api/v1/pla
 
 
 @platform_routes.route('', methods=['GET'])
-@require_platform_admin()
+@require_platform_access()
 def overview():
     return success_response({
         'totalEmpresas': db.session.query(func.count(Empresa.id)).scalar() or 0,
@@ -34,7 +34,7 @@ def overview():
 
 
 @platform_routes.route('/empresas', methods=['GET'])
-@require_platform_admin()
+@require_platform_access()
 def listar_empresas():
     rows = (
         db.session.query(Empresa, func.count(User.id).label('total_usuarios'))
@@ -54,7 +54,7 @@ def listar_empresas():
 
 
 @platform_routes.route('/empresas/<int:empresa_id>/entrar', methods=['POST'])
-@require_platform_admin()
+@require_platform_access()
 def entrar_na_empresa(empresa_id: int):
     empresa = db.session.get(Empresa, empresa_id)
 
@@ -88,7 +88,7 @@ def entrar_na_empresa(empresa_id: int):
 
 
 @platform_routes.route('/sair', methods=['POST'])
-@require_platform_admin()
+@require_platform_access()
 def sair_da_empresa():
     empresa_id = getattr(g, 'platform_view_empresa_id', None)
     if empresa_id is not None:

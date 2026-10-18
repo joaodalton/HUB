@@ -96,6 +96,23 @@ class PlatformWorkerBoundaryTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertEqual(blocked.status_code, 403)
         self.assertEqual(blocked.get_json()['code'], 'PLATFORM_WORKER_READ_ONLY')
 
+    def test_worker_can_read_platform_overview_and_company_list(self):
+        client = self.app.test_client()
+        headers = self._auth(self.worker_id)
+        self.assertEqual(client.get('/api/v1/platform', headers=headers).status_code, 200)
+        self.assertEqual(client.get('/api/v1/platform/empresas', headers=headers).status_code, 200)
+
+    def test_worker_can_enter_and_exit_company_via_real_routes(self):
+        client = self.app.test_client()
+        client.set_cookie('hub_token', self._token(self.worker_id))
+        client.set_cookie('hub_csrf', 'csrf')
+        csrf = {'X-CSRF-Token': 'csrf'}
+        entered = client.post(f'/api/v1/platform/empresas/{self.a_id}/entrar', headers=csrf)
+        self.assertEqual(entered.status_code, 200)
+        self.assertEqual([row['nome'] for row in client.get('/api/v1/clients').get_json()['data']], ['Cliente A'])
+        self.assertEqual(client.post('/api/v1/platform/sair', headers=csrf).status_code, 200)
+        self.assertEqual(client.get('/api/v1/clients').get_json()['code'], 'PLATFORM_TENANT_CONTEXT_REQUIRED')
+
     def test_worker_without_entering_gets_tenant_context_required(self):
         client = self.app.test_client()
         outside = client.get('/api/v1/clients', headers=self._auth(self.worker_id))

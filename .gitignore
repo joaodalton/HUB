@@ -114,3 +114,4 @@ backend/tests/fixtures/invoices/copel/*
 !backend/tests/test_copel_deep.py
 !backend/tests/test_copel_parser.py
 !backend/tests/test_platform_boundary.py
+.worktrees/

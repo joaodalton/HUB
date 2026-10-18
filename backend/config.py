@@ -9,6 +9,23 @@ BASE_DIR = Path(__file__).resolve().parent
 
 load_dotenv(BASE_DIR / ".env")
 
+
+def normalize_database_url(url: str) -> str:
+    """Declara o driver psycopg2 em URLs Postgres sem driver explicito.
+
+    O SQLAlchemy 2.1 passou a usar o psycopg (v3) como driver padrao de
+    "postgresql://", mas o HUB instala psycopg2-binary. Sem isso, um build novo
+    no Render (que traz o SQLAlchemy mais recente) cai no boot com
+    "No module named 'psycopg'". SQLite e URLs que ja definem driver
+    (ex.: postgresql+psycopg2://) ficam intactos.
+    """
+    if url.startswith('postgres://'):
+        url = 'postgresql://' + url[len('postgres://'):]
+    if url.startswith('postgresql://'):
+        url = 'postgresql+psycopg2://' + url[len('postgresql://'):]
+    return url
+
+
 class Config:
 
     API_PORT = int(os.getenv('API_PORT', '8000'))
@@ -132,10 +149,10 @@ class Config:
     # Precisa ser um remetente/dominio verificado na conta Resend.
     EMAIL_FROM = os.getenv('EMAIL_FROM', 'HUB <onboarding@resend.dev>')
 
-    SQLALCHEMY_DATABASE_URI = os.getenv(
-    'DATABASE_URL',
-    f"sqlite:///{(BASE_DIR / 'database' / 'hub.db').as_posix()}" 
-    )
+    SQLALCHEMY_DATABASE_URI = normalize_database_url(os.getenv(
+        'DATABASE_URL',
+        f"sqlite:///{(BASE_DIR / 'database' / 'hub.db').as_posix()}"
+    ))
 
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 

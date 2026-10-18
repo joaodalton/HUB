@@ -125,6 +125,11 @@ class PlatformWorkerBoundaryTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertEqual(outside.status_code, 403)
         self.assertEqual(outside.get_json()['code'], 'PLATFORM_TENANT_CONTEXT_REQUIRED')
 
+    def test_me_exposes_is_platform_worker_for_worker_account(self):
+        client = self.app.test_client()
+        response = client.get('/api/v1/auth/me', headers=self._auth(self.worker_id))
+        self.assertEqual(response.get_json()['data']['isPlatformWorker'], True)
+
 
 if __name__ == '__main__':
     unittest.main()

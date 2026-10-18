@@ -39,6 +39,7 @@ _PLATFORM_CONTEXT_SAFE_ENDPOINTS = {
 }
 _PLATFORM_CONTEXT_SAFE_ENDPOINT_PREFIXES = (
     'platform_routes.',
+    'platform_worker_routes.',
     'regulatory_tariff_routes.',
 )
 # Unico par de endpoints que so mutam o cookie de view (nunca dado de tenant) --

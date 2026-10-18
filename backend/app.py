@@ -115,6 +115,7 @@ def create_app() -> Flask:
     from routes.invitation_routes import invitation_routes
     from routes.rateio_routes import rateio_routes
     from routes.platform_routes import platform_routes
+    from routes.platform_worker_routes import platform_worker_routes
     from routes.email_template_routes import email_template_routes
     from routes.api_credential_routes import api_credential_routes
     from routes.import_routes import import_routes
@@ -151,6 +152,7 @@ def create_app() -> Flask:
     app.register_blueprint(invitation_routes)
     app.register_blueprint(rateio_routes)
     app.register_blueprint(platform_routes)
+    app.register_blueprint(platform_worker_routes)
     app.register_blueprint(fatura_routes)
     app.register_blueprint(webhook_routes)
     app.register_blueprint(whatsapp_routes)

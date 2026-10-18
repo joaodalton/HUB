@@ -29,6 +29,9 @@ def upgrade():
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('email')
     )
+    # FKs de tabelas criadas em revisoes posteriores (password_reset_tokens,
+    # import_previews, regulatory_tariffs) sao definidas nas proprias revisoes
+    # que criam essas tabelas. Referencia-las aqui quebrava o upgrade em banco vazio.
     # ### end Alembic commands ###
 
 

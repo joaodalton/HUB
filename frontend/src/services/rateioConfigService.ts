@@ -2,7 +2,7 @@
 // Configuração global do buffer de consumo do motor de rateio -- usa o
 // mesmo endpoint genérico /settings (chave/valor) que Aparência já usa,
 // sem precisar de rota nova no backend.
-import { apiRequest } from './apiClient';
+import { apiRequest, type ApiResponse } from './apiClient';
 
 export type RateioConfig = {
   bufferHabilitado: boolean;
@@ -20,11 +20,6 @@ export const DEFAULT_RATEIO_CONFIG: RateioConfig = {
   termosAdesaoObrigatorios: true
 };
 
-type ApiResponse<T> = {
-  success: boolean;
-  message: string;
-  data: T;
-};
 
 export async function getRateioConfig(): Promise<RateioConfig> {
   const response = await apiRequest<ApiResponse<Record<string, string>>>('/settings');

@@ -11,6 +11,7 @@ backend/database/*.db-journal
 backend/database/teste.txt
 processos.json
 backend/uploads/
+backend/database/objects/
 logs/
 *.log
 tmp/
@@ -21,9 +22,24 @@ backend/debug_*.py
 backend/scripts/debug_*.py
 backend/scripts/testar_*.py
 .codex
+!.codex/
+.codex/*
+!.codex/config.toml
+!.codex/agents/
+.codex/agents/*
+!.codex/agents/README.md
+!.codex/agents/backend.toml
+!.codex/agents/frontend.toml
+!.codex/agents/data-migration.toml
+!.codex/agents/reviewer.toml
+!.codex/agents/tester.toml
+.maestri/
+.superpowers/
+docs/superpowers/
 .obsidian/
 graphify-out/
-
+backend/tests/fixtures/invoices/copel/private/
+backend/tests/fixtures/invoices/copel/minha_fatura_copel.pdf
 
 
 # Ignore Smart Environment folder
@@ -38,3 +54,63 @@ start-hub.sh
 test_hub.py
 # O diretório de testes é código versionado. Artefatos de execução (por
 # exemplo, .pytest_cache) continuam ignorados acima.
+
+# Ruflo local secrets and runtime data
+.env
+.env.local
+.env.*.local
+.claude-flow/data/
+.claude-flow/logs/
+.claude-flow/sessions/
+
+# Local swarm e security fixes
+.swarm/
+security_fixes/
+
+# Helpers gerados/sincronizados pelo ruflo/claude-flow (manifest assinado, nao editado a mao)
+.claude/helpers/
+
+# Testes: todo arquivo .py e versionado (a regra antiga `backend/tests/*`
+# exigia `git add -f` para cada teste novo e deixava testes de fora do repo).
+# Continuam fora do git: bancos temporarios e qualquer PDF/fixture privada da
+# Copel que nao esteja na lista explicita abaixo.
+backend/tests/**/*.db
+backend/tests/fixtures/invoices/copel/*
+!backend/tests/fixtures/invoices/copel/README.md
+!backend/tests/fixtures/invoices/copel/gd_events_sanitized.json
+!backend/tests/fixtures/invoices/copel/build_fixture.py
+!backend/tests/fixtures/invoices/copel/core_anon.pdf
+!backend/tests/fixtures/invoices/copel/core_anon.expected.json
+!backend/tests/test_regulatory_fio_b_e2e.py
+!backend/tests/test_tariff_selector.py
+!backend/tests/test_billing_calculation_contracts.py
+!backend/tests/test_copel_energy.py
+!backend/tests/test_invoice_processing_persistence.py
+!backend/tests/test_invoice_compensation.py
+!backend/tests/test_billing_calculation_engine.py
+!backend/tests/test_calculo_tarifas.py
+!backend/tests/test_document_tariff_resolver.py
+!backend/tests/test_commercial_tariff_selector.py
+!backend/tests/test_commercial_deduction_resolver.py
+!backend/tests/test_billing_deductions.py
+!backend/tests/test_fio_b_resolver.py
+!backend/tests/test_billing_pdf_lab_routes.py
+!backend/tests/test_billing_calculation_persistence.py
+!backend/tests/test_billing_calculation_service.py
+!backend/tests/test_billing_calculation_routes.py
+!backend/tests/test_billing_snapshot_immutability.py
+!backend/tests/test_platform_asaas_boundary.py
+!backend/tests/test_object_storage.py
+!backend/tests/test_asaas_webhook.py
+!backend/tests/test_gd_compensation_pending_service.py
+!backend/tests/test_fatura_processing.py
+!backend/tests/test_fatura_emissao.py
+!backend/tests/test_fatura_concessionaria.py
+!backend/tests/test_fatura_asaas_client.py
+!backend/tests/test_invoice_parsers.py
+!backend/tests/test_invoice_normalization.py
+!backend/tests/test_regulatory_tariff_repository.py
+!backend/tests/test_regulatory_tariff_imports.py
+!backend/tests/test_copel_deep.py
+!backend/tests/test_copel_parser.py
+!backend/tests/test_platform_boundary.py

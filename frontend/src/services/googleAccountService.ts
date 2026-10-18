@@ -1,5 +1,5 @@
 import { config } from './config';
-import { apiRequest } from './apiClient';
+import { apiRequest, type ApiResponse } from './apiClient';
 
 export type GoogleAccountRow = {
   id: number;
@@ -9,11 +9,6 @@ export type GoogleAccountRow = {
   ativa: boolean;
 };
 
-type ApiResponse<T> = {
-  success: boolean;
-  message: string;
-  data: T;
-};
 
 export async function getGoogleAccounts(): Promise<GoogleAccountRow[]> {
   const response = await apiRequest<ApiResponse<GoogleAccountRow[]>>('/oauth/google/accounts');

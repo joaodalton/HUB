@@ -1,0 +1,70 @@
+{
+  "identificacao_fiscal": {
+    "concessionaria": "Copel",
+    "codigo_uc": "000000000000001",
+    "competencia": "08/2030",
+    "numero_nota_fiscal": "000000001",
+    "serie": "1",
+    "chave_acesso": "00000000000000000000000000000000000000000001"
+  },
+  "resumo": {
+    "data_emissao": "2030-08-02",
+    "data_vencimento": "2030-09-10",
+    "consumo_kwh": "225.123456",
+    "valor_total_concessionaria": "1234.567890"
+  },
+  "titular": {
+    "nome": "CLIENTE FICTICIO PARA TESTES",
+    "logradouro": "R Exemplo",
+    "numero": "999",
+    "bairro": "Bairro Ficticio",
+    "cidade": "Cidade Ficticia",
+    "uf": "PR",
+    "cep": "00000000"
+  },
+  "itens": [
+    {"descricao_original":"ENERGIA ELET CONSUMO","descricao_normalizada":"energia_elet_consumo","unidade":"kWh","quantidade":"999.99","preco_unitario_com_tributos":"0.234567","valor":"12.34","pis_cofins_valor":"1.23","icms_valor":"2.34","tarifa_unitaria":"0.123456"},
+    {"descricao_original":"ENERGIA ELET USO SISTEMA","descricao_normalizada":"energia_elet_uso_sistema","unidade":"kWh","quantidade":"100","preco_unitario_com_tributos":"0.345678","valor":"23.45","pis_cofins_valor":"2.34","icms_valor":"3.45","tarifa_unitaria":"0.234567"},
+    {"descricao_original":"ENERGIA CONS. B.AMARELA","descricao_normalizada":"energia_cons_b_amarela","unidade":"kWh","quantidade":"100.00","preco_unitario_com_tributos":"0.012345","valor":"1.23","pis_cofins_valor":"0.12","icms_valor":"0.23","tarifa_unitaria":"0.001234"},
+    {"descricao_original":"CONT ILUMIN PUBLICA MUNICIPIO","descricao_normalizada":"cont_ilumin_publica_municipio","unidade":"UN","quantidade":null,"preco_unitario_com_tributos":"8.880000","valor":"8.88","pis_cofins_valor":null,"icms_valor":null,"tarifa_unitaria":null}
+  ],
+  "tributos": [
+    {"tributo":"ICMS","base_calculo":"100.01","aliquota":"19","valor":"19.00"},
+    {"tributo":"COFINS","base_calculo":"80.02","aliquota":"6.1234","valor":"4.90"},
+    {"tributo":"PIS","base_calculo":"80.02","aliquota":"1.1234","valor":"0.90"}
+  ],
+  "historico_consumo": [
+    {"competencia":"AGO30","consumo_kwh":"100","dias_faturados":"30"},
+    {"competencia":"JUL30","consumo_kwh":"101","dias_faturados":"30"},
+    {"competencia":"JUN30","consumo_kwh":"102","dias_faturados":"30"},
+    {"competencia":"MAI30","consumo_kwh":"103","dias_faturados":"30"},
+    {"competencia":"ABR30","consumo_kwh":"104","dias_faturados":"30"},
+    {"competencia":"MAR30","consumo_kwh":"105","dias_faturados":"30"},
+    {"competencia":"FEV30","consumo_kwh":"106","dias_faturados":"30"},
+    {"competencia":"JAN30","consumo_kwh":"107","dias_faturados":"30"},
+    {"competencia":"DEZ29","consumo_kwh":"108","dias_faturados":"30"},
+    {"competencia":"NOV29","consumo_kwh":"109","dias_faturados":"30"},
+    {"competencia":"OUT29","consumo_kwh":"110","dias_faturados":"30"},
+    {"competencia":"SET29","consumo_kwh":"111","dias_faturados":"30"},
+    {"competencia":"AGO29","consumo_kwh":"112","dias_faturados":"30"}
+  ],
+  "medidor": {"numero":"0000000001","grandeza":"CONSUMO","unidade":"kWh","posto":"TP","leitura_anterior":"10000","leitura_atual":"10225","constante":"1","consumo_kwh":"225.123456"},
+  "energy_components": [
+    {"original_label":"ENERGIA ELET CONSUMO","category":"consumed","amount_kwh":"999.99","unit":"kWh","item_index":0},
+    {"original_label":"ENERGIA ELET USO SISTEMA","category":"other","amount_kwh":"100","unit":"kWh","item_index":1},
+    {"original_label":"ENERGIA CONS. B.AMARELA","category":"other","amount_kwh":"100.00","unit":"kWh","item_index":2}
+  ],
+  "energia": {
+    "consumo_kwh":{"status":"found","value":"225.123456"},
+    "gd1_kwh":{"status":"not_present","value":null},
+    "gd2_kwh":{"status":"not_present","value":null},
+    "energia_injetada_kwh":{"status":"not_present","value":null},
+    "energia_compensada_kwh":{"status":"not_present","value":null},
+    "saldo_creditos_kwh":{"status":"not_present","value":null}
+  },
+  "leituras": {
+    "data_leitura_anterior": "2030-07-01",
+    "data_leitura_atual": "2030-08-01",
+    "data_proxima_leitura": "2030-09-01"
+  }
+}

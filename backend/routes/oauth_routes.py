@@ -1,4 +1,5 @@
 # backend/routes/oauth_routes.py
+import secrets
 from urllib.parse import urlencode
 
 from flask import Blueprint, g, redirect, request
@@ -17,6 +18,7 @@ from services.oauth_service import (
 from utils.api_response import error_response, success_response
 
 oauth_routes = Blueprint('oauth_routes', __name__, url_prefix='/api/v1/oauth/google')
+OAUTH_NONCE_COOKIE = 'hub_oauth_nonce'
 
 
 def _configured_callback_url(query_string: bytes) -> str:
@@ -41,10 +43,16 @@ def _frontend_oauth_redirect(resultado: str, motivo: str | None = None) -> str:
 @oauth_routes.route('/authorize')
 @require_permission('settings.update')
 def authorize():
+    nonce = secrets.token_urlsafe(32)
     try:
-        return redirect(build_authorize_url(g.current_empresa_id))
+        response = redirect(build_authorize_url(g.current_empresa_id, nonce))
     except RuntimeError as exc:
         return error_response(str(exc), 503)
+    response.set_cookie(
+        OAUTH_NONCE_COOKIE, nonce, httponly=True, secure=not Config.DEBUG,
+        samesite='Lax', max_age=600, path='/api/v1/oauth/google/callback',
+    )
+    return response
 
 
 # GET /api/v1/oauth/google/callback -- o Google chama essa URL de volta com ?code=...&state=...
@@ -66,18 +74,28 @@ def callback():
         # Em produção o URI registrado é HTTPS. Não usar request.url aqui:
         # atrás do proxy TLS do Render ele pode aparecer internamente como
         # HTTP, o que faria oauthlib rejeitar um callback público válido.
-        handle_callback(_configured_callback_url(request.query_string), request.args.get('state', ''))
+        handle_callback(
+            _configured_callback_url(request.query_string),
+            request.args.get('state', ''),
+            request.cookies.get(OAUTH_NONCE_COOKIE),
+        )
     except ValueError as exc:
-        return redirect(_frontend_oauth_redirect('erro', str(exc)))
+        return _finish(redirect(_frontend_oauth_redirect('erro', str(exc))))
     except Exception as exc:
         LogService.error(
             acao='oauth_callback_failed',
             mensagem=f'Falha inesperada no callback OAuth: {exc}',
             entidade='GoogleAccount'
         )
-        return redirect(_frontend_oauth_redirect('erro', str(exc)))
+        # Detalhe interno fica no log; o usuario recebe um motivo generico.
+        return _finish(redirect(_frontend_oauth_redirect('erro', 'Falha ao concluir a autorizacao. Tente de novo.')))
 
-    return redirect(_frontend_oauth_redirect('sucesso'))
+    return _finish(redirect(_frontend_oauth_redirect('sucesso')))
+
+
+def _finish(response):
+    response.delete_cookie(OAUTH_NONCE_COOKIE, path='/api/v1/oauth/google/callback', samesite='Lax', secure=not Config.DEBUG)
+    return response
 
 
 # GET /api/v1/oauth/google/accounts -- lista contas Google conectadas DA EMPRESA do usuario logado.

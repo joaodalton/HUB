@@ -6,9 +6,10 @@ export type FormularioLinha = {
   documento: string | null;
   ucIdentificacao: string | null;
   percentual: number;
-  termoAdesaoOk: boolean;
+  termoAdesaoOk: boolean | null;
   clienteId: number | null;
   ucId: number | null;
+  fixa?: boolean;
 };
 
 export type FormularioTabela = {
@@ -26,8 +27,10 @@ export type FormularioTabela = {
     documentoEstatutoObrigatorio: boolean;
     termosAdesaoObrigatorios: boolean;
   };
+  associacao: FormularioLinha;
   linhas: FormularioLinha[];
   somaPercentual: number;
+  avisos: string[];
 };
 
 export type VerificarDocumentosResultado = {
@@ -43,6 +46,13 @@ export async function getFormularioTabela(plantId: number): Promise<FormularioTa
   return response.data;
 }
 
+export async function getFormularioPreview(plantId: number): Promise<FormularioTabela> {
+  const response = await apiRequest<{ success: boolean; message: string; data: FormularioTabela }>(
+    `/rateio/formulario/preview?plantId=${plantId}`
+  );
+  return response.data;
+}
+
 export async function verificarDocumentosFormulario(plantId: number): Promise<VerificarDocumentosResultado> {
   const response = await apiRequest<{ success: boolean; message: string; data: VerificarDocumentosResultado }>(
     '/rateio/formulario/verificar-documentos',
@@ -53,28 +63,20 @@ export async function verificarDocumentosFormulario(plantId: number): Promise<Ve
 
 // As funcoes abaixo baixam arquivos binarios -- nao usam apiRequest (que espera
 // JSON), seguem o mesmo padrao de apiBlob usado em documentsService.ts.
-async function baixarPdf(path: string, body: unknown): Promise<Blob> {
+async function baixarArquivo(path: string, body: unknown): Promise<Blob> {
   return apiBlob(path, { method: 'POST', body });
 }
 
-export function gerarFormularioPdf(
-  plantId: number,
-  responsavelNome: string,
-  responsavelCpf: string,
-  linhas: FormularioLinha[]
-): Promise<Blob> {
-  return baixarPdf('/rateio/formulario/gerar-pdf', { plantId, responsavelNome, responsavelCpf, linhas });
-}
-
 export function gerarTermosAdesaoPdf(plantId: number): Promise<Blob> {
-  return baixarPdf('/rateio/formulario/gerar-termos', { plantId });
+  return baixarArquivo('/rateio/formulario/gerar-termos', { plantId });
 }
 
 export function gerarFormularioExcel(
   plantId: number,
   responsavelNome: string,
   responsavelCpf: string,
-  linhas: FormularioLinha[]
+  linhas: FormularioLinha[],
+  excedenteEnergia: boolean
 ): Promise<Blob> {
-  return baixarPdf('/rateio/formulario/gerar-excel', { plantId, responsavelNome, responsavelCpf, linhas });
+  return baixarArquivo('/rateio/formulario/gerar-excel', { plantId, responsavelNome, responsavelCpf, linhas, excedenteEnergia });
 }

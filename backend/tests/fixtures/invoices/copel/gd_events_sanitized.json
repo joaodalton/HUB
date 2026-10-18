@@ -1,0 +1,24 @@
+{
+  "own_and_ouc_gdii_2026_08": [
+    {"label": "ENERGIA INJETADA TE 08/2026 GDI-I", "quantity_kwh": "-1240", "tariff_unit": "0.310850", "taxed_unit_price": "0.337952", "category": "injected", "component": "TE", "gd": "GD_I", "month": "2026-08"},
+    {"label": "ENERGIA INJETADA TUSD 08/2026 GDI-I", "quantity_kwh": "-1240", "tariff_unit": "0.457170", "taxed_unit_price": "0.497024", "category": "injected", "component": "TUSD", "gd": "GD_I", "month": "2026-08"},
+    {"label": "ENERGIA INJ. OUC MPT TE 08/2026 GDII-II", "quantity_kwh": "-2400", "tariff_unit": "0.310850", "taxed_unit_price": "0.310850", "category": "compensated", "component": "TE", "gd": "GD_II", "month": "2026-08"},
+    {"label": "ENERGIA INJ. OUC MPT TUS 08/2026 GDII-II", "quantity_kwh": "-2400", "tariff_unit": "0.328431", "taxed_unit_price": "0.328429", "category": "compensated", "component": "TUSD", "gd": "GD_II", "month": "2026-08"},
+    {"label": "ENERGIA CONS. B.AMARELA", "quantity_kwh": "3640", "tariff_unit": "0.018850", "taxed_unit_price": "0.025299", "category": "other"},
+    {"label": "ENERGIA INJ. BAND. AMARELA TE", "quantity_kwh": "-3640", "tariff_unit": "0.018850", "taxed_unit_price": "0.020492", "category": "other"}
+  ],
+  "ouc_gdi_gdii_2026_09": [
+    {"label": "ENERGIA INJ. OUC MPT TE 07/2026 GDI-I", "quantity_kwh": "-30", "tariff_unit": "0.310850", "taxed_unit_price": "0.310667", "category": "compensated", "component": "TE", "gd": "GD_I", "month": "2026-07"},
+    {"label": "ENERGIA INJ. OUC MPT TUSD 07/2026 GDI-I", "quantity_kwh": "-30", "tariff_unit": "0.457170", "taxed_unit_price": "0.457000", "category": "compensated", "component": "TUSD", "gd": "GD_I", "month": "2026-07"},
+    {"label": "ENERGIA INJ. OUC MPT TE 08/2026 GDII-II", "quantity_kwh": "-352", "tariff_unit": "0.310850", "taxed_unit_price": "0.310824", "category": "compensated", "component": "TE", "gd": "GD_II", "month": "2026-08"},
+    {"label": "ENERGIA INJ. OUC MPT TUS 08/2026 GDII-II", "quantity_kwh": "-352", "tariff_unit": "0.328431", "taxed_unit_price": "0.328409", "category": "compensated", "component": "TUSD", "gd": "GD_II", "month": "2026-08"},
+    {"label": "ENERGIA CONS. B.AMARELA", "quantity_kwh": "444", "tariff_unit": "0.018850", "taxed_unit_price": "0.025270", "category": "other"},
+    {"label": "ENERGIA INJ. BAND. AMARELA TE", "quantity_kwh": "-382", "tariff_unit": "0.018850", "taxed_unit_price": "0.018848", "category": "other"}
+  ],
+  "ouc_gdii_2026_09": [
+    {"label": "ENERGIA INJ. OUC MPT TE 08/2026 GDII-II", "quantity_kwh": "-305", "tariff_unit": "0.310850", "taxed_unit_price": "0.310820", "category": "compensated", "component": "TE", "gd": "GD_II", "month": "2026-08"},
+    {"label": "ENERGIA INJ. OUC MPT TUS 08/2026 GDII-II", "quantity_kwh": "-305", "tariff_unit": "0.328431", "taxed_unit_price": "0.328426", "category": "compensated", "component": "TUSD", "gd": "GD_II", "month": "2026-08"},
+    {"label": "ENERGIA CONS. B.AMARELA", "quantity_kwh": "326", "tariff_unit": "0.018850", "taxed_unit_price": "0.025276", "category": "other"},
+    {"label": "ENERGIA INJ. BAND. AMARELA TE", "quantity_kwh": "-305", "tariff_unit": "0.018850", "taxed_unit_price": "0.018820", "category": "other"}
+  ]
+}

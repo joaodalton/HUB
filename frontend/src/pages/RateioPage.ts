@@ -51,7 +51,12 @@ export function createRateioPage(): HTMLElement {
 
   function renderContent(): void {
     const tabs = renderTabs();
-    content.replaceChildren(tabs, activeTab === 'formulario' ? formulario.element : wizard ?? createElement('p', { className: 'loading-state', textContent: 'Carregando...' }));
+    if (activeTab === 'formulario') {
+      formulario.refresh();
+      content.replaceChildren(tabs, formulario.element);
+      return;
+    }
+    content.replaceChildren(tabs, wizard ?? createElement('p', { className: 'loading-state', textContent: 'Carregando...' }));
   }
 
   function renderTabs(): HTMLElement {

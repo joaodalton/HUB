@@ -7,6 +7,12 @@ class Fatura(TenantMixin, db.Model):
     __tablename__ = 'faturas'
     __table_args__ = (
         db.UniqueConstraint('empresa_id', 'asaas_id', name='uq_faturas_empresa_asaas_id'),
+        db.UniqueConstraint('empresa_id', 'emission_key', name='uq_faturas_empresa_emission_key'),
+        db.UniqueConstraint('external_reference', name='uq_faturas_external_reference'),
+        db.CheckConstraint(
+            "status_interno IN ('aguardando_emissao', 'emitida', 'erro_emissao', 'cancelada')",
+            name='ck_faturas_status_interno',
+        ),
         db.CheckConstraint("origem IN ('manual', 'automatica')", name='ck_faturas_origem'),
         db.CheckConstraint(
             "asaas_status IN ('pending', 'received', 'overdue', 'canceled', 'refunded')",
@@ -22,7 +28,14 @@ class Fatura(TenantMixin, db.Model):
     valor = db.Column(db.Numeric(10, 2), nullable=False)
     mes_vencimento = db.Column(db.Date, nullable=False)
     origem = db.Column(db.String(20), nullable=False, default='manual')
-    asaas_id = db.Column(db.String(100), nullable=False)
+    # Nulos nos legados: não reconstruir comandos/referências que não foram registrados.
+    status_interno = db.Column(db.String(30), nullable=True)
+    payment_provider = db.Column(db.String(40), nullable=True)
+    external_reference = db.Column(db.String(64), nullable=True)
+    emission_key = db.Column(db.String(64), nullable=True)
+    emissao_iniciada_em = db.Column(db.DateTime, nullable=True)
+    payment_customer_id = db.Column(db.String(100), nullable=True)
+    asaas_id = db.Column(db.String(100), nullable=True)
     asaas_status = db.Column(db.String(20), nullable=False, default='pending')
     boleto_url = db.Column(db.String(2048), nullable=True)
     linha_digitavel = db.Column(db.String(100), nullable=True)
@@ -50,6 +63,9 @@ class Fatura(TenantMixin, db.Model):
             'mesVencimento': self.mes_vencimento.isoformat() if self.mes_vencimento else None,
             'origem': self.origem,
             'asaasId': self.asaas_id,
+            'statusInterno': self.status_interno,
+            'paymentProvider': self.payment_provider,
+            'externalReference': self.external_reference,
             'asaasStatus': self.asaas_status,
             'boletoUrl': self.boleto_url,
             'linhaDigitavel': self.linha_digitavel,

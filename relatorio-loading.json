@@ -1,0 +1,245 @@
+{
+  "fontes_encontradas": [
+    {
+      "arquivo": "frontend/src/components/Loading.ts",
+      "tipo": "component",
+      "descricao": "Cria overlay 'global-loading' fixo com texto 'Carregando...' e spinner. Controlado por setGlobalLoading(bool).",
+      "linha_estimada": 7,
+      "como_acionado": "Chamado via useGlobalLoading() → loading.show() / loading.hide() em páginas e componentes.",
+      "como_remover": "Remover createLoading() da montagem em BaseLayout.ts:25; tornar setGlobalLoading no-op ou eliminar chamadas loading.show/hide em toda a base."
+    },
+    {
+      "arquivo": "frontend/src/hooks/useGlobalLoading.ts",
+      "tipo": "outro",
+      "descricao": "Hook que expõe { show, hide, set } mapeando para setGlobalLoading do componente Loading.",
+      "linha_estimada": 3,
+      "como_acionado": "Importado e chamado como const loading = useGlobalLoading(); loading.show() / loading.hide().",
+      "como_remover": "Deletar ou tornar o hook no-op; removerexport de useGlobalLoading.ts."
+    },
+    {
+      "arquivo": "frontend/src/layouts/BaseLayout.ts",
+      "tipo": "component",
+      "descricao": "Montagem do shell: cria e injeta createLoading() (overlay) e createToastContainer() (toasts) no DOM.",
+      "linha_estimada": 25,
+      "como_acionado": "Cada página que usa createBaseLayout(...) injeta os dois overlays automaticamente.",
+      "como_remover": "Remover createLoading() e/ou createToastContainer() da linha 25; ajustar createLoading/createToastContainer se quiser manter container vazio."
+    },
+    {
+      "arquivo": "frontend/src/components/Toast.ts",
+      "tipo": "toast",
+      "descricao": "showToast(message, type) injeta toast DOM e agenda remoção automatica via window.setTimeout 4200ms.",
+      "linha_estimada": 16,
+      "como_acionado": "Chamado diretamente (ErrorBoundary) ou via useToast() → toast.success/error/info.",
+      "como_remover": "Remover createToastContainer de BaseLayout.ts:25; fazer showToast retornar sem efeito; ou remover os intervalos setTimeout da linha 25."
+    },
+    {
+      "arquivo": "frontend/src/hooks/useToast.ts",
+      "tipo": "outro",
+      "descricao": "Hook que embandeia showToast em { success, error, info }.",
+      "linha_estimada": 3,
+      "como_acionado": "Importado como const toast = useToast() e chamado como toast.success(...) etc.",
+      "como_remover": "Tornar o hook no-op ou remover suas imports/aturas nos arquivos consumidores."
+    },
+    {
+      "arquivo": "frontend/src/components/ErrorBoundary.ts",
+      "tipo": "toast",
+      "descricao": "Tratadores de error / unhandledrejection / catch no render que disparam showToast com mensagens fixas de erro.",
+      "linha_estimada": 6,
+      "como_acionado": "window 'error', 'unhandledrejection', ou exceção sincrona no render().",
+      "como_remover": "Remover ou suprimir os showToast das linhas 8, 13, 20; pode deixar apenas Sentry se desejado."
+    },
+    {
+      "arquivo": "frontend/src/pages/AgendaPage.ts",
+      "tipo": "component",
+      "descricao": "Uso duplo de loading: (a) overlay global loading.show/hide; (b) estados locais 'Carregando agenda...' via loading-state CSS.",
+      "linha_estimada": 35,
+      "como_acionado": "loadAgenda(): loading.show() + render 'Carregando agenda...'; saveComposer e cancelEvent tambem usam loading.show/hide.",
+      "como_remover": "Remover loading.show/hide das funções; remover a render condicional de 'Carregando agenda...' na linha 42."
+    },
+    {
+      "arquivo": "frontend/src/pages/DashboardPage.ts",
+      "tipo": "component",
+      "descricao": "Overlay global loading.show/hide + estado local 'Carregando resumo operacional...' com classe loading-state.",
+      "linha_estimada": 26,
+      "como_acionado": "loadResumo() dispara loading.show e renderiza loading-state enquanto carrega.",
+      "como_remover": "Remover loading.show/hide e a render condicional de loading-state nas linhas 40-43."
+    },
+    {
+      "arquivo": "frontend/src/pages/FaturasPage.ts",
+      "tipo": "component",
+      "descricao": "Loading global via busy flag + overlay loading.show/hide. Mensagens 'Carregando…' / 'Carregando faturas…' / 'Carregando cobranças…' no eyebrow e emptyMessage do DataTable.",
+      "linha_estimada": 39,
+      "como_acionado": "loadInvoices(): busy=true; loading.show(); render com mensagens de carregamento no DataTable; finally busy=false; loading.hide().",
+      "como_remover": "Remover busy e loading.show/hide; remover mensagens condicionais 'Carregando…' nos dados do DataTable (linhas 179, 181, 202)."
+    },
+    {
+      "arquivo": "frontend/src/pages/ClientsPage.ts",
+      "tipo": "component",
+      "descricao": "Overlay global loading.show/hide em loadClients, delete, export, saveClient.",
+      "linha_estimada": 44,
+      "como_acionado": "Cada operação async envolve loading.show → finally loading.hide.",
+      "como_remover": "Remover os pares loading.show/hide de cada função e suas imports."
+    },
+    {
+      "arquivo": "frontend/src/pages/EmpresasPage.ts",
+      "tipo": "component",
+      "descricao": "Overlay global loading.show/hide em load, openDetail, handleEntrar, handleSair; uso do hook useToast em mensagens de erro de criação.",
+      "linha_estimada": 31,
+      "como_acionado": "Cada função async envolve loading.show → finally loading.hide; onCreate usa useToast().error diretamente.",
+      "como_remover": "Remover loading.show/hide; ajustar ou remover o uso direto de useToast().error na linha 365."
+    },
+    {
+      "arquivo": "frontend/src/pages/ImportacoesPage.ts",
+      "tipo": "component",
+      "descricao": "Overlay global loading.show/hide em upload, downloadExport, confirm steps. Também usa busy flag local e render com estado de carregamento.",
+      "linha_estimada": 187,
+      "como_acionado": "Cada operação async chama loading.show e, no finally, loading.hide + busy=false + render.",
+      "como_remover": "Remover loading.show/hide; ajustar render para não depender de busy para estado de carregamento."
+    },
+    {
+      "arquivo": "frontend/src/pages/MessagesPage.ts",
+      "tipo": "component",
+      "descricao": "Overlay global loading.show/hide ao abrir conversa e ao enviar mensagem; texto local 'Carregando...' em estado !loaded da lista.",
+      "linha_estimada": 79,
+      "como_acionado": "openConversation e sendMessage disparam loading.show/hide; render condicional com 'Carregando...' quando !loaded.",
+      "como_remover": "Remover loading.show/hide; remover ou alterar o render condicional 'Carregando...' na linha 54."
+    },
+    {
+      "arquivo": "frontend/src/pages/PendenciasPage.ts",
+      "tipo": "component",
+      "descricao": "Overlay global loading.show/hide em loadAll, runAction, delete, save; mensagem local 'Carregando histórico...' no painel de detalhe.",
+      "linha_estimada": 76,
+      "como_acionado": "loadAll e outras funções disparam loading.show/hide; render detalhe adiciona 'Carregando histórico...' quando histórico nao carregado.",
+      "como_remover": "Remover todos os loading.show/hide; remover ou adaptar a render de 'Carregando histórico...' nas linhas 523-526."
+    },
+    {
+      "arquivo": "frontend/src/pages/PlantsPage.ts",
+      "tipo": "component",
+      "descricao": "Overlay global loading.show/hide em loadPlants, delete, savePlant, deactivate.",
+      "linha_estimada": 64,
+      "como_acionado": "Cada função async: loading.show → finally loading.hide.",
+      "como_remover": "Remover todos os loading.show/hide e suas imports."
+    },
+    {
+      "arquivo": "frontend/src/pages/RateioPage.ts",
+      "tipo": "component",
+      "descricao": "Overlay global loading.show/hide em loadAll; mensagem local 'Carregando...' com classe loading-state no content quando wizard nao montado.",
+      "linha_estimada": 32,
+      "como_acionado": "loadAll dispara loading.show/hide; render com fallback 'Carregando...' quando 마법 nao criado.",
+      "como_remover": "Remover loading.show/hide; remover o fallback de 'Carregando...' na linha 59."
+    },
+    {
+      "arquivo": "frontend/src/pages/TemplatesPage.ts",
+      "tipo": "component",
+      "descricao": "Overlay global loading.show/hide em saveTemplate e delete; estado local 'Carregando templates...' quando !loaded.",
+      "linha_estimada": 230,
+      "como_acionado": "saveTemplate e delete disparam loading.show/hide; render com 'Carregando templates...' quando !loaded.",
+      "como_remover": "Remover loading.show/hide; remover o render condicional 'Carregando templates...' nas linhas 87-89."
+    },
+    {
+      "arquivo": "frontend/src/pages/DocumentsPage.ts",
+      "tipo": "component",
+      "descrição": "Overlay global loading.show/hide em search e download; componente ResultsList com setLoading próprio.",
+      "linha_estimada": 109,
+      "como_acionado": "search: loading.show + resultsPanel.setLoading(); download: loading.show + reservedPanel.setDownloading(true); finally loading.hide.",
+      "como_remover": "Remover loading.show/hide; remover ResultList.setLoading() ou seu efeito visual (linha 40-42 de ResultsList.ts)."
+    },
+    {
+      "arquivo": "frontend/src/components/ResultsList.ts",
+      "tipo": "component",
+      "descricao": "setLoading() injeta 'Consultando arquivos...' com classe loading-state no elemento da lista.",
+      "linha_estimada": 40,
+      "como_acionado": "Chamado explicitamente pelo DocumentsPage.ts:108 antes da busca.",
+      "como_remover": "Remover a chamada resultsPanel.setLoading() no DocumentsPage.ts:108; ou tornar setLoading não invasivo."
+    },
+    {
+      "arquivo": "frontend/src/pages/rateio/RateioFormularioView.ts",
+      "tipo": "component",
+      "descricao": "Estado local de loading da tabela com mensagem 'Carregando tabela...' via classe loading-state; loading.table flag.",
+      "linha_estimada": 83,
+      "como_acionado": "loadTable(): loadingTable=true; render mostra 'Carregando tabela...' enquanto !table; finally loadingTable=false.",
+      "como_remover": "Remover ou adaptar a render condicional de 'Carregando tabela...' na linha 83; remover loadingTable flag ou sua condição de exibição."
+    },
+    {
+      "arquivo": "frontend/src/pages/SettingsPage.ts",
+      "tipo": "component",
+      "descricao": "Multiplas mensagens locais 'Carregando ...' (dados da empresa, integrações, logs, configuração WhatsApp, base regulatória, aparência, configuração) via classes settings-hint/loading-state; sem uso do overlay global.",
+      "linha_estimada": 537,
+      "como_acionado": "Vários paineis condicionais que verificam !loaded e injetam mensagem de carregamento diferente por seção.",
+      "como_remover": "Remover ou adaptar cada condicional !loaded que adiciona texto 'Carregando ...' (linhas 537-539, 592-594, 713-715, 769, 920-922, 957-958, 1050, 1086-1088, 1190-1192)."
+    },
+    {
+      "arquivo": "frontend/src/pages/UsersPage.ts",
+      "tipo": "component",
+      "descricao": "Estado local 'Carregando usuários...' com classe loading-state quando !loaded; sem overlay global.",
+      "linha_estimada": 46,
+      "como_acionado": "Render condicional: se !loaded, adiciona 'Carregando usuários...' com classe loading-state.",
+      "como_remover": "Remover ou adaptar a condicional !loaded na linha 46; remover a criação do elemento com texto 'Carregando usuários...'."
+    },
+    {
+      "arquivo": "frontend/src/components/ClientDocumentsPanel.ts",
+      "tipo": "component",
+      "descricao": "Duas fontes: (1) mensagem local 'Carregando documentos...' / 'Nao foi possivel carregar os documentos.' trocando innerHTML do list; (2) classe CSS 'loading' no botão dropButton durante upload.",
+      "linha_estimada": 68,
+      "como_acionado": "loadDocuments(): list.replaceChildren('Carregando documentos...'); finally sucesso/erro; upload: dropButton.classList.add('loading') no change do fileInput.",
+      "como_remover": "Remover os replaceChildren de loading/erro na função loadDocuments (linhas 67-75); remover add/remove classe 'loading' do dropButton (linhas 52, 62)."
+    },
+    {
+      "arquivo": "frontend/src/pages/LoginPage.ts",
+      "tipo": "outro",
+      "descricao": "Classe CSS 'loading' aplicada ao botão de submit durante login; sem overlay global nem toast de loading.",
+      "linha_estimada": 46,
+      "como_acionado": "submitButton.classList.add('loading') e disabled=true no submit; remove nos finally/catch.",
+      "como_remover": "Remover add/remove classe 'loading' e o estilo CSS associado ao .loading em botões."
+    },
+    {
+      "arquivo": "frontend/src/pages/ForgotPasswordPage.ts",
+      "tipo": "outro",
+      "descricao": "Classe CSS 'loading' no submitButton durante envio de recuperação de senha.",
+      "linha_estimada": 44,
+      "como_acionado": "submitButton.classList.add('loading') no clique; remove no finally.",
+      "como_remover": "Remover add/remove classe 'loading' e o estilo CSS correspondente."
+    },
+    {
+      "arquivo": "frontend/src/pages/ChangePasswordPage.ts",
+      "tipo": "outro",
+      "descricao": "Classe CSS 'loading' no submit durante alteração obrigatória de senha; usa showError local (não toast global).",
+      "linha_estimada": 30,
+      "como_acionado": "submit.classList.add('loading') no submit; remove no catch/finally.",
+      "como_remover": "Remover add/remove classe 'loading' e o estilo CSS correspondente."
+    },
+    {
+      "arquivo": "frontend/src/pages/ResetPasswordPage.ts",
+      "tipo": "outro",
+      "descricao": "Classe CSS 'loading' no submitButton durante redefinição de senha com token.",
+      "linha_estimada": 87,
+      "como_acionado": "submitButton.classList.add('loading') no submit; remove no finally.",
+      "como_remover": "Remover add/remove classe 'loading' e o estilo CSS correspondente."
+    },
+    {
+      "arquivo": "frontend/src/styles/shared.css",
+      "tipo": "outro",
+      "descricao": "CSS do overlay global-loading (posicao fixed, spinner) e da classe loading-state (spinner + texto).",
+      "linha_estimada": 148,
+      "como_acionado": "Regra .global-loading aplicada ao elemento criado em Loading.ts; .loading-state aplicada a varios elementos de loading inline.",
+      "como_remover": "Remover os blocos .global-loading (linhas 148-173) e .loading-state + @keyframes spin (linhas 201-225) se nao houver mais uso."
+    },
+    {
+      "arquivo": "frontend/src/styles/tables.css",
+      "tipo": "outro",
+      "descricao": "Duplicata da classe loading-state (spinner) tambem usada em tabelas.",
+      "linha_estimada": 307,
+      "como_acionado": "Classe .loading-state aplicada em elementos de loading de tabelas.",
+      "como_remover": "Remover o bloco .loading-state + @keyframes spin (linhas 307-325) se a versao do shared.css for a unica mantida."
+    },
+    {
+      "arquivo": "frontend/src/services/apiClient.ts",
+      "tipo": "interceptor",
+      "descricao": "Nao mostra loading ou toasts. Eh o interceptor HTTP real (fetch wrapper) com CSRF, 401 redirect, notificacao de troca de senha. Nenhum loading overlay aqui.",
+      "linha_estimada": 57,
+      "como_acionado": "Todas as chamadas HTTP passam por apiRequest/apiBlob/apiUpload; nenhuma delas ativa loading global automaticamente.",
+      "como_remover": "Nenhuma acao needed para remover loading pois este arquivo nao exibe loading. Apenas informative: o loading e acornsivo por pagina, nao automatico pelo HTTP."
+    }
+  ],
+  "total_fuentes": 26
+}

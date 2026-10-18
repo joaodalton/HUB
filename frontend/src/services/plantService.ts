@@ -1,5 +1,5 @@
 // frontend/src/services/plantService.ts
-import { apiRequest } from './apiClient';
+import { apiRequest, type ApiResponse } from './apiClient';
 
 export type PlantRow = {
   id: number;
@@ -49,11 +49,6 @@ export type PlantPayload = {
   diaEmissaoUsina?: number | null;
 };
 
-type ApiResponse<T> = {
-  success: boolean;
-  message: string;
-  data: T;
-};
 
 export async function getPlants(): Promise<PlantRow[]> {
   const response = await apiRequest<ApiResponse<PlantRow[]>>('/plants');

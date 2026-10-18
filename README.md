@@ -8,7 +8,7 @@ sessões, Google Drive e o procedimento de migração de segurança.
 
 [![Status](https://img.shields.io/badge/versão-V0.x-blue)](VISAO.md)
 [![Backend](https://img.shields.io/badge/backend-Flask%20%2B%20SQLAlchemy-green)](backend/)
-[![Frontend](https://img.shields.io/badge/frontend-React%20%2B%20TypeScript-blue)](frontend/)
+[![Frontend](https://img.shields.io/badge/frontend-TypeScript%20vanilla%20%2B%20Vite-blue)](frontend/)
 
 ---
 
@@ -57,7 +57,7 @@ workspace/
 │   ├── utils/              # Helpers (auth, crypto, api_response)
 │   └── uploads/            # Arquivos de documentos (fora do git)
 │
-├── frontend/               # React + TypeScript + Vite
+├── frontend/               # TypeScript vanilla + Vite (sem framework)
 │   ├── src/
 │   │   ├── pages/         # Telas: Login, Clients, Ucs, Plants, Documents, Settings...
 │   │   ├── components/    # Componentes reutilizáveis (DataTable, Cards, Forms...)
@@ -187,6 +187,21 @@ curl -X POST http://localhost:8000/auth/bootstrap \
 
 ---
 
+## Testes
+
+```bash
+# Backend (pytest coleta as classes unittest existentes; -n auto paraleliza por processo)
+cd backend
+pip install -r requirements-dev.txt
+python -m pytest -n auto
+
+# Frontend (Vitest + jsdom)
+cd frontend
+npm test
+```
+
+O CI roda exatamente isso, mais `flask db upgrade` em banco vazio (SQLite e PostgreSQL), lint e build.
+
 ## Funcionalidades Atuais
 
 ### ✅ Núcleo Funcional (V0.9)
@@ -278,7 +293,6 @@ A API segue padrão RESTful com envelope de resposta consistente:
 | GET/POST/PUT/DELETE | `/documents` | CRUD de documentos |
 | GET | `/documents/:id/download` | Baixar arquivo |
 | GET/PUT | `/settings` | Configurações de aparência |
-| GET/POST | `/config/database/*` | Configuração de provedor de dados |
 | GET/POST/DELETE | `/oauth/google/*` | Contas Google OAuth |
 | GET | `/search` | Busca no Google Drive |
 | POST | `/download-zip` | Download em lote do Drive |
@@ -291,12 +305,13 @@ A API segue padrão RESTful com envelope de resposta consistente:
 
 ### Entregas em curso
 
-- [x] Dashboard operacional e Agenda derivada de Pendências
+- [x] Dashboard operacional e Agenda com Pendências sincronizadas e eventos próprios
 - [x] Credenciais de integração cifradas por empresa
 - [x] Importação em massa de Cliente/UC/Usina via planilha Excel
 - [ ] V1.5-B: empresa, convites e aceite de termos
 - [x] Templates tenant-scoped de e-mail e WhatsApp, com pré-visualização local
-- [ ] Comunicação WhatsApp (inbox e envio) — depende da decisão de provedor
+- [x] Comunicação WhatsApp via Meta Cloud API: configuração tenant-scoped, inbox, envio de texto, webhook assinado e templates submetidos à aprovação Meta
+- [ ] Disparos automáticos de WhatsApp por eventos da Agenda — depende de definir os gatilhos de negócio
 - [ ] V2.0: financeiro, importação de boleto/fatura e notificações
 
 📋 **Roadmap detalhado em**: [PROGRESS.md](PROGRESS.md)

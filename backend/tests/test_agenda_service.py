@@ -1,4 +1,4 @@
-"""Contrato, filtros e isolamento tenant-scoped da Agenda derivada."""
+"""Contrato, filtros e isolamento tenant-scoped da Agenda unificada."""
 import os
 import sys
 import tempfile
@@ -78,7 +78,8 @@ class AgendaServiceTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertEqual([item['titulo'] for item in data['itens']], ['A no inicio', 'A no fim'])
         self.assertEqual(data['itens'][1]['status'], 'aberta')
         self.assertTrue(all(item['fonte'] == 'pendencia' for item in data['itens']))
-        self.assertNotIn('descricao', data['itens'][0])
+        self.assertIsNone(data['itens'][0]['descricao'])
+        self.assertIsNone(data['itens'][0]['fim'])
         self.assertNotIn('metadados', data['itens'][0])
         self.assertNotIn('Nunca B', [item['titulo'] for item in data['itens']])
 

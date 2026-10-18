@@ -15,6 +15,7 @@ class ApiCredential(TenantMixin, db.Model):
     provider = db.Column(db.String(40), nullable=False)
     nome = db.Column(db.String(100), nullable=False)
     segredo_encrypted = db.Column(db.Text, nullable=False)
+    interna = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 

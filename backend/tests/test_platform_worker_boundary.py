@@ -11,9 +11,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app import create_app  # noqa: E402
 from extensions import db  # noqa: E402
+from models.client import Client  # noqa: E402
 from models.empresa import Empresa  # noqa: E402
 from models.user import User  # noqa: E402
-from utils.auth import hash_password  # noqa: E402
+from utils.auth import generate_token, hash_password  # noqa: E402
 try:
     from .support import IsolatedTestRuntime  # noqa: E402
 except ImportError:
@@ -35,11 +36,16 @@ class PlatformWorkerBoundaryTest(IsolatedTestRuntime, unittest.TestCase):
             a = Empresa(nome='Empresa Worker A', slug='worker-a', status='ativa')
             db.session.add(a)
             db.session.flush()
-            db.session.add(
-                User(empresa_id=a.id, nome='Owner', email='owner@boundary-worker.test',
-                     password_hash=hash_password('senha-segura'), role='owner')
-            )
+            owner = User(empresa_id=a.id, nome='Owner', email='owner@boundary-worker.test',
+                         password_hash=hash_password('senha-segura'), role='owner')
+            worker = User(empresa_id=a.id, nome='Worker', email='worker@boundary-worker.test',
+                          password_hash=hash_password('senha-segura'), role='viewer',
+                          is_platform_worker=True)
+            db.session.add_all([owner, worker])
+            db.session.add(Client(empresa_id=a.id, nome='Cliente A', cpf='111', email='a@client.test'))
             db.session.commit()
+            cls.a_id = a.id
+            cls.worker_id = worker.id
 
     @classmethod
     def tearDownClass(cls):
@@ -59,6 +65,42 @@ class PlatformWorkerBoundaryTest(IsolatedTestRuntime, unittest.TestCase):
         with self.app.app_context():
             user = User.query.filter_by(email='owner@boundary-worker.test').first()
             self.assertEqual(user.to_dict()['isPlatformWorker'], False)
+
+    def _token(self, user_id):
+        with self.app.app_context():
+            return generate_token(user_id)
+
+    def _auth(self, user_id):
+        return {'Authorization': f'Bearer {self._token(user_id)}'}
+
+    def _view_cookie(self, user_id, empresa_id):
+        from utils.auth import sign_platform_view
+        with self.app.app_context():
+            return sign_platform_view(user_id, empresa_id)
+
+    def test_worker_can_enter_and_read_but_not_write(self):
+        # Exercita o gate e o bloqueio de escrita do middleware diretamente
+        # via cookie de view assinado (mesma tecnica de test_platform_boundary.py),
+        # em vez de passar por POST /platform/empresas/<id>/entrar: essa rota
+        # ainda esta decorada so com @require_platform_admin() (a troca para
+        # @require_platform_access() que tambem libera o worker e escopo da
+        # Task 4, ainda nao mesclada) -- nao e responsabilidade deste arquivo
+        # (utils/auth.py) e nao deve ser alterada aqui.
+        client = self.app.test_client()
+        client.set_cookie('hub_token', self._token(self.worker_id))
+        client.set_cookie('hub_csrf', 'csrf')
+        client.set_cookie('hub_platform_view', self._view_cookie(self.worker_id, self.a_id))
+        csrf = {'X-CSRF-Token': 'csrf'}
+        self.assertEqual([row['nome'] for row in client.get('/api/v1/clients').get_json()['data']], ['Cliente A'])
+        blocked = client.post('/api/v1/clients', json={'nome': 'X', 'cpf': '000', 'email': 'x@x.test'}, headers=csrf)
+        self.assertEqual(blocked.status_code, 403)
+        self.assertEqual(blocked.get_json()['code'], 'PLATFORM_WORKER_READ_ONLY')
+
+    def test_worker_without_entering_gets_tenant_context_required(self):
+        client = self.app.test_client()
+        outside = client.get('/api/v1/clients', headers=self._auth(self.worker_id))
+        self.assertEqual(outside.status_code, 403)
+        self.assertEqual(outside.get_json()['code'], 'PLATFORM_TENANT_CONTEXT_REQUIRED')
 
 
 if __name__ == '__main__':

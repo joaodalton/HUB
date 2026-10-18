@@ -41,6 +41,12 @@ _PLATFORM_CONTEXT_SAFE_ENDPOINT_PREFIXES = (
     'platform_routes.',
     'regulatory_tariff_routes.',
 )
+# Unico par de endpoints que so mutam o cookie de view (nunca dado de tenant) --
+# por isso ficam de fora do bloqueio global de escrita do platform_worker.
+_PLATFORM_WORKER_WRITE_EXEMPT_ENDPOINTS = {
+    'platform_routes.entrar_na_empresa',
+    'platform_routes.sair_da_empresa',
+}
 
 
 def _is_platform_context_safe_endpoint(endpoint: str | None) -> bool:
@@ -219,13 +225,26 @@ def register_auth_middleware(app, public_paths: set[str], public_path_prefixes: 
         g.current_empresa = db.session.get(Empresa, user.empresa_id)
         g.platform_view_empresa_id = None
 
+        # Bloqueio global de escrita do platform_worker: fiscalizacao e
+        # somente leitura em qualquer rota de tenant, sem excecao por rota --
+        # as duas excecoes (entrar/sair) so mutam o cookie de view, nunca
+        # dado de tenant.
+        if (
+            user.is_platform_worker
+            and request.method not in _SAFE_METHODS
+            and request.endpoint not in _PLATFORM_WORKER_WRITE_EXEMPT_ENDPOINTS
+        ):
+            return error_response('Acesso de fiscalizacao e somente leitura.', 403, code='PLATFORM_WORKER_READ_ONLY')
+
         # Platform admin "dentro" de uma empresa (ver routes/platform_routes.py):
         # sobrescreve g.current_empresa_id só pra esta requisição -- toda rota
         # existente (clients, plants, ucs, documents...) passa a enxergar a
         # empresa escolhida automaticamente, sem precisar de rota duplicada.
         # Cookie sozinho nunca é suficiente: só vale se o USUÁRIO LOGADO
-        # (não o cookie) for is_platform_admin de verdade.
-        if user.is_platform_admin:
+        # (não o cookie) for is_platform_admin de verdade. platform_worker
+        # tem o mesmo direito de "entrar" numa empresa (view somente leitura,
+        # ver bloqueio de escrita acima) e o mesmo gate de contexto obrigatorio.
+        if user.is_platform_admin or user.is_platform_worker:
             view_empresa_id = platform_view_from_cookie(request.cookies.get(VIEW_COOKIE_NAME), user.id)
             if view_empresa_id is not None:
                 empresa_visualizada = db.session.get(Empresa, view_empresa_id)

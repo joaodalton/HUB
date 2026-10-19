@@ -70,7 +70,8 @@ def create_platform_worker(data: dict) -> dict:
         acao='create',
         mensagem=f'Funcionario da plataforma {email} criado',
         entidade='User',
-        metadados={'userId': worker.id}
+        metadados={'userId': worker.id},
+        empresa_id=internal_empresa.id,
     )
     return worker.to_dict()
 
@@ -89,6 +90,7 @@ def revoke_platform_worker(user_id: int) -> dict | None:
         acao='delete',
         mensagem=f'Funcionario da plataforma {worker.email} revogado',
         entidade='User',
-        metadados={'userId': worker.id}
+        metadados={'userId': worker.id},
+        empresa_id=worker.empresa_id,
     )
     return worker.to_dict()

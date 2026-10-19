@@ -101,6 +101,43 @@ class PlatformWorkerBoundaryTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertEqual(blocked.status_code, 403)
         self.assertEqual(blocked.get_json()['code'], 'PLATFORM_WORKER_READ_ONLY')
 
+    def _entered_worker_client(self):
+        client = self.app.test_client()
+        client.set_cookie('hub_token', self._token(self.worker_id))
+        client.set_cookie('hub_csrf', 'csrf')
+        client.set_cookie('hub_platform_view', self._view_cookie(self.worker_id, self.a_id))
+        return client
+
+    def test_worker_write_blocked_on_clients_put(self):
+        client = self._entered_worker_client()
+        response = client.put('/api/v1/clients/1', json={'nome': 'X', 'email': 'x@x.test'},
+                              headers={'X-CSRF-Token': 'csrf'})
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.get_json()['code'], 'PLATFORM_WORKER_READ_ONLY')
+
+    def test_worker_write_blocked_on_documents_post_and_delete(self):
+        client = self._entered_worker_client()
+        csrf = {'X-CSRF-Token': 'csrf'}
+        post_response = client.post('/api/v1/documents', data={'nome': 'doc'}, headers=csrf)
+        self.assertEqual(post_response.status_code, 403)
+        self.assertEqual(post_response.get_json()['code'], 'PLATFORM_WORKER_READ_ONLY')
+        delete_response = client.delete('/api/v1/documents/1', headers=csrf)
+        self.assertEqual(delete_response.status_code, 403)
+        self.assertEqual(delete_response.get_json()['code'], 'PLATFORM_WORKER_READ_ONLY')
+
+    def test_worker_write_blocked_on_faturas_post(self):
+        client = self._entered_worker_client()
+        response = client.post('/api/v1/faturas', json={}, headers={'X-CSRF-Token': 'csrf'})
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.get_json()['code'], 'PLATFORM_WORKER_READ_ONLY')
+
+    def test_worker_write_blocked_on_billing_calculations_execute(self):
+        client = self._entered_worker_client()
+        response = client.post('/api/v1/billing-calculations/invoices/1/execute',
+                               headers={'X-CSRF-Token': 'csrf'})
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.get_json()['code'], 'PLATFORM_WORKER_READ_ONLY')
+
     def test_worker_can_read_platform_overview_and_company_list(self):
         client = self.app.test_client()
         headers = self._auth(self.worker_id)

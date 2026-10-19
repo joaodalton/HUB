@@ -42,11 +42,18 @@ _PLATFORM_CONTEXT_SAFE_ENDPOINT_PREFIXES = (
     'platform_worker_routes.',
     'regulatory_tariff_routes.',
 )
-# Unico par de endpoints que so mutam o cookie de view (nunca dado de tenant) --
-# por isso ficam de fora do bloqueio global de escrita do platform_worker.
+# Endpoints que so mutam o cookie de view ou a propria sessao/senha do
+# usuario logado (nunca dado de tenant) -- por isso ficam de fora do
+# bloqueio global de escrita do platform_worker. alterar_senha precisa
+# ficar aqui pra nao travar o must_change_password obrigatorio do worker
+# (deadlock: sem isso a troca de senha nunca passa do bloqueio de escrita);
+# logout precisa ficar aqui pra invalidar a sessao (bump de session_version)
+# de verdade no servidor, nao so limpar cookie no cliente.
 _PLATFORM_WORKER_WRITE_EXEMPT_ENDPOINTS = {
     'platform_routes.entrar_na_empresa',
     'platform_routes.sair_da_empresa',
+    'auth_routes.alterar_senha',
+    'auth_routes.logout',
 }
 
 

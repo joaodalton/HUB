@@ -117,8 +117,11 @@ def me():
     user = g.current_user.to_dict()
     user['empresaNome'] = g.current_empresa.nome if g.current_empresa else None
 
-    # So preenche pra platform admin -- usuario comum nunca tem esses campos.
-    if g.current_user.is_platform_admin:
+    # So preenche pra platform admin/worker -- usuario comum nunca tem esses
+    # campos. Worker tambem precisa ver platformViewEmpresaId, senao o
+    # frontend acha que ele nunca "entrou" numa empresa e manda de volta
+    # pra /platform mesmo com o cookie de view ja setado no backend.
+    if g.current_user.is_platform_admin or g.current_user.is_platform_worker:
         viendo_empresa_id = getattr(g, 'platform_view_empresa_id', None)
         user['platformViewEmpresaId'] = viendo_empresa_id
         user['platformViewEmpresaNome'] = g.current_empresa.nome if viendo_empresa_id else None

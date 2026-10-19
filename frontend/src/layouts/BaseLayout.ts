@@ -125,12 +125,12 @@ export function createBaseLayout({ content, eyebrow, title, description }: BaseL
 
 function createPlatformContextBanner(): HTMLElement | null {
   const user = getCurrentUser();
-  if (!user?.isPlatformAdmin || !user.platformViewEmpresaId) return null;
+  if (!(user?.isPlatformAdmin || user?.isPlatformWorker) || !user.platformViewEmpresaId) return null;
   const banner = createElement('section', { className: 'platform-context-banner' });
   banner.setAttribute('role', 'status');
   const text = createElement('div');
   text.append(
-    createElement('strong', { textContent: 'PLATFORM ADMIN' }),
+    createElement('strong', { textContent: user.isPlatformAdmin ? 'PLATFORM ADMIN' : 'FUNCIONARIO DA PLATAFORMA' }),
     createElement('span', { textContent: `Empresa atual: ${user.platformViewEmpresaNome || `#${user.platformViewEmpresaId}`}` })
   );
   const exit = createElement('button', { className: 'secondary-button button-with-icon', type: 'button' });

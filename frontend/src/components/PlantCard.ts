@@ -1,5 +1,6 @@
 import { createElement } from '../dom';
-import { createFormSection, createInput, createSelect } from './formFields';
+import { createFormSection, createInput, createSelect, createSelectField } from './formFields';
+import { createClientDocumentsPanel } from './ClientDocumentsPanel';
 import type { PlantRow } from '../services/plantService';
 
 export type PlantFormData = {
@@ -19,6 +20,8 @@ export type PlantFormData = {
   numModulos: number | null;
   producaoMediaManual: number | null;
   diaEmissaoUsina: number | null;
+  repasseTipo: string | null;
+  repasseValor: number | null;
 };
 
 type PlantCardOptions = {
@@ -89,6 +92,36 @@ export function createPlantCard({ plant, onSave, onCancel, onDelete }: PlantCard
   diaEmissaoUsina.input.max = '31';
   diaEmissaoUsina.input.placeholder = 'Dia do mês (1-31)';
 
+  const repasseTipo = createSelectField('Tipo de repasse', plant?.repasseTipo ?? '', [
+    { value: '', label: 'Sem contrato definido' },
+    { value: 'percentual', label: 'Percentual' },
+    { value: 'valor_fixo', label: 'Valor fixo' }
+  ]);
+  const repasseValor = createInput(
+    'Valor do repasse',
+    'number',
+    plant?.repasseValor != null ? String(plant.repasseValor) : '',
+    false
+  );
+  const repasseHint = createElement('p', { className: 'settings-hint' });
+
+  repasseValor.input.min = '0';
+  repasseValor.input.step = '0.01';
+  repasseValor.field.appendChild(repasseHint);
+
+  function syncRepasseHint(): void {
+    if (repasseTipo.select.value === 'percentual') {
+      repasseHint.textContent = 'Percentual sobre o saldo disponível da usina.';
+    } else if (repasseTipo.select.value === 'valor_fixo') {
+      repasseHint.textContent = 'Valor fixo em R$ repassado ao usineiro.';
+    } else {
+      repasseHint.textContent = '';
+    }
+  }
+
+  repasseTipo.select.addEventListener('change', syncRepasseHint);
+  syncRepasseHint();
+
   titleText.append(eyebrow, heading);
   header.append(titleText, closeButton);
   actions.appendChild(saveButton);
@@ -134,7 +167,9 @@ export function createPlantCard({ plant, onSave, onCancel, onDelete }: PlantCard
       responsavel: responsavel.input.value.trim(),
       numModulos: numModulos.input.value.trim() ? Number(numModulos.input.value) : null,
       producaoMediaManual: producaoMediaManual.input.value.trim() ? Number(producaoMediaManual.input.value) : null,
-      diaEmissaoUsina: diaEmissaoUsina.input.value.trim() ? Number(diaEmissaoUsina.input.value) : null
+      diaEmissaoUsina: diaEmissaoUsina.input.value.trim() ? Number(diaEmissaoUsina.input.value) : null,
+      repasseTipo: repasseTipo.select.value || null,
+      repasseValor: repasseValor.input.value.trim() ? Number(repasseValor.input.value) : null
     });
   });
 
@@ -143,6 +178,8 @@ export function createPlantCard({ plant, onSave, onCancel, onDelete }: PlantCard
     createFormSection('Dados principais', nome.field, uc.field, status.field, dataAtivacao.field),
     createFormSection('Características técnicas', kwPico.field, numModulos.field, marcaInversor.field, percentualDisponivel.field, producaoMediaManual.field, diaEmissaoUsina.field),
     createFormSection('Informações adicionais', telefoneProprietario.field, emailProprietario.field, cidade.field, uf.field, endereco.field, responsavel.field),
+    createFormSection('Repasse ao usineiro', repasseTipo.field, repasseValor.field),
+    createFormSection('Documentos', createClientDocumentsPanel(undefined, plant?.id)),
     actions
   );
   panel.appendChild(form);

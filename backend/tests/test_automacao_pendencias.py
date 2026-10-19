@@ -5,6 +5,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 _DATABASE_FILE = tempfile.NamedTemporaryFile(suffix='.db', delete=False)
 _DATABASE_FILE.close()
@@ -109,6 +110,51 @@ class AutomacaoPendenciasTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertEqual(Pendencia.query.get(sem_usina_nova.id).status, 'resolvida')
         self.assertEqual(Pendencia.query.get(sem_usina_legada.id).status, 'resolvida')
         self.assertIsNotNone(Pendencia.query.get(sem_usina_legada.id).resolved_at)
+
+    def _fixed_utcnow(self):
+        from datetime import datetime as real_datetime
+        return real_datetime(2026, 1, 10)
+
+    def test_verificar_fatura_geracao_usina_cria_pendencia_apos_dia_emissao(self):
+        self.plant.dia_emissao_usina = 5
+        db.session.commit()
+        with patch('services.automacao_service.datetime') as mock_datetime:
+            mock_datetime.utcnow.side_effect = self._fixed_utcnow
+            resultado = auto.verificar_e_criar_pendencias()
+        self.assertEqual(resultado['fatura_geracao_usina'], 1)
+        pendencia = Pendencia.query.filter_by(
+            plant_id=self.plant.id, origem=auto.REGRA_FATURA_GERACAO_USINA
+        ).one()
+        self.assertEqual(pendencia.categoria, 'Usinas')
+        self.assertEqual(pendencia.competencia, '2026-01')
+
+    def test_verificar_fatura_geracao_usina_nao_duplica_na_mesma_competencia(self):
+        self.plant.dia_emissao_usina = 5
+        db.session.commit()
+        with patch('services.automacao_service.datetime') as mock_datetime:
+            mock_datetime.utcnow.side_effect = self._fixed_utcnow
+            auto.verificar_e_criar_pendencias()
+            resultado = auto.verificar_e_criar_pendencias()
+        self.assertEqual(resultado['fatura_geracao_usina'], 0)
+        self.assertEqual(
+            Pendencia.query.filter_by(plant_id=self.plant.id, origem=auto.REGRA_FATURA_GERACAO_USINA).count(), 1
+        )
+
+    def test_verificar_fatura_geracao_usina_sem_dia_emissao_configurado_nao_cria(self):
+        self.plant.dia_emissao_usina = None
+        db.session.commit()
+        with patch('services.automacao_service.datetime') as mock_datetime:
+            mock_datetime.utcnow.side_effect = self._fixed_utcnow
+            resultado = auto.verificar_e_criar_pendencias()
+        self.assertEqual(resultado['fatura_geracao_usina'], 0)
+
+    def test_verificar_fatura_geracao_usina_antes_do_dia_emissao_nao_cria(self):
+        self.plant.dia_emissao_usina = 20
+        db.session.commit()
+        with patch('services.automacao_service.datetime') as mock_datetime:
+            mock_datetime.utcnow.side_effect = self._fixed_utcnow
+            resultado = auto.verificar_e_criar_pendencias()
+        self.assertEqual(resultado['fatura_geracao_usina'], 0)
 
 
 if __name__ == '__main__':

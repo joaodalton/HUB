@@ -129,14 +129,17 @@ export function createFinanceiroPage(): HTMLElement {
     const grid = createElement('section', { className: 'metric-grid' });
     dashboard.porUsina.forEach((usina) => {
       const semClientes = 'semClientesConectados' in usina && usina.semClientesConectados === true;
+      const aguardandoPagamentos = 'aguardandoPagamentos' in usina && usina.aguardandoPagamentos === true;
       const trend = semClientes
         ? 'Sem clientes conectados'
         : usina.contratoPendente
           ? 'Contrato de repasse pendente de configurar'
-          : `Repasse: ${formatCurrency(usina.repasseCalculado)}`;
+          : aguardandoPagamentos
+            ? 'Aguardando confirmação de pagamento de todos os clientes'
+            : `Repasse: ${formatCurrency(usina.repasseCalculado)}`;
       grid.appendChild(createIconStatCard({
         icon: 'plants',
-        chipColor: usina.contratoPendente || semClientes ? 'amber' : 'green',
+        chipColor: usina.contratoPendente || semClientes || aguardandoPagamentos ? 'amber' : 'green',
         value: formatCurrency(usina.recebido),
         label: usina.usinaNome,
         trend

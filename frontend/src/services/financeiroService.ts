@@ -15,6 +15,8 @@ export type FinanceiroDashboardUsina = {
   contratoPendente: boolean;
   /** Presente (true) apenas quando a usina nao tem nenhuma UC conectada; ausente no caso normal. */
   semClientesConectados?: boolean;
+  /** Presente (true) apenas quando o contrato esta configurado mas nem todas as UCs pagaram ainda. */
+  aguardandoPagamentos?: boolean;
 };
 
 export type FinanceiroDashboard = {

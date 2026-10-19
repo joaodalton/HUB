@@ -1,10 +1,13 @@
 # backend/services/plant_service.py
 from datetime import date, datetime
+from decimal import Decimal, InvalidOperation
 
 from flask import g
 
 from extensions import db
 from models.plant import Plant
+
+REPASSE_TIPOS_VALIDOS = ('percentual', 'valor_fixo')
 
 def _plant(plant_id): return Plant.query.filter_by(id=plant_id, empresa_id=g.current_empresa_id).first()
 
@@ -83,6 +86,21 @@ def update_plant(plant_id: int, data: dict) -> dict | None:
     plant.dia_emissao_usina = data.get('diaEmissaoUsina', plant.dia_emissao_usina)
     plant.is_coringa = bool(data.get('isCoringa', plant.is_coringa))
     plant.concessionaria = data.get('concessionaria', plant.concessionaria)
+
+    if 'repasseTipo' in data:
+        repasse_tipo = data['repasseTipo']
+        if repasse_tipo is not None and repasse_tipo not in REPASSE_TIPOS_VALIDOS:
+            raise ValueError("repasseTipo deve ser 'percentual', 'valor_fixo' ou nulo.")
+        plant.repasse_tipo = repasse_tipo
+    if 'repasseValor' in data:
+        repasse_valor = data['repasseValor']
+        if repasse_valor is None:
+            plant.repasse_valor = None
+        else:
+            try:
+                plant.repasse_valor = Decimal(str(repasse_valor))
+            except InvalidOperation:
+                raise ValueError('repasseValor inválido.')
 
     for mes, valor in _producao_mensal_fields(data, only_present=True).items():
         setattr(plant, mes, valor)

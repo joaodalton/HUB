@@ -115,6 +115,16 @@ class PlantServiceTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertEqual(resposta.status_code, 400)
         self.assertIn('error', resposta.get_json())
 
+    def test_post_route_retorna_400_quando_repasse_tipo_invalido(self):
+        token = generate_token(self.owner_id)
+        resposta = self.app.test_client().post(
+            '/api/v1/plants',
+            headers={'Authorization': f'Bearer {token}'},
+            json={'nome': 'Usina Nova', 'uc': 'UC-NOVA', 'repasseTipo': 'outra_coisa'},
+        )
+        self.assertEqual(resposta.status_code, 400)
+        self.assertIn('error', resposta.get_json())
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -38,7 +38,11 @@ def store():
     data = request.get_json(silent=True) or {}
     if not data.get('nome', '').strip():
         return error_response('Nome e obrigatorio.', 400)
-    return success_response(create_plant(data), 'Usina cadastrada.', 201)
+    try:
+        plant = create_plant(data)
+    except ValueError as exc:
+        return error_response(str(exc), 400)
+    return success_response(plant, 'Usina cadastrada.', 201)
 
 
 @plant_routes.route('/<int:plant_id>', methods=['PUT'])

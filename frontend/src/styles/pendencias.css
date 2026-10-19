@@ -89,6 +89,20 @@
   gap: var(--space-2);
 }
 
+.pendencia-next-action {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-input);
+  background: var(--panel-soft);
+  color: var(--text-dim);
+  font-size: 13px;
+}
+.pendencia-next-action > span:nth-child(2) { flex: 1 1 220px; }
+
 /* ---------- Pendencia Detail Section ---------- */
 .pendencia-detail-section {
   display: grid;

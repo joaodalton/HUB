@@ -11,7 +11,7 @@ Permissões por role:
 """
 from functools import wraps
 from typing import Callable
-from flask import g
+from flask import g, request
 from flask.wrappers import Response
 from utils.api_response import error_response
 
@@ -27,6 +27,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         'users.invite',
         'users.update',
         'users.change_role',
+        'users.delete',
         'users.deactivate',
         'users.reactivate',
         # Convites
@@ -73,6 +74,10 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         'imports.preview',
         'imports.commit',
         'faturas.read', 'faturas.create',
+        'billing_rules.read', 'billing_rules.write',
+        'billing_calculations.read', 'billing_calculations.execute',
+        'messages.read', 'messages.send',
+        'reports.read',
     },
     'admin': {
         # Empresa
@@ -84,6 +89,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         'users.invite',
         'users.update',
         'users.change_role',
+        'users.delete',
         'users.deactivate',
         'users.reactivate',
         # Convites
@@ -130,6 +136,10 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         'imports.preview',
         'imports.commit',
         'faturas.read', 'faturas.create',
+        'billing_rules.read', 'billing_rules.write',
+        'billing_calculations.read', 'billing_calculations.execute',
+        'messages.read', 'messages.send',
+        'reports.read',
     },
     'operator': {
         # Empresa - leitura
@@ -165,8 +175,12 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         'rateios.read',
         'rateios.calculate',
         'rateios.update',
+        # Faturas: consulta operacional, sem acoes financeiras.
+        'faturas.read',
+        'billing_rules.read',
         'imports.preview',
         'imports.commit',
+        'messages.read', 'messages.send',
     },
     'financial': {
         # Empresa - leitura
@@ -189,6 +203,9 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         # Categories
         'categories.read',
         'faturas.read', 'faturas.create',
+        'billing_rules.read', 'billing_rules.write',
+        'billing_calculations.read', 'billing_calculations.execute',
+        'reports.read',
     },
     'viewer': {
         # Empresa - leitura
@@ -208,6 +225,8 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         # Categories
         'categories.read',
         'faturas.read',
+        'billing_rules.read',
+        'messages.read',
     },
 }
 
@@ -223,6 +242,8 @@ def can(user, action: str) -> bool:
         return False
     if getattr(user, 'is_platform_admin', False):
         return True
+    if getattr(user, 'is_platform_worker', False):
+        return action.endswith('.read')
     return action in ROLE_PERMISSIONS.get(user.role, set())
 
 def can_any(user, actions: list[str]) -> bool:
@@ -231,6 +252,8 @@ def can_any(user, actions: list[str]) -> bool:
         return False
     if getattr(user, 'is_platform_admin', False):
         return True
+    if getattr(user, 'is_platform_worker', False):
+        return any(a.endswith('.read') for a in actions)
     user_perms = ROLE_PERMISSIONS.get(user.role, set())
     return any(a in user_perms for a in actions)
 
@@ -282,6 +305,8 @@ def require_quota(recurso: str) -> Callable:
         return wrapper
     return decorator
 
+_READ_SAFE_METHODS = {'GET', 'HEAD', 'OPTIONS'}
+
 def require_role(*roles: str) -> Callable:
     """
     Decorador que exige um dos roles especificados.
@@ -296,6 +321,12 @@ def require_role(*roles: str) -> Callable:
         def wrapper(*args, **kwargs) -> Response | None:
             if not hasattr(g, 'current_user') or not g.current_user:
                 return error_response('Autenticacao obrigatoria.', 401)
+
+            if (
+                getattr(g.current_user, 'is_platform_worker', False)
+                and request.method in _READ_SAFE_METHODS
+            ):
+                return f(*args, **kwargs)
 
             if not g.current_user.is_platform_admin and g.current_user.role not in roles:
                 return error_response(
@@ -348,6 +379,33 @@ def require_platform_admin() -> Callable:
                 return error_response('Autenticacao obrigatoria.', 401)
 
             if not getattr(g.current_user, 'is_platform_admin', False):
+                return error_response('Acesso restrito a administradores da plataforma.', 403)
+
+            return f(*args, **kwargs)
+        return wrapper
+    return decorator
+
+def require_platform_access() -> Callable:
+    """
+    Decorador que exige que o usuário logado seja administrador ou worker
+    (somente leitura) da plataforma -- usado por rotas /platform/* que
+    aceitam acesso de leitura de workers.
+
+    Uso:
+        @require_platform_access()
+        def listar_empresas():
+            ...
+    """
+    def decorator(f: Callable) -> Callable:
+        @wraps(f)
+        def wrapper(*args, **kwargs) -> Response | None:
+            if not hasattr(g, 'current_user') or not g.current_user:
+                return error_response('Autenticacao obrigatoria.', 401)
+
+            if not (
+                getattr(g.current_user, 'is_platform_admin', False)
+                or getattr(g.current_user, 'is_platform_worker', False)
+            ):
                 return error_response('Acesso restrito a administradores da plataforma.', 403)
 
             return f(*args, **kwargs)

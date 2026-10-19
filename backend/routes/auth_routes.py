@@ -8,7 +8,7 @@ from services.password_reset_service import redefinir_senha, solicitar_reset
 from services.user_service import register_with_code
 from utils.api_response import error_response, success_response
 from extensions import db
-from utils.auth import clear_auth_cookies, set_auth_cookies
+from utils.auth import clear_auth_cookies, clear_platform_view_cookie, set_auth_cookies
 
 
 auth_routes = Blueprint('auth_routes', __name__, url_prefix='/api/v1/auth')
@@ -76,6 +76,7 @@ def login():
     lembrar = bool(data.get('lembrar', False))
 
     response = jsonify({'success': True, 'message': 'Login realizado.', 'data': result['user']})
+    clear_platform_view_cookie(response)
     set_auth_cookies(response, result['token'], remember=lembrar)
     return response
 
@@ -86,6 +87,7 @@ def logout():
     db.session.commit()
     response = jsonify({'success': True, 'message': 'Logout realizado.', 'data': None})
     clear_auth_cookies(response)
+    clear_platform_view_cookie(response)
     return response
 
 
@@ -115,8 +117,11 @@ def me():
     user = g.current_user.to_dict()
     user['empresaNome'] = g.current_empresa.nome if g.current_empresa else None
 
-    # So preenche pra platform admin -- usuario comum nunca tem esses campos.
-    if g.current_user.is_platform_admin:
+    # So preenche pra platform admin/worker -- usuario comum nunca tem esses
+    # campos. Worker tambem precisa ver platformViewEmpresaId, senao o
+    # frontend acha que ele nunca "entrou" numa empresa e manda de volta
+    # pra /platform mesmo com o cookie de view ja setado no backend.
+    if g.current_user.is_platform_admin or g.current_user.is_platform_worker:
         viendo_empresa_id = getattr(g, 'platform_view_empresa_id', None)
         user['platformViewEmpresaId'] = viendo_empresa_id
         user['platformViewEmpresaNome'] = g.current_empresa.nome if viendo_empresa_id else None

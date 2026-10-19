@@ -4,6 +4,8 @@ import { createInfoField } from '../components/ClientDetailView';
 import { createIcon } from '../components/Icon';
 import { createIconStatCard, type IconStatCardProps } from '../components/IconStatCard';
 import { createPlantCard, type PlantFormData } from '../components/PlantCard';
+import { createStatusBadge } from '../components/StatusBadge';
+import { attachTooltip } from '../components/Tooltip';
 import { createImportacoesModal } from '../components/ImportacoesModal';
 import { createPlantDistribuicaoModal, type PlantDistribuicaoModalUc } from '../components/PlantDistribuicaoModal';
 import { createElement } from '../dom';
@@ -23,6 +25,7 @@ import {
   updatePlant
 } from '../services/plantService';
 import { getUcs, type UcRow } from '../services/ucsService';
+import { createDebouncedInput, pageSlice, readListParam, readPositiveListParam, writeListState } from '../services/listState';
 
 type ConnectedUcRow = {
   id: number;
@@ -45,22 +48,28 @@ export function createPlantsPage(): HTMLElement {
   const loading = useGlobalLoading();
   let plants: PlantRow[] = [];
   let allUcs: UcRow[] = [];
-  let selectedPlantId: number | null = null;
+  const requestedPlantId = Number(readListParam('selecionada'));
+  let selectedPlantId: number | null = Number.isSafeInteger(requestedPlantId) && requestedPlantId > 0 ? requestedPlantId : null;
   let loadError = false;
-  let searchTerm = '';
-  let statusFilter: string | null = null;
+  let isLoading = true;
+  let searchTerm = readListParam('busca') ?? '';
+  let statusFilter: string | null = readListParam('status') ?? null;
+  let page = readPositiveListParam('pagina');
 
   const layout = createBaseLayout({
     content,
-    eyebrow: 'Usinas',
-    title: 'Visualize geracao, uso e status das usinas'
+    eyebrow: 'Gestão',
+    title: 'Usinas',
+    description: 'Visualize geração, uso e status das usinas.'
   });
 
+  renderContent();
   loadPlants();
 
   return layout;
 
   async function loadPlants(): Promise<void> {
+    isLoading = true;
     loading.show();
     try {
       [plants, allUcs] = await Promise.all([getPlants(), getUcs()]);
@@ -69,6 +78,7 @@ export function createPlantsPage(): HTMLElement {
       loadError = true;
       toast.error('Nao foi possivel carregar usinas. Verifique se o backend esta rodando.');
     } finally {
+      isLoading = false;
       loading.hide();
       renderContent();
     }
@@ -126,10 +136,8 @@ export function createPlantsPage(): HTMLElement {
     searchInput.type = 'text';
     searchInput.placeholder = 'Pesquisar usinas...';
     searchInput.value = searchTerm;
-    searchInput.addEventListener('input', () => {
-      searchTerm = searchInput.value;
-      refresh();
-    });
+    const applySearch = createDebouncedInput((value) => { if (value !== searchTerm) { searchTerm = value; page = 1; selectedPlantId = null; writeListState({ busca: value || null, pagina: null, selecionada: null }); refresh(); } });
+    searchInput.addEventListener('input', () => applySearch(searchInput.value));
 
     const spacer = createElement('div');
     spacer.style.flex = '1 0 auto';
@@ -145,14 +153,21 @@ export function createPlantsPage(): HTMLElement {
     archiveButton.disabled = true;
     archiveButton.title = 'Importacao/exportacao em planilha -- em breve';
 
-    toolbar.append(searchInput, spacer, importButton, newPlantButton, archiveButton);
+    toolbar.append(importButton, newPlantButton, archiveButton);
+
+    const filtersRow = createElement('div', { className: 'page-actions' });
+    const statusFiltersHolder = createElement('div');
+    filtersRow.append(searchInput, spacer, statusFiltersHolder);
 
     const statsHolder = createElement('div');
     const tableHolder = createElement('div');
+    const paginationHolder = createElement('div');
 
     function refresh(): void {
-      statsHolder.replaceChildren(createStatCards(), createStatusFilters());
+      statusFiltersHolder.replaceChildren(createStatusFilters());
+      statsHolder.replaceChildren(createStatCards());
       tableHolder.replaceChildren(createPlantsTable());
+      paginationHolder.replaceChildren(createPagination());
     }
 
     function createStatCards(): HTMLElement {
@@ -185,6 +200,8 @@ export function createPlantsPage(): HTMLElement {
         const button = createElement('button', { className: statusFilter === status ? 'filter-chip active' : 'filter-chip', textContent: `${label} ${count}`, type: 'button' });
         button.addEventListener('click', () => {
           statusFilter = status as string | null;
+          page = 1; selectedPlantId = null;
+          writeListState({ status: statusFilter, pagina: null, selecionada: null });
           refresh();
         });
         filters.appendChild(button);
@@ -193,20 +210,26 @@ export function createPlantsPage(): HTMLElement {
     }
 
     function createPlantsTable(): HTMLElement {
-      const rows = getFilteredPlants();
+      const filteredRows = getFilteredPlants();
+      const paged = pageSlice(filteredRows, page, 25); page = paged.page;
       const isFiltered = Boolean(searchTerm || statusFilter);
 
       return createDataTable<PlantRow>({
         title: 'Usinas cadastradas',
         eyebrow: 'Listagem',
-        rows,
+        rows: paged.rows,
         emptyMessage: loadError
           ? 'Nao foi possivel carregar usinas.'
           : isFiltered
             ? 'Nenhuma usina encontrada para esse filtro.'
             : 'Nenhuma usina cadastrada ainda.',
+        state: isLoading ? 'loading' : loadError ? 'error' : isFiltered ? 'filtered' : 'ready',
+        stateTitle: loadError ? 'Nao foi possivel carregar usinas' : isFiltered ? 'Nenhuma usina corresponde aos filtros' : 'Nenhuma usina cadastrada',
+        emptyAction: { label: 'Limpar filtros', onClick: () => { searchTerm = ''; statusFilter = null; page = 1; writeListState({ busca: null, status: null, pagina: null }); refresh(); } },
+        errorAction: { label: 'Tentar novamente', onClick: () => void loadPlants() },
         onRowClick: (plant) => {
           selectedPlantId = plant.id;
+          writeListState({ selecionada: plant.id });
           renderContent();
         },
         columns: [
@@ -224,8 +247,19 @@ export function createPlantsPage(): HTMLElement {
       });
     }
 
+    function createPagination(): HTMLElement {
+      const rows = getFilteredPlants(); const pages = Math.max(1, Math.ceil(rows.length / 25));
+      const nav = createElement('nav', { className: 'faturas-pagination' });
+      const previous = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Anterior' });
+      previous.disabled = page <= 1; previous.addEventListener('click', () => { page--; writeListState({ pagina: page }); refresh(); });
+      const next = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Próxima' });
+      next.disabled = page >= pages || rows.length === 0; next.addEventListener('click', () => { page++; writeListState({ pagina: page }); refresh(); });
+      nav.append(previous, createElement('span', { textContent: `${rows.length ? page : 0} de ${rows.length ? pages : 0}` }), next);
+      return nav;
+    }
+
     refresh();
-    fragment.append(toolbar, statsHolder, tableHolder);
+    fragment.append(toolbar, filtersRow, statsHolder, tableHolder, paginationHolder);
     return fragment;
   }
 
@@ -235,16 +269,19 @@ export function createPlantsPage(): HTMLElement {
     const viewButton = createElement('button', { className: 'icon-button neutral', type: 'button' });
     viewButton.appendChild(createIcon('eye'));
     viewButton.title = 'Ver detalhes';
+    attachTooltip(viewButton, `Ver detalhes de ${plant.nome}`);
     viewButton.setAttribute('aria-label', `Ver detalhes de ${plant.nome}`);
     viewButton.addEventListener('click', (event) => {
       event.stopPropagation();
       selectedPlantId = plant.id;
+      writeListState({ selecionada: plant.id });
       renderContent();
     });
 
     const editButton = createElement('button', { className: 'icon-button neutral', type: 'button' });
     editButton.appendChild(createIcon('edit'));
     editButton.title = 'Editar';
+    attachTooltip(editButton, `Editar ${plant.nome}`);
     editButton.setAttribute('aria-label', `Editar ${plant.nome}`);
     editButton.addEventListener('click', (event) => {
       event.stopPropagation();
@@ -254,6 +291,7 @@ export function createPlantsPage(): HTMLElement {
     const deleteButton = createElement('button', { className: 'icon-button', type: 'button' });
     deleteButton.appendChild(createIcon('trash'));
     deleteButton.title = 'Excluir';
+    attachTooltip(deleteButton, `Excluir ${plant.nome}`);
     deleteButton.setAttribute('aria-label', `Excluir ${plant.nome}`);
     deleteButton.addEventListener('click', (event) => {
       event.stopPropagation();
@@ -272,6 +310,7 @@ export function createPlantsPage(): HTMLElement {
     backLink.addEventListener('click', (event) => {
       event.preventDefault();
       selectedPlantId = null;
+      writeListState({ selecionada: null }, 'replace');
       renderContent();
     });
 
@@ -288,10 +327,7 @@ export function createPlantsPage(): HTMLElement {
     const idTag = createElement('span', { className: 'cell-id-tag', textContent: `#${plant.id}` });
     const heading = createElement('h2', { textContent: plant.nome });
     const tone = plantStatusTone(plant.status);
-    const badge = createElement('span', {
-      className: tone === 'neutral' ? 'status-badge' : `status-badge tone-${tone}`,
-      textContent: plantStatusLabel(plant.status)
-    });
+    const badge = createStatusBadge(plantStatusLabel(plant.status), tone);
 
     const actions = createElement('div', { className: 'detail-actions' });
     const editButton = createElement('button', { className: 'secondary-button button-with-icon', type: 'button' });
@@ -523,12 +559,7 @@ function createIdNameCell(idLabel: string, name: string): HTMLElement {
 }
 
 function createStatusDotLabel(label: string, tone: PlantStatusTone): HTMLElement {
-  const wrap = createElement('span', { className: 'status-dot-label' });
-  wrap.append(
-    createElement('span', { className: `status-dot status-${tone}` }),
-    createElement('span', { textContent: label })
-  );
-  return wrap;
+  return createStatusBadge(label, tone);
 }
 
 function createOccupancyBar(percent: number): HTMLElement {

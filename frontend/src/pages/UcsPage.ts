@@ -4,7 +4,11 @@ import { createIcon } from '../components/Icon';
 import { createIconStatCard, type IconStatCardProps } from '../components/IconStatCard';
 import { createImportacoesModal } from '../components/ImportacoesModal';
 import { createUcCard } from '../components/UcCard';
+import { createUcBillingRuleSection } from '../components/UcBillingRuleSection';
 import { createElement } from '../dom';
+import {
+  listBillingRuleAssignments, listBillingRules, type BillingRule, type BillingRuleAssignment
+} from '../services/billingRulesService';
 import { useGlobalLoading } from '../hooks/useGlobalLoading';
 import { useToast } from '../hooks/useToast';
 import { createBaseLayout } from '../layouts/BaseLayout';
@@ -18,8 +22,10 @@ import {
   type UcRow,
   updateUc
 } from '../services/ucsService';
+import { createDebouncedInput, matchesListSearch, pageSlice, readListParam, readPositiveListParam, writeListState } from '../services/listState';
 
 type UcTableRow = UcRow & { cliente: string; usina: string };
+const PAGE_SIZE = 25;
 
 export function createUcsPage(): HTMLElement {
   const content = createElement('section', { className: 'content-stack' });
@@ -28,29 +34,51 @@ export function createUcsPage(): HTMLElement {
   let ucs: UcRow[] = [];
   let clients: ClientRow[] = [];
   let availablePlants: PlantRow[] = [];
-  let selectedUcId: number | null = null;
+  const requestedUcId = Number(readListParam('ucId'));
+  let selectedUcId: number | null = Number.isSafeInteger(requestedUcId) && requestedUcId > 0 ? requestedUcId : null;
+  let billingRules: BillingRule[] = [];
+  let billingAssignments: BillingRuleAssignment[] = [];
+  let billingRulesUnavailable = false;
   let loadError = false;
-  let quickFilter: 'all' | 'without-plant' | 'contract-expiring' = 'all';
+  let isLoading = true;
+  let quickFilter: 'all' | 'without-plant' | 'contract-expiring' = (readListParam('filtro') as 'all' | 'without-plant' | 'contract-expiring') ?? 'all';
+  let searchTerm = readListParam('busca') ?? '';
+  let page = readPositiveListParam('pagina');
 
   const layout = createBaseLayout({
     content,
-    eyebrow: 'UCs',
-    title: 'Unidades consumidoras vinculadas a clientes e usinas'
+    eyebrow: 'Gestão',
+    title: 'UCs',
+    description: 'Unidades consumidoras vinculadas a clientes e usinas.'
   });
 
+  const search = createElement('input'); search.type = 'search'; search.placeholder = 'Buscar UCs...'; search.setAttribute('aria-label', 'Buscar UCs');
+  const applySearch = createDebouncedInput((value) => { if (value !== searchTerm) { searchTerm = value; page = 1; selectedUcId = null; writeListState({ busca: value || null, pagina: null, ucId: null }); renderContent(); } });
+  search.addEventListener('input', () => applySearch(search.value));
+  const filters = createElement('div', { className: 'page-actions' }); filters.appendChild(search);
+
+  renderContent();
   loadAll();
 
   return layout;
 
   async function loadAll(): Promise<void> {
+    isLoading = true;
     loading.show();
     try {
       [ucs, clients, availablePlants] = await Promise.all([getUcs(), getClients(), getAvailablePlants()]);
       loadError = false;
+      try {
+        [billingRules, billingAssignments] = await Promise.all([listBillingRules(), listBillingRuleAssignments({ ativo: 'true' })]);
+        billingRulesUnavailable = false;
+      } catch {
+        billingRulesUnavailable = true;
+      }
     } catch {
       loadError = true;
       toast.error('Nao foi possivel carregar UCs. Verifique se o backend esta rodando.');
     } finally {
+      isLoading = false;
       loading.hide();
       renderContent();
     }
@@ -78,21 +106,27 @@ export function createUcsPage(): HTMLElement {
 
     pageActions.append(spacer, importButton, newUcButton);
 
-    const rows: UcTableRow[] = ucs.filter(matchesQuickFilter).map((uc) => ({
+    const rows: UcTableRow[] = ucs.filter(matchesQuickFilter).filter((uc) => matchesListSearch(searchTerm, `${uc.codigo} ${uc.apelido} ${uc.clienteNome ?? ''} ${uc.concessionaria ?? ''} ${uc.conexoes.map((link) => link.usina).join(' ')}`)).map((uc) => ({
       ...uc,
       cliente: uc.clienteNome ?? '-',
       usina: uc.conexoes.length > 0 ? uc.conexoes.map((conexao) => conexao.usina).join(', ') : 'Nenhuma'
     }));
 
+    const paged = pageSlice(rows, page, PAGE_SIZE); page = paged.page;
     const table = createDataTable<UcTableRow>({
       title: 'UCs cadastradas',
       eyebrow: 'Listagem',
-      rows,
+      rows: paged.rows,
       emptyMessage: loadError
         ? 'Nao foi possivel carregar UCs.'
         : 'Nenhuma UC cadastrada ainda. Cadastre clientes com UC pela tela de Clientes ou use "Nova UC" aqui.',
+      state: isLoading ? 'loading' : loadError ? 'error' : quickFilter !== 'all' || searchTerm ? 'filtered' : 'ready',
+      stateTitle: loadError ? 'Nao foi possivel carregar UCs' : quickFilter !== 'all' || searchTerm ? 'Nenhuma UC corresponde ao filtro' : 'Nenhuma UC cadastrada',
+      emptyAction: { label: 'Limpar filtros', onClick: () => { quickFilter = 'all'; searchTerm = ''; page = 1; writeListState({ busca: null, filtro: null, pagina: null }); renderContent(); } },
+      errorAction: { label: 'Tentar novamente', onClick: () => void loadAll() },
       onRowClick: (row) => {
         selectedUcId = row.id;
+        writeListState({ ucId: row.id });
         renderContent();
       },
       columns: [
@@ -104,7 +138,10 @@ export function createUcsPage(): HTMLElement {
       ]
     });
 
-    const blocks = [createStatCards(), createQuickFilters(), pageActions, table];
+    // `search` e `filters` vivem fora do renderContent (ver topo): recria-los a
+    // cada render destruia o input com foco no meio da digitacao.
+    if (search.value !== searchTerm) search.value = searchTerm;
+    const blocks = [pageActions, filters, createQuickFilters(), createStatCards(), table, createListPagination(page, paged.pages, rows.length, (nextPage) => { page = nextPage; writeListState({ pagina: page }); renderContent(); })];
 
     if (!selectedUc) {
       content.replaceChildren(...blocks);
@@ -142,6 +179,8 @@ export function createUcsPage(): HTMLElement {
       const button = createElement('button', { className: quickFilter === value ? 'filter-chip active' : 'filter-chip', textContent: label, type: 'button' });
       button.addEventListener('click', () => {
         quickFilter = value as typeof quickFilter;
+        page = 1; selectedUcId = null;
+        writeListState({ filtro: quickFilter === 'all' ? null : quickFilter, pagina: null, ucId: null });
         renderContent();
       });
       filters.appendChild(button);
@@ -170,7 +209,7 @@ export function createUcsPage(): HTMLElement {
     closeButton.appendChild(createIcon('x'));
     closeButton.title = 'Fechar';
     closeButton.addEventListener('click', () => {
-      selectedUcId = null;
+      selectedUcId = null; writeListState({ ucId: null }, 'replace');
       renderContent();
     });
 
@@ -180,7 +219,6 @@ export function createUcsPage(): HTMLElement {
     const grid = createElement('div', { className: 'detail-info-grid' });
     grid.append(
       createInfoField('Cliente', uc.clienteNome ?? '-'),
-      createInfoField('Código ANEEL', uc.codigoAneel || 'Não informado'),
       createInfoField('Apelido', uc.apelido || 'Não informado'),
       createInfoField('CPF/CNPJ da UC', uc.documento || 'Não informado'),
       createInfoField('Endereço', uc.endereco || 'Não informado'),
@@ -213,7 +251,10 @@ export function createUcsPage(): HTMLElement {
 
     actions.append(editButton, deleteButton);
 
-    panel.append(title, grid, actions);
+    panel.append(title, grid, createUcBillingRuleSection({
+      uc, rules: billingRules, assignments: billingAssignments,
+      unavailable: billingRulesUnavailable, onUpdated: loadAll
+    }), actions);
     return panel;
   }
 
@@ -272,6 +313,18 @@ export function createUcsPage(): HTMLElement {
       loading.hide();
     }
   }
+}
+
+function createListPagination(page: number, pages: number, total: number, onPage: (page: number) => void): HTMLElement {
+  const nav = createElement('nav', { className: 'faturas-pagination' });
+  const previous = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Anterior' });
+  previous.disabled = page <= 1;
+  previous.addEventListener('click', () => onPage(page - 1));
+  const next = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Próxima' });
+  next.disabled = page >= pages || total === 0;
+  next.addEventListener('click', () => onPage(page + 1));
+  nav.append(previous, createElement('span', { textContent: `${total ? page : 0} de ${total ? pages : 0}` }), next);
+  return nav;
 }
 
 // Split-based, sem Date() -- mesmo motivo documentado em ClientDetailView.ts

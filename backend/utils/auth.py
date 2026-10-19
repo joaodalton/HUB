@@ -29,6 +29,47 @@ _PASSWORD_CHANGE_SAFE_PATHS = {
     '/api/v1/auth/logout',
     '/api/v1/auth/alterar-senha',
 }
+_PLATFORM_CONTEXT_SAFE_ENDPOINTS = {
+    'auth_routes.me',
+    'auth_routes.logout',
+    'auth_routes.alterar_senha',
+    'empresa_routes.index',
+    'empresa_routes.criar',
+    'empresa_routes.atualizar_qualquer',
+}
+_PLATFORM_CONTEXT_SAFE_ENDPOINT_PREFIXES = (
+    'platform_routes.',
+    'platform_worker_routes.',
+    'regulatory_tariff_routes.',
+)
+# Endpoints que so mutam o cookie de view ou a propria sessao/senha do
+# usuario logado (nunca dado de tenant) -- por isso ficam de fora do
+# bloqueio global de escrita do platform_worker. alterar_senha precisa
+# ficar aqui pra nao travar o must_change_password obrigatorio do worker
+# (deadlock: sem isso a troca de senha nunca passa do bloqueio de escrita);
+# logout precisa ficar aqui pra invalidar a sessao (bump de session_version)
+# de verdade no servidor, nao so limpar cookie no cliente.
+_PLATFORM_WORKER_WRITE_EXEMPT_ENDPOINTS = {
+    'platform_routes.entrar_na_empresa',
+    'platform_routes.sair_da_empresa',
+    'auth_routes.alterar_senha',
+    'auth_routes.logout',
+}
+
+
+def _is_platform_context_safe_endpoint(endpoint: str | None) -> bool:
+    # Deixe o Flask responder normalmente (404/405) quando nenhuma rota foi
+    # resolvida. O guard de contexto não deve transformar caminhos inexistentes
+    # em respostas que revelem a existência de um handler.
+    if endpoint is None:
+        return True
+    if endpoint in _PLATFORM_CONTEXT_SAFE_ENDPOINTS:
+        return True
+    if endpoint == 'billing_pdf_lab_routes.diagnose_pdf':
+        return True
+    if endpoint.startswith('platform_billing_calculation_routes.'):
+        return isinstance(request.view_args, dict) and 'empresa_id' in request.view_args
+    return endpoint.startswith(_PLATFORM_CONTEXT_SAFE_ENDPOINT_PREFIXES)
 
 
 def hash_password(raw_password: str) -> str:
@@ -89,10 +130,30 @@ def clear_auth_cookies(response) -> None:
     response.delete_cookie(COOKIE_NAME, path='/', samesite='Lax', secure=is_prod)
     response.delete_cookie(CSRF_COOKIE_NAME, path='/', samesite='Lax', secure=is_prod)
 
-def set_platform_view_cookie(response, empresa_id: int) -> None:
+def sign_platform_view(user_id: int, empresa_id: int) -> str:
+    """Cookie de contexto de plataforma assinado e amarrado ao usuario. Sem
+    assinatura, um platform admin trocava de tenant editando o cookie e
+    pulava a auditoria de /platform/empresas/<id>/entrar."""
+    return _get_serializer().dumps({'u': user_id, 'e': empresa_id}, salt='platform-view')
+
+
+def platform_view_from_cookie(value: str | None, user_id: int) -> int | None:
+    if not value:
+        return None
+    try:
+        data = _get_serializer().loads(value, max_age=TOKEN_MAX_AGE_SECONDS, salt='platform-view')
+    except (BadSignature, SignatureExpired):
+        return None
+    if not isinstance(data, dict) or data.get('u') != user_id:
+        return None
+    empresa_id = data.get('e')
+    return empresa_id if isinstance(empresa_id, int) else None
+
+
+def set_platform_view_cookie(response, empresa_id: int, user_id: int) -> None:
     is_prod = not Config.DEBUG
     response.set_cookie(
-        VIEW_COOKIE_NAME, str(empresa_id), httponly=True, secure=is_prod,
+        VIEW_COOKIE_NAME, sign_platform_view(user_id, empresa_id), httponly=True, secure=is_prod,
         samesite='Lax', max_age=TOKEN_MAX_AGE_SECONDS, path='/'
     )
 
@@ -135,7 +196,7 @@ def register_auth_middleware(app, public_paths: set[str], public_path_prefixes: 
         # que nunca batem contra o set exato acima (ver comentario em app.py).
         # count('/') == 4 garante que so casa exatamente UM segmento depois
         # do prefixo (ex.: /api/v1/empresas/select), nao /api/v1/empresas/x/y.
-        if any(
+        if request.method == 'GET' and any(
             request.path.startswith(prefix) and request.path.count('/') == prefix.count('/') + 1
             for prefix in public_path_prefixes
         ):
@@ -169,23 +230,46 @@ def register_auth_middleware(app, public_paths: set[str], public_path_prefixes: 
         g.current_user = user
         g.current_empresa_id = user.empresa_id
         g.current_role = user.role
-        g.current_empresa = db.session.get(Empresa, user.empresa_id)
+        g.current_empresa = db.session.get(Empresa, user.empresa_id) if user.empresa_id is not None else None
         g.platform_view_empresa_id = None
+
+        # Bloqueio global de escrita do platform_worker: fiscalizacao e
+        # somente leitura em qualquer rota de tenant, sem excecao por rota --
+        # as duas excecoes (entrar/sair) so mutam o cookie de view, nunca
+        # dado de tenant.
+        if (
+            user.is_platform_worker
+            and request.method not in _SAFE_METHODS
+            and request.endpoint not in _PLATFORM_WORKER_WRITE_EXEMPT_ENDPOINTS
+        ):
+            return error_response('Acesso de fiscalizacao e somente leitura.', 403, code='PLATFORM_WORKER_READ_ONLY')
 
         # Platform admin "dentro" de uma empresa (ver routes/platform_routes.py):
         # sobrescreve g.current_empresa_id só pra esta requisição -- toda rota
         # existente (clients, plants, ucs, documents...) passa a enxergar a
         # empresa escolhida automaticamente, sem precisar de rota duplicada.
         # Cookie sozinho nunca é suficiente: só vale se o USUÁRIO LOGADO
-        # (não o cookie) for is_platform_admin de verdade.
-        if user.is_platform_admin:
-            view_cookie = request.cookies.get(VIEW_COOKIE_NAME)
-            if view_cookie and view_cookie.isdigit():
-                empresa_visualizada = db.session.get(Empresa, int(view_cookie))
+        # (não o cookie) for is_platform_admin de verdade. platform_worker
+        # tem o mesmo direito de "entrar" numa empresa (view somente leitura,
+        # ver bloqueio de escrita acima) e o mesmo gate de contexto obrigatorio.
+        if user.is_platform_admin or user.is_platform_worker:
+            view_empresa_id = platform_view_from_cookie(request.cookies.get(VIEW_COOKIE_NAME), user.id)
+            if view_empresa_id is not None:
+                empresa_visualizada = db.session.get(Empresa, view_empresa_id)
                 if empresa_visualizada:
                     g.current_empresa_id = empresa_visualizada.id
                     g.current_empresa = empresa_visualizada
                     g.platform_view_empresa_id = empresa_visualizada.id
+
+            if (
+                g.platform_view_empresa_id is None
+                and not _is_platform_context_safe_endpoint(request.endpoint)
+            ):
+                return error_response(
+                    'Entre explicitamente em uma empresa para acessar recursos operacionais.',
+                    403,
+                    code='PLATFORM_TENANT_CONTEXT_REQUIRED',
+                )
 
         if user.must_change_password and request.path not in _PASSWORD_CHANGE_SAFE_PATHS:
             return error_response(

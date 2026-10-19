@@ -10,9 +10,14 @@ pra sobrescrever g.current_empresa_id só pra esse usuário. "Sair" remove o
 cookie e volta pra empresa "de casa" (User.empresa_id).
 """
 from flask import Blueprint, g, jsonify
+from sqlalchemy import func
 
+from extensions import db
 from models.empresa import Empresa
-from services.permission_service import require_platform_admin
+from models.user import User
+from services.empresa_service import excluir_empresa
+from services.log_service import LogService
+from services.permission_service import require_platform_access, require_platform_admin
 from utils.api_response import error_response, success_response
 from utils.auth import clear_platform_view_cookie, set_platform_view_cookie
 
@@ -20,33 +25,100 @@ from utils.auth import clear_platform_view_cookie, set_platform_view_cookie
 platform_routes = Blueprint('platform_routes', __name__, url_prefix='/api/v1/platform')
 
 
+@platform_routes.route('', methods=['GET'])
+@require_platform_access()
+def overview():
+    return success_response({
+        'totalEmpresas': db.session.query(func.count(Empresa.id)).scalar() or 0,
+        'totalUsuarios': db.session.query(func.count(User.id)).scalar() or 0,
+    })
+
+
 @platform_routes.route('/empresas', methods=['GET'])
-@require_platform_admin()
+@require_platform_access()
 def listar_empresas():
-    empresas = Empresa.query.order_by(Empresa.nome).all()
-    return success_response([empresa.to_dict() for empresa in empresas])
+    rows = (
+        db.session.query(Empresa, func.count(User.id).label('total_usuarios'))
+        .outerjoin(User, User.empresa_id == Empresa.id)
+        .group_by(Empresa.id)
+        .order_by(Empresa.nome)
+        .all()
+    )
+    return success_response([{
+        'id': empresa.id,
+        'nome': empresa.nome,
+        'slug': empresa.slug,
+        'status': empresa.status,
+        'totalUsuarios': total_usuarios,
+        'createdAt': empresa.created_at.isoformat() if empresa.created_at else None,
+    } for empresa, total_usuarios in rows])
+
+
+@platform_routes.route('/empresas/<int:empresa_id>', methods=['DELETE'])
+@require_platform_admin()
+def excluir_empresa_route(empresa_id: int):
+    try:
+        excluida = excluir_empresa(empresa_id)
+    except ValueError as exc:
+        return error_response(str(exc), 409, code='EMPRESA_NOT_EMPTY')
+
+    if not excluida:
+        return error_response('Empresa nao encontrada.', 404)
+
+    return success_response(None, message='Empresa excluida com sucesso.')
 
 
 @platform_routes.route('/empresas/<int:empresa_id>/entrar', methods=['POST'])
-@require_platform_admin()
+@require_platform_access()
 def entrar_na_empresa(empresa_id: int):
-    empresa = Empresa.query.get(empresa_id)
+    empresa = db.session.get(Empresa, empresa_id)
 
     if not empresa:
         return error_response('Empresa nao encontrada.', 404)
 
+    try:
+        LogService.info(
+            acao='platform_enter_tenant',
+            mensagem=f'Administrador da plataforma entrou na empresa {empresa.id}.',
+            entidade='Empresa',
+            entidade_id=empresa.id,
+            metadados={'platformAdminUserId': g.current_user.id, 'empresaId': empresa.id},
+            empresa_id=empresa.id,
+            strict=True,
+        )
+    except Exception:
+        return error_response('Falha ao registrar auditoria da plataforma.', 500, code='PLATFORM_AUDIT_FAILED')
+
     response = jsonify({
         'success': True,
         'message': f'Visualizando "{empresa.nome}".',
-        'data': empresa.to_dict()
+        'data': {
+            'id': empresa.id,
+            'nome': empresa.nome,
+            'status': empresa.status,
+        },
     })
-    set_platform_view_cookie(response, empresa.id)
+    set_platform_view_cookie(response, empresa.id, g.current_user.id)
     return response
 
 
 @platform_routes.route('/sair', methods=['POST'])
-@require_platform_admin()
+@require_platform_access()
 def sair_da_empresa():
+    empresa_id = getattr(g, 'platform_view_empresa_id', None)
+    if empresa_id is not None:
+        try:
+            LogService.info(
+                acao='platform_exit_tenant',
+                mensagem=f'Administrador da plataforma saiu da empresa {empresa_id}.',
+                entidade='Empresa',
+                entidade_id=empresa_id,
+                metadados={'platformAdminUserId': g.current_user.id, 'empresaId': empresa_id},
+                empresa_id=empresa_id,
+                strict=True,
+            )
+        except Exception:
+            return error_response('Falha ao registrar auditoria da plataforma.', 500, code='PLATFORM_AUDIT_FAILED')
     response = jsonify({'success': True, 'message': 'Voltou para a empresa padrão.', 'data': None})
     clear_platform_view_cookie(response)
     return response

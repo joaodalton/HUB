@@ -49,6 +49,15 @@ def criar_convite(empresa_id: int, email: str, role: str, invited_by_id: int | N
     if User.query.filter(db.func.lower(User.email) == email).first():
         raise ValueError('Ja existe um usuario com esse email.')
 
+    convite_pendente_outra_empresa = Invitation.query.filter(
+        db.func.lower(Invitation.email) == email,
+        Invitation.empresa_id != empresa_id,
+        Invitation.status == 'pending',
+        Invitation.expires_at >= datetime.utcnow(),
+    ).first()
+    if convite_pendente_outra_empresa:
+        raise ValueError('Ja existe um convite pendente para esse email em outra empresa.')
+
     # Convite pendente anterior pro mesmo email/empresa fica revogado --
     # evita dois links validos ao mesmo tempo pra mesma pessoa.
     Invitation.query.filter_by(empresa_id=empresa_id, email=email, status='pending').update({'status': 'revoked'})
@@ -115,11 +124,16 @@ def revogar_convite(convite_id: int, empresa_id: int) -> dict | None:
     if convite.status != 'pending':
         raise ValueError('Somente convites pendentes podem ser revogados.')
     convite.status = 'revoked'
-    db.session.flush()
-    if not commit:
-        return convite.to_dict(), token_cru
     db.session.commit()
-    LogService.info(acao='convite_revogado', mensagem=f'Convite revogado para {convite.email}', entidade='Invitation', metadados={'invitationId': convite.id, 'empresaId': empresa_id})
+    LogService.info(
+        acao='convite_revogado',
+        mensagem=f'Convite revogado para {convite.email}',
+        entidade='Invitation',
+        metadados={
+            'invitationId': convite.id,
+            'empresaId': empresa_id,
+        },
+    )
     return convite.to_dict()
 
 

@@ -1,4 +1,4 @@
-import { apiRequest } from './apiClient';
+import { apiRequest, type ApiResponse } from './apiClient';
 
 export type LogRow = {
   id: number;
@@ -11,11 +11,6 @@ export type LogRow = {
   criadoEm: string | null;
 };
 
-type ApiResponse<T> = {
-  success: boolean;
-  message: string;
-  data: T;
-};
 
 export async function getRecentLogs(limit = 50): Promise<LogRow[]> {
   const response = await apiRequest<ApiResponse<LogRow[]>>(`/logs?limit=${limit}`);

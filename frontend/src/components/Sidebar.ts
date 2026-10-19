@@ -25,16 +25,11 @@ export const HUB_VERSION = 'V1.x';
 
 const sections: SidebarSection[] = [
   {
-    items: [
-      { label: 'Dashboard', path: '/dashboard', icon: 'dashboard', enabled: true }
-    ]
-  },
-  {
-    title: 'Gestão',
+    title: 'Operação',
     items: [
       { label: 'Clientes', path: '/clientes', icon: 'clients', enabled: true },
-      { label: 'Usinas', path: '/usinas', icon: 'plants', enabled: true },
       { label: 'UCs', path: '/ucs', icon: 'ucs', enabled: true },
+      { label: 'Usinas', path: '/usinas', icon: 'plants', enabled: true },
       { label: 'Rateio', path: '/rateio', icon: 'rateio', enabled: true },
       { label: 'Documentos', path: '/documentos', icon: 'documents', enabled: true }
     ]
@@ -43,25 +38,18 @@ const sections: SidebarSection[] = [
     title: 'Financeiro',
     items: [
       { label: 'Faturas', path: '/faturas', icon: 'faturas', enabled: true },
-      { label: 'Pagamentos', path: '/pagamentos', icon: 'pagamentos', enabled: false },
-      { label: 'Cobranças', path: '/cobrancas', icon: 'cobrancas', enabled: false }
+      { label: 'Regras de cobrança', path: '/regras-cobranca', icon: 'cobrancas', enabled: true },
+      { label: 'Relatórios', path: '/relatorios', icon: 'relatorios', enabled: true }
     ]
   },
   {
-    title: 'Automações',
+    title: 'Gestão',
     items: [
+      { label: 'Dashboard', path: '/dashboard', icon: 'dashboard', enabled: true },
+      { label: 'Templates', path: '/templates', icon: 'templates', enabled: true },
+      { label: 'Mensagens', path: '/mensagens', icon: 'mensagens', enabled: true },
       { label: 'Pendências', path: '/pendencias', icon: 'pending', enabled: true },
       { label: 'Agenda', path: '/agenda', icon: 'agenda', enabled: true },
-      { label: 'Templates', path: '/templates', icon: 'templates', enabled: true },
-      { label: 'Mensagens', path: '/mensagens', icon: 'mensagens', enabled: false }
-    ]
-  },
-  {
-    title: 'Configurações',
-    items: [
-      { label: 'Integrações', path: '/integracoes', icon: 'integracoes', enabled: true },
-      { label: 'Usuários', path: '/usuarios', icon: 'clients', enabled: true },
-      { label: 'Permissões', path: '/permissoes', icon: 'permissoes', enabled: false },
       { label: 'Configurações', path: '/configuracoes', icon: 'settings', enabled: true }
     ]
   }
@@ -69,25 +57,30 @@ const sections: SidebarSection[] = [
 
 let brandTextElement: HTMLElement | null = null;
 
-export function refreshSidebarBrand(): void { if (brandTextElement)
-   {brandTextElement.textContent = getSettings().companyName || 'HUB';}}
+export function refreshSidebarBrand(): void { if (brandTextElement) {
+  brandTextElement.textContent = getSettings().companyName || 'HUB';
+  brandTextElement.title = brandTextElement.textContent ?? '';
+} }
 
 export function createSidebar(): HTMLElement {
   const sidebar = createElement('aside', { className: 'sidebar' });
   const brand = createElement('div', { className: 'sidebar-brand' });
   const brandMark = createElement('span', { className: 'sidebar-mark', textContent: 'H' });
   brandTextElement = createElement('span', { textContent: getSettings().companyName || 'HUB' });
+  brandTextElement.title = brandTextElement.textContent ?? '';
   const nav = createElement('nav', { className: 'sidebar-nav' });
 
   brand.append(brandMark, brandTextElement);
 
-  const visibleSections = [...sections];
-  if (getCurrentUser()?.isPlatformAdmin) {
-    visibleSections.push({
-      title: 'Plataforma',
-      items: [{ label: 'Empresas', path: '/empresas', icon: 'clients', enabled: true }]
-    });
+  const visibleSections = sections.map((section) => ({ ...section, items: [...section.items] }));
+  const administrationItems: SidebarLink[] = [
+    { label: 'Usuários', path: '/usuarios', icon: 'clients', enabled: true }
+  ];
+  if (getCurrentUser()?.isPlatformAdmin && !getCurrentUser()?.platformViewEmpresaId) {
+    administrationItems.push({ label: 'HUB Platform', path: '/platform', icon: 'dashboard', enabled: true });
+    administrationItems.push({ label: 'Funcionarios', path: '/platform/funcionarios', icon: 'clients', enabled: true });
   }
+  visibleSections.push({ title: 'Administração', items: administrationItems });
 
   visibleSections.forEach((section) => {
     const sectionElement = createElement('div', { className: 'sidebar-section' });
@@ -125,10 +118,13 @@ function createSidebarLink(item: SidebarLink): HTMLElement {
   }
 
   const isActive = item.path === window.location.pathname
+    || (item.path === '/regras-cobranca' && window.location.pathname.startsWith('/regras-cobranca/'))
     || (window.location.pathname === '/' && item.path === '/dashboard');
   const link = createElement('a', { className: isActive ? 'sidebar-link active' : 'sidebar-link' });
 
   link.href = item.path;
+  link.title = item.label;
+  link.setAttribute('aria-label', item.label);
   link.append(icon, label);
   link.addEventListener('click', (event) => {
     event.preventDefault();
@@ -142,6 +138,7 @@ function createSidebarLink(item: SidebarLink): HTMLElement {
 function createUserCard(): HTMLElement {
   const user = getCurrentUser();
   const card = createElement('div', { className: 'sidebar-user' });
+  card.title = `${user?.nome || user?.email || 'Usuário'} — ${user?.empresaNome || roleLabel(user?.role)}`;
   const avatar = createElement('span', {
     className: 'sidebar-user-avatar',
     textContent: initialsFor(user?.email ?? '?')
@@ -171,9 +168,13 @@ function createVersionTag(): HTMLElement {
 function createLogoutButton(): HTMLElement {
   const logoutButton = createElement('button', {
     className: 'sidebar-logout',
-    textContent: 'Sair',
     type: 'button'
   });
+  logoutButton.title = 'Sair';
+  logoutButton.setAttribute('aria-label', 'Sair');
+  logoutButton.append(createIcon('login'), createElement('span', {
+    className: 'sidebar-logout-label', textContent: 'Sair'
+  }));
 
   logoutButton.addEventListener('click', () => {
     logout().finally(() => {

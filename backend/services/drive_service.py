@@ -12,6 +12,13 @@ from config import Config
 from utils.files import safe_filename, unique_filename
 
 
+def _escape_drive_literal(value: str) -> str:
+    """Escapa um literal para a query da API do Drive. Escapar so a aspa deixava
+    `\\'` fechar a string e injetar operadores (ex.: relaxar `in parents`)."""
+    cleaned = ''.join(ch for ch in (value or '') if ch >= ' ')
+    return cleaned.replace('\\', '\\\\').replace("'", "\\'")
+
+
 class GoogleDriveService:
     def __init__(self, credentials, root_folder_id: str) -> None:
         self.client = build('drive', 'v3', credentials=credentials)
@@ -33,7 +40,7 @@ class GoogleDriveService:
         # buscar por termo com apostrofo (ex.: "O'Brien") quebra a sintaxe da
         # query do Drive (erro 400 da API do Google, sem tratamento especifico
         # em drive_routes.py -- vira 500 cru pro usuario).
-        escaped_query_text = query_text.replace("'", "\\'")
+        escaped_query_text = _escape_drive_literal(query_text)
         mime_filter = ' or '.join(f"mimeType='{mime}'" for mime in self._SEARCHABLE_MIME_TYPES)
         query = (
             f"name contains '{escaped_query_text}' "
@@ -194,6 +201,10 @@ class GoogleDriveService:
 
         return created['id']
 
+    def delete_file(self, file_id: str) -> None:
+        """Remove um upload novo cuja transacao de Document nao foi concluida."""
+        self.client.files().delete(fileId=file_id).execute()
+
 
 _drive_service_cache: dict[int, GoogleDriveService] = {}
 
@@ -210,20 +221,23 @@ def _build_oauth_credentials():
     if not account:
         return None
 
-    refresh_token = account.get_refresh_token()
-    if not refresh_token:
-        return None
-
-    credentials = OAuthCredentials(
-        token=None,
-        refresh_token=refresh_token,
-        token_uri='https://oauth2.googleapis.com/token',
-        client_id=Config.GOOGLE_OAUTH_CLIENT_ID,
-        client_secret=Config.GOOGLE_OAUTH_CLIENT_SECRET,
-        scopes=Config.GOOGLE_DRIVE_SCOPES
-    )
-
     try:
+        refresh_token = account.get_refresh_token()
+        if not refresh_token:
+            return None
+        # Usa os scopes realmente concedidos na conta, nao Config.GOOGLE_DRIVE_SCOPES:
+        # contas conectadas antes de uma reducao de scope so tem o conjunto antigo
+        # autorizado, e pedir refresh com scopes nunca concedidos o Google rejeita
+        # (invalid_scope), derrubando o Drive de leitura que ja funcionava.
+        granted_scopes = [s for s in (account.scopes or '').split(',') if s] or None
+        credentials = OAuthCredentials(
+            token=None,
+            refresh_token=refresh_token,
+            token_uri='https://oauth2.googleapis.com/token',
+            client_id=Config.GOOGLE_OAUTH_CLIENT_ID,
+            client_secret=Config.GOOGLE_OAUTH_CLIENT_SECRET,
+            scopes=granted_scopes
+        )
         credentials.refresh(GoogleAuthRequest())
     except Exception as exc:  # RefreshError (token revogado/expirado) ou falha de rede -- nunca derruba a rota
         LogService.warning(
@@ -238,11 +252,11 @@ def _build_oauth_credentials():
 
 
 def _build_service_account_credentials():
-    # Le o caminho do credentials.json direto do .env a cada chamada (nao de Config, que so foi lido uma vez quando o processo subiu) -- assim uma credencial trocada pela tela de Configuracoes vale na hora, sem reiniciar.
-    from services.database_config_service import resolve_google_credentials_path  # import tardio: evita ciclo
-
+    # Caminho vem exclusivamente de variavel de ambiente (Config). A escrita do
+    # .env via HTTP (database_config_service) foi removida: era superficie de
+    # ataque e nao tinha consumidor no frontend.
     return service_account.Credentials.from_service_account_file(
-        str(resolve_google_credentials_path()),
+        str(Config.GOOGLE_SERVICE_ACCOUNT_FILE),
         scopes=Config.GOOGLE_DRIVE_SCOPES
     )
 
@@ -302,3 +316,5 @@ def invalidate_drive_cache(empresa_id: int | None = None) -> None:
         _drive_service_cache.clear()
     else:
         _drive_service_cache.pop(empresa_id, None)
+
+

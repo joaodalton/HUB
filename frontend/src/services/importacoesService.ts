@@ -1,6 +1,5 @@
-import { apiBlob, apiRequest, apiUpload } from './apiClient';
+import { apiBlob, apiRequest, apiUpload, type ApiResponse } from './apiClient';
 
-type ApiResponse<T> = { success: boolean; message: string; data: T };
 
 export type ImportacaoContagens = {
   clientes: number;

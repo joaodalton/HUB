@@ -1,5 +1,5 @@
 // frontend/src/services/ucService.ts
-import { apiRequest } from './apiClient';
+import { apiRequest, type ApiResponse } from './apiClient';
 import type { PlantConnection } from './clientsService';
 
 export type UcRow = {
@@ -7,9 +7,9 @@ export type UcRow = {
   clienteId: number;
   clienteNome: string | null;
   codigo: string;
-  codigoAneel: string | null;
   apelido: string;
   documento: string | null;
+  senhaConcessionariaConfigurada?: boolean;
   endereco: string | null;
   cep: string | null;
   concessionaria: string | null;
@@ -29,7 +29,6 @@ export type UcRow = {
 export type UcPayload = {
   clienteId: number;
   codigo: string;
-  codigoAneel: string | null;
   apelido: string;
   documento: string | null;
   endereco: string | null;
@@ -45,14 +44,10 @@ export type UcPayload = {
   terminoContrato: string | null;
   carenciaMeses: number | null;
   percentualDescontoCarencia: string | null;
+  senhaConcessionaria?: string;
   conexoes: Array<{ plantId: number; percentual: string }>;
 };
 
-type ApiResponse<T> = {
-  success: boolean;
-  message: string;
-  data: T;
-};
 
 export async function getUcs(): Promise<UcRow[]> {
   const response = await apiRequest<ApiResponse<UcRow[]>>('/ucs');
@@ -94,4 +89,9 @@ export function getUcMetrics(ucs: UcRow[]) {
     },
     { label: 'Geracao propria', value: String(ucs.filter((uc) => uc.geracaoPropria).length) }
   ];
+}
+
+export async function getConcessionariaPassword(ucId: number): Promise<string> {
+  const response = await apiRequest<ApiResponse<{ senhaConcessionaria: string }>>(`/ucs/${ucId}/senha-concessionaria`);
+  return response.data.senhaConcessionaria;
 }

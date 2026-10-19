@@ -310,3 +310,15 @@ objetos de outra empresa se estiverem no cache. O authorship aceita esse risco c
 
 *Documento gerado em 2026-08-28 a partir de análise git. Atualizar com os próximos
 commits relevantes.*
+
+## ESTADO ATUAL — 2026-10-05
+
+Inventário estrutural do tenancy no código atual: `TenantQuery: NÃO EXISTE | TenantSession: NÃO EXISTE | TenantMixin: EXISTE | do_orm_execute listener: EXISTE | with_loader_criteria: EXISTE.`
+
+Limitação conhecida (ARCH-TENANT-1): a vulnerabilidade foi reproduzida; não foi corrigida porque requer uma mudança arquitetural global. `Client.query.get()` / `db.session.get()` podem devolver uma instância do identity map sem emitir SELECT; nesse caminho, `do_orm_execute` não roda e o filtro de tenant não é aplicado.
+
+- TC-0: DONE — inventário técnico e documentação inicial em `docs/compliance/`; classificação limitada ao que foi localizado no código e com lacunas marcadas `PENDING_REVIEW`.
+- TC-1: PARTIAL / BLOCKED — identidade/tenancy requer mitigação validada da leitura por identity map.
+- TC-1.1 Invitation Regression: DONE — `backend/tests/test_invitation_service.py::InvitationServiceTest.test_revoked_invitation_cannot_be_verified` passou; cobre criação, verificação e revogação/rejeição do link revogado. O teste não cobre aceite ou expiração; TTL de 7 dias consta no serviço.
+- TC-1.2 Identity Map: BLOCKED — a vulnerabilidade foi reproduzida e não foi corrigida porque requer uma mudança arquitetural global; será acompanhada como ARCH-TENANT-1. `Client.query.get()` / `db.session.get()` podem retornar instância cacheada no identity map sem SELECT; portanto, `do_orm_execute` não roda e o filtro de tenant não protege esse caminho.
+- Aceites legais: `LegalAcceptance` não foi encontrado no código atual; aceite persistido não deve ser considerado implementado.

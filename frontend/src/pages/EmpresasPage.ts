@@ -1,5 +1,6 @@
 import { createDataTable } from '../components/DataTable';
 import { createElement } from '../dom';
+import { maskCnpjInput } from '../components/cadastroFields';
 import { createFormSection, createInput } from '../components/formFields';
 import { useGlobalLoading } from '../hooks/useGlobalLoading';
 import { useToast } from '../hooks/useToast';
@@ -359,7 +360,7 @@ function countLabel(total: number | null): string {
 
 function createEmpresaModal(onCreate: (data: { empresa: { nome: string; cnpj?: string }; owner: { nome: string; email: string; senha: string } }) => Promise<void>): HTMLElement {
   const overlay = createElement('section', { className: 'modal-overlay' }); const panel = createElement('article', { className: 'client-card' }); const form = createElement('form', { className: 'client-form' });
-  const nome = createInput('Nome da empresa', 'text', '', true); const cnpj = createInput('CNPJ', 'text', '', false); const owner = createInput('Nome do proprietário', 'text', '', true); const email = createInput('E-mail do proprietário', 'email', '', true); const senha = createInput('Senha inicial', 'password', '', true); senha.input.minLength = 6;
+  const nome = createInput('Nome da empresa', 'text', '', true); const cnpj = createInput('CNPJ', 'text', '', false); maskCnpjInput(cnpj.input); const owner = createInput('Nome do proprietário', 'text', '', true); const email = createInput('E-mail do proprietário', 'email', '', true); const senha = createInput('Senha inicial', 'password', '', true); senha.input.minLength = 6;
   const cancel = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Cancelar' }); const submit = createElement('button', { type: 'submit', textContent: 'Criar empresa' }); const close = () => overlay.remove(); cancel.addEventListener('click', close);
   form.append(createElement('h2', { textContent: 'Nova empresa' }), createFormSection('Dados da empresa', nome.field, cnpj.field), createFormSection('Usuário responsável', owner.field, email.field, senha.field), createElement('div', { className: 'form-actions' })); (form.lastElementChild as HTMLElement).append(cancel, submit);
   form.addEventListener('submit', async event => { event.preventDefault(); if (!form.reportValidity()) return; submit.disabled = true; try { await onCreate({ empresa: { nome: nome.input.value.trim(), cnpj: cnpj.input.value.trim() || undefined }, owner: { nome: owner.input.value.trim(), email: email.input.value.trim(), senha: senha.input.value } }); close(); } catch (error) { submit.disabled = false; useToast().error(error instanceof Error ? error.message : 'Não foi possível criar a empresa.'); } }); panel.appendChild(form); overlay.appendChild(panel); return overlay;
@@ -393,6 +394,7 @@ function buildEditorModal({ empresa, onSave, onClose }: EditorModalOptions): HTM
 
   const nome = createInput('Nome', 'text', empresa.nome, true);
   const cnpj = createInput('CNPJ', 'text', empresa.cnpj ?? '', true);
+  maskCnpjInput(cnpj.input);
 
   const statusField = createElement('label', { className: 'form-field' });
   const statusLabel = createElement('span', { textContent: 'Status' });

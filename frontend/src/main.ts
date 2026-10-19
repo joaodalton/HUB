@@ -5,6 +5,7 @@ import * as Sentry from '@sentry/browser';
 import { createErrorBoundary } from './components/ErrorBoundary';
 import { createRouter } from './services/router';
 import { config } from './services/config';
+import { initializeTheme } from './services/themeService';
 
 // Sem DSN, Sentry.init com dsn vazio nao manda nada -- seguro em dev sem
 // nenhuma variavel setada. sendDefaultPii false: mesma decisao consciente
@@ -27,6 +28,7 @@ if (!app) {
   throw new Error('Elemento #app nao encontrado.');
 }
 
+initializeTheme();
 const router = createRouter(app);
 
 createErrorBoundary(() => router.start());

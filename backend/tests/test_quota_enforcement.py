@@ -71,12 +71,15 @@ class QuotaEnforcementTest(IsolatedTestRuntime, unittest.TestCase):
             return generate_token(user_id)
 
     def _create_client(self, owner_id: int, number: int):
+        base = f'{number:09d}'
+        first = (sum(int(digit) * weight for digit, weight in zip(base, range(10, 1, -1))) * 10) % 11 % 10
+        second = (sum(int(digit) * weight for digit, weight in zip(base + str(first), range(11, 1, -1))) * 10) % 11 % 10
         return self.app.test_client().post(
             '/api/v1/clients',
             headers={'Authorization': f'Bearer {self._token(owner_id)}'},
             json={
                 'nome': f'Cliente {number}',
-                'cpf': f'{number:011d}',
+                'cpf': f'{base}{first}{second}',
                 'email': f'cliente-{number}@quota.test',
             },
         )

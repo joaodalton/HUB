@@ -2,12 +2,17 @@
 from datetime import date, datetime
 
 from flask import g
+from sqlalchemy.orm import selectinload
 
 from extensions import db
 from models.client import Client
 from models.consumer_unit import ConsumerUnit, PlantConnection
+from models.api_credential import ApiCredential
 from models.plant import Plant
 from services.log_service import LogService
+from services.uc_discount import parse_uc_discount
+from services.uc_code import normalize_uc_code
+from services.cad_identity import normalize_document
 
 def _uc(uc_id): return ConsumerUnit.query.filter_by(id=uc_id, empresa_id=g.current_empresa_id).first()
 def _client(client_id): return Client.query.filter_by(id=client_id, empresa_id=g.current_empresa_id).first()
@@ -19,7 +24,12 @@ def list_ucs() -> list[dict]:
     # Por updated_at, nao created_at -- assim uma UC editada agora aparece no
     # topo, mesmo se foi criada ha meses. updated_at ja e mantido sozinho pelo
     # SQLAlchemy (onupdate=datetime.utcnow no model) a cada save.
-    ucs = ConsumerUnit.query.order_by(ConsumerUnit.updated_at.desc()).all()
+    ucs = (
+        ConsumerUnit.query
+        .options(selectinload(ConsumerUnit.client), selectinload(ConsumerUnit.conexoes).selectinload(PlantConnection.plant))
+        .order_by(ConsumerUnit.updated_at.desc())
+        .all()
+    )
     return [uc.to_dict() for uc in ucs]
 
 
@@ -27,6 +37,30 @@ def get_uc(uc_id: int) -> dict | None:
     # Filtro automatico via TenantMixin
     uc = _uc(uc_id)
     return uc.to_dict() if uc else None
+
+
+def get_concessionaria_password(uc_id: int) -> dict | None:
+    """Retorna a senha cifrada somente pela rota restrita de revelacao."""
+    uc = _uc(uc_id)
+    if not uc:
+        return None
+
+    credential = uc.concessionaria_credential
+    if not credential or credential.empresa_id != g.current_empresa_id:
+        return {}
+
+    senha = credential.get_segredo()
+    if not senha:
+        return {}
+
+    LogService.info(
+        acao='reveal_concessionaria_password',
+        mensagem=f'Senha da concessionaria revelada para UC {uc.codigo}',
+        entidade='ConsumerUnit',
+        entidade_id=uc.id,
+        metadados={'userId': g.current_user.id, 'credentialId': credential.id},
+    )
+    return {'senhaConcessionaria': senha}
 
 
 def create_uc(data: dict) -> dict:
@@ -90,10 +124,19 @@ def apply_uc_fields(uc: ConsumerUnit, data: dict) -> None:
     """Aplica os campos simples (nao-relacionamento) de uma UC a partir do payload.
     Compartilhado entre uc_service (CRUD avulso) e client_service (UC aninhada no
     cliente) -- nao duplicar essa lista de campos em outro lugar."""
-    uc.codigo = data.get('codigo', uc.codigo or '').strip()
-    uc.codigo_aneel = data.get('codigoAneel', uc.codigo_aneel)
+    client = None
+    if uc.client_id:
+        with db.session.no_autoflush:
+            client = _client(uc.client_id)
+    concessionaria = data.get('concessionaria') or uc.concessionaria or (client.concessionaria if client else None)
+    if (uc.id is None or ('codigo' in data and data['codigo'] != uc.codigo)
+            or ('concessionaria' in data and data['concessionaria'] != uc.concessionaria)):
+        uc.codigo = normalize_uc_code(data.get('codigo', uc.codigo or ''), concessionaria)
     uc.apelido = data.get('apelido', uc.apelido)
-    uc.documento = data.get('documento', uc.documento)
+    if 'documento' in data and data['documento'] != uc.documento:
+        uc.documento = normalize_document(data['documento']) if data['documento'] else None
+    if data.get('senhaConcessionaria'):
+        _salvar_senha_concessionaria(uc, data['senhaConcessionaria'])
     uc.endereco = data.get('endereco', uc.endereco)
     uc.cep = data.get('cep', uc.cep)
     uc.concessionaria = data.get('concessionaria', uc.concessionaria)
@@ -101,7 +144,9 @@ def apply_uc_fields(uc: ConsumerUnit, data: dict) -> None:
     uc.dia_emissao_fatura = data.get('diaEmissaoFatura', uc.dia_emissao_fatura)
     uc.consumo = _parse_consumo(data['consumo']) if 'consumo' in data else uc.consumo
     uc.base_tarifaria = data.get('baseTarifaria', uc.base_tarifaria or 'B1')
-    uc.desconto = data.get('desconto', uc.desconto)
+    if 'desconto' in data:
+        parse_uc_discount(data['desconto'])
+        uc.desconto = data['desconto']
     uc.tipo_ligacao = data.get('tipoLigacao', uc.tipo_ligacao or 'Monofasico')
     uc.inicio_contrato = _parse_date(data.get('inicioContrato')) if 'inicioContrato' in data else uc.inicio_contrato
     uc.termino_contrato = _parse_date(data.get('terminoContrato')) if 'terminoContrato' in data else uc.termino_contrato
@@ -112,6 +157,33 @@ def apply_uc_fields(uc: ConsumerUnit, data: dict) -> None:
     uc.cliente_estrategico = bool(data.get('clienteEstrategico', uc.cliente_estrategico))
     if 'bufferPercentual' in data:
         uc.buffer_percentual = data['bufferPercentual']
+
+
+def _salvar_senha_concessionaria(uc: ConsumerUnit, senha: str) -> None:
+    documento = ''.join(char for char in (uc.documento or '') if char.isdigit())
+    if not documento:
+        raise ValueError('Informe o CPF/CNPJ da UC antes da senha da concessionaria.')
+
+    nome = _identificador_concessionaria(documento)
+    credential = ApiCredential.query.filter_by(
+        empresa_id=g.current_empresa_id, provider='concessionaria', nome=nome, interna=True
+    ).first()
+    if not credential:
+        credential = ApiCredential(
+            empresa_id=g.current_empresa_id, provider='concessionaria', nome=nome, segredo_encrypted='', interna=True
+        )
+    credential.set_segredo(senha)
+    if credential not in db.session:
+        db.session.add(credential)
+    uc.concessionaria_credential = credential
+
+
+def _identificador_concessionaria(documento: str) -> str:
+    if len(documento) == 11:
+        return f'CPF {documento}'
+    if len(documento) == 14:
+        return f'CNPJ {documento}'
+    return f'Documento {documento}'
 
 
 def _parse_date(value: str | None) -> date | None:
@@ -137,7 +209,10 @@ def remove_connection(plant_id: int, connection_id: int) -> bool:
     if not connection:
         return False
 
-    uc_codigo = connection.consumer_unit.codigo if connection.consumer_unit else str(connection.consumer_unit_id)
+    uc = connection.consumer_unit
+    uc_codigo = uc.codigo if uc else str(connection.consumer_unit_id)
+    if uc and len(uc.conexoes) == 1:
+        uc.sem_usina_desde = datetime.utcnow()
     db.session.delete(connection)
     db.session.commit()
 
@@ -162,9 +237,16 @@ def sync_connections(uc: ConsumerUnit, conexoes_data: list[dict]) -> None:
 
     Reaproveitado pelo client_service.py ao salvar UCs aninhadas dentro de um
     cliente -- nao duplicar essa logica lá, importar daqui."""
-    existentes_por_usina = {conexao.plant_id: conexao for conexao in uc.conexoes}
+    existentes_por_usina = {
+        conexao.plant_id: conexao
+        for conexao in PlantConnection.query.filter_by(
+            consumer_unit_id=uc.id, empresa_id=g.current_empresa_id
+        ).all()
+    }
+    tinha_conexao = bool(existentes_por_usina)
 
     ids_enviados = set()
+    novas_usinas_validas = set()
     for conexao_data in conexoes_data:
         plant_id = conexao_data.get('plantId')
         if plant_id:
@@ -198,9 +280,17 @@ def sync_connections(uc: ConsumerUnit, conexoes_data: list[dict]) -> None:
             )
             continue  # usina foi excluida; ignora conexao orfa
 
+        novas_usinas_validas.add(plant.id)
+
         db.session.add(PlantConnection(
             empresa_id=g.current_empresa_id,
             consumer_unit_id=uc.id,
             plant_id=plant.id,
-            percentual=conexao_data.get('percentual', '')
+            percentual=conexao_data.get('percentual', 0)
         ))
+
+    permanece_conectada = bool((set(existentes_por_usina) & ids_enviados) | novas_usinas_validas)
+    if tinha_conexao and not permanece_conectada:
+        uc.sem_usina_desde = datetime.utcnow()
+    elif permanece_conectada:
+        uc.sem_usina_desde = None

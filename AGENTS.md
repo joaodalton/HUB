@@ -16,6 +16,21 @@ Em caso de conflito, siga esta ordem de precedência:
 
 Se documentação e implementação divergirem de forma relevante para a tarefa, não escolha silenciosamente. Identifique a divergência e determine se ela exige decisão do usuário conforme as regras de autonomia deste arquivo.
 
+## Fonte canônica dos agentes
+
+As definições autoritativas dos agentes estão em `.claude/agents/`. Outras superfícies (`.paperclip-agent-bundles/`, `.codex/agents/`) são legadas e podem divergir; em caso de conflito, `.claude/agents/` prevalece.
+
+## Mapeamento de agentes
+
+| Agente | Arquivo | Modelo |
+|--------|---------|--------|
+| HUB Backend Developer | `.claude/agents/hub-backend-developer.md` | Sonnet 5 |
+| HUB Backend Reviewer | `.claude/agents/hub-backend-reviewer.md` | Sonnet 5 |
+| HUB Frontend Developer | `.claude/agents/hub-frontend-developer.md` | Sonnet 5 |
+| HUB Frontend Reviewer | `.claude/agents/hub-frontend-reviewer.md` | Sonnet 5 |
+| HUB Security Reviewer | `.claude/agents/hub-security-reviewer.md` | Sonnet 5 |
+| HUB Code Reviewer | `.claude/agents/hub-code-reviewer.md` | Sonnet 5 |
+
 ---
 
 ## Prioridade de entrega
@@ -24,63 +39,61 @@ Se documentação e implementação divergirem de forma relevante para a tarefa,
 2. Fluxos operacionais usáveis de ponta a ponta, incluindo backend, frontend e documentação na mesma entrega.
 3. V1.5 conforme `VISAO.md`, depois V2 financeiro e os itens posteriores na ordem definida pela visão.
 
-Não declarar uma tarefa concluída sem evidência de validação registrada em `PROGRESS.md`.
+Não declarar uma tarefa concluída sem evidência de validação, registrada em `PROGRESS.md` pelo orquestrador.
 
 ---
 
 ## Papel do agente
 
-O agente atua principalmente como **implementador técnico do HUB**.
+O agente pode atuar como:
 
-A arquitetura de produto, as regras de negócio e o comportamento esperado são definidos pela fonte de verdade descrita neste arquivo.
+- implementador técnico;
+- revisor;
+- testador;
+- especialista de domínio;
+- orquestrador.
 
-O agente é responsável por descobrir **como e onde implementar** a mudança dentro da arquitetura existente.
+O papel atual deve ser determinado pela tarefa recebida.
 
-Antes de modificar código:
+Quando atuar como implementador:
+- investigue a implementação existente;
+- implemente a menor mudança correta e completa;
+- valide o resultado;
+- não aprove a própria implementação como revisão independente.
 
-1. leia a especificação completa da tarefa;
-2. siga a ordem de leitura definida neste arquivo;
-3. investigue a implementação atual;
-4. localize dependências e consumidores;
-5. reutilize estruturas existentes;
-6. implemente a menor mudança completa capaz de atender ao objetivo;
-7. valide a implementação;
-8. revise o diff;
-9. atualize a documentação necessária.
+Quando atuar como revisor:
+- não implemente inicialmente;
+- revise comportamento, contratos, regressões, tenancy, migrations e testes;
+- retorne PASS ou CHANGES_REQUIRED com evidências.
 
-**Investigue amplamente, altere somente o necessário.**
+Quando atuar como testador:
+- não altere comportamento de produto;
+- execute testes, builds, migrations e verificações relevantes;
+- reporte exatamente o que passou e falhou.
 
-Quando houver acesso ao repositório e autorização para executar a tarefa, não responda apenas com instruções de implementação. Implemente a mudança.
-
----
+Quando atuar como orquestrador:
+- preserve o contexto arquitetural;
+- decomponha a tarefa;
+- identifique dependências;
+- delegue trabalhos independentes;
+- mantenha implementador, revisor e testador separados quando possível;
+- consolide os resultados;
+- não considere a tarefa concluída antes da validação final.
 
 ## Orquestração em ondas
 
-Use os perfis em `.codex/agents/` conforme o domínio:
+Quando o ambiente suportar subagentes ou agentes especializados, use os papéis
+registrados em `.codex/config.toml` e definidos em `.codex/agents/`:
 
-* backend;
-* frontend;
-* revisão de backend;
-* revisão de frontend;
-* revisão geral;
-* segurança.
+- `backend` para Flask e SQLAlchemy;
+- `frontend` para React e Vite;
+- `data_migration` para schema, Alembic e dados;
+- `reviewer` para revisão transversal, incluindo segurança;
+- `tester` para testes e validação.
 
-Só paralelize tarefas quando elas não dependerem umas das outras e os conjuntos de arquivos forem disjuntos.
+Esses perfis podem ser selecionados pelo Codex como tipos de subagente.
 
-Para cada tarefa, declare:
-
-```text
-Files:
-Depends-on:
-```
-
-Se houver dúvida sobre dependência ou sobreposição de arquivos, execute em série.
-
-Implementadores não fazem commit em paralelo. O orquestrador integra e valida uma tarefa por vez.
-
-Revisões somente de leitura podem ocorrer em paralelo quando forem independentes.
-
----
+Outros orquestradores, como Hermes, devem reproduzir as mesmas responsabilidades usando seus próprios mecanismos de delegação.
 
 ## Autonomia e pontos que exigem decisão do usuário
 
@@ -125,7 +138,7 @@ Não solicitar ao usuário decisões que possam ser determinadas com segurança 
 * Não introduzir dependências novas sem necessidade.
 * Uma funcionalidade só está pronta quando interface e API correspondentes estiverem conectadas, quando ambas fizerem parte do fluxo.
 * Atualizar `API_CONTRACTS.md` no mesmo commit de qualquer alteração de contrato ou endpoint.
-* Atualizar `PROGRESS.md` no mesmo commit de qualquer entrega.
+* O orquestrador (sessão principal/lead) é o responsável por atualizar `PROGRESS.md` no mesmo commit de qualquer entrega. Os agentes individuais reportam seus resultados e evidências; o orquestrador os registra.
 * Atualizar também a documentação operacional ou de domínio afetada.
 
 ---
@@ -308,7 +321,7 @@ Antes de considerar uma implementação concluída:
 8. verifique migrations;
 9. execute a validação proporcional ao risco;
 10. atualize a documentação exigida;
-11. registre evidência de validação em `PROGRESS.md`.
+11. reporte a evidência de validação ao orquestrador, que a registra em `PROGRESS.md`.
 
 Não reverta alterações existentes do usuário que não pertençam à tarefa.
 

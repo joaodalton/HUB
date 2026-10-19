@@ -8,6 +8,13 @@ type RequestOptions = Omit<RequestInit, 'body'> & {
 const CSRF_COOKIE_NAME = 'hub_csrf';
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
+export class ApiRequestError extends Error {
+  constructor(public readonly status: number, message: string, public readonly code?: string, public readonly details?: unknown) {
+    super(message);
+    this.name = 'ApiRequestError';
+  }
+}
+
 function readCsrfCookie(): string | null {
   const match = document.cookie.match(new RegExp(`(?:^|; )${CSRF_COOKIE_NAME}=([^;]*)`));
   return match ? decodeURIComponent(match[1]) : null;
@@ -32,9 +39,9 @@ function redirectToLogin(): void {
   }
 }
 
-async function readErrorMessage(response: Response): Promise<string> {
-  const payload = await response.json().catch(() => null) as { message?: string; error?: string } | null;
-  return payload?.message ?? payload?.error ?? 'Falha na comunicacao com a API.';
+async function readErrorPayload(response: Response): Promise<{ message: string; code?: string; details?: unknown }> {
+  const payload = await response.json().catch(() => null) as { message?: string; error?: string; code?: string; details?: unknown } | null;
+  return { message: payload?.message ?? payload?.error ?? 'Falha na comunicacao com a API.', code: payload?.code, details: payload?.details };
 }
 
 async function notifyRequiredPasswordChange(response: Response): Promise<void> {
@@ -47,44 +54,51 @@ async function notifyRequiredPasswordChange(response: Response): Promise<void> {
   }
 }
 
-export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const response = await fetch(`${config.apiBaseUrl}${config.apiPrefix}${path}`, {
-    ...options,
-    credentials: 'include',
-    headers: buildJsonHeaders(options.method, options.headers),
-    body: options.body ? JSON.stringify(options.body) : undefined
-  });
+/** Resposta padrao do backend (utils/api_response.py). Unica declaracao: os
+ *  services importam daqui em vez de redeclarar (30 copias divergentes antes). */
+export type ApiResponse<T> = { success?: boolean; message?: string; data: T };
 
+export class NetworkError extends ApiRequestError {
+  constructor(public readonly reason: unknown) {
+    super(0, 'Sem conexao com o servidor. Verifique sua internet e tente de novo.');
+    this.name = 'NetworkError';
+  }
+}
+
+async function execute(path: string, init: RequestInit): Promise<Response> {
+  let response: Response;
+  try {
+    response = await fetch(`${config.apiBaseUrl}${config.apiPrefix}${path}`, { ...init, credentials: 'include' });
+  } catch (cause) {
+    throw new NetworkError(cause);
+  }
   if (response.status === 401) redirectToLogin();
   await notifyRequiredPasswordChange(response);
-  if (!response.ok) throw new Error(await readErrorMessage(response));
-  return response.json() as Promise<T>;
+  if (!response.ok) {
+    const payload = await readErrorPayload(response);
+    throw new ApiRequestError(response.status, payload.message, payload.code, payload.details);
+  }
+  return response;
+}
+
+function jsonInit(options: RequestOptions): RequestInit {
+  return { ...options, headers: buildJsonHeaders(options.method, options.headers), body: options.body ? JSON.stringify(options.body) : undefined };
+}
+
+export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  return (await execute(path, jsonInit(options))).json() as Promise<T>;
 }
 
 export async function apiBlob(path: string, options: RequestOptions = {}): Promise<Blob> {
-  const response = await fetch(`${config.apiBaseUrl}${config.apiPrefix}${path}`, {
-    ...options,
-    credentials: 'include',
-    headers: buildJsonHeaders(options.method, options.headers),
-    body: options.body ? JSON.stringify(options.body) : undefined
-  });
+  return (await apiBlobWithHeaders(path, options)).blob;
+}
 
-  if (response.status === 401) redirectToLogin();
-  await notifyRequiredPasswordChange(response);
-  if (!response.ok) throw new Error(await readErrorMessage(response));
-  return response.blob();
+export async function apiBlobWithHeaders(path: string, options: RequestOptions = {}): Promise<{ blob: Blob; contentDisposition: string | null }> {
+  const response = await execute(path, jsonInit(options));
+  return { blob: await response.blob(), contentDisposition: response.headers.get('Content-Disposition') };
 }
 
 export async function apiUpload<T>(path: string, formData: FormData): Promise<T> {
-  const response = await fetch(`${config.apiBaseUrl}${config.apiPrefix}${path}`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: buildCsrfHeader('POST'),
-    body: formData
-  });
-
-  if (response.status === 401) redirectToLogin();
-  await notifyRequiredPasswordChange(response);
-  if (!response.ok) throw new Error(await readErrorMessage(response));
+  const response = await execute(path, { method: 'POST', headers: buildCsrfHeader('POST'), body: formData });
   return response.json() as Promise<T>;
 }

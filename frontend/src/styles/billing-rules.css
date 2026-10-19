@@ -1,0 +1,53 @@
+.billing-rules-intro,
+.billing-rules-filters,
+.billing-rule-name-cell,
+.billing-rule-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.billing-rules-intro { justify-content: space-between; flex-wrap: wrap; }
+.billing-rules-intro p { color: var(--text-dim); margin: 0; }
+.billing-rules-filters { flex-wrap: wrap; }
+.billing-rules-filters input,
+.billing-rules-filters select {
+  height: var(--control-height);
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-input);
+  background: var(--panel-soft);
+  color: var(--text);
+}
+.billing-rules-filters input { flex: 1; min-width: 200px; }
+.billing-rules-filters .form-field { min-width: 150px; }
+.billing-rule-name { color: var(--text); font-weight: 600; }
+.billing-rule-actions { white-space: nowrap; }
+.billing-rules-footnote { margin: 0; color: var(--text-faint); font-size: 12px; }
+
+.billing-rule-form { display: grid; gap: var(--space-4); max-width: 1120px; }
+.billing-rule-form [hidden] { display: none; }
+.billing-rule-editor-heading { display: flex; align-items: center; gap: var(--space-2); color: var(--text-dim); }
+.billing-rule-editor-heading a { color: var(--text); }
+.billing-rule-editor-heading .status-badge { margin-left: auto; }
+.billing-rule-note,
+.billing-rule-warning { margin: 0; font-size: 12px; line-height: 1.5; }
+.billing-rule-note { color: var(--text-dim); }
+.billing-rule-warning { color: var(--warning); }
+.billing-rule-advanced { border: 1px solid var(--border); border-radius: var(--radius); }
+.billing-rule-advanced > summary { cursor: pointer; padding: var(--space-3); color: var(--text); }
+.billing-rule-advanced > .form-section { border: 0; }
+.billing-rule-impact {
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+.billing-rule-impact h3 { margin: 0 0 var(--space-2); font-size: 13px; }
+.billing-rule-impact p { margin: 0; color: var(--text-dim); font-size: 13px; }
+.billing-rule-editor-actions { display: flex; justify-content: flex-end; gap: var(--space-2); flex-wrap: wrap; }
+
+@media (max-width: 640px) {
+  .billing-rules-filters input,
+  .billing-rules-filters .form-field { width: 100%; }
+}

@@ -15,6 +15,13 @@ import { createEmpresasPage } from '../pages/EmpresasPage';
 import { createTemplatesPage } from '../pages/TemplatesPage';
 import { createChangePasswordPage } from '../pages/ChangePasswordPage';
 import { createFaturasPage } from '../pages/FaturasPage';
+import { createMessagesPage } from '../pages/MessagesPage';
+import { createReportsPage } from '../pages/ReportsPage';
+import { createBillingRulesPage } from '../pages/BillingRulesPage';
+import { createBillingRuleEditorPage } from '../pages/BillingRuleEditorPage';
+import { createPlatformOverviewPage } from '../pages/PlatformOverviewPage';
+import { createPlatformCompaniesPage } from '../pages/PlatformCompaniesPage';
+import { createPlatformFuncionariosPage } from '../pages/PlatformFuncionariosPage';
 import { ensureSession, getCurrentUser, isAuthenticated } from './authService';
 import { loadSettings } from './settingsService';
 
@@ -33,20 +40,35 @@ export function createRouter(root: HTMLElement) {
     { path: '/usinas', render: createPlantsPage },
     { path: '/rateio', render: createRateioPage },
     { path: '/faturas', render: createFaturasPage },
+    { path: '/regras-cobranca', render: createBillingRulesPage },
+    { path: '/regras-cobranca/nova', render: () => createBillingRuleEditorPage() },
     { path: '/pendencias', render: createPendenciasPage },
     { path: '/agenda', render: createAgendaPage },
     { path: '/usuarios', render: createUsersPage },
     { path: '/empresas', render: createEmpresasPage },
     { path: '/templates', render: createTemplatesPage },
+    { path: '/mensagens', render: createMessagesPage },
+    { path: '/relatorios', render: createReportsPage },
     { path: '/trocar-senha', render: createChangePasswordPage },
     { path: '/configuracoes', render: createSettingsPage },
-    { path: '/integracoes', render: createSettingsPage }
+    { path: '/integracoes', render: createSettingsPage },
+    { path: '/platform', render: createPlatformOverviewPage },
+    { path: '/platform/companies', render: createPlatformCompaniesPage },
+    { path: '/platform/funcionarios', render: createPlatformFuncionariosPage }
   ];
 
   let appearanceLoaded = false;
 
   function resolveRoute(): Route {
-    return routes.find((route) => route.path === window.location.pathname) ?? routes[0];
+    const path = window.location.pathname;
+    const exact = routes.find((route) => route.path === path);
+    if (exact) return exact;
+    const match = /^\/regras-cobranca\/([1-9]\d*)\/editar$/.exec(path);
+    if (match) {
+      const id = Number(match[1]);
+      if (Number.isSafeInteger(id)) return { path, render: () => createBillingRuleEditorPage(id) };
+    }
+    return routes[0];
   }
 
   function redirect(path: string): void {
@@ -72,11 +94,18 @@ export function createRouter(root: HTMLElement) {
     if (isAuthenticated() && window.location.pathname !== '/trocar-senha') redirect('/trocar-senha');
   });
 
+  window.addEventListener('hub:tenant-context-changed', () => {
+    appearanceLoaded = false;
+  });
+
   function render(): void {
     const path = window.location.pathname;
     const isPublicAuthPath = PUBLIC_AUTH_PATHS.has(path);
 
     const mustChangePassword = getCurrentUser()?.mustChangePassword === true;
+    const platformAdmin = getCurrentUser()?.isPlatformAdmin === true;
+    const platformWorker = getCurrentUser()?.isPlatformWorker === true;
+    const platformUser = platformAdmin || platformWorker;
     if (!isAuthenticated() && !isPublicAuthPath) {
       redirect('/login');
       return;
@@ -93,14 +122,41 @@ export function createRouter(root: HTMLElement) {
     }
 
     if (isAuthenticated() && isPublicAuthPath) {
-      redirect('/');
+      redirect(platformAdmin ? '/platform' : '/');
+      return;
+    }
+
+    if (isAuthenticated() && path.startsWith('/platform') && !platformUser) {
+      redirect('/dashboard');
+      return;
+    }
+
+    if (isAuthenticated() && platformUser && path.startsWith('/platform')
+      && path !== '/platform' && path !== '/platform/companies'
+      && !(platformAdmin && path === '/platform/funcionarios')) {
+      redirect('/platform');
+      return;
+    }
+
+    // O shell da plataforma nunca coexiste com um tenant administrativo ativo.
+    // Para voltar à plataforma, o administrador usa "Sair da empresa", que
+    // limpa o cookie no backend antes da navegação.
+    if (isAuthenticated() && platformUser && getCurrentUser()?.platformViewEmpresaId
+      && path.startsWith('/platform')) {
+      redirect('/dashboard');
+      return;
+    }
+
+    if (isAuthenticated() && platformUser && !getCurrentUser()?.platformViewEmpresaId
+      && !path.startsWith('/platform') && path !== '/trocar-senha') {
+      redirect('/platform');
       return;
     }
 
     if (path === '/login') {
-      root.replaceChildren(createLoginPage(() => {
+      root.replaceChildren(createLoginPage((user) => {
         appearanceLoaded = false;
-        redirect('/');
+        redirect(user.isPlatformAdmin ? '/platform' : '/');
       }));
       return;
     }
@@ -115,7 +171,9 @@ export function createRouter(root: HTMLElement) {
       return;
     }
 
-    ensureAppearanceLoaded();
+    // O shell global usa os tokens do HUB. Aparência customizada pertence
+    // exclusivamente ao tenant operacional selecionado.
+    if (!path.startsWith('/platform')) ensureAppearanceLoaded();
 
     const route = resolveRoute();
     root.replaceChildren(route.render());

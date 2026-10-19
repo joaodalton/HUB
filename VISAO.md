@@ -63,6 +63,13 @@ Este núcleo funciona, mas é o alvo direto da evolução descrita na seção 5,
 
 Cookie `HttpOnly` (não é JWT — token assinado via `itsdangerous`) + cookie CSRF duplo + rate limit no login + headers de segurança (`HSTS`, `X-Frame-Options`, etc.). Auto-cadastro público condicionado a `SIGNUP_CODE` (vazio = desligado); quando ligado, sempre cria `viewer`, nunca aceita `admin` vindo do formulário.
 
+O administrador da plataforma possui um contexto próprio em `/platform`,
+separado do contexto operacional de qualquer Empresa. Ele só acessa dados de
+tenant depois de escolher explicitamente uma Empresa; a saída remove esse
+contexto sem fazer logout. Portanto, `PLATFORM CONTEXT != TENANT CONTEXT` e a
+empresa vinculada ao cadastro do Platform Admin não funciona como tenant
+operacional implícito.
+
 Fluxo de **redefinição de senha por e-mail já existe** (`ForgotPasswordPage.ts`/`ResetPasswordPage.ts`, token SHA-256, TTL 1h, single-use, editável via `EmailTemplate`) — mas depende de e-mail transacional configurado (Resend, no-op sem chave). Ver seção 5, V1.5-B, pra padronizar isso junto do resto do fluxo de cadastro.
 
 ### 2.5 Integração planejada com o SunHub
@@ -144,7 +151,7 @@ Pendente dentro desse escopo original:
 - [x] Pendências — Sprint 1 (model, CRUD, comentários, timeline) e Sprint 2 (motor de automação: UC sem usina, cliente sem UC, campos obrigatórios, documentos obrigatórios, resolução automática).
 - [ ] **Regras automáticas adicionais de pendência** — boleto vencido, lembrete de vencimento (ver `PENDENCIAS.md` 11.3/11.4), protocolo de rateio parado.
 - [ ] Dashboard com métricas reais (hoje é item desabilitado "Em breve" na sidebar).
-- [ ] **Agenda operacional com backend próprio, sincronizada com Pendências e Financeiro** — hoje a Agenda só lê de `Pendencia.prazo`; precisa virar fonte única de verdade pra prazo de qualquer entidade (pendência, boleto a vencer, protocolo de rateio), sem duplicar estado. Todo evento com prazo em qualquer domínio aparece na Agenda automaticamente, e resolver/pagar/concluir o item de origem atualiza a Agenda sem passo manual extra.
+- [ ] **Agenda operacional sincronizada com Pendências e Financeiro** — a Agenda já combina eventos próprios e a projeção de `Pendencia.prazo`, sem duplicar a pendência; criar/editar/resolver a origem atualiza a lista. Falta conectar fontes derivadas de Financeiro (boleto) e protocolo de rateio, para que todo evento com prazo desses domínios também apareça automaticamente.
 - [ ] **Configurações → APIs e Integrações** vira o local único pra gerenciar toda credencial de serviço externo por empresa: Google OAuth (já existe, só muda de aba), Resend (e-mail), provedor de WhatsApp, ASAAS, e qualquer chave de robô/scraper (seção V6). Cada credencial fica guardada criptografada (mesmo padrão Fernet de `GoogleAccount.refresh_token_encrypted`), nunca em texto puro, com teste de conexão por integração — reaproveita e generaliza a rota `POST /config/database/test` que já existe.
 
 ### V1.5-B — Usuários, Empresas, e-mail e cadastro (fundação de SaaS de verdade)
@@ -177,7 +184,7 @@ O motor de cálculo (`backend/services/rateio_service.py`) já existe e está em
 
 - [ ] **Suporte às 8 maiores concessionárias do Brasil** (além de Copel — lista final a confirmar com o João, mas referência de mercado: CPFL, Enel, Light, Cemig, Coelba/Neoenergia, Celesc, Equatorial, Energisa). Isso significa generalizar o que hoje é específico da Copel:
   - `rateio_formulario_service.py`/`rateio_pdf_service.py` viram estratégia por concessionária (cada uma tem seu próprio layout de formulário e regras de anexo) — provável introduzir um "adapter" por concessionária em vez de um service monolítico.
-  - Template de PDF por concessionária (hoje só existe `formulario_copel_associacao.pdf` em `backend/assets/`) — cada concessionária nova precisa do próprio arquivo oficial versionado.
+  - Modelo oficial de formulário por concessionária (hoje a Copel usa `formulario_copel_rateio.xlsx` em `backend/assets/`) — cada concessionária nova precisa do próprio arquivo oficial versionado.
   - Regras de qualificação/janela de leitura (`_checar_qualificacao`) podem variar por concessionária, não só por usina/UC como hoje.
   - `ConsumerUnit.concessionaria` e `Plant.concessionaria` já existem como campo livre — vira enum fechado alinhado à lista suportada, mantendo compatibilidade com dado já cadastrado.
 - [ ] Modelo "por prioridade" (hoje só "por porcentagem" está implementado — decisão de negócio já tomada de focar em porcentagem primeiro; prioridade pode não valer a pena generalizar por concessionária ao mesmo tempo — avaliar depois da V3.0-A).

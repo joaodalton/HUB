@@ -1,3 +1,4 @@
+import os
 import sentry_sdk
 import click
 from flask import Flask
@@ -24,6 +25,21 @@ def create_app() -> Flask:
 
     app = Flask(__name__)
     app.config.from_object(Config)
+    from utils.observability import configure_logging, register_error_handlers, register_request_id
+    configure_logging(app)
+    register_request_id(app)
+    register_error_handlers(app)
+    # Render (e qualquer LB) termina TLS e repassa X-Forwarded-For/Proto.
+    # Sem ProxyFix, remote_addr e o IP do proxy e url_scheme e http.
+    # TRUSTED_PROXY_COUNT conta quantos proxies confiaveis ficam na frente do
+    # app (hoje 1, o LB do Render); se entrar outro proxy (ex.: Cloudflare),
+    # ajustar essa variavel em vez de mudar codigo.
+    if not app.config.get('DEBUG'):
+        from werkzeug.middleware.proxy_fix import ProxyFix
+        trusted_proxy_count = int(os.environ.get('TRUSTED_PROXY_COUNT', '1'))
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=trusted_proxy_count, x_proto=1, x_host=1)
+    # Limite global de corpo de requisicao (uploads genericos nao tinham nenhum).
+    app.config.setdefault('MAX_CONTENT_LENGTH', int(os.environ.get('MAX_CONTENT_LENGTH', 25 * 1024 * 1024)))
 
     db.init_app(app)
     migrate.init_app(app, db)
@@ -34,6 +50,13 @@ def create_app() -> Flask:
         """Remove globalmente previews expirados, incluindo planos com PII."""
         from services.import_service import purge_expirados
         click.echo(f'Previews expirados removidos: {purge_expirados()}')
+
+    @app.cli.command('purge-regulatory-tariff-previews')
+    def purge_regulatory_tariff_previews_command() -> None:
+        """Remove previews ANEEL expiradas e temporários órfãos."""
+        from services.regulatory_tariff_import_service import purge_expired_previews
+        result = purge_expired_previews()
+        click.echo(f"Previews regulatórias removidas: {result['previews']}; arquivos órfãos: {result['files']}")
 
     from models.empresa import Empresa  # type: ignore
     from models.client import Client  # type: ignore
@@ -54,17 +77,26 @@ def create_app() -> Flask:
     from models.import_preview import ImportPreview  # type: ignore
     from models.message_template import MessageTemplate  # type: ignore
     from models.fatura import Fatura  # type: ignore
+    from models.fatura_concessionaria import FaturaConcessionaria  # type: ignore
+    from models.calculo_cobranca import BillingCalculationExecution, BillingCalculationSnapshot  # type: ignore
+    from models.grupo_regra_cobranca import GrupoRegraCobranca  # type: ignore
+    from models.regra_cobranca_assignment import RegraCobrancaAssignment  # type: ignore
+    from models.payment_webhook_event import PaymentWebhookEvent  # type: ignore
+    from models.platform_asaas_webhook_event import PlatformAsaasWebhookEvent  # type: ignore
     from models.assinatura import Assinatura  # type: ignore
     from models.limite_contratado import LimiteContratado  # type: ignore
+    from models.whatsapp import WhatsappIntegration, WhatsappConversation, WhatsappMessage  # type: ignore
+    from models.agenda_event import AgendaEvent  # type: ignore
+    from models.regulatory_tariff import RegulatoryTariff, RegulatoryTariffImport, RegulatoryTariffPreview  # type: ignore
 
     cors_origins = [Config.FRONTEND_URL]
     if Config.DEBUG:
         cors_origins.append('http://localhost:5173')
         cors_origins.append('http://127.0.0.1:5173')
-    CORS(app, origins=cors_origins, supports_credentials=True)
+    CORS(app, origins=cors_origins, supports_credentials=True,
+         expose_headers=['Content-Disposition'])
 
     from routes.auth_routes import auth_routes
-    from routes.config_routes import config_routes
     from routes.drive_routes import drive_routes
     from routes.empresa_routes import empresa_routes
     from routes.health_routes import health_routes
@@ -83,16 +115,23 @@ def create_app() -> Flask:
     from routes.invitation_routes import invitation_routes
     from routes.rateio_routes import rateio_routes
     from routes.platform_routes import platform_routes
+    from routes.platform_worker_routes import platform_worker_routes
     from routes.email_template_routes import email_template_routes
     from routes.api_credential_routes import api_credential_routes
     from routes.import_routes import import_routes
     from routes.message_template_routes import message_template_routes
     from routes.fatura_routes import fatura_routes, webhook_routes
+    from routes.whatsapp_routes import whatsapp_routes, whatsapp_webhook_routes
+    from routes.grupo_regra_cobranca_routes import grupo_regra_cobranca_routes
+    from routes.regra_cobranca_assignment_routes import regra_cobranca_assignment_routes
+    from routes.regulatory_tariff_routes import regulatory_tariff_routes
+    from routes.billing_calculation_routes import billing_calculation_routes, platform_billing_calculation_routes
+    from routes.report_routes import report_routes
+    from routes.billing_pdf_lab_routes import billing_pdf_lab_routes
 
     app.register_blueprint(health_routes)
     app.register_blueprint(auth_routes)
     app.register_blueprint(drive_routes)
-    app.register_blueprint(config_routes)
     app.register_blueprint(empresa_routes)
     app.register_blueprint(client_routes)
     app.register_blueprint(plant_routes)
@@ -113,17 +152,29 @@ def create_app() -> Flask:
     app.register_blueprint(invitation_routes)
     app.register_blueprint(rateio_routes)
     app.register_blueprint(platform_routes)
+    app.register_blueprint(platform_worker_routes)
     app.register_blueprint(fatura_routes)
     app.register_blueprint(webhook_routes)
+    app.register_blueprint(whatsapp_routes)
+    app.register_blueprint(whatsapp_webhook_routes)
+    app.register_blueprint(grupo_regra_cobranca_routes)
+    app.register_blueprint(regra_cobranca_assignment_routes)
+    app.register_blueprint(regulatory_tariff_routes)
+    app.register_blueprint(billing_calculation_routes)
+    app.register_blueprint(platform_billing_calculation_routes)
+    app.register_blueprint(billing_pdf_lab_routes)
+    app.register_blueprint(report_routes)
 
     from utils.auth import register_auth_middleware
     register_auth_middleware(app, public_paths={
-        '/', '/api/v1/auth/login', '/api/v1/auth/bootstrap', '/api/v1/importacoes/modelo',
+        '/', '/ready', '/api/v1/auth/login', '/api/v1/auth/bootstrap', '/api/v1/importacoes/modelo',
         '/api/v1/auth/register', '/api/v1/auth/aceitar-convite',
         '/api/v1/convites/verificar',
         '/api/v1/empresas/registro',
         '/api/v1/oauth/google/callback',
         '/api/v1/webhooks/asaas',
+        '/api/v1/webhooks/asaas/platform',
+        '/api/v1/webhooks/whatsapp',
         '/api/v1/auth/esqueci-senha', '/api/v1/auth/redefinir-senha'
     }, public_path_prefixes={
         # request.path e' o path LITERAL da requisicao (ex.: /api/v1/empresas/select),
@@ -131,6 +182,11 @@ def create_app() -> Flask:
         # nunca cai no set exato acima. Prefixo dedicado, checado a parte.
         '/api/v1/empresas/'
     })
+
+    @app.errorhandler(413)
+    def _too_large(_exc):
+        from utils.api_response import error_response
+        return error_response('Corpo da requisicao excede o limite permitido.', 413, code='PAYLOAD_TOO_LARGE')
 
     @app.after_request
     def _set_security_headers(response):

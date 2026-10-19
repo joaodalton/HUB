@@ -4,6 +4,8 @@ import os
 import sys
 import tempfile
 import unittest
+from datetime import date
+from decimal import Decimal
 from pathlib import Path
 from unittest.mock import patch
 
@@ -18,9 +20,11 @@ from extensions import db  # noqa: E402
 from models.client import Client  # noqa: E402
 from models.consumer_unit import ConsumerUnit, PlantConnection  # noqa: E402
 from models.empresa import Empresa  # noqa: E402
+from models.fatura import Fatura  # noqa: E402
 from models.pendencia import Pendencia  # noqa: E402
 from models.plant import Plant  # noqa: E402
 from services import automacao_service as auto  # noqa: E402
+from services.financeiro_service import ORIGEM_REPASSE_USINEIRO  # noqa: E402
 try:
     from .support import IsolatedTestRuntime  # noqa: E402
 except ImportError:
@@ -54,7 +58,7 @@ class AutomacaoPendenciasTest(IsolatedTestRuntime, unittest.TestCase):
         self.ctx = self.app.app_context()
         self.ctx.push()
         g.current_empresa_id = 1
-        for model in (Pendencia, PlantConnection, ConsumerUnit, Client, Plant):
+        for model in (Pendencia, Fatura, PlantConnection, ConsumerUnit, Client, Plant):
             db.session.query(model).delete()
         db.session.commit()
         self.cliente = Client(empresa_id=1, nome='Cliente', cpf='12345678900', email='c@x.test')
@@ -155,6 +159,47 @@ class AutomacaoPendenciasTest(IsolatedTestRuntime, unittest.TestCase):
             mock_datetime.utcnow.side_effect = self._fixed_utcnow
             resultado = auto.verificar_e_criar_pendencias()
         self.assertEqual(resultado['fatura_geracao_usina'], 0)
+
+    def test_verificar_repasses_pendentes_cria_pendencia_perdida_na_corrida(self):
+        self.plant.repasse_tipo = 'valor_fixo'
+        self.plant.repasse_valor = Decimal('50.00')
+        db.session.add(PlantConnection(empresa_id=1, plant_id=self.plant.id, consumer_unit_id=self.uc.id))
+        db.session.add(Fatura(
+            empresa_id=1, client_id=self.cliente.id, consumer_unit_id=self.uc.id,
+            concessionaria='CEMIG', competencia='2026-01', valor=100,
+            mes_vencimento=date(2026, 1, 10), asaas_status='received',
+        ))
+        db.session.commit()
+
+        with patch('services.automacao_service.datetime') as mock_datetime:
+            mock_datetime.utcnow.side_effect = self._fixed_utcnow
+            resultado = auto.verificar_e_criar_pendencias()
+
+        self.assertEqual(resultado['repasses_pendentes'], 1)
+        self.assertEqual(
+            Pendencia.query.filter_by(plant_id=self.plant.id, origem=ORIGEM_REPASSE_USINEIRO).count(), 1
+        )
+
+    def test_verificar_repasses_pendentes_nao_duplica_ao_rodar_duas_vezes(self):
+        self.plant.repasse_tipo = 'valor_fixo'
+        self.plant.repasse_valor = Decimal('50.00')
+        db.session.add(PlantConnection(empresa_id=1, plant_id=self.plant.id, consumer_unit_id=self.uc.id))
+        db.session.add(Fatura(
+            empresa_id=1, client_id=self.cliente.id, consumer_unit_id=self.uc.id,
+            concessionaria='CEMIG', competencia='2026-01', valor=100,
+            mes_vencimento=date(2026, 1, 10), asaas_status='received',
+        ))
+        db.session.commit()
+
+        with patch('services.automacao_service.datetime') as mock_datetime:
+            mock_datetime.utcnow.side_effect = self._fixed_utcnow
+            auto.verificar_e_criar_pendencias()
+            resultado = auto.verificar_e_criar_pendencias()
+
+        self.assertEqual(resultado['repasses_pendentes'], 0)
+        self.assertEqual(
+            Pendencia.query.filter_by(plant_id=self.plant.id, origem=ORIGEM_REPASSE_USINEIRO).count(), 1
+        )
 
 
 if __name__ == '__main__':

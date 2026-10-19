@@ -22,6 +22,7 @@ from models.consumer_unit import ConsumerUnit, PlantConnection
 from models.document import Document
 from models.pendencia import Pendencia
 from models.plant import Plant
+from services.financeiro_service import ORIGEM_REPASSE_USINEIRO, verificar_e_criar_pendencia_repasse
 from services.log_service import LogService
 from services.pendencia_service import criar_alerta, criar_erro
 
@@ -95,6 +96,7 @@ def verificar_e_criar_pendencias():
         'campos_faltando': 0,
         'documentos_faltando': 0,
         'fatura_geracao_usina': 0,
+        'repasses_pendentes': 0,
     }
 
     # 1. UC sem usina vinculada
@@ -111,6 +113,9 @@ def verificar_e_criar_pendencias():
 
     # 5. Fatura de geracao da usina a partir do dia de emissao configurado
     resultado['fatura_geracao_usina'] = _verificar_fatura_geracao_usina()
+
+    # 6. Repasses ao usineiro perdidos por corrida entre webhooks concorrentes
+    resultado['repasses_pendentes'] = _verificar_repasses_pendentes()
 
     LogService.info(
         acao='automacao',
@@ -359,6 +364,36 @@ def _verificar_fatura_geracao_usina() -> int:
             criados += 1
         except IntegrityError:
             pass
+
+    if criados > 0:
+        db.session.commit()
+
+    return criados
+
+
+def _verificar_repasses_pendentes() -> int:
+    """Re-checa, pra cada usina com contrato de repasse configurado, se a
+    pendencia de repasse ao usineiro da competencia corrente deveria existir.
+    Cobre a corrida entre webhooks concorrentes do Asaas: duas UCs da mesma
+    usina pagando quase ao mesmo tempo podem, sob READ COMMITTED, cada uma
+    ver a fatura da outra ainda como pendente e nenhuma criar a pendencia.
+    Idempotente via constraint unica (empresa_id, plant_id, origem,
+    competencia) -- rodar de novo so preenche o que ficou perdido na corrida.
+    """
+    criados = 0
+    competencia = datetime.utcnow().strftime('%Y-%m')
+
+    usinas = Plant.query.filter(Plant.repasse_tipo.isnot(None)).all()
+
+    for plant in usinas:
+        antes = Pendencia.query.filter_by(
+            plant_id=plant.id, origem=ORIGEM_REPASSE_USINEIRO, competencia=competencia
+        ).count()
+        verificar_e_criar_pendencia_repasse(plant.id, competencia)
+        depois = Pendencia.query.filter_by(
+            plant_id=plant.id, origem=ORIGEM_REPASSE_USINEIRO, competencia=competencia
+        ).count()
+        criados += depois - antes
 
     if criados > 0:
         db.session.commit()

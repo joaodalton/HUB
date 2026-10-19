@@ -3,7 +3,7 @@ import { createContextHelp } from './ContextHelp';
 import { createConcessionariaPasswordField } from './ConcessionariaPasswordField';
 import { createClientDocumentsPanel } from './ClientDocumentsPanel';
 import { createCheckboxField, createFormSection, createInput, createSelect } from './formFields';
-import { cnpjError, cpfError, digits, phoneDigits, phoneError, ucError, validateField } from './cadastroFields';
+import { cnpjError, cpfError, digits, maskCpfCnpjInput, maskCpfInput, phoneDigits, phoneError, ucError, validateField } from './cadastroFields';
 import { createPlantConnections, createTariffSelect } from './PlantConnectionsField';
 import { concessionarias, type ClientRow, type ClientUc } from '../services/clientsService';
 import type { PlantRow } from '../services/plantService';
@@ -63,6 +63,7 @@ export function createClientCard({
   const concessionaria = createSelect('Concessionaria', client?.concessionaria ?? concessionarias[0], concessionarias);
   nome.input.maxLength = 200;
   nome.input.addEventListener('input', () => validateField(nome.input, ''));
+  maskCpfInput(cpf.input);
   cpf.input.addEventListener('input', () => validateField(cpf.input, ''));
   telefone.input.addEventListener('input', () => validateField(telefone.input, ''));
   const documentsPanel = createClientDocumentsPanel(client?.id);
@@ -222,6 +223,7 @@ function createUcEditor(uc: ClientUc, availablePlants: PlantRow[], onRemove: () 
   const documento = createInput('CPF/CNPJ da UC', 'text', uc.documento ?? '', false);
   documento.input.dataset.ucDocument = 'true';
   documento.input.dataset.originalValue = uc.documento ?? '';
+  maskCpfCnpjInput(documento.input);
   documento.input.addEventListener('input', () => validateField(documento.input, ''));
   documento.input.addEventListener('blur', () => {
     if (documento.input.value.trim() && documento.input.value !== documento.input.dataset.originalValue) validateField(documento.input,

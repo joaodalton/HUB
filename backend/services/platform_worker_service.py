@@ -5,27 +5,13 @@ platform_admin. Paralelo a services/user_service.py mas deliberadamente
 nao reaproveita suas funcoes: aquelas sao tenant-scoped (filtradas por
 empresa_id) e isto e uma preocupacao global da plataforma.
 
-Workers nao pertencem a nenhuma empresa cliente real -- todos compartilham
-uma empresa interna "casca vazia" (criada sob demanda) so para satisfazer
-o FK nao-nulo de User.empresa_id.
+Workers nao pertencem a nenhuma empresa cliente real -- User.empresa_id
+fica None.
 """
 from extensions import db
-from models.empresa import Empresa
 from models.user import User
-from services.log_service import LogService
+from services.log_service import LogService, NO_EMPRESA
 from utils.auth import hash_password
-
-INTERNAL_EMPRESA_SLUG = 'plataforma-interna'
-
-
-def _get_or_create_internal_empresa() -> Empresa:
-    empresa = Empresa.query.filter_by(slug=INTERNAL_EMPRESA_SLUG).first()
-    if empresa:
-        return empresa
-    empresa = Empresa(nome='Plataforma (interno)', slug=INTERNAL_EMPRESA_SLUG, status='ativa')
-    db.session.add(empresa)
-    db.session.commit()
-    return empresa
 
 
 def list_platform_workers() -> list[dict]:
@@ -50,10 +36,8 @@ def create_platform_worker(data: dict) -> dict:
     if existing:
         raise ValueError('Ja existe um usuario com esse email (email e unico em toda a base, entre empresas).')
 
-    internal_empresa = _get_or_create_internal_empresa()
-
     worker = User(
-        empresa_id=internal_empresa.id,
+        empresa_id=None,
         nome=nome,
         email=email,
         password_hash=hash_password(senha),
@@ -71,7 +55,7 @@ def create_platform_worker(data: dict) -> dict:
         mensagem=f'Funcionario da plataforma {email} criado',
         entidade='User',
         metadados={'userId': worker.id},
-        empresa_id=internal_empresa.id,
+        empresa_id=NO_EMPRESA,
     )
     return worker.to_dict()
 
@@ -91,6 +75,6 @@ def revoke_platform_worker(user_id: int) -> dict | None:
         mensagem=f'Funcionario da plataforma {worker.email} revogado',
         entidade='User',
         metadados={'userId': worker.id},
-        empresa_id=worker.empresa_id,
+        empresa_id=worker.empresa_id if worker.empresa_id is not None else NO_EMPRESA,
     )
     return worker.to_dict()

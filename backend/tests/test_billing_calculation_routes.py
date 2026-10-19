@@ -193,6 +193,15 @@ class BillingCalculationRoutesTest(IsolatedTestRuntime, unittest.TestCase):
         db.session.get(Client, 10).asaas_customer_id = 'cus_10'
         db.session.commit()
 
+        no_snapshot = self.client.post(url, headers=self.headers(1))
+        self.assertEqual(no_snapshot.status_code, 422)
+        self.assertEqual(no_snapshot.json['code'], 'BILLING_CALCULATION_REQUIRED')
+
+        db.session.add(BillingCalculationSnapshot(
+            empresa_id=10, fatura_concessionaria_id=10, fingerprint='a' * 64,
+            regra_snapshot={}, entrada_normalizada={}, resultado={}, valor_final=Decimal('50.00')))
+        db.session.commit()
+
         with patch.object(service, 'AsaasClient') as asaas_cls:
             asaas = asaas_cls.return_value
             asaas.criar_cobranca.side_effect = lambda payload: {
@@ -207,6 +216,33 @@ class BillingCalculationRoutesTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertEqual(self.client.post('/api/v1/billing-calculations/invoices/999/gerar-boleto',
                                           headers=self.headers(1)).status_code, 404)
 
+    def test_gerar_boleto_uses_snapshot_value_not_invoice_gross_value(self):
+        url = '/api/v1/billing-calculations/invoices/10/gerar-boleto'
+        db.session.add(ConsumerUnit(id=10, empresa_id=10, client_id=10, codigo='UC-10'))
+        invoice = db.session.get(FaturaConcessionaria, 10)
+        invoice.consumer_unit_id = 10
+        invoice.valor_total_concessionaria = Decimal('999.00')
+        invoice.data_vencimento = date(2026, 10, 5)
+        invoice.competencia = '2026-09'
+        invoice.status_validacao = 'valida'
+        db.session.get(Client, 10).asaas_customer_id = 'cus_10'
+        db.session.add(BillingCalculationSnapshot(
+            empresa_id=10, fatura_concessionaria_id=10, fingerprint='c' * 64,
+            regra_snapshot={}, entrada_normalizada={}, resultado={}, valor_final=Decimal('45.50')))
+        db.session.commit()
+
+        with patch.object(service, 'AsaasClient') as asaas_cls:
+            asaas = asaas_cls.return_value
+            asaas.criar_cobranca.side_effect = lambda payload: {
+                'id': 'pay_3', 'externalReference': payload['externalReference'],
+                'customer': 'cus_10', 'billingType': 'BOLETO', 'value': '45.50',
+                'dueDate': '2026-10-05', 'status': 'PENDING',
+                'bankSlipUrl': 'https://example.test/boleto',
+            }
+            response = self.client.post(url, headers=self.headers(1))
+            self.assertEqual(response.status_code, 201, response.json)
+            self.assertEqual(asaas.criar_cobranca.call_args[0][0]['value'], 45.50)
+
     def test_platform_gerar_boleto_emits_for_selected_company(self):
         base = '/api/v1/platform/empresas/20/billing-calculations/invoices/20/gerar-boleto'
         db.session.add(ConsumerUnit(id=20, empresa_id=20, client_id=20, codigo='UC-20'))
@@ -217,6 +253,9 @@ class BillingCalculationRoutesTest(IsolatedTestRuntime, unittest.TestCase):
         invoice.competencia = '2026-09'
         invoice.status_validacao = 'valida'
         db.session.get(Client, 20).asaas_customer_id = 'cus_20'
+        db.session.add(BillingCalculationSnapshot(
+            empresa_id=20, fatura_concessionaria_id=20, fingerprint='d' * 64,
+            regra_snapshot={}, entrada_normalizada={}, resultado={}, valor_final=Decimal('50.00')))
         db.session.commit()
 
         with patch.object(service, 'AsaasClient') as asaas_cls:

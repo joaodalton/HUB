@@ -1,3 +1,4 @@
+import { createCompanyModal } from '../components/CreateCompanyModal';
 import { createDataTable } from '../components/DataTable';
 import { createIcon } from '../components/Icon';
 import { createStatusBadge } from '../components/StatusBadge';
@@ -5,14 +6,22 @@ import { createElement } from '../dom';
 import { useToast } from '../hooks/useToast';
 import { createPlatformLayout } from '../layouts/PlatformLayout';
 import { refreshCurrentUser } from '../services/authService';
-import { entrarNaEmpresa, getPlatformEmpresas, type PlatformEmpresa } from '../services/platformService';
+import { deletarEmpresa, entrarNaEmpresa, getPlatformEmpresas, type PlatformEmpresa } from '../services/platformService';
 import { invalidateSettingsCache } from '../services/settingsService';
 
 export function createPlatformCompaniesPage(): HTMLElement {
   const content = createElement('div', { className: 'content-stack' });
   const search = createElement('input', { className: 'platform-search' });
   search.type = 'search'; search.placeholder = 'Buscar por nome ou slug'; search.setAttribute('aria-label', 'Buscar empresas');
-  const toolbar = createElement('div', { className: 'platform-toolbar' }); toolbar.appendChild(search);
+  const newCompanyButton = createElement('button', { className: 'primary-button button-with-icon', type: 'button' });
+  newCompanyButton.append(createIcon('plus'), document.createTextNode('Nova empresa'));
+  newCompanyButton.addEventListener('click', () => {
+    document.body.appendChild(createCompanyModal({
+      onCreated: () => { useToast().success('Empresa criada.'); load(); },
+      onError: (message) => useToast().error(message)
+    }));
+  });
+  const toolbar = createElement('div', { className: 'platform-toolbar' }); toolbar.append(search, newCompanyButton);
   const tableHost = createElement('div'); content.append(toolbar, tableHost);
   let companies: PlatformEmpresa[] = [];
   let failed = false;
@@ -33,7 +42,7 @@ export function createPlatformCompaniesPage(): HTMLElement {
         { key: 'status', label: 'Status', render: (row) => createStatusBadge(row.status, row.status.toLowerCase().startsWith('ativ') ? 'success' : 'warning') },
         { key: 'totalUsuarios', label: 'Usuários', render: (row) => String(row.totalUsuarios ?? '—') },
         { key: 'createdAt', label: 'Criada em', render: (row) => formatDate(row.createdAt) },
-        { key: 'action', label: 'Ação', align: 'right', render: createEnterButton }
+        { key: 'action', label: 'Ação', align: 'right', render: createActions }
       ]
     }));
   };
@@ -53,6 +62,27 @@ export function createPlatformCompaniesPage(): HTMLElement {
         .catch((error) => { button.disabled = false; useToast().error(error instanceof Error ? error.message : 'Não foi possível entrar na empresa.'); });
     });
     return button;
+  };
+  const createDeleteButton = (company: PlatformEmpresa): HTMLElement => {
+    const button = createElement('button', { className: 'danger-button button-with-icon', type: 'button' });
+    button.append(createIcon('trash'), document.createTextNode('Excluir'));
+    button.addEventListener('click', () => {
+      const confirmed = window.confirm(`Excluir a empresa ${company.nome}? Essa acao nao pode ser desfeita.`);
+      if (!confirmed) return;
+      button.disabled = true;
+      void deletarEmpresa(company.id)
+        .then(() => { useToast().success('Empresa excluida.'); load(); })
+        .catch((error) => {
+          button.disabled = false;
+          useToast().error(error instanceof Error ? error.message : 'Não foi possível excluir a empresa.');
+        });
+    });
+    return button;
+  };
+  const createActions = (company: PlatformEmpresa): HTMLElement => {
+    const wrapper = createElement('div', { className: 'table-row-actions' });
+    wrapper.append(createEnterButton(company), createDeleteButton(company));
+    return wrapper;
   };
   search.addEventListener('input', () => render()); load();
   return createPlatformLayout({ content, title: 'Empresas', description: 'Escolha uma empresa para iniciar um contexto operacional explícito.' });

@@ -27,7 +27,7 @@ def authenticate(email: str, senha: str) -> dict | None:
     )
 
     user_data = user.to_dict()
-    empresa = db.session.get(Empresa, user.empresa_id)
+    empresa = db.session.get(Empresa, user.empresa_id) if user.empresa_id is not None else None
     user_data['empresaNome'] = empresa.nome if empresa else None
     return {
         'token': token,

@@ -1,6 +1,31 @@
 import { createElement } from '../dom';
 
 export const digits = (value: string): string => value.replace(/\D/g, '');
+
+export const formatCpf = (raw: string): string => digits(raw).slice(0, 11)
+  .replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+
+export const formatCnpj = (raw: string): string => digits(raw).slice(0, 14)
+  .replace(/(\d{2})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1/$2').replace(/(\d{4})(\d{1,2})$/, '$1-$2');
+
+export const formatCpfCnpj = (raw: string): string => digits(raw).length > 11 ? formatCnpj(raw) : formatCpf(raw);
+
+function maskOnInput(input: HTMLInputElement, format: (raw: string) => string, maxLength: number): void {
+  input.maxLength = maxLength;
+  input.addEventListener('input', () => { input.value = format(input.value); });
+  if (input.value) input.value = format(input.value);
+}
+
+/** Formata e trava o CPF em "000.000.000-00" (11 dígitos) enquanto o usuário digita --
+ * independe do que for colado/digitado, o valor final sempre segue esse padrão. */
+export const maskCpfInput = (input: HTMLInputElement): void => maskOnInput(input, formatCpf, 14);
+
+/** Mesma ideia do CPF, mas para CNPJ: "00.000.000/0000-00" (14 dígitos). */
+export const maskCnpjInput = (input: HTMLInputElement): void => maskOnInput(input, formatCnpj, 18);
+
+/** Campo que aceita CPF OU CNPJ (ex.: documento da UC) -- decide o formato pela
+ * quantidade de dígitos já digitados (até 11 vira CPF, acima disso vira CNPJ). */
+export const maskCpfCnpjInput = (input: HTMLInputElement): void => maskOnInput(input, formatCpfCnpj, 18);
 export const phoneDigits = (value: string): string => {
   const raw = value.trim();
   const number = digits(raw);

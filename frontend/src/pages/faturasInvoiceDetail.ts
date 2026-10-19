@@ -190,6 +190,8 @@ export function createFaturaInvoiceDetail(invoice: BillingInvoice, options: Invo
             toast.error(`Dados incompletos para gerar boleto: ${missing.join(', ')}.`);
           } else if (cause instanceof ApiRequestError && cause.code === 'EMISSAO_PENDENTE') {
             toast.error('Emissão deste boleto já está em andamento. Aguarde a conclusão.');
+          } else if (cause instanceof ApiRequestError && cause.code === 'BILLING_CALCULATION_REQUIRED') {
+            toast.error('Execute o cálculo de cobrança desta fatura antes de gerar o boleto.');
           } else {
             toast.error(cause instanceof Error ? cause.message : 'Não foi possível gerar o boleto.');
           }

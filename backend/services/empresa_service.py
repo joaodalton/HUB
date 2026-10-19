@@ -5,15 +5,140 @@ Usado no fluxo de cadastro inicial.
 """
 import re
 import secrets
+from contextlib import contextmanager
 
 from flask import g
 
 from sqlalchemy.exc import IntegrityError
 from extensions import db
+from models.agenda_event import AgendaEvent
+from models.api_credential import ApiCredential
+from models.assinatura import Assinatura
+from models.calculo_cobranca import BillingCalculationExecution, BillingCalculationSnapshot
+from models.client import Client
+from models.consumer_unit import ConsumerUnit, PlantConnection
+from models.document import Document
 from models.empresa import Empresa
+from models.fatura import Fatura
+from models.fatura_concessionaria import FaturaConcessionaria
+from models.google_account import GoogleAccount
+from models.grupo_regra_cobranca import GrupoRegraCobranca
+from models.import_preview import ImportPreview
+from models.invitation import Invitation
+from models.limite_contratado import LimiteContratado
+from models.log_entry import LogEntry
+from models.message_template import MessageTemplate
+from models.payment_webhook_event import PaymentWebhookEvent
+from models.pendencia import Pendencia, PendenciaComentario
+from models.plant import Plant
+from models.rateio_historico import RateioHistorico
+from models.regra_cobranca_assignment import RegraCobrancaAssignment
+from models.setting import Setting
 from models.user import User
-from services.log_service import LogService
+from models.whatsapp import WhatsappConversation, WhatsappIntegration, WhatsappMessage
+from services.log_service import NO_EMPRESA, LogService
 from utils.auth import hash_password
+
+
+# Models cuja presenca de registros bloqueia a exclusao da empresa (dados
+# reais inseridos pelo tenant). Nao inclui MessageTemplate/Setting/LogEntry:
+# sao seedados ou gravados automaticamente (ex.: seed_for_empresa na criacao,
+# estado de OAuth em Setting) e bloqueariam a exclusao de qualquer empresa,
+# mesmo uma nunca usada de fato.
+_MODELOS_BLOQUEIO_EXCLUSAO = (
+    (Client, 'clientes'),
+    (ConsumerUnit, 'unidades consumidoras'),
+    (PlantConnection, 'conexoes de usina'),
+    (Plant, 'usinas'),
+    (Document, 'documentos'),
+    (Pendencia, 'pendencias'),
+    (PendenciaComentario, 'comentarios de pendencia'),
+    (User, 'usuarios'),
+    (Invitation, 'convites'),
+    (Assinatura, 'assinatura'),
+    (LimiteContratado, 'limites contratados'),
+    (AgendaEvent, 'eventos de agenda'),
+    (ApiCredential, 'credenciais de API'),
+    (Fatura, 'faturas'),
+    (FaturaConcessionaria, 'faturas de concessionaria'),
+    (GoogleAccount, 'contas Google'),
+    (GrupoRegraCobranca, 'grupos de regra de cobranca'),
+    (ImportPreview, 'importacoes pendentes'),
+    (BillingCalculationSnapshot, 'calculos de cobranca'),
+    (BillingCalculationExecution, 'execucoes de calculo'),
+    (PaymentWebhookEvent, 'eventos de pagamento'),
+    (RegraCobrancaAssignment, 'atribuicoes de regra de cobranca'),
+    (RateioHistorico, 'historico de rateio'),
+    (WhatsappIntegration, 'integracoes WhatsApp'),
+    (WhatsappConversation, 'conversas WhatsApp'),
+    (WhatsappMessage, 'mensagens WhatsApp'),
+)
+
+
+@contextmanager
+def _sem_filtro_de_tenant_ambiente():
+    """As queries de exclusao de empresa miram um empresa_id explicito,
+    qualquer que seja a empresa que o platform_admin esteja "visualizando"
+    no momento (cookie hub_platform_view). Sem isso, o filtro automatico de
+    tenant (extensions.py) combinaria os dois empresa_id com AND e sempre
+    daria "vazio", mascarando dados reais de uma empresa diferente da
+    visualizada."""
+    anterior = getattr(g, 'current_empresa_id', None)
+    g.current_empresa_id = None
+    try:
+        yield
+    finally:
+        g.current_empresa_id = anterior
+
+
+def encontrar_dados_vinculados(empresa_id: int) -> str | None:
+    """Retorna o rotulo da primeira tabela com registros vinculados a
+    empresa, ou None se a empresa estiver vazia."""
+    with _sem_filtro_de_tenant_ambiente():
+        for modelo, rotulo in _MODELOS_BLOQUEIO_EXCLUSAO:
+            existe = db.session.query(modelo.query.filter_by(empresa_id=empresa_id).exists()).scalar()
+            if existe:
+                return rotulo
+    return None
+
+
+def excluir_empresa(empresa_id: int) -> bool:
+    """Exclui uma empresa vazia (sem nenhum dado vinculado). Retorna False se
+    a empresa nao existir, levanta ValueError se houver dados vinculados.
+
+    MessageTemplate e Setting sao config auxiliar seedada/gravada
+    automaticamente (nao contam como "dado da empresa" na checagem acima) mas
+    tem FK NOT NULL pra empresas, entao precisam ser removidos aqui pra nao
+    violar a constraint ao excluir a empresa. LogEntry (auditoria) e
+    preservado: so desvincula o empresa_id (fica NULL) em vez de apagar o
+    historico.
+    """
+    empresa = Empresa.query.get(empresa_id)
+    if not empresa:
+        return False
+
+    rotulo = encontrar_dados_vinculados(empresa_id)
+    if rotulo:
+        raise ValueError(f'Empresa possui dados vinculados ({rotulo}) e nao pode ser excluida.')
+
+    nome = empresa.nome
+    with _sem_filtro_de_tenant_ambiente():
+        MessageTemplate.query.filter_by(empresa_id=empresa_id).delete()
+        Setting.query.filter_by(empresa_id=empresa_id).delete()
+        LogEntry.query.filter_by(empresa_id=empresa_id).update({'empresa_id': None})
+        db.session.delete(empresa)
+        db.session.commit()
+
+    LogService.info(
+        acao='empresa_deleted',
+        mensagem=f'Empresa {nome} excluida pela plataforma.',
+        entidade='Empresa',
+        entidade_id=empresa_id,
+        metadados={'empresaIdExcluida': empresa_id, 'nome': nome},
+        empresa_id=NO_EMPRESA,
+        strict=True,
+    )
+    return True
 
 
 _EMPRESA_PROFILE_FIELDS = frozenset({'nome', 'razaoSocial', 'cnpj', 'email', 'telefone'})

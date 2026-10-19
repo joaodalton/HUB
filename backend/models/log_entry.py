@@ -7,6 +7,11 @@ from extensions import db, TenantMixin
 class LogEntry(TenantMixin, db.Model):
     __tablename__ = 'logs'
 
+    # Sobrescreve a coluna da TenantMixin: aqui empresa_id pode ser nulo
+    # porque o log de exclusao de uma empresa e gravado DEPOIS que ela deixa
+    # de existir (ver services/empresa_service.py:excluir_empresa).
+    empresa_id = db.Column(db.Integer, db.ForeignKey('empresas.id'), nullable=True, index=True)
+
     id = db.Column(db.Integer, primary_key=True)
     nivel = db.Column(db.String(20), nullable=False, default='info')
     acao = db.Column(db.String(100), nullable=False)

@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from extensions import db
 from models.client import Client
 from models.consumer_unit import ConsumerUnit
+from models.calculo_cobranca import BillingCalculationSnapshot
 from models.fatura import Fatura
 from models.fatura_concessionaria import FaturaConcessionaria
 from models.user import User
@@ -32,6 +33,11 @@ class DadosIncompletosError(ValueError):
     def __init__(self, missing: list[str]):
         super().__init__('Dados insuficientes para gerar boleto: ' + ', '.join(missing))
         self.missing = missing
+
+
+class CalculoCobrancaPendente(ValueError):
+    def __init__(self):
+        super().__init__('Calculo de cobranca pendente. Execute o calculo de cobranca antes de gerar o boleto.')
 
 
 def _autorizar_emissao(empresa_id, user_id):
@@ -197,10 +203,15 @@ def gerar_boleto_concessionaria(fatura_concessionaria_id: int, empresa_id: int, 
         missing.append('statusValidacao')
     if missing:
         raise DadosIncompletosError(missing)
+    snapshot = BillingCalculationSnapshot.query.filter_by(
+        empresa_id=empresa_id, fatura_concessionaria_id=invoice.id,
+    ).order_by(BillingCalculationSnapshot.id.desc()).first()
+    if snapshot is None:
+        raise CalculoCobrancaPendente()
     payload = {
         'clienteId': invoice.client_id,
         'ucId': invoice.consumer_unit_id,
-        'valor': str(invoice.valor_total_concessionaria),
+        'valor': str(snapshot.valor_final),
         'mesVencimento': invoice.data_vencimento.isoformat(),
         'competencia': invoice.competencia,
     }

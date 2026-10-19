@@ -124,13 +124,12 @@ class PlatformWorkerManagementTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertEqual(client.post('/api/v1/platform/funcionarios', json={}, headers=headers).status_code, 403)
         self.assertEqual(client.delete('/api/v1/platform/funcionarios/999999', headers=headers).status_code, 403)
 
-    def test_create_worker_audit_log_uses_internal_empresa_not_stale_view_cookie(self):
+    def test_create_worker_audit_log_does_not_leak_into_stale_view_cookie_company(self):
         # Admin tem um cookie hub_platform_view PRESO numa empresa de cliente
         # real (ex.: aba antiga aberta) enquanto chama /platform/funcionarios
-        # (rota context-safe, nao exige ter "entrado" formalmente). Sem o fix,
-        # LogService.info cai no fallback g.current_empresa_id == empresa do
-        # cliente, vazando um log interno (com email de funcionario) no
-        # historico de auditoria do cliente.
+        # (rota context-safe, nao exige ter "entrado" formalmente). O worker
+        # criado nao pertence a nenhuma empresa, entao nenhum log de auditoria
+        # pode ficar atribuido a empresa do cliente visualizada no cookie.
         client = self.app.test_client()
         headers = self._auth(self.admin_platform_id)
         client.set_cookie('hub_platform_view', self._view_cookie(self.admin_platform_id, self.client_empresa_id))
@@ -140,14 +139,17 @@ class PlatformWorkerManagementTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertEqual(create.status_code, 201)
         worker_id = create.get_json()['data']['id']
         with self.app.app_context():
-            internal = Empresa.query.filter_by(slug='plataforma-interna').first()
-            entry = LogEntry.query.filter_by(entidade='User', acao='create').order_by(LogEntry.id.desc()).first()
-            self.assertIsNotNone(entry)
-            self.assertEqual(entry.metadados.get('userId'), worker_id)
-            self.assertEqual(entry.empresa_id, internal.id)
-            self.assertNotEqual(entry.empresa_id, self.client_empresa_id)
+            worker = User.query.get(worker_id)
+            self.assertIsNone(worker.empresa_id)
+            leaked = [
+                entry for entry in LogEntry.query.filter_by(
+                    entidade='User', acao='create', empresa_id=self.client_empresa_id,
+                ).all()
+                if entry.metadados and entry.metadados.get('userId') == worker_id
+            ]
+            self.assertEqual(leaked, [])
 
-    def test_revoke_worker_audit_log_uses_internal_empresa_not_stale_view_cookie(self):
+    def test_revoke_worker_audit_log_does_not_leak_into_stale_view_cookie_company(self):
         client = self.app.test_client()
         headers = self._auth(self.admin_platform_id)
         create = client.post('/api/v1/platform/funcionarios', json={
@@ -159,12 +161,13 @@ class PlatformWorkerManagementTest(IsolatedTestRuntime, unittest.TestCase):
         revoke = client.delete(f'/api/v1/platform/funcionarios/{worker_id}', headers=headers)
         self.assertEqual(revoke.status_code, 200)
         with self.app.app_context():
-            internal = Empresa.query.filter_by(slug='plataforma-interna').first()
-            entry = LogEntry.query.filter_by(entidade='User', acao='delete').order_by(LogEntry.id.desc()).first()
-            self.assertIsNotNone(entry)
-            self.assertEqual(entry.metadados.get('userId'), worker_id)
-            self.assertEqual(entry.empresa_id, internal.id)
-            self.assertNotEqual(entry.empresa_id, self.client_empresa_id)
+            leaked = [
+                entry for entry in LogEntry.query.filter_by(
+                    entidade='User', acao='delete', empresa_id=self.client_empresa_id,
+                ).all()
+                if entry.metadados and entry.metadados.get('userId') == worker_id
+            ]
+            self.assertEqual(leaked, [])
 
     def test_worker_full_lifecycle_via_real_http_flow(self):
         # Fluxo HTTP completo, com cookies reais + header CSRF (como
@@ -238,17 +241,39 @@ class PlatformWorkerManagementTest(IsolatedTestRuntime, unittest.TestCase):
         replayed = replay_client.get('/api/v1/auth/me')
         self.assertEqual(replayed.status_code, 401)
 
-    def test_created_workers_share_the_internal_company(self):
+    def test_created_workers_have_no_company(self):
         client = self.app.test_client()
         headers = self._auth(self.admin_platform_id)
+        with self.app.app_context():
+            pre_existing = Empresa.query.filter_by(slug='plataforma-interna').first()
         client.post('/api/v1/platform/funcionarios', json={
             'nome': 'Fiscal', 'email': 'fiscal2@boundary.test', 'senha': 'senha-segura'
         }, headers=headers)
         with self.app.app_context():
-            internal = Empresa.query.filter_by(slug='plataforma-interna').first()
-            self.assertIsNotNone(internal)
             worker = User.query.filter_by(email='fiscal2@boundary.test').first()
-            self.assertEqual(worker.empresa_id, internal.id)
+            self.assertIsNone(worker.empresa_id)
+            self.assertEqual(
+                Empresa.query.filter_by(slug='plataforma-interna').first(),
+                pre_existing,
+            )
+
+    def test_password_reset_works_for_worker_without_company(self):
+        # Worker criado sem empresa (empresa_id=None) nao pode quebrar o fluxo
+        # de "esqueci minha senha": renderizar_para_empresa(None, ...) cairia
+        # em message_template_service.seed_for_empresa(None), que tenta
+        # inserir MessageTemplate(empresa_id=None) -- coluna NOT NULL (
+        # TenantMixin) -- e estourava IntegrityError (500 na rota publica).
+        client = self.app.test_client()
+        headers = self._auth(self.admin_platform_id)
+        client.post('/api/v1/platform/funcionarios', json={
+            'nome': 'Fiscal Reset', 'email': 'fiscal-reset@boundary.test', 'senha': 'senha-segura'
+        }, headers=headers)
+        with self.app.app_context():
+            worker = User.query.filter_by(email='fiscal-reset@boundary.test').first()
+            self.assertIsNone(worker.empresa_id)
+
+        response = client.post('/api/v1/auth/esqueci-senha', json={'email': 'fiscal-reset@boundary.test'})
+        self.assertEqual(response.status_code, 200)
 
 
 if __name__ == '__main__':

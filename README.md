@@ -325,6 +325,8 @@ A API segue padrão RESTful com envelope de resposta consistente:
 | [VISAO.md](VISAO.md) | Documento de visão — norte estratégico do projeto |
 | [PROGRESS.md](PROGRESS.md) | Status atual, tarefas concluídas e pendentes |
 | [API_CONTRACTS.md](API_CONTRACTS.md) | Contratos completos de todos os endpoints |
+| [REGRAS.md](REGRAS.md) | Time de agentes `hub-*` (implementação + revisão) e gates por tipo de mudança |
+| [docs/TASK_CONTRACT.md](docs/TASK_CONTRACT.md) | Template de Task Contract usado por todo agente |
 
 ---
 

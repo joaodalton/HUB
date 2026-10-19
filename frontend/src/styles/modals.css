@@ -105,6 +105,15 @@
   gap: 12px;
 }
 
+/* Painel de UCs dentro do card do cliente tem rolagem própria -- sem isso,
+   abrir os detalhes de uma UC empurra o conteudo alem da altura do modal
+   (90vh) sem forma de alcançar os campos de baixo nem o botao "Salvar cliente". */
+.client-uc-panel .uc-editor-list {
+  max-height: 60vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
 /* ---------- UC Editor Card ---------- */
 .uc-editor-card {
   display: grid;

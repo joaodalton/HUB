@@ -1,7 +1,7 @@
 {
   "userName": "joao",
-  "permissionMode": "normal",
-  "model": "haiku",
+  "permissionMode": "auto",
+  "model": "openai-codex/gpt-5.6-luna",
   "thinkingBudget": "off",
   "effortLevel": "high",
   "serviceTier": "default",
@@ -23,20 +23,60 @@
   "locale": "pt",
   "providerConfigs": {
     "claude": {
-      "enabled": false,
+      "enabled": true,
       "responseStyle": "Default",
       "cliPath": "",
       "cliPathsByHost": {},
       "loadUserSettings": true,
       "enableChrome": false,
-      "visibleModels": [],
+      "visibleModels": [
+        "claude-haiku-4-5-20251001",
+        "claude-sonnet-5"
+      ],
       "modelAliases": {},
       "environmentVariables": "",
       "environmentHash": "",
-      "selectedModels": []
+      "selectedModels": [
+        {
+          "value": "default",
+          "label": "Default (recommended)",
+          "description": "Sonnet 5 · Efficient for routine tasks",
+          "resolvedModel": "claude-sonnet-5",
+          "reasoningMetadataResolved": true,
+          "supportedEffortLevels": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        },
+        {
+          "value": "claude-haiku-4-5-20251001",
+          "label": "Haiku 4.5",
+          "description": "Fastest for quick answers",
+          "resolvedModel": "claude-haiku-4-5-20251001",
+          "reasoningMetadataResolved": true,
+          "supportedEffortLevels": []
+        },
+        {
+          "value": "claude-sonnet-5",
+          "label": "Sonnet 5",
+          "description": "Efficient for routine tasks",
+          "resolvedModel": "claude-sonnet-5",
+          "reasoningMetadataResolved": true,
+          "supportedEffortLevels": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ]
     },
     "codex": {
-      "enabled": true,
+      "enabled": false,
       "safeMode": "workspace-write",
       "cliPath": "",
       "cliPathsByHost": {},
@@ -55,7 +95,7 @@
         {
           "model": "gpt-5.6-luna",
           "displayName": "GPT-5.6 Luna",
-          "description": "Fast and affordable agentic coding model.",
+          "description": "Older fast and efficient model.",
           "supportedReasoningEfforts": [
             {
               "value": "low",
@@ -79,13 +119,7 @@
             }
           ],
           "defaultReasoningEffort": "medium",
-          "serviceTiers": [
-            {
-              "id": "priority",
-              "name": "Fast",
-              "description": "1.5x speed, increased usage"
-            }
-          ],
+          "serviceTiers": [],
           "defaultServiceTier": null,
           "inputModalities": [
             "text",
@@ -131,10 +165,14 @@
       "selectedModels": []
     }
   },
-  "settingsProvider": "codex",
+  "settingsProvider": "claude",
   "lastSelectedChatModel": null,
-  "savedProviderModel": {},
-  "savedProviderEffort": {},
+  "savedProviderModel": {
+    "codex": "openai-codex/gpt-5.6-luna"
+  },
+  "savedProviderEffort": {
+    "codex": "high"
+  },
   "savedProviderServiceTier": {},
   "savedProviderThinkingBudget": {},
   "savedProviderPermissionMode": {

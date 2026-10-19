@@ -13,7 +13,7 @@ class User(db.Model):
     # (unico em toda a base) antes de existir uma "empresa atual" na
     # sessao. Ver comentario em extensions.py.
     id = db.Column(db.Integer, primary_key=True)
-    empresa_id = db.Column(db.Integer, db.ForeignKey('empresas.id'), nullable=False, index=True)
+    empresa_id = db.Column(db.Integer, db.ForeignKey('empresas.id'), nullable=True, index=True)
     nome = db.Column(db.String(150), nullable=False, default='')
     email = db.Column(db.String(150), nullable=False, unique=True)
     password_hash = db.Column(db.String(255), nullable=False)

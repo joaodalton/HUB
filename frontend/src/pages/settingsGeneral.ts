@@ -1,3 +1,4 @@
+import { maskCnpjInput } from '../components/cadastroFields';
 import { createElement } from '../dom';
 import { createInput } from '../components/formFields';
 import { type EmpresaAtual, type EmpresaAtualUpdate } from '../services/empresaService';
@@ -61,7 +62,7 @@ function createEmpresaAtualPanel(
   const razaoSocial = createInput('Razão social', 'text', empresa.razaoSocial ?? '', false);
   const cnpj = createInput('CNPJ', 'text', empresa.cnpj ?? '', false);
   cnpj.input.inputMode = 'numeric';
-  cnpj.input.placeholder = 'Somente números';
+  maskCnpjInput(cnpj.input);
   const email = createInput('E-mail', 'email', empresa.email ?? '', false);
   const telefone = createInput('Telefone', 'tel', empresa.telefone ?? '', false);
   const actions = createElement('div', { className: 'form-actions' });

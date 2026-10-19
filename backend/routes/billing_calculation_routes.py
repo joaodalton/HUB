@@ -15,7 +15,9 @@ from models.fatura_concessionaria import FaturaConcessionaria
 from models.pendencia import Pendencia
 from services.asaas_client import AsaasError
 from services.billing_calculation_service import BillingCalculationService
-from services.fatura_service import DadosIncompletosError, EmissaoPendente, gerar_boleto_concessionaria
+from services.fatura_service import (
+    CalculoCobrancaPendente, DadosIncompletosError, EmissaoPendente, gerar_boleto_concessionaria,
+)
 from services.invoice_document_service import load_invoice_pdf
 from services.object_storage import ObjectStorageError
 from services.permission_service import require_permission
@@ -220,6 +222,8 @@ def _gerar_boleto(invoice_id):
         return error_response(str(exc), 409, code='EMISSAO_PENDENTE', details={'faturaId': exc.fatura_id})
     except DadosIncompletosError as exc:
         return error_response(str(exc), 422, code='INVOICE_DATA_INCOMPLETE', details={'missing': exc.missing})
+    except CalculoCobrancaPendente as exc:
+        return error_response(str(exc), 422, code='BILLING_CALCULATION_REQUIRED')
     except (ValueError, AsaasError) as exc:
         return error_response(str(exc), 400)
 

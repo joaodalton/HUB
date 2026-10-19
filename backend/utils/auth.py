@@ -230,7 +230,7 @@ def register_auth_middleware(app, public_paths: set[str], public_path_prefixes: 
         g.current_user = user
         g.current_empresa_id = user.empresa_id
         g.current_role = user.role
-        g.current_empresa = db.session.get(Empresa, user.empresa_id)
+        g.current_empresa = db.session.get(Empresa, user.empresa_id) if user.empresa_id is not None else None
         g.platform_view_empresa_id = None
 
         # Bloqueio global de escrita do platform_worker: fiscalizacao e

@@ -15,8 +15,9 @@ from sqlalchemy import func
 from extensions import db
 from models.empresa import Empresa
 from models.user import User
+from services.empresa_service import excluir_empresa
 from services.log_service import LogService
-from services.permission_service import require_platform_access
+from services.permission_service import require_platform_access, require_platform_admin
 from utils.api_response import error_response, success_response
 from utils.auth import clear_platform_view_cookie, set_platform_view_cookie
 
@@ -51,6 +52,20 @@ def listar_empresas():
         'totalUsuarios': total_usuarios,
         'createdAt': empresa.created_at.isoformat() if empresa.created_at else None,
     } for empresa, total_usuarios in rows])
+
+
+@platform_routes.route('/empresas/<int:empresa_id>', methods=['DELETE'])
+@require_platform_admin()
+def excluir_empresa_route(empresa_id: int):
+    try:
+        excluida = excluir_empresa(empresa_id)
+    except ValueError as exc:
+        return error_response(str(exc), 409, code='EMPRESA_NOT_EMPTY')
+
+    if not excluida:
+        return error_response('Empresa nao encontrada.', 404)
+
+    return success_response(None, message='Empresa excluida com sucesso.')
 
 
 @platform_routes.route('/empresas/<int:empresa_id>/entrar', methods=['POST'])

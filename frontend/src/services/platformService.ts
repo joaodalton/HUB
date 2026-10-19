@@ -32,4 +32,8 @@ export async function sairDaVisualizacao(): Promise<void> {
   await apiRequest<ApiResponse<null>>('/platform/sair', { method: 'POST' });
 }
 
+export async function deletarEmpresa(empresaId: number): Promise<void> {
+  await apiRequest<ApiResponse<null>>(`/platform/empresas/${empresaId}`, { method: 'DELETE' });
+}
+
 export const enterEmpresa = entrarNaEmpresa;

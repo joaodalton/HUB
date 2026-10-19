@@ -172,9 +172,14 @@
       "Read(./frontend/.env.example)",
       "Edit(./frontend/.env.example)"
     ],
+    "ask": [
+      "Bash(git push *)",
+      "Bash(git merge *)"
+    ],
     "deny": [
       "Read(./.env)",
-      "Read(./.env.*)"
+      "Read(./.env.*)",
+      "Bash(rm -rf *)"
     ]
   },
   "model": "claude-sonnet-5",

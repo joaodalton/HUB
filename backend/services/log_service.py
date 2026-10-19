@@ -23,6 +23,9 @@ def _session_has_uncommitted_work() -> bool:
     )
 
 
+NO_EMPRESA = object()
+
+
 class LogService:
     """Grava `LogEntry` de auditoria.
 
@@ -53,13 +56,22 @@ class LogService:
         empresa_id: int | None = None,
         strict: bool = False,
     ) -> None:
-        empresa_id = empresa_id or (getattr(g, 'current_empresa_id', None) if has_request_context() else None)
-        if empresa_id is None and metadados:
-            empresa_id = metadados.get('empresaId')
-        if empresa_id is None:
-            if strict:
-                raise RuntimeError('Empresa de auditoria obrigatoria.')
-            return
+        # empresa_id is NO_EMPRESA quando o chamador sabe de proposito que a
+        # entidade nao pertence a nenhuma empresa (ex.: platform_worker,
+        # exclusao de empresa) -- nesse caso o log e gravado com empresa_id
+        # NULL de verdade, sem cair no fallback de g.current_empresa_id (que
+        # pode estar preso num cookie de view de outra empresa) nem exigir
+        # 'empresaId' em metadados.
+        if empresa_id is NO_EMPRESA:
+            empresa_id = None
+        else:
+            empresa_id = empresa_id or (getattr(g, 'current_empresa_id', None) if has_request_context() else None)
+            if empresa_id is None and metadados:
+                empresa_id = metadados.get('empresaId')
+            if empresa_id is None:
+                if strict:
+                    raise RuntimeError('Empresa de auditoria obrigatoria.')
+                return
 
         entry = LogEntry(
             empresa_id=empresa_id,
@@ -88,7 +100,7 @@ class LogService:
                 raise
 
     @staticmethod
-    def info(acao: str, mensagem: str, entidade: str | None = None, entidade_id: int | None = None, metadados: dict | None = None, *, empresa_id: int | None = None, strict: bool = False) -> None:
+    def info(acao: str, mensagem: str, entidade: str | None = None, entidade_id: int | None = None, metadados: dict | None = None, *, empresa_id=None, strict: bool = False) -> None:
         LogService._write('info', acao, mensagem, entidade, entidade_id, metadados, empresa_id, strict)
 
     @staticmethod

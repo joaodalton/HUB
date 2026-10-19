@@ -63,6 +63,7 @@ export type PendenciaFiltros = {
   tipo?: PendenciaTipo;
   categoria?: string;
   status?: PendenciaStatus;
+  origem?: string;
 };
 
 // So os campos que a criacao manual ('+ Nova Pendencia') usa -- tipo nunca
@@ -85,6 +86,7 @@ export async function getPendencias(filtros: PendenciaFiltros = {}): Promise<Pen
   if (filtros.tipo) params.set('tipo', filtros.tipo);
   if (filtros.categoria) params.set('categoria', filtros.categoria);
   if (filtros.status) params.set('status', filtros.status);
+  if (filtros.origem) params.set('origem', filtros.origem);
 
   const query = params.toString();
   const response = await apiRequest<ApiResponse<PendenciaRow[]>>(`/pendencias${query ? `?${query}` : ''}`);

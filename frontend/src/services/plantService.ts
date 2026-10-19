@@ -24,6 +24,8 @@ export type PlantRow = {
   producaoMediaManual: number | null;
   reservaPercentual: number;
   diaEmissaoUsina: number | null;
+  repasseTipo: string | null;
+  repasseValor: number | null;
 };
 
 export type PlantPayload = {
@@ -47,6 +49,8 @@ export type PlantPayload = {
   numModulos?: number | null;
   producaoMediaManual?: number | null;
   diaEmissaoUsina?: number | null;
+  repasseTipo?: string | null;
+  repasseValor?: number | null;
 };
 
 

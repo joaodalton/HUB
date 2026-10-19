@@ -19,13 +19,14 @@ from utils.api_response import error_response, success_response
 document_routes = Blueprint('document_routes', __name__, url_prefix='/api/v1/documents')
 
 
-# GET /api/v1/documents?clienteId=1&ucId=2 -- lista documentos, filtro opcional por cliente/UC
+# GET /api/v1/documents?clienteId=1&ucId=2&usinaId=3 -- lista documentos, filtro opcional por cliente/UC/usina
 @document_routes.route('', methods=['GET'])
 @require_permission('documents.read')
 def index():
     client_id = request.args.get('clienteId', type=int)
     uc_id = request.args.get('ucId', type=int)
-    return success_response(list_documents(client_id, uc_id))
+    plant_id = request.args.get('usinaId', type=int)
+    return success_response(list_documents(client_id, uc_id, plant_id))
 
 
 @document_routes.route('/<int:document_id>', methods=['GET'])
@@ -39,7 +40,7 @@ def show(document_id: int):
     return success_response(document.to_dict())
 
 
-# POST /api/v1/documents -- multipart/form-data. Campos: arquivo (file), nome, clienteId, ucId, categoriaId
+# POST /api/v1/documents -- multipart/form-data. Campos: arquivo (file), nome, clienteId, ucId, plantId, categoriaId
 @document_routes.route('', methods=['POST'])
 @require_permission('documents.create')
 def store():
@@ -50,6 +51,7 @@ def store():
         'nome': request.form.get('nome', ''),
         'clienteId': request.form.get('clienteId', type=int),
         'ucId': request.form.get('ucId', type=int),
+        'plantId': request.form.get('plantId', type=int),
         'categoriaId': request.form.get('categoriaId', type=int)
     }
 

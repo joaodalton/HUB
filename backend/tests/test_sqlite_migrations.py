@@ -72,7 +72,7 @@ class SQLiteMigrationsTest(unittest.TestCase):
             self.assertEqual(upgraded.returncode, 0, upgraded.stdout + upgraded.stderr)
             with closing(sqlite3.connect(path)) as connection:
                 self.assertEqual(connection.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='payment_webhook_events'").fetchone()[0], tenant_schema)
-                self.assertEqual(connection.execute('SELECT version_num FROM alembic_version').fetchone()[0], 'z3d6h0e4f1g9')
+                self.assertEqual(connection.execute('SELECT version_num FROM alembic_version').fetchone()[0], 'x8d1f60ab5c3')
                 connection.execute("INSERT INTO platform_asaas_webhook_events (event_id,event_type,external_payment_id,payload_hash,received_at) VALUES ('evt_1','PAYMENT_RECEIVED','pay_1',?,CURRENT_TIMESTAMP)", ('a' * 64,))
                 connection.commit()
                 with self.assertRaises(sqlite3.IntegrityError):
@@ -267,6 +267,37 @@ class SQLiteMigrationsTest(unittest.TestCase):
                 self.assertEqual(connection.execute('SELECT * FROM faturas').fetchall(), original)
                 self.assertEqual(connection.execute('SELECT version_num FROM alembic_version').fetchone()[0], 'k5e0f4a9b7c1')
 
+    def test_financeiro_repasse_usina_upgrade_preserves_rows_and_enforces_constraints(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'financeiro-repasse.db'
+            result = self._flask(path, 'upgrade', 'w7c0e5f9a4b2')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection, connection:
+                connection.execute("INSERT INTO empresas (id,nome,slug,status) VALUES (91,'E','financeiro-repasse','ativa')")
+                connection.execute("INSERT INTO plants (id,empresa_id,nome,uc,kw_pico,status,percentual_disponivel) VALUES (91,91,'Usina','UC1',10,'Implantacao',0)")
+                connection.execute("INSERT INTO pendencias (id,empresa_id,plant_id,tipo,categoria,origem,titulo,prioridade,status) "
+                                   "VALUES (91,91,91,'pendencia','Financeiro','REPASSE_USINA','Legada','alta','aberta')")
+            result = self._flask(path, 'upgrade', 'head')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection, connection:
+                self.assertEqual(connection.execute(
+                    "SELECT repasse_tipo,repasse_valor FROM plants WHERE id=91").fetchone(), (None, None))
+                self.assertEqual(connection.execute(
+                    "SELECT titulo,competencia FROM pendencias WHERE id=91").fetchone(), ('Legada', None))
+                connection.execute("UPDATE plants SET repasse_tipo='percentual',repasse_valor=12.5 WHERE id=91")
+                with self.assertRaises(sqlite3.IntegrityError):
+                    connection.execute("UPDATE plants SET repasse_tipo='invalido' WHERE id=91")
+                connection.execute("UPDATE pendencias SET competencia='2026-09' WHERE id=91")
+                with self.assertRaises(sqlite3.IntegrityError):
+                    connection.execute("INSERT INTO pendencias (empresa_id,plant_id,tipo,categoria,origem,titulo,prioridade,status,competencia) "
+                                       "VALUES (91,91,'pendencia','Financeiro','REPASSE_USINA','Duplicada','alta','aberta','2026-09')")
+            result = self._flask(path, 'downgrade', 'w7c0e5f9a4b2')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection:
+                self.assertEqual(connection.execute('SELECT titulo FROM pendencias WHERE id=91').fetchone(), ('Legada',))
+                columns = {row[1] for row in connection.execute('PRAGMA table_info(plants)')}
+                self.assertNotIn('repasse_tipo', columns)
+
     def _flask(self, database_path: Path, *args: str) -> subprocess.CompletedProcess:
         """Executa `flask db <upgrade|downgrade> [rev]` EM PROCESSO.
 
@@ -356,7 +387,7 @@ class SQLiteMigrationsTest(unittest.TestCase):
                 preview_indexes = {row[1] for row in connection.execute("PRAGMA index_list('import_previews')")}
             finally:
                 connection.close()
-            self.assertEqual(revision, 'z3d6h0e4f1g9')
+            self.assertEqual(revision, 'x8d1f60ab5c3')
             self.assertTrue({'empresa_id', 'fatura_concessionaria_id', 'fingerprint',
                              'regra_snapshot', 'entrada_normalizada', 'resultado',
                              'valor_final'}.issubset(snapshot_columns))
@@ -519,7 +550,7 @@ class SQLiteMigrationsTest(unittest.TestCase):
                     'SELECT empresa_id,titulo,fatura_concessionaria_id FROM pendencias WHERE id=91'
                 ).fetchone(), (91, 'Existente', None))
                 self.assertEqual(connection.execute('SELECT version_num FROM alembic_version').fetchone()[0],
-                                 'z3d6h0e4f1g9')
+                                 'x8d1f60ab5c3')
 
     def test_fatura_concessionaria_downgrade_preserves_source_records(self):
         with tempfile.TemporaryDirectory() as folder:

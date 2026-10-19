@@ -35,6 +35,7 @@ from services.financeiro_service import (  # noqa: E402
     ORIGEM_REPASSE_USINEIRO,
     calcular_repasse,
     criar_pendencia_pagar_concessionaria,
+    obter_dashboard,
     verificar_e_criar_pendencia_repasse,
 )
 try:
@@ -133,6 +134,14 @@ class FinanceiroServiceTest(IsolatedTestRuntime, unittest.TestCase):
 
         self.assertIsNone(calcular_repasse(plant, '2026-01'))
 
+    def test_calcular_repasse_tipo_setado_sem_valor_retorna_none_sem_estourar(self):
+        plant = Plant(empresa_id=1, nome='Usina 2b', uc='UC-USINA-2B', kw_pico=Decimal('100'),
+                       repasse_tipo='percentual', repasse_valor=None)
+        db.session.add(plant)
+        db.session.commit()
+
+        self.assertIsNone(calcular_repasse(plant, '2026-01'))
+
     def test_verificar_e_criar_pendencia_repasse_so_cria_quando_todas_ucs_pagaram(self):
         plant = Plant(empresa_id=1, nome='Usina 3', uc='UC-USINA-3', kw_pico=Decimal('100'),
                        repasse_tipo='valor_fixo', repasse_valor=Decimal('50.00'))
@@ -185,6 +194,52 @@ class FinanceiroServiceTest(IsolatedTestRuntime, unittest.TestCase):
 
         verificar_e_criar_pendencia_repasse(plant_sem_conexao.id, '2026-01')
         self.assertEqual(Pendencia.query.filter_by(plant_id=plant_sem_conexao.id).count(), 0)
+
+    def test_obter_dashboard_oculta_repasse_enquanto_nem_todas_ucs_pagaram(self):
+        plant = Plant(empresa_id=1, nome='Usina 6', uc='UC-USINA-6', kw_pico=Decimal('100'),
+                       repasse_tipo='valor_fixo', repasse_valor=Decimal('50.00'))
+        db.session.add(plant)
+        db.session.flush()
+        uc2 = ConsumerUnit(empresa_id=1, client_id=self.cliente.id, codigo='UC-6b')
+        db.session.add(uc2)
+        db.session.flush()
+        db.session.add_all([
+            PlantConnection(empresa_id=1, consumer_unit_id=self.uc.id, plant_id=plant.id),
+            PlantConnection(empresa_id=1, consumer_unit_id=uc2.id, plant_id=plant.id),
+        ])
+        db.session.commit()
+
+        dashboard = obter_dashboard(1, '2026-01')
+        usina = next(u for u in dashboard['porUsina'] if u['usinaId'] == plant.id)
+        self.assertIsNone(usina['repasseCalculado'])
+        self.assertTrue(usina.get('aguardandoPagamentos'))
+
+    def test_obter_dashboard_mostra_repasse_quando_todas_ucs_pagaram(self):
+        plant = Plant(empresa_id=1, nome='Usina 7', uc='UC-USINA-7', kw_pico=Decimal('100'),
+                       repasse_tipo='valor_fixo', repasse_valor=Decimal('50.00'))
+        db.session.add(plant)
+        db.session.flush()
+        db.session.add(PlantConnection(empresa_id=1, consumer_unit_id=self.uc.id, plant_id=plant.id))
+        db.session.commit()
+
+        dashboard = obter_dashboard(1, '2026-01')
+        usina = next(u for u in dashboard['porUsina'] if u['usinaId'] == plant.id)
+        self.assertEqual(usina['repasseCalculado'], '50.00')
+        self.assertNotIn('aguardandoPagamentos', usina)
+
+    def test_obter_dashboard_exclui_fatura_cancelada_de_pendente_e_recebido(self):
+        fatura_cancelada = Fatura(
+            empresa_id=1, client_id=self.cliente.id, consumer_unit_id=self.uc.id,
+            concessionaria='CEMIG', competencia='2026-02', valor=80,
+            mes_vencimento=date(2026, 2, 10), asaas_status='canceled',
+        )
+        db.session.add(fatura_cancelada)
+        db.session.commit()
+
+        dashboard = obter_dashboard(1, '2026-02')
+        cliente = next(c for c in dashboard['porCliente'] if c['clienteId'] == self.cliente.id)
+        self.assertEqual(cliente['recebido'], '0.00')
+        self.assertEqual(cliente['pendente'], '0.00')
 
 
 if __name__ == '__main__':

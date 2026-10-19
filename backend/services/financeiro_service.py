@@ -65,7 +65,7 @@ def calcular_repasse(plant: Plant, competencia: str) -> Optional[Decimal]:
     """Calcula o valor a repassar ao usineiro na competencia, com base no
     contrato configurado em Plant.repasse_tipo/repasse_valor. Retorna None
     se nenhum contrato estiver configurado."""
-    if not plant.repasse_tipo:
+    if not plant.repasse_tipo or plant.repasse_valor is None:
         return None
 
     uc_ids = [c.consumer_unit_id for c in plant.connections]
@@ -78,6 +78,22 @@ def calcular_repasse(plant: Plant, competencia: str) -> Optional[Decimal]:
 
 def _formatar_valor(valor: Decimal) -> str:
     return str(valor.quantize(Decimal('0.01')))
+
+
+def _todas_ucs_pagaram(plant: Plant, competencia: str) -> bool:
+    """True se todas as UCs conectadas a usina ja pagaram (Fatura received)
+    na competencia. False se a usina nao tiver nenhuma UC conectada."""
+    if not plant.connections:
+        return False
+    for conexao in plant.connections:
+        pagou = Fatura.query.filter_by(
+            consumer_unit_id=conexao.consumer_unit_id,
+            competencia=competencia,
+            asaas_status='received',
+        ).first()
+        if pagou is None:
+            return False
+    return True
 
 
 def obter_dashboard(empresa_id: int, competencia: Optional[str] = None) -> dict:
@@ -98,7 +114,7 @@ def obter_dashboard(empresa_id: int, competencia: Optional[str] = None) -> dict:
         })
         if fatura.asaas_status == 'received':
             entry['recebido'] += fatura.valor
-        else:
+        elif fatura.asaas_status not in ('canceled', 'refunded'):
             entry['pendente'] += fatura.valor
     por_cliente = [{
         'clienteId': entry['clienteId'],
@@ -124,13 +140,20 @@ def obter_dashboard(empresa_id: int, competencia: Optional[str] = None) -> dict:
         uc_ids = [c.consumer_unit_id for c in plant.connections]
         recebido = _soma_recebido_uc_ids(uc_ids, competencia)
         repasse = calcular_repasse(plant, competencia)
-        por_usina.append({
+        contrato_pendente = repasse is None
+        aguardando_pagamentos = repasse is not None and not _todas_ucs_pagaram(plant, competencia)
+        if aguardando_pagamentos:
+            repasse = None
+        item = {
             'usinaId': plant.id,
             'usinaNome': plant.nome,
             'recebido': _formatar_valor(recebido),
             'repasseCalculado': _formatar_valor(repasse) if repasse is not None else None,
-            'contratoPendente': repasse is None,
-        })
+            'contratoPendente': contrato_pendente,
+        }
+        if aguardando_pagamentos:
+            item['aguardandoPagamentos'] = True
+        por_usina.append(item)
 
     return {'porCliente': por_cliente, 'porUsina': por_usina}
 
@@ -139,17 +162,8 @@ def verificar_e_criar_pendencia_repasse(plant_id: int, competencia: str) -> None
     """Cria (idempotente) a pendencia de repasse ao usineiro quando todas as
     UCs conectadas a usina ja pagaram (Fatura received) na competencia."""
     plant = Plant.query.filter_by(id=plant_id).first()
-    if plant is None or not plant.connections:
+    if plant is None or not _todas_ucs_pagaram(plant, competencia):
         return
-
-    for conexao in plant.connections:
-        pagou = Fatura.query.filter_by(
-            consumer_unit_id=conexao.consumer_unit_id,
-            competencia=competencia,
-            asaas_status='received',
-        ).first()
-        if pagou is None:
-            return
 
     valor = calcular_repasse(plant, competencia)
     if valor is None:

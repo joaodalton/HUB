@@ -15,6 +15,7 @@ import { createEmpresasPage } from '../pages/EmpresasPage';
 import { createTemplatesPage } from '../pages/TemplatesPage';
 import { createChangePasswordPage } from '../pages/ChangePasswordPage';
 import { createFaturasPage } from '../pages/FaturasPage';
+import { createFinanceiroPage } from '../pages/FinanceiroPage';
 import { createMessagesPage } from '../pages/MessagesPage';
 import { createReportsPage } from '../pages/ReportsPage';
 import { createBillingRulesPage } from '../pages/BillingRulesPage';
@@ -39,6 +40,7 @@ export function createRouter(root: HTMLElement) {
     { path: '/usinas', render: createPlantsPage },
     { path: '/rateio', render: createRateioPage },
     { path: '/faturas', render: createFaturasPage },
+    { path: '/financeiro', render: createFinanceiroPage },
     { path: '/regras-cobranca', render: createBillingRulesPage },
     { path: '/regras-cobranca/nova', render: () => createBillingRuleEditorPage() },
     { path: '/pendencias', render: createPendenciasPage },

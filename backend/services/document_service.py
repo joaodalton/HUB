@@ -10,6 +10,7 @@ from models.category import Category
 from models.client import Client
 from models.consumer_unit import ConsumerUnit
 from models.document import Document
+from models.plant import Plant
 from services.drive_service import get_drive_service
 from services.log_service import LogService
 
@@ -20,14 +21,17 @@ UPLOAD_ROOT = Path(__file__).resolve().parent.parent / 'uploads'
 def _document(identifier): return Document.query.filter_by(id=identifier, empresa_id=g.current_empresa_id).first()
 def _client(identifier): return Client.query.filter_by(id=identifier, empresa_id=g.current_empresa_id).first()
 def _uc(identifier): return ConsumerUnit.query.filter_by(id=identifier, empresa_id=g.current_empresa_id).first()
+def _plant(identifier): return Plant.query.filter_by(id=identifier, empresa_id=g.current_empresa_id).first()
 
-def list_documents(client_id: int | None = None, uc_id: int | None = None) -> list[dict]:
+def list_documents(client_id: int | None = None, uc_id: int | None = None, plant_id: int | None = None) -> list[dict]:
     query = Document.query
 
     if client_id:
         query = query.filter(Document.client_id == client_id)
     if uc_id:
         query = query.filter(Document.consumer_unit_id == uc_id)
+    if plant_id:
+        query = query.filter(Document.plant_id == plant_id)
 
     documents = query.order_by(Document.created_at.desc()).all()
     return [document.to_dict() for document in documents]
@@ -56,6 +60,10 @@ def prepare_document(data: dict, file_storage) -> tuple[Document, bool]:
     uc_id = data.get('ucId')
     if uc_id and not _uc(uc_id):
         raise ValueError('UC informada nao existe.')
+
+    plant_id = data.get('plantId')
+    if plant_id and not _plant(plant_id):
+        raise ValueError('Usina informada nao existe.')
 
     original_name = secure_filename(file_storage.filename or 'arquivo')
     subfolder = str(client_id) if client_id else 'sem-cliente'
@@ -86,6 +94,7 @@ def prepare_document(data: dict, file_storage) -> tuple[Document, bool]:
         nome=(data.get('nome') or '').strip() or original_name,
         client_id=client_id,
         consumer_unit_id=uc_id,
+        plant_id=plant_id,
         category_id=category.id if category else None,
         storage_provider='google_drive',
         storage_ref=drive_file_id,

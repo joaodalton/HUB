@@ -13,17 +13,20 @@ import {
 // Categoria de documento saiu da interface (decisao 2026-07-30) -- atrapalhava mais
 // do que ajudava no fluxo. O campo continua existindo no banco (agora opcional),
 // so nao aparece mais aqui nem em nenhum outro lugar de upload.
-export function createClientDocumentsPanel(clientId: number | undefined): HTMLElement {
+// plantId: mesmo painel reaproveitado pra documentos de usina (Task 11) --
+// so troca o parametro de filtro/upload (clienteId -> plantId).
+export function createClientDocumentsPanel(clientId: number | undefined, plantId?: number): HTMLElement {
   const toast = useToast();
   const panel = createElement('div', { className: 'client-documents-panel' });
   const title = createElement('span', { className: 'plant-connection-title', textContent: 'Documentos' });
+  const entityLabel = plantId ? 'a usina' : 'o cliente';
 
   panel.appendChild(title);
 
-  if (!clientId) {
+  if (!clientId && !plantId) {
     panel.appendChild(createElement('p', {
       className: 'empty-state small',
-      textContent: 'Salve o cliente primeiro pra poder anexar documentos.'
+      textContent: `Salve ${entityLabel} primeiro pra poder anexar documentos.`
     }));
     return panel;
   }
@@ -52,7 +55,7 @@ export function createClientDocumentsPanel(clientId: number | undefined): HTMLEl
     dropButton.classList.add('loading');
 
     try {
-      await uploadDocument({ clienteId: clientId }, file);
+      await uploadDocument({ clienteId: clientId, plantId }, file);
       toast.success('Documento enviado.');
       await loadDocuments();
     } catch (error) {
@@ -68,7 +71,7 @@ export function createClientDocumentsPanel(clientId: number | undefined): HTMLEl
     list.replaceChildren(createElement('small', { textContent: 'Carregando documentos...' }));
 
     try {
-      documents = await getDocuments(clientId);
+      documents = await getDocuments(clientId, undefined, plantId);
       renderDocuments();
     } catch {
       list.replaceChildren(createElement('small', { textContent: 'Nao foi possivel carregar os documentos.' }));

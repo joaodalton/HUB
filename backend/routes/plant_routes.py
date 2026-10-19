@@ -38,14 +38,21 @@ def store():
     data = request.get_json(silent=True) or {}
     if not data.get('nome', '').strip():
         return error_response('Nome e obrigatorio.', 400)
-    return success_response(create_plant(data), 'Usina cadastrada.', 201)
+    try:
+        plant = create_plant(data)
+    except ValueError as exc:
+        return error_response(str(exc), 400)
+    return success_response(plant, 'Usina cadastrada.', 201)
 
 
 @plant_routes.route('/<int:plant_id>', methods=['PUT'])
 @require_permission('plants.update')
 def update(plant_id: int):
     data = request.get_json(silent=True) or {}
-    plant = update_plant(plant_id, data)
+    try:
+        plant = update_plant(plant_id, data)
+    except ValueError as exc:
+        return error_response(str(exc), 400)
     if not plant:
         return error_response('Usina nao encontrada.', 404)
     return success_response(plant, 'Usina atualizada.')

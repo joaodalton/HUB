@@ -20,10 +20,11 @@ export type CategoryRow = {
 };
 
 
-export async function getDocuments(clienteId?: number, ucId?: number): Promise<DocumentRow[]> {
+export async function getDocuments(clienteId?: number, ucId?: number, plantId?: number): Promise<DocumentRow[]> {
   const params = new URLSearchParams();
   if (clienteId) params.set('clienteId', String(clienteId));
   if (ucId) params.set('ucId', String(ucId));
+  if (plantId) params.set('usinaId', String(plantId));
 
   const query = params.toString();
   const response = await apiRequest<ApiResponse<DocumentRow[]>>(`/documents${query ? `?${query}` : ''}`);
@@ -31,7 +32,7 @@ export async function getDocuments(clienteId?: number, ucId?: number): Promise<D
 }
 
 export async function uploadDocument(
-  data: { clienteId?: number; ucId?: number; categoriaId?: number; nome?: string },
+  data: { clienteId?: number; ucId?: number; plantId?: number; categoriaId?: number; nome?: string },
   file: File
 ): Promise<DocumentRow> {
   const formData = new FormData();
@@ -39,6 +40,7 @@ export async function uploadDocument(
   if (data.categoriaId) formData.append('categoriaId', String(data.categoriaId));
   if (data.clienteId) formData.append('clienteId', String(data.clienteId));
   if (data.ucId) formData.append('ucId', String(data.ucId));
+  if (data.plantId) formData.append('plantId', String(data.plantId));
   if (data.nome) formData.append('nome', data.nome);
 
   const response = await apiUpload<ApiResponse<DocumentRow>>('/documents', formData);

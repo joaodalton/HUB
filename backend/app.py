@@ -128,6 +128,7 @@ def create_app() -> Flask:
     from routes.billing_calculation_routes import billing_calculation_routes, platform_billing_calculation_routes
     from routes.report_routes import report_routes
     from routes.billing_pdf_lab_routes import billing_pdf_lab_routes
+    from routes.financeiro_routes import financeiro_routes
 
     app.register_blueprint(health_routes)
     app.register_blueprint(auth_routes)
@@ -164,6 +165,7 @@ def create_app() -> Flask:
     app.register_blueprint(platform_billing_calculation_routes)
     app.register_blueprint(billing_pdf_lab_routes)
     app.register_blueprint(report_routes)
+    app.register_blueprint(financeiro_routes)
 
     from utils.auth import register_auth_middleware
     register_auth_middleware(app, public_paths={

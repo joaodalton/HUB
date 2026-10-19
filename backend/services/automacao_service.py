@@ -14,12 +14,15 @@ ou via botão "Verificar agora"), sem necessidade de scheduler.
 from datetime import datetime, timedelta
 
 from flask import g
+from sqlalchemy.exc import IntegrityError
 
 from extensions import db
 from models.client import Client
 from models.consumer_unit import ConsumerUnit, PlantConnection
 from models.document import Document
 from models.pendencia import Pendencia
+from models.plant import Plant
+from services.financeiro_service import ORIGEM_REPASSE_USINEIRO, verificar_e_criar_pendencia_repasse
 from services.log_service import LogService
 from services.pendencia_service import criar_alerta, criar_erro
 
@@ -46,6 +49,7 @@ REGRA_UC_SEM_USINA = 'uc_sem_usina'
 REGRA_CLIENTE_SEM_UC = 'cliente_sem_uc'
 REGRA_CAMPOS_OBRIGATORIOS = 'campos_obrigatorios'
 REGRA_DOCUMENTOS_OBRIGATORIOS = 'documentos_obrigatorios'
+REGRA_FATURA_GERACAO_USINA = 'fatura_geracao_usina'
 _TITULO_LEGADO = {
     REGRA_UC_SEM_USINA: 'sem usina',
     REGRA_CLIENTE_SEM_UC: 'sem uc',
@@ -91,6 +95,8 @@ def verificar_e_criar_pendencias():
         'clientes_sem_uc': 0,
         'campos_faltando': 0,
         'documentos_faltando': 0,
+        'fatura_geracao_usina': 0,
+        'repasses_pendentes': 0,
     }
 
     # 1. UC sem usina vinculada
@@ -104,6 +110,12 @@ def verificar_e_criar_pendencias():
 
     # 4. Documentos obrigatórios faltando
     resultado['documentos_faltando'] = _verificar_documentos_obrigatorios()
+
+    # 5. Fatura de geracao da usina a partir do dia de emissao configurado
+    resultado['fatura_geracao_usina'] = _verificar_fatura_geracao_usina()
+
+    # 6. Repasses ao usineiro perdidos por corrida entre webhooks concorrentes
+    resultado['repasses_pendentes'] = _verificar_repasses_pendentes()
 
     LogService.info(
         acao='automacao',
@@ -311,6 +323,80 @@ def _verificar_documentos_obrigatorios() -> int:
             }
         })
         criados += 1
+
+    return criados
+
+
+def _verificar_fatura_geracao_usina() -> int:
+    """
+    Para cada usina com dia de emissao configurado, cria uma pendencia de
+    buscar a fatura de geracao assim que o dia do mes corrente alcancar o
+    dia de emissao. Idempotente por competencia via constraint unica
+    (empresa_id, plant_id, origem, competencia).
+    """
+    criados = 0
+    hoje = datetime.utcnow().date()
+    competencia = hoje.strftime('%Y-%m')
+
+    usinas = Plant.query.filter(Plant.dia_emissao_usina.isnot(None)).all()
+
+    for plant in usinas:
+        if hoje.day < plant.dia_emissao_usina:
+            continue
+
+        try:
+            with db.session.begin_nested():
+                db.session.add(Pendencia(
+                    empresa_id=plant.empresa_id,
+                    categoria='Usinas',
+                    origem=REGRA_FATURA_GERACAO_USINA,
+                    plant_id=plant.id,
+                    competencia=competencia,
+                    titulo=f'Buscar fatura de geracao da usina {plant.nome} ({competencia})',
+                    descricao=(
+                        f'A usina {plant.nome} atingiu o dia de emissao configurado '
+                        f'({plant.dia_emissao_usina}); buscar fatura de geracao da '
+                        f'competencia {competencia}.'
+                    ),
+                    prioridade='alta',
+                ))
+                db.session.flush()
+            criados += 1
+        except IntegrityError:
+            pass
+
+    if criados > 0:
+        db.session.commit()
+
+    return criados
+
+
+def _verificar_repasses_pendentes() -> int:
+    """Re-checa, pra cada usina com contrato de repasse configurado, se a
+    pendencia de repasse ao usineiro da competencia corrente deveria existir.
+    Cobre a corrida entre webhooks concorrentes do Asaas: duas UCs da mesma
+    usina pagando quase ao mesmo tempo podem, sob READ COMMITTED, cada uma
+    ver a fatura da outra ainda como pendente e nenhuma criar a pendencia.
+    Idempotente via constraint unica (empresa_id, plant_id, origem,
+    competencia) -- rodar de novo so preenche o que ficou perdido na corrida.
+    """
+    criados = 0
+    competencia = datetime.utcnow().strftime('%Y-%m')
+
+    usinas = Plant.query.filter(Plant.repasse_tipo.isnot(None)).all()
+
+    for plant in usinas:
+        antes = Pendencia.query.filter_by(
+            plant_id=plant.id, origem=ORIGEM_REPASSE_USINEIRO, competencia=competencia
+        ).count()
+        verificar_e_criar_pendencia_repasse(plant.id, competencia)
+        depois = Pendencia.query.filter_by(
+            plant_id=plant.id, origem=ORIGEM_REPASSE_USINEIRO, competencia=competencia
+        ).count()
+        criados += depois - antes
+
+    if criados > 0:
+        db.session.commit()
 
     return criados
 

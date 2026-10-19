@@ -10,6 +10,7 @@ class Document(TenantMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     client_id = db.Column(db.Integer, db.ForeignKey('clients.id'), nullable=True)
     consumer_unit_id = db.Column(db.Integer, db.ForeignKey('consumer_units.id'), nullable=True)
+    plant_id = db.Column(db.Integer, db.ForeignKey('plants.id'), nullable=True)
     category_id = db.Column(db.Integer, db.ForeignKey('categories.id'), nullable=True)
 
     nome = db.Column(db.String(255), nullable=False)
@@ -28,6 +29,7 @@ class Document(TenantMixin, db.Model):
     # ou remoção de categoria. Revisar se o comportamento esperado for outro.
     client = db.relationship('Client', backref=db.backref('documentos', cascade='all, delete-orphan'))
     consumer_unit = db.relationship('ConsumerUnit', backref=db.backref('documentos', lazy=True))
+    plant = db.relationship('Plant', backref=db.backref('documentos', lazy=True))
     category = db.relationship('Category', backref=db.backref('documentos', lazy=True))
 
     def to_dict(self) -> dict:
@@ -36,6 +38,7 @@ class Document(TenantMixin, db.Model):
             'nome': self.nome,
             'clienteId': self.client_id,
             'ucId': self.consumer_unit_id,
+            'plantId': self.plant_id,
             'categoriaId': self.category_id,
             'categoria': self.category.nome if self.category else None,
             'storageProvider': self.storage_provider,

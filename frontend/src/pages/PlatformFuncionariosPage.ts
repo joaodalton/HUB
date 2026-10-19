@@ -1,4 +1,5 @@
 import { createDataTable } from '../components/DataTable';
+import { createInput } from '../components/formFields';
 import { createIcon } from '../components/Icon';
 import { createStatusBadge } from '../components/StatusBadge';
 import { createElement } from '../dom';
@@ -55,26 +56,27 @@ export function createPlatformFuncionariosPage(): HTMLElement {
 
   const openForm = (): void => {
     newButton.disabled = true;
-    const form = createElement('form', { className: 'platform-form' });
-    const nome = createElement('input', { className: 'platform-input' });
-    nome.name = 'nome'; nome.placeholder = 'Nome'; nome.setAttribute('aria-label', 'Nome');
-    const email = createElement('input', { className: 'platform-input' });
-    email.name = 'email'; email.type = 'email'; email.placeholder = 'Email'; email.setAttribute('aria-label', 'Email');
-    const senha = createElement('input', { className: 'platform-input' });
-    senha.name = 'senha'; senha.type = 'password'; senha.placeholder = 'Senha'; senha.setAttribute('aria-label', 'Senha');
+    const form = createElement('form', { className: 'client-form' });
+    const nome = createInput('Nome', 'text', '', true);
+    nome.input.name = 'nome';
+    const email = createInput('Email', 'email', '', true);
+    email.input.name = 'email';
+    const senha = createInput('Senha', 'password', '', true);
+    senha.input.name = 'senha'; senha.input.minLength = 6;
 
-    const submitButton = createElement('button', { className: 'primary-button', type: 'submit', textContent: 'Criar' });
+    const submitButton = createElement('button', { type: 'submit', textContent: 'Criar' });
     const cancelButton = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Cancelar' });
     cancelButton.addEventListener('click', closeForm);
 
-    const actions = createElement('div', { className: 'platform-form-actions' });
-    actions.append(submitButton, cancelButton);
-    form.append(nome, email, senha, actions);
+    const actions = createElement('div', { className: 'form-actions' });
+    actions.append(cancelButton, submitButton);
+    form.append(nome.field, email.field, senha.field, actions);
 
     form.addEventListener('submit', (event) => {
       event.preventDefault();
+      if (!form.reportValidity()) return;
       submitButton.disabled = true;
-      void createPlatformWorker({ nome: nome.value, email: email.value, senha: senha.value })
+      void createPlatformWorker({ nome: nome.input.value, email: email.input.value, senha: senha.input.value })
         .then(() => { useToast().success('Funcionário criado.'); closeForm(); load(); })
         .catch((error) => { submitButton.disabled = false; useToast().error(error instanceof Error ? error.message : 'Não foi possível criar o funcionário.'); });
     });

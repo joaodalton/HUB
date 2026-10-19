@@ -7,12 +7,13 @@ import { getCurrentUser, logout } from '../services/authService';
 
 type PlatformLayoutOptions = { content: HTMLElement; title: string; description?: string };
 
-const links: Array<{ label: string; path: string; icon: IconName }> = [
-  { label: 'Visão geral', path: '/platform', icon: 'dashboard' },
-  { label: 'Empresas', path: '/platform/companies', icon: 'clients' }
-];
-
 export function createPlatformLayout({ content, title, description }: PlatformLayoutOptions): HTMLElement {
+  const user = getCurrentUser();
+  const links: Array<{ label: string; path: string; icon: IconName }> = [
+    { label: 'Visão geral', path: '/platform', icon: 'dashboard' },
+    { label: 'Empresas', path: '/platform/companies', icon: 'clients' }
+  ];
+  if (user?.isPlatformAdmin) links.push({ label: 'Funcionários', path: '/platform/funcionarios', icon: 'user' });
   const shell = createElement('div', { className: 'app-shell platform-shell' });
   const body = createElement('div', { className: 'app-body' });
   const sidebar = createElement('aside', { className: 'sidebar platform-sidebar' });
@@ -31,7 +32,6 @@ export function createPlatformLayout({ content, title, description }: PlatformLa
   });
   nav.appendChild(section);
   const footer = createElement('div', { className: 'sidebar-footer' });
-  const user = getCurrentUser();
   footer.append(createElement('span', { className: 'sidebar-version', textContent: user?.nome || user?.email || 'Platform Admin' }));
   const exit = createElement('button', { className: 'sidebar-logout', type: 'button' });
   exit.append(createIcon('login'), createElement('span', { className: 'sidebar-logout-label', textContent: 'Sair' }));

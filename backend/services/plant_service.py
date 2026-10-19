@@ -24,6 +24,21 @@ def get_plant(plant_id: int) -> dict | None:
     return plant.to_dict() if plant else None
 
 
+def _validar_repasse_tipo(repasse_tipo):
+    if repasse_tipo is not None and repasse_tipo not in REPASSE_TIPOS_VALIDOS:
+        raise ValueError("repasseTipo deve ser 'percentual', 'valor_fixo' ou nulo.")
+    return repasse_tipo
+
+
+def _validar_repasse_valor(repasse_valor):
+    if repasse_valor is None:
+        return None
+    try:
+        return Decimal(str(repasse_valor))
+    except InvalidOperation:
+        raise ValueError('repasseValor inválido.')
+
+
 def create_plant(data: dict) -> dict:
     plant = Plant(
         empresa_id=g.current_empresa_id,
@@ -50,6 +65,8 @@ def create_plant(data: dict) -> dict:
         dia_emissao_usina=data.get('diaEmissaoUsina'),
         is_coringa=bool(data.get('isCoringa', False)),
         concessionaria=data.get('concessionaria'),
+        repasse_tipo=_validar_repasse_tipo(data.get('repasseTipo')),
+        repasse_valor=_validar_repasse_valor(data.get('repasseValor')),
         **_producao_mensal_fields(data)
     )
     db.session.add(plant)
@@ -88,19 +105,9 @@ def update_plant(plant_id: int, data: dict) -> dict | None:
     plant.concessionaria = data.get('concessionaria', plant.concessionaria)
 
     if 'repasseTipo' in data:
-        repasse_tipo = data['repasseTipo']
-        if repasse_tipo is not None and repasse_tipo not in REPASSE_TIPOS_VALIDOS:
-            raise ValueError("repasseTipo deve ser 'percentual', 'valor_fixo' ou nulo.")
-        plant.repasse_tipo = repasse_tipo
+        plant.repasse_tipo = _validar_repasse_tipo(data['repasseTipo'])
     if 'repasseValor' in data:
-        repasse_valor = data['repasseValor']
-        if repasse_valor is None:
-            plant.repasse_valor = None
-        else:
-            try:
-                plant.repasse_valor = Decimal(str(repasse_valor))
-            except InvalidOperation:
-                raise ValueError('repasseValor inválido.')
+        plant.repasse_valor = _validar_repasse_valor(data['repasseValor'])
 
     for mes, valor in _producao_mensal_fields(data, only_present=True).items():
         setattr(plant, mes, valor)

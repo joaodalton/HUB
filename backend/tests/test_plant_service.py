@@ -18,7 +18,7 @@ from extensions import db  # noqa: E402
 from models.empresa import Empresa  # noqa: E402
 from models.plant import Plant  # noqa: E402
 from models.user import User  # noqa: E402
-from services.plant_service import update_plant  # noqa: E402
+from services.plant_service import create_plant, update_plant  # noqa: E402
 from utils.auth import generate_token  # noqa: E402
 try:
     from .support import IsolatedTestRuntime  # noqa: E402
@@ -92,6 +92,18 @@ class PlantServiceTest(IsolatedTestRuntime, unittest.TestCase):
         resultado = update_plant(self.plant.id, {'repasseTipo': None, 'repasseValor': None})
         self.assertIsNone(resultado['repasseTipo'])
         self.assertIsNone(resultado['repasseValor'])
+
+    def test_create_plant_persiste_repasse_tipo_e_valor(self):
+        resultado = create_plant({
+            'nome': 'Usina Nova', 'uc': 'UC-NOVA',
+            'repasseTipo': 'percentual', 'repasseValor': '15.00',
+        })
+        self.assertEqual(resultado['repasseTipo'], 'percentual')
+        self.assertEqual(resultado['repasseValor'], 15.00)
+
+    def test_create_plant_rejeita_repasse_tipo_invalido(self):
+        with self.assertRaises(ValueError):
+            create_plant({'nome': 'Usina Nova', 'uc': 'UC-NOVA', 'repasseTipo': 'outra_coisa'})
 
     def test_put_route_retorna_400_quando_repasse_tipo_invalido(self):
         token = generate_token(self.owner_id)

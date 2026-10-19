@@ -1,4 +1,5 @@
 # backend/services/financeiro_service.py
+from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
@@ -47,6 +48,19 @@ def criar_pendencia_pagar_concessionaria(fatura: Fatura) -> None:
         pass
 
 
+def _soma_recebido_uc_ids(uc_ids: list, competencia: str) -> Decimal:
+    """Soma Fatura.valor das UCs informadas, na competencia, ja recebidas
+    (asaas_status='received')."""
+    if not uc_ids:
+        return Decimal('0')
+    faturas = Fatura.query.filter(
+        Fatura.consumer_unit_id.in_(uc_ids),
+        Fatura.competencia == competencia,
+        Fatura.asaas_status == 'received',
+    ).all()
+    return sum((f.valor for f in faturas), Decimal('0'))
+
+
 def calcular_repasse(plant: Plant, competencia: str) -> Optional[Decimal]:
     """Calcula o valor a repassar ao usineiro na competencia, com base no
     contrato configurado em Plant.repasse_tipo/repasse_valor. Retorna None
@@ -55,18 +69,70 @@ def calcular_repasse(plant: Plant, competencia: str) -> Optional[Decimal]:
         return None
 
     uc_ids = [c.consumer_unit_id for c in plant.connections]
-    soma = Decimal('0')
-    if uc_ids:
-        faturas = Fatura.query.filter(
-            Fatura.consumer_unit_id.in_(uc_ids),
-            Fatura.competencia == competencia,
-            Fatura.asaas_status == 'received',
-        ).all()
-        soma = sum((f.valor for f in faturas), Decimal('0'))
+    soma = _soma_recebido_uc_ids(uc_ids, competencia)
 
     if plant.repasse_tipo == 'valor_fixo':
         return plant.repasse_valor
     return soma * plant.repasse_valor / Decimal('100')
+
+
+def _formatar_valor(valor: Decimal) -> str:
+    return str(valor.quantize(Decimal('0.01')))
+
+
+def obter_dashboard(empresa_id: int, competencia: Optional[str] = None) -> dict:
+    """Agrega as Faturas da competencia por cliente (recebido vs. pendente)
+    e por usina (recebido das UCs conectadas + repasse calculado ao
+    usineiro). Retorna {'porCliente': [...], 'porUsina': [...]}."""
+    if not competencia:
+        competencia = datetime.utcnow().strftime('%Y-%m')
+
+    faturas = Fatura.query.filter_by(empresa_id=empresa_id, competencia=competencia).all()
+    por_cliente_map: dict = {}
+    for fatura in faturas:
+        entry = por_cliente_map.setdefault(fatura.client_id, {
+            'clienteId': fatura.client_id,
+            'clienteNome': fatura.client.nome if fatura.client else None,
+            'recebido': Decimal('0'),
+            'pendente': Decimal('0'),
+        })
+        if fatura.asaas_status == 'received':
+            entry['recebido'] += fatura.valor
+        else:
+            entry['pendente'] += fatura.valor
+    por_cliente = [{
+        'clienteId': entry['clienteId'],
+        'clienteNome': entry['clienteNome'],
+        'recebido': _formatar_valor(entry['recebido']),
+        'pendente': _formatar_valor(entry['pendente']),
+    } for entry in por_cliente_map.values()]
+
+    plants = Plant.query.filter_by(empresa_id=empresa_id).all()
+    por_usina = []
+    for plant in plants:
+        if not plant.connections:
+            por_usina.append({
+                'usinaId': plant.id,
+                'usinaNome': plant.nome,
+                'recebido': '0.00',
+                'repasseCalculado': None,
+                'contratoPendente': False,
+                'semClientesConectados': True,
+            })
+            continue
+
+        uc_ids = [c.consumer_unit_id for c in plant.connections]
+        recebido = _soma_recebido_uc_ids(uc_ids, competencia)
+        repasse = calcular_repasse(plant, competencia)
+        por_usina.append({
+            'usinaId': plant.id,
+            'usinaNome': plant.nome,
+            'recebido': _formatar_valor(recebido),
+            'repasseCalculado': _formatar_valor(repasse) if repasse is not None else None,
+            'contratoPendente': repasse is None,
+        })
+
+    return {'porCliente': por_cliente, 'porUsina': por_usina}
 
 
 def verificar_e_criar_pendencia_repasse(plant_id: int, competencia: str) -> None:

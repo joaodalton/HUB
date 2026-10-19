@@ -10,6 +10,7 @@ export type AuthUser = {
   mustChangePassword: boolean;
   empresaNome?: string | null;
   isPlatformAdmin?: boolean;
+  isPlatformWorker?: boolean;
   platformViewEmpresaId?: number | null;
   platformViewEmpresaNome?: string | null;
   homeEmpresaId?: number;

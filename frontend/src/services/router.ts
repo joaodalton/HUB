@@ -21,6 +21,7 @@ import { createBillingRulesPage } from '../pages/BillingRulesPage';
 import { createBillingRuleEditorPage } from '../pages/BillingRuleEditorPage';
 import { createPlatformOverviewPage } from '../pages/PlatformOverviewPage';
 import { createPlatformCompaniesPage } from '../pages/PlatformCompaniesPage';
+import { createPlatformFuncionariosPage } from '../pages/PlatformFuncionariosPage';
 import { ensureSession, getCurrentUser, isAuthenticated } from './authService';
 import { loadSettings } from './settingsService';
 
@@ -51,7 +52,8 @@ export function createRouter(root: HTMLElement) {
     { path: '/trocar-senha', render: createChangePasswordPage },
     { path: '/configuracoes', render: createSettingsPage },
     { path: '/platform', render: createPlatformOverviewPage },
-    { path: '/platform/companies', render: createPlatformCompaniesPage }
+    { path: '/platform/companies', render: createPlatformCompaniesPage },
+    { path: '/platform/funcionarios', render: createPlatformFuncionariosPage }
   ];
 
   let appearanceLoaded = false;
@@ -101,6 +103,8 @@ export function createRouter(root: HTMLElement) {
 
     const mustChangePassword = getCurrentUser()?.mustChangePassword === true;
     const platformAdmin = getCurrentUser()?.isPlatformAdmin === true;
+    const platformWorker = getCurrentUser()?.isPlatformWorker === true;
+    const platformUser = platformAdmin || platformWorker;
     if (!isAuthenticated() && !isPublicAuthPath) {
       redirect('/login');
       return;
@@ -121,13 +125,14 @@ export function createRouter(root: HTMLElement) {
       return;
     }
 
-    if (isAuthenticated() && path.startsWith('/platform') && !platformAdmin) {
+    if (isAuthenticated() && path.startsWith('/platform') && !platformUser) {
       redirect('/dashboard');
       return;
     }
 
-    if (isAuthenticated() && platformAdmin && path.startsWith('/platform')
-      && path !== '/platform' && path !== '/platform/companies') {
+    if (isAuthenticated() && platformUser && path.startsWith('/platform')
+      && path !== '/platform' && path !== '/platform/companies'
+      && !(platformAdmin && path === '/platform/funcionarios')) {
       redirect('/platform');
       return;
     }
@@ -135,13 +140,13 @@ export function createRouter(root: HTMLElement) {
     // O shell da plataforma nunca coexiste com um tenant administrativo ativo.
     // Para voltar à plataforma, o administrador usa "Sair da empresa", que
     // limpa o cookie no backend antes da navegação.
-    if (isAuthenticated() && platformAdmin && getCurrentUser()?.platformViewEmpresaId
+    if (isAuthenticated() && platformUser && getCurrentUser()?.platformViewEmpresaId
       && path.startsWith('/platform')) {
       redirect('/dashboard');
       return;
     }
 
-    if (isAuthenticated() && platformAdmin && !getCurrentUser()?.platformViewEmpresaId
+    if (isAuthenticated() && platformUser && !getCurrentUser()?.platformViewEmpresaId
       && !path.startsWith('/platform') && path !== '/trocar-senha') {
       redirect('/platform');
       return;

@@ -78,6 +78,7 @@ export function createSidebar(): HTMLElement {
   ];
   if (getCurrentUser()?.isPlatformAdmin && !getCurrentUser()?.platformViewEmpresaId) {
     administrationItems.push({ label: 'HUB Platform', path: '/platform', icon: 'dashboard', enabled: true });
+    administrationItems.push({ label: 'Funcionarios', path: '/platform/funcionarios', icon: 'clients', enabled: true });
   }
   visibleSections.push({ title: 'Administração', items: administrationItems });
 

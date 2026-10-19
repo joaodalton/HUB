@@ -17,7 +17,9 @@ from app import create_app  # noqa: E402
 from extensions import db  # noqa: E402
 from models.empresa import Empresa  # noqa: E402
 from models.plant import Plant  # noqa: E402
+from models.user import User  # noqa: E402
 from services.plant_service import update_plant  # noqa: E402
+from utils.auth import generate_token  # noqa: E402
 try:
     from .support import IsolatedTestRuntime  # noqa: E402
 except ImportError:
@@ -35,8 +37,14 @@ class PlantServiceTest(IsolatedTestRuntime, unittest.TestCase):
         cls.app.config['TESTING'] = True
         with cls.app.app_context():
             db.create_all()
-            db.session.add(Empresa(nome='A', slug='plant-service-a'))
+            empresa = Empresa(nome='A', slug='plant-service-a')
+            db.session.add(empresa)
+            db.session.flush()
+            owner = User(empresa_id=empresa.id, nome='Owner', email='owner@plant-service.test',
+                          password_hash='x', role='owner')
+            db.session.add(owner)
             db.session.commit()
+            cls.owner_id = owner.id
 
     @classmethod
     def tearDownClass(cls):
@@ -84,6 +92,16 @@ class PlantServiceTest(IsolatedTestRuntime, unittest.TestCase):
         resultado = update_plant(self.plant.id, {'repasseTipo': None, 'repasseValor': None})
         self.assertIsNone(resultado['repasseTipo'])
         self.assertIsNone(resultado['repasseValor'])
+
+    def test_put_route_retorna_400_quando_repasse_tipo_invalido(self):
+        token = generate_token(self.owner_id)
+        resposta = self.app.test_client().put(
+            f'/api/v1/plants/{self.plant.id}',
+            headers={'Authorization': f'Bearer {token}'},
+            json={'repasseTipo': 'outra_coisa'},
+        )
+        self.assertEqual(resposta.status_code, 400)
+        self.assertIn('error', resposta.get_json())
 
 
 if __name__ == '__main__':

@@ -45,7 +45,10 @@ def store():
 @require_permission('plants.update')
 def update(plant_id: int):
     data = request.get_json(silent=True) or {}
-    plant = update_plant(plant_id, data)
+    try:
+        plant = update_plant(plant_id, data)
+    except ValueError as exc:
+        return error_response(str(exc), 400)
     if not plant:
         return error_response('Usina nao encontrada.', 404)
     return success_response(plant, 'Usina atualizada.')

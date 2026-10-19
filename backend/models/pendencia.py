@@ -25,6 +25,8 @@ class Pendencia(TenantMixin, db.Model):
     __table_args__ = (
         db.UniqueConstraint('empresa_id', 'fatura_concessionaria_id', 'origem',
                             name='uq_pendencias_fatura_origem'),
+        db.UniqueConstraint('empresa_id', 'plant_id', 'origem', 'competencia',
+                            name='uq_pendencias_plant_origem_competencia'),
     )
 
     id = db.Column(db.Integer, primary_key=True)
@@ -44,6 +46,8 @@ class Pendencia(TenantMixin, db.Model):
     prioridade = db.Column(db.String(20), nullable=False, default='media')
     responsavel_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     status = db.Column(db.String(20), nullable=False, default='aberta')
+
+    competencia = db.Column(db.String(7), nullable=True)
 
     metadados = db.Column(db.JSON, nullable=True)
 
@@ -88,6 +92,7 @@ class Pendencia(TenantMixin, db.Model):
             'documentoId': self.document_id,
             'documentoNome': self.document.nome if self.document else None,
             'faturaId': self.fatura_concessionaria_id,
+            'competencia': self.competencia,
             'prazo': self.prazo.isoformat() if self.prazo else None,
             'prioridade': self.prioridade,
             'responsavelId': responsavel_compativel.id if responsavel_compativel else None,

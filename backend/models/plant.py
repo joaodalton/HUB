@@ -10,6 +10,10 @@ MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', '
 
 class Plant(TenantMixin, db.Model):
     __tablename__ = 'plants'
+    __table_args__ = (
+        db.CheckConstraint("repasse_tipo IS NULL OR repasse_tipo IN ('percentual', 'valor_fixo')",
+                           name='ck_plants_repasse_tipo'),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     nome = db.Column(db.String(150), nullable=False)
@@ -51,6 +55,9 @@ class Plant(TenantMixin, db.Model):
     dia_emissao_usina = db.Column(db.Integer, nullable=True)
     is_coringa = db.Column(db.Boolean, nullable=False, default=False)
     concessionaria = db.Column(db.String(50), nullable=True)
+
+    repasse_tipo = db.Column(db.String(20), nullable=True)
+    repasse_valor = db.Column(db.Numeric(10, 2), nullable=True)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -121,5 +128,7 @@ class Plant(TenantMixin, db.Model):
             'reservaPercentual': float(self.reserva_percentual or 0),
             'diaEmissaoUsina': self.dia_emissao_usina,
             'isCoringa': self.is_coringa,
-            'concessionaria': self.concessionaria
+            'concessionaria': self.concessionaria,
+            'repasseTipo': self.repasse_tipo,
+            'repasseValor': float(self.repasse_valor) if self.repasse_valor is not None else None
         }

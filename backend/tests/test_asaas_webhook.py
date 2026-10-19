@@ -18,10 +18,14 @@ from config import Config
 from extensions import db
 from models.api_credential import ApiCredential
 from models.client import Client
-from models.consumer_unit import ConsumerUnit
+from models.consumer_unit import ConsumerUnit, PlantConnection
+from models.document import Document
 from models.empresa import Empresa
 from models.fatura import Fatura
+from models.fatura_concessionaria import FaturaConcessionaria
 from models.payment_webhook_event import PaymentWebhookEvent
+from models.pendencia import Pendencia
+from models.plant import Plant
 from services import asaas_webhook_service as service
 from services.asaas_client import AsaasClient, AsaasError
 try:
@@ -260,6 +264,43 @@ class AsaasWebhookTest(IsolatedTestRuntime, unittest.TestCase):
         payload.update(id='evt_delete', event='PAYMENT_DELETED')
         self.assertEqual(self.post(payload).status_code, 200)
         self.assertEqual(self.snapshot()[0][0][0], 'canceled')
+
+    def test_webhook_payment_received_cria_pendencia_pagar_concessionaria(self):
+        with self.app.app_context():
+            uc = ConsumerUnit.query.filter_by(empresa_id=1).one()
+            client = Client.query.filter_by(empresa_id=1).one()
+            documento = Document(empresa_id=1, nome='fatura.pdf')
+            db.session.add(documento)
+            db.session.flush()
+            invoice = FaturaConcessionaria(empresa_id=1, client_id=client.id, consumer_unit_id=uc.id,
+                document_id=documento.id, competencia='2026-09', arquivo_hash='hash-1')
+            db.session.add(invoice)
+            db.session.commit()
+            invoice_id = invoice.id
+
+        self.assertEqual(self.post().status_code, 200)
+
+        with self.app.app_context():
+            pendencia = Pendencia.query.filter_by(
+                fatura_concessionaria_id=invoice_id, origem='pagar_concessionaria').one()
+            self.assertEqual(pendencia.status, 'aberta')
+
+    def test_webhook_payment_received_verifica_repasse_da_usina_conectada(self):
+        with self.app.app_context():
+            uc = ConsumerUnit.query.filter_by(empresa_id=1).one()
+            plant = Plant(empresa_id=1, nome='Usina 1', uc='UC-USINA', kw_pico=Decimal('100'),
+                           repasse_tipo='valor_fixo', repasse_valor=Decimal('50.00'))
+            db.session.add(plant)
+            db.session.flush()
+            db.session.add(PlantConnection(empresa_id=1, consumer_unit_id=uc.id, plant_id=plant.id))
+            db.session.commit()
+            plant_id = plant.id
+
+        self.assertEqual(self.post().status_code, 200)
+
+        with self.app.app_context():
+            self.assertEqual(
+                Pendencia.query.filter_by(plant_id=plant_id, origem='repasse_usineiro').count(), 1)
 
     def test_api_selection_never_uses_webhook_token_or_other_environment(self):
         with self.app.app_context():

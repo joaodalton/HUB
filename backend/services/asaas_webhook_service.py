@@ -142,3 +142,13 @@ def _aplicar(fatura, event_type, payment):
         fatura.boleto_url = value
     # B1 conserva propriedade da emissao/reconciliacao e do workflow interno.
     # Nao preencher asaas_id nem liberar reservas a partir de um webhook.
+    if status == 'received':
+        from models.consumer_unit import PlantConnection
+        from services.financeiro_service import (
+            criar_pendencia_pagar_concessionaria,
+            verificar_e_criar_pendencia_repasse,
+        )
+        criar_pendencia_pagar_concessionaria(fatura)
+        conexoes = PlantConnection.query.filter_by(consumer_unit_id=fatura.consumer_unit_id).all()
+        for conexao in conexoes:
+            verificar_e_criar_pendencia_repasse(conexao.plant_id, fatura.competencia)

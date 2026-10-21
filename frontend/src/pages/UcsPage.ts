@@ -134,7 +134,19 @@ export function createUcsPage(): HTMLElement {
         { key: 'codigo', label: 'UC' },
         { key: 'usina', label: 'Usina' },
         { key: 'consumo', label: 'Consumo', align: 'right' },
-        { key: 'tipoLigacao', label: 'Ligacao' }
+        { key: 'tipoLigacao', label: 'Ligacao' },
+        { key: 'apelido', label: 'Apelido', defaultVisible: false, render: (uc) => uc.apelido || 'Não informado' },
+        { key: 'documento', label: 'CPF/CNPJ da UC', defaultVisible: false, render: (uc) => uc.documento || 'Não informado' },
+        { key: 'endereco', label: 'Endereço', defaultVisible: false, render: (uc) => uc.endereco || 'Não informado' },
+        { key: 'cep', label: 'CEP', defaultVisible: false, render: (uc) => uc.cep || 'Não informado' },
+        { key: 'concessionaria', label: 'Concessionária', defaultVisible: false, render: (uc) => uc.concessionaria || 'Não informado' },
+        { key: 'baseTarifaria', label: 'Base tarifária', defaultVisible: false },
+        { key: 'desconto', label: 'Desconto', defaultVisible: false, render: (uc) => uc.desconto || '-' },
+        { key: 'geracaoPropria', label: 'Geração própria', defaultVisible: false, render: (uc) => uc.geracaoPropria ? 'Sim' : 'Não' },
+        { key: 'diaEmissaoFatura', label: 'Dia de emissão da fatura', defaultVisible: false, render: (uc) => uc.diaEmissaoFatura != null ? String(uc.diaEmissaoFatura) : 'Não informado' },
+        { key: 'inicioContrato', label: 'Início do contrato', defaultVisible: false, render: (uc) => formatUcDate(uc.inicioContrato) },
+        { key: 'terminoContrato', label: 'Término do contrato', defaultVisible: false, render: (uc) => formatUcDate(uc.terminoContrato) },
+        { key: 'carenciaMeses', label: 'Carência (meses)', defaultVisible: false, render: (uc) => uc.carenciaMeses != null ? String(uc.carenciaMeses) : 'Não informado' }
       ]
     });
 

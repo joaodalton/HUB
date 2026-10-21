@@ -98,7 +98,12 @@ export function createClientsPage(): HTMLElement {
         { key: 'uc', label: 'UC' },
         { key: 'usina', label: 'Usina' },
         { key: 'consumo', label: 'Consumo', align: 'right' },
-        { key: 'status', label: 'Status' }
+        { key: 'status', label: 'Status' },
+        { key: 'cpf', label: 'CPF', defaultVisible: false },
+        { key: 'email', label: 'Email', defaultVisible: false },
+        { key: 'telefone', label: 'Telefone', defaultVisible: false, render: (client) => client.telefone || 'Não informado' },
+        { key: 'concessionaria', label: 'Concessionária', defaultVisible: false },
+        { key: 'dataNascimento', label: 'Data de nascimento', defaultVisible: false, render: (client) => formatClientBirthDate(client.dataNascimento) }
       ]
     });
     // `search` e `filters` vivem fora do renderContent (ver topo): recria-los a
@@ -231,6 +236,14 @@ export function createClientsPage(): HTMLElement {
       loading.hide();
     }
   }
+}
+
+// Split-based, sem Date() -- mesmo motivo documentado em ClientDetailView.ts
+// (evita o bug de "um dia antes" por causa de fuso horario).
+function formatClientBirthDate(value: string | null): string {
+  if (!value) return 'Não informado';
+  const [year, month, day] = value.split('-');
+  return `${day}/${month}/${year}`;
 }
 
 function createPagination(page: number, pages: number, total: number, onPage: (page: number) => void): HTMLElement {

@@ -1,5 +1,5 @@
 // frontend/src/pages/PlantsPage.ts
-import { createDataTable } from '../components/DataTable';
+import { attachActionsRail, createDataTable } from '../components/DataTable';
 import { createInfoField } from '../components/ClientDetailView';
 import { createIcon } from '../components/Icon';
 import { createIconStatCard, type IconStatCardProps } from '../components/IconStatCard';
@@ -214,7 +214,7 @@ export function createPlantsPage(): HTMLElement {
       const paged = pageSlice(filteredRows, page, 25); page = paged.page;
       const isFiltered = Boolean(searchTerm || statusFilter);
 
-      return createDataTable<PlantRow>({
+      const panel = createDataTable<PlantRow>({
         title: 'Usinas cadastradas',
         eyebrow: 'Listagem',
         rows: paged.rows,
@@ -233,7 +233,8 @@ export function createPlantsPage(): HTMLElement {
           renderContent();
         },
         columns: [
-          { key: 'nome', label: 'Nome da usina', render: (plant) => createIdNameCell(`#${plant.id}`, plant.nome) },
+          { key: 'id', label: 'ID', render: (plant) => `#${plant.id}` },
+          { key: 'nome', label: 'Nome da usina', render: (plant) => plant.nome },
           { key: 'kwPico', label: 'Potência (kWp)', align: 'right' },
           { key: 'ucsConectadas', label: 'UCs conectadas', align: 'right', render: (plant) => String(connectedUcs(plant.id).length) },
           {
@@ -242,9 +243,18 @@ export function createPlantsPage(): HTMLElement {
             render: (plant) => createStatusDotLabel(plantStatusLabel(plant.status), plantStatusTone(plant.status))
           },
           { key: 'cidadeUf', label: 'Cidade/UF', render: (plant) => plantLocationLabel(plant) },
-          { key: 'acao', label: 'Ação', align: 'right', render: (plant) => createRowActionButtons(plant) }
+          { key: 'endereco', label: 'Endereço', defaultVisible: false, render: (plant) => plant.endereco || 'Não informado' },
+          { key: 'dataAtivacao', label: 'Data de ativação', defaultVisible: false, render: (plant) => plant.dataAtivacao || 'Não informado' },
+          { key: 'responsavel', label: 'Responsável', defaultVisible: false, render: (plant) => plant.responsavel || 'Não informado' },
+          { key: 'marcaInversor', label: 'Marca do inversor', defaultVisible: false, render: (plant) => plant.marcaInversor || 'Não informado' },
+          { key: 'telefoneProprietario', label: 'Telefone do proprietário', defaultVisible: false, render: (plant) => plant.telefoneProprietario || 'Não informado' },
+          { key: 'emailProprietario', label: 'Email do proprietário', defaultVisible: false, render: (plant) => plant.emailProprietario || 'Não informado' },
+          { key: 'percentualConsumo', label: '% Consumo da geração', defaultVisible: false, align: 'right', render: (plant) => `${(100 - plant.percentualDisponivel).toFixed(1)}%` }
         ]
       });
+
+      attachActionsRail(panel, paged.rows, createRowActionButtons);
+      return panel;
     }
 
     function createPagination(): HTMLElement {

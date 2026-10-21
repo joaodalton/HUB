@@ -1,4 +1,4 @@
-import { createDataTable } from '../components/DataTable';
+import { attachActionsRail, createDataTable } from '../components/DataTable';
 import { createElement } from '../dom';
 import { maskCnpjInput } from '../components/cadastroFields';
 import { createFormSection, createInput } from '../components/formFields';
@@ -89,7 +89,7 @@ export function createEmpresasPage(): HTMLElement {
       const filtered = getFiltered();
       const isFiltered = Boolean(searchTerm);
 
-      return createDataTable<EmpresaRow>({
+      const panel = createDataTable<EmpresaRow>({
         title: 'Empresas cadastradas na plataforma',
         eyebrow: 'Empresas',
         rows: filtered,
@@ -102,6 +102,11 @@ export function createEmpresasPage(): HTMLElement {
           void openDetail(empresa);
         },
         columns: [
+          {
+            key: 'id',
+            label: 'ID',
+            render: (empresa) => `#${empresa.id}`
+          },
           {
             key: 'nome',
             label: 'Empresa',
@@ -122,15 +127,12 @@ export function createEmpresasPage(): HTMLElement {
             label: 'Usuários',
             align: 'right',
             render: (empresa) => String(empresa.totalUsuarios)
-          },
-          {
-            key: 'acao',
-            label: '',
-            align: 'right',
-            render: (empresa) => createRowActions(empresa)
           }
         ]
       });
+
+      attachActionsRail(panel, filtered, createRowActions);
+      return panel;
     }
 
     refresh();
@@ -149,7 +151,6 @@ export function createEmpresasPage(): HTMLElement {
   function createNomeCell(empresa: EmpresaRow): HTMLElement {
     const wrap = createElement('div', { className: 'cell-id-name' });
     wrap.append(
-      createElement('span', { className: 'cell-id-tag', textContent: `#${empresa.id}` }),
       createElement('span', { textContent: empresa.nome }),
       createElement('span', {
         className: 'cell-slug',

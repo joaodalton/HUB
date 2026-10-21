@@ -195,17 +195,91 @@
   overflow-wrap: anywhere;
 }
 
+/* Escopado -- .eyebrow global (layout.css) continua cinza nos outros usos
+   (masthead, outros paineis); so dentro da listagem fica laranja. */
+.panel-title .eyebrow {
+  color: var(--accent);
+}
+
+/* Escopado -- .icon-button global (buttons.css) continua 34x34 com fundo
+   nos botoes de acao das tabelas; so a engrenagem da listagem fica discreta. */
+.panel-title .icon-button {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: transparent;
+}
+
 .panel-title-actions {
   display: flex;
   gap: var(--space-2);
   flex-wrap: wrap;
 }
 
+.column-toggle-list {
+  display: flex;
+  flex-direction: column;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-input);
+  overflow: hidden;
+}
+
+.column-toggle-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border-soft);
+  transition: background var(--transition-fast);
+}
+
+.column-toggle-item:last-child {
+  border-bottom: none;
+}
+
+.column-toggle-item:hover {
+  background: var(--panel-hover);
+}
+
+.column-toggle-item.dragging {
+  opacity: 0.5;
+}
+
+.column-toggle-item.drag-over {
+  background: var(--accent-bg);
+  outline: 1px dashed var(--accent-border);
+  outline-offset: -1px;
+}
+
+.column-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.column-drag-handle {
+  color: var(--text-faint);
+  font-size: 14px;
+  line-height: 1;
+  cursor: grab;
+  flex-shrink: 0;
+  user-select: none;
+}
+
 .table-wrap {
   overflow-x: auto;
   min-width: 0;
   max-width: 100%;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-input);
   border: 1px solid var(--border);
 }
 
@@ -218,13 +292,13 @@
 }
 
 .data-table th {
-  text-align: left;
-  padding: 12px 14px;
+  text-align: center;
+  padding: 10px 16px;
   color: var(--text-faint);
   font-weight: 600;
-  font-size: 12px;
+  font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.03em;
   border-bottom: 1px solid var(--border);
   background: var(--panel-soft);
   white-space: nowrap;
@@ -234,11 +308,17 @@
 }
 
 .data-table td {
-  padding: 12px 14px;
+  text-align: center;
+  padding: 10px 16px;
   border-bottom: 1px solid var(--border-soft);
   color: var(--text-dim);
   white-space: nowrap;
   transition: background-color var(--transition-fast);
+}
+
+.data-table th:not(:last-child),
+.data-table td:not(:last-child) {
+  border-right: 1px solid var(--border-soft);
 }
 
 .data-table tbody tr:last-child td {
@@ -254,12 +334,95 @@
   transition: background-color var(--transition-fast);
 }
 
+/* Zebra via color-mix (mesma tecnica de --focus-ring em tokens.css) --
+   mistura --text em opacidade baixa com transparente, funciona nos dois
+   temas sem precisar de rgba fixo por tema. */
+.data-table tbody tr:nth-child(even) td {
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+}
+
 .data-table tbody tr:hover td {
   background: var(--panel-hover);
 }
 
-.align-right {
-  text-align: right;
+/* .align-right (classe ainda usada nas paginas) nao forca mais text-align:
+   right -- alinhamento padrao da tabela agora e centralizado em tudo. */
+
+/* ---------- Trilha de acoes (generica -- attachActionsRail em DataTable.ts) ---------- */
+/* Acoes saem da tabela e viram uma coluna visual paralela, fora do grid --
+   mesma altura de linha/cabecalho da tabela (padding 10px 16px, igual a
+   .data-table th/td acima), sem borda real (so transparente, pra bater a
+   altura sem "pintar" grade), scroll sincronizado via JS com o table-wrap
+   em attachActionsRail. Generico -- qualquer pagina pode chamar
+   attachActionsRail(panel, rows, renderActions) pra ganhar essa trilha. */
+
+.table-row-with-actions {
+  display: flex;
+  align-items: stretch;
+  /* Dentro do flex-column do painel (.data-panel-scroll), flex:0 1 auto
+     controla so o eixo principal (altura) -- a largura (eixo cruzado) nao
+     tem nada que a trave no espaco disponivel, entao table-wrap + rail
+     podiam somar mais que isso e estourar pra fora do painel (confirmado
+     medindo no navegador: table-wrap+rail > espaco do pai, scroll vazava
+     pra pagina). width/max-width:100% trava no espaco real disponivel,
+     forcando table-wrap a encolher de verdade e rolar por dentro. */
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.table-row-with-actions .table-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Mesmo min-height explicito da linha de acao (ver abaixo) -- escopado por
+   .table-row-with-actions pra nao engordar as linhas das tabelas que nao
+   tem trilha de acao ao lado. */
+.table-row-with-actions .data-table td {
+  min-height: 55px;
+}
+
+.table-actions-rail {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.table-actions-rail::-webkit-scrollbar {
+  display: none;
+}
+
+/* Altura do cabecalho da trilha precisa bater com o <thead> real (.data-table
+   th acima: padding 10px 16px + font-size 11px + border-bottom 1px) --
+   replicamos as mesmas propriedades de fonte/padding/borda em vez de "chutar"
+   um min-height em px, porque line-height "normal" varia por navegador/fonte;
+   o conteudo (nbsp, via JS em attachActionsRail) garante uma linha de texto
+   real do mesmo tamanho pra formar a mesma caixa, sem precisar adivinhar o
+   valor. */
+.table-actions-rail-header {
+  padding: 10px 16px;
+  font-size: 11px;
+  border-bottom: 1px solid transparent;
+}
+
+/* Altura da linha de acao precisa bater com a linha real da tabela, mas o
+   conteudo (.icon-button, 34px fixo) e mais alto que o texto/badge de uma
+   celula normal -- em vez de confiar em padding+conteudo implicito dos dois
+   lados, fixamos o mesmo min-height explicito aqui e em
+   ".table-row-with-actions .data-table td" acima: 34px (icon-button) +
+   2*10px (padding vertical) + 1px (border-bottom) = 55px. */
+.table-actions-rail-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+  min-height: 55px;
+  border-bottom: 1px solid transparent;
 }
 
 /* ---------- Clickable Row ---------- */

@@ -16,6 +16,7 @@ from models.fatura import Fatura
 from models.fatura_concessionaria import FaturaConcessionaria
 from models.user import User
 from services.asaas_client import AsaasClient, AsaasError, customer_payload, payment_payload
+from services.email_service import send_email
 from services.log_service import LogService
 from services.permission_service import can
 
@@ -71,6 +72,8 @@ def emitir(data: dict, empresa_id: int, user_id: int) -> dict:
     uc = _uc(data.get('ucId'), empresa_id)
     if not client or not uc or uc.client_id != client.id:
         raise ValueError('Cliente ou UC não encontrado.')
+    if not client.email:
+        raise ValueError('Cliente sem email cadastrado.')
     try:
         valor = Decimal(str(data.get('valor'))).quantize(Decimal('0.01'))
         vencimento = date.fromisoformat(data.get('mesVencimento', ''))
@@ -182,6 +185,17 @@ def _concluir_emissao(fatura, payment):
     db.session.commit()
     LogService.info(acao='fatura_emitida', mensagem='Fatura emitida/conciliada via ASAAS.',
                     entidade='Fatura', entidade_id=fatura.id, metadados={'faturaId': fatura.id})
+    try:
+        send_email(
+            to=fatura.client.email,
+            subject='Sua fatura está disponível',
+            html=(f'<p>Sua fatura no valor de R$ {fatura.valor} com vencimento em '
+                  f'{fatura.mes_vencimento.isoformat()} está disponível.</p>'
+                  f'<p><a href="{fatura.boleto_url}">Acessar boleto</a></p>'),
+        )
+    except Exception as exc:
+        LogService.error(acao='fatura_email_falhou', mensagem=f'Falha ao notificar cliente por email: {exc}',
+                         entidade='Fatura', entidade_id=fatura.id)
     return fatura.to_dict()
 
 

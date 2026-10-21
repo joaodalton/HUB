@@ -10,6 +10,7 @@ from models.category import Category
 from models.client import Client
 from models.consumer_unit import ConsumerUnit
 from models.document import Document
+from models.fatura_concessionaria import FaturaConcessionaria
 from models.plant import Plant
 from services.drive_service import get_drive_service
 from services.log_service import LogService
@@ -24,7 +25,15 @@ def _uc(identifier): return ConsumerUnit.query.filter_by(id=identifier, empresa_
 def _plant(identifier): return Plant.query.filter_by(id=identifier, empresa_id=g.current_empresa_id).first()
 
 def list_documents(client_id: int | None = None, uc_id: int | None = None, plant_id: int | None = None) -> list[dict]:
-    query = Document.query
+    # Documento de boleto/fatura da concessionaria (fatura_concessionaria_upload_service.py)
+    # fica salvo no storage, mas nunca deve aparecer na listagem de Documentos do cliente.
+    query = Document.query.filter(
+        Document.empresa_id == g.current_empresa_id,
+        ~Document.id.in_(
+            db.session.query(FaturaConcessionaria.document_id)
+            .filter(FaturaConcessionaria.empresa_id == g.current_empresa_id)
+        ),
+    )
 
     if client_id:
         query = query.filter(Document.client_id == client_id)

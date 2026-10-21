@@ -21,7 +21,9 @@ from flask import g  # noqa: E402
 from app import create_app  # noqa: E402
 from extensions import db  # noqa: E402
 from models.empresa import Empresa  # noqa: E402
+from models.client import Client  # noqa: E402
 from models.document import Document  # noqa: E402
+from models.fatura_concessionaria import FaturaConcessionaria  # noqa: E402
 from models.plant import Plant  # noqa: E402
 from models.user import User  # noqa: E402
 from services.document_service import create_document, list_documents  # noqa: E402
@@ -134,6 +136,22 @@ class DocumentServiceTest(IsolatedTestRuntime, unittest.TestCase):
         resultado = list_documents(plant_id=self.plant.id)
         self.assertEqual(len(resultado), 1)
         self.assertEqual(resultado[0]['plantId'], self.plant.id)
+
+    def test_list_documents_oculta_documento_de_fatura_concessionaria(self):
+        normal = create_document({'nome': 'Contrato'}, FakeFileStorage(filename='normal.pdf'))
+        oculto = create_document({'nome': 'Boleto'}, FakeFileStorage(filename='boleto.pdf'))
+        client = Client(empresa_id=1, nome='Cliente', cpf='00000000000', email='c@test.local')
+        db.session.add(client)
+        db.session.flush()
+        db.session.add(FaturaConcessionaria(
+            empresa_id=1, client_id=client.id, document_id=oculto['id'], arquivo_hash='hash-1',
+        ))
+        db.session.commit()
+
+        resultado = list_documents()
+        ids = [documento['id'] for documento in resultado]
+        self.assertIn(normal['id'], ids)
+        self.assertNotIn(oculto['id'], ids)
 
     def test_get_route_filtra_por_usina_id(self):
         create_document({'nome': 'Contrato', 'plantId': self.plant.id}, FakeFileStorage(filename='c.pdf'))

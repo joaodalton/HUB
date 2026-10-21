@@ -60,6 +60,48 @@ def create_platform_worker(data: dict) -> dict:
     return worker.to_dict()
 
 
+def update_platform_worker(user_id: int, data: dict) -> dict | None:
+    worker = User.query.filter_by(id=user_id, is_platform_worker=True).first()
+    if not worker:
+        return None
+
+    if {'is_platform_admin', 'isPlatformAdmin', 'is_platform_worker', 'isPlatformWorker'} & set(data):
+        raise ValueError('Campo nao permitido.')
+
+    if 'nome' in data:
+        nome = (data['nome'] or '').strip()
+        if not nome:
+            raise ValueError('Nome nao pode ser vazio.')
+        worker.nome = nome
+
+    if 'email' in data:
+        email = (data['email'] or '').strip().lower()
+        if not email:
+            raise ValueError('Email nao pode ser vazio.')
+        existing = User.query.filter(db.func.lower(User.email) == email, User.id != worker.id).first()
+        if existing:
+            raise ValueError('Ja existe um usuario com esse email (email e unico em toda a base, entre empresas).')
+        worker.email = email
+
+    if 'senha' in data:
+        senha = data['senha'] or ''
+        if len(senha) < 6:
+            raise ValueError('Senha precisa ter pelo menos 6 caracteres.')
+        worker.password_hash = hash_password(senha)
+        worker.session_version += 1
+
+    db.session.commit()
+
+    LogService.info(
+        acao='update',
+        mensagem=f'Funcionario da plataforma {worker.email} atualizado',
+        entidade='User',
+        metadados={'userId': worker.id},
+        empresa_id=worker.empresa_id if worker.empresa_id is not None else NO_EMPRESA,
+    )
+    return worker.to_dict()
+
+
 def revoke_platform_worker(user_id: int) -> dict | None:
     worker = User.query.filter_by(id=user_id, is_platform_worker=True).first()
     if not worker:

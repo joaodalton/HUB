@@ -7,7 +7,12 @@ nunca pode gerenciar outros workers).
 from flask import Blueprint, request
 
 from services.permission_service import require_platform_admin
-from services.platform_worker_service import create_platform_worker, list_platform_workers, revoke_platform_worker
+from services.platform_worker_service import (
+    create_platform_worker,
+    list_platform_workers,
+    revoke_platform_worker,
+    update_platform_worker,
+)
 from utils.api_response import error_response, success_response
 
 
@@ -31,6 +36,21 @@ def store():
         return error_response(str(exc), 400)
 
     return success_response(worker, 'Funcionario criado.', 201)
+
+
+@platform_worker_routes.route('/<int:user_id>', methods=['PUT'])
+@require_platform_admin()
+def update(user_id: int):
+    data = request.get_json(silent=True) or {}
+
+    try:
+        worker = update_platform_worker(user_id, data)
+    except ValueError as exc:
+        return error_response(str(exc), 400)
+
+    if not worker:
+        return error_response('Funcionario nao encontrado.', 404)
+    return success_response(worker, 'Funcionario atualizado.')
 
 
 @platform_worker_routes.route('/<int:user_id>', methods=['DELETE'])

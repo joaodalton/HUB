@@ -257,6 +257,75 @@ class PlatformWorkerManagementTest(IsolatedTestRuntime, unittest.TestCase):
                 pre_existing,
             )
 
+    def test_admin_can_update_worker_name_and_email(self):
+        client = self.app.test_client()
+        headers = self._auth(self.admin_platform_id)
+        create = client.post('/api/v1/platform/funcionarios', json={
+            'nome': 'Fiscal Update', 'email': 'fiscal-update@boundary.test', 'senha': 'senha-segura'
+        }, headers=headers)
+        worker_id = create.get_json()['data']['id']
+
+        update = client.put(f'/api/v1/platform/funcionarios/{worker_id}', json={
+            'nome': 'Fiscal Atualizado', 'email': 'fiscal-update-novo@boundary.test',
+        }, headers=headers)
+        self.assertEqual(update.status_code, 200)
+        self.assertEqual(update.get_json()['data']['nome'], 'Fiscal Atualizado')
+        self.assertEqual(update.get_json()['data']['email'], 'fiscal-update-novo@boundary.test')
+
+    def test_update_worker_password_invalidates_old_session(self):
+        client = self.app.test_client()
+        headers = self._auth(self.admin_platform_id)
+        create = client.post('/api/v1/platform/funcionarios', json={
+            'nome': 'Fiscal Senha', 'email': 'fiscal-senha@boundary.test', 'senha': 'senha-segura'
+        }, headers=headers)
+        worker_id = create.get_json()['data']['id']
+        old_worker_headers = self._auth(worker_id)
+
+        update = client.put(f'/api/v1/platform/funcionarios/{worker_id}', json={
+            'senha': 'senha-nova-123',
+        }, headers=headers)
+        self.assertEqual(update.status_code, 200)
+
+        stale = self.app.test_client().get('/api/v1/auth/me', headers=old_worker_headers)
+        self.assertEqual(stale.status_code, 401)
+
+    def test_update_worker_rejects_duplicate_email(self):
+        client = self.app.test_client()
+        headers = self._auth(self.admin_platform_id)
+        client.post('/api/v1/platform/funcionarios', json={
+            'nome': 'Fiscal Dup A', 'email': 'fiscal-dup-a@boundary.test', 'senha': 'senha-segura'
+        }, headers=headers)
+        create_b = client.post('/api/v1/platform/funcionarios', json={
+            'nome': 'Fiscal Dup B', 'email': 'fiscal-dup-b@boundary.test', 'senha': 'senha-segura'
+        }, headers=headers)
+        worker_b_id = create_b.get_json()['data']['id']
+
+        update = client.put(f'/api/v1/platform/funcionarios/{worker_b_id}', json={
+            'email': 'fiscal-dup-a@boundary.test',
+        }, headers=headers)
+        self.assertEqual(update.status_code, 400)
+
+    def test_update_worker_rejects_is_platform_admin_in_payload(self):
+        client = self.app.test_client()
+        headers = self._auth(self.admin_platform_id)
+        create = client.post('/api/v1/platform/funcionarios', json={
+            'nome': 'Fiscal Escalate', 'email': 'fiscal-escalate@boundary.test', 'senha': 'senha-segura'
+        }, headers=headers)
+        worker_id = create.get_json()['data']['id']
+
+        update = client.put(f'/api/v1/platform/funcionarios/{worker_id}', json={
+            'is_platform_admin': True,
+        }, headers=headers)
+        self.assertEqual(update.status_code, 400)
+
+    def test_worker_cannot_update_funcionarios(self):
+        client = self.app.test_client()
+        headers = self._auth(self.worker_id)
+        response = client.put(f'/api/v1/platform/funcionarios/{self.worker_id}', json={
+            'nome': 'Tentativa',
+        }, headers=headers)
+        self.assertEqual(response.status_code, 403)
+
     def test_password_reset_works_for_worker_without_company(self):
         # Worker criado sem empresa (empresa_id=None) nao pode quebrar o fluxo
         # de "esqueci minha senha": renderizar_para_empresa(None, ...) cairia

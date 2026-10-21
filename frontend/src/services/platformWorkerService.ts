@@ -23,6 +23,14 @@ export async function createPlatformWorker(data: { nome: string; email: string; 
   return response.data;
 }
 
+export async function updatePlatformWorker(id: number, data: { nome?: string; email?: string; senha?: string }): Promise<PlatformWorker> {
+  const response = await apiRequest<ApiResponse<PlatformWorker>>(`/platform/funcionarios/${id}`, {
+    method: 'PUT',
+    body: data
+  });
+  return response.data;
+}
+
 export async function revokePlatformWorker(id: number): Promise<void> {
   await apiRequest<ApiResponse<PlatformWorker>>(`/platform/funcionarios/${id}`, { method: 'DELETE' });
 }

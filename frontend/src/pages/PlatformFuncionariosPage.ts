@@ -1,4 +1,4 @@
-import { createDataTable } from '../components/DataTable';
+import { attachActionsRail, createDataTable } from '../components/DataTable';
 import { createInput } from '../components/formFields';
 import { createIcon } from '../components/Icon';
 import { createStatusBadge } from '../components/StatusBadge';
@@ -22,19 +22,21 @@ export function createPlatformFuncionariosPage(): HTMLElement {
   let failed = false;
 
   const render = (loading = false): void => {
-    tableHost.replaceChildren(createDataTable<PlatformWorker>({
+    const panel = createDataTable<PlatformWorker>({
       title: 'Funcionarios', eyebrow: 'Platform workers', rows: workers,
       state: loading ? 'loading' : failed ? 'error' : 'ready',
       stateTitle: failed ? 'Não foi possível carregar os funcionários.' : undefined,
       emptyMessage: 'Nenhum funcionário cadastrado.',
       errorAction: { label: 'Tentar novamente', onClick: load },
       columns: [
+        { key: 'id', label: 'ID', render: (worker) => `#${worker.id}` },
         { key: 'nome', label: 'Nome' },
         { key: 'email', label: 'Email' },
-        { key: 'status', label: 'Status', render: (row) => createStatusBadge(row.status, row.status.toLowerCase().startsWith('ativ') ? 'success' : 'warning') },
-        { key: 'action', label: 'Ação', align: 'right', render: createActionButtons }
+        { key: 'status', label: 'Status', render: (row) => createStatusBadge(row.status, row.status.toLowerCase().startsWith('ativ') ? 'success' : 'warning') }
       ]
-    }));
+    });
+    attachActionsRail(panel, workers, createActionButtons);
+    tableHost.replaceChildren(panel);
   };
 
   const load = (): void => {

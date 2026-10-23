@@ -4,7 +4,7 @@ import { createElement } from '../dom';
 import { useGlobalLoading } from '../hooks/useGlobalLoading';
 import { useToast } from '../hooks/useToast';
 import { createBaseLayout } from '../layouts/BaseLayout';
-import { createDataTable } from '../components/DataTable';
+import { attachActionsRail, createDataTable } from '../components/DataTable';
 import { createIconStatCard } from '../components/IconStatCard';
 import { createInvitation, getInvitations, revokeInvitation, type InvitationRow } from '../services/invitationService';
 import { getCurrentUser } from '../services/authService';
@@ -137,30 +137,47 @@ function createInvitationModal(onCreate: (data: { email: string; role: Exclude<U
 }
 
 function createUsersTable(users: UserRow[], onSetActive: (user: UserRow, ativo: boolean) => Promise<void>, onEdit: (user: UserRow, data: UserUpdatePayload) => Promise<void>): HTMLElement {
-  const wrapper = createElement('div', { className: 'table-wrap' });
-  const table = createElement('table', { className: 'data-table' });
-  const head = createElement('thead');
-  const headRow = createElement('tr');
-  ['Nome', 'E-mail', 'Papel', 'Status', 'Ações'].forEach((label) => headRow.appendChild(createElement('th', { textContent: label })));
-  head.appendChild(headRow);
-  const body = createElement('tbody');
-  users.forEach((user) => {
-    const row = createElement('tr');
-    const role = createElement('span', { className: `status-badge ${getRoleBadgeClass(user.role)}`, textContent: roleLabel(user.role) });
-    const roleCell = createElement('td'); roleCell.appendChild(role);
-    const status = createElement('td'); status.append(createElement('span', { className: user.status === 'ativo' ? 'status-dot status-success' : 'status-dot status-danger' }), document.createTextNode(user.status === 'ativo' ? ' Ativo' : ' Inativo'));
-    const actionCell = createElement('td');
-    const edit = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Editar' }); edit.addEventListener('click', () => document.body.appendChild(createUserEditModal(user, data => onEdit(user, data)))); actionCell.appendChild(edit);
+  const createUserActionButtons = (user: UserRow): HTMLElement => {
+    const wrap = createElement('div', { className: 'table-row-actions' });
+    const edit = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Editar' });
+    edit.addEventListener('click', () => document.body.appendChild(createUserEditModal(user, data => onEdit(user, data))));
+    wrap.appendChild(edit);
     if (user.role !== 'owner') {
       const nextActive = user.status !== 'ativo';
       const button = createElement('button', { className: 'secondary-button', type: 'button', textContent: nextActive ? 'Ativar' : 'Desativar' });
       button.addEventListener('click', () => void onSetActive(user, nextActive));
-      actionCell.appendChild(button);
+      wrap.appendChild(button);
     }
-    row.append(createElement('td', { textContent: user.nome }), createElement('td', { textContent: user.email }), roleCell, status, actionCell);
-    body.appendChild(row);
+    return wrap;
+  };
+
+  const panel = createDataTable<UserRow>({
+    title: 'Usuários cadastrados',
+    eyebrow: 'Acessos',
+    rows: users,
+    emptyMessage: 'Nenhum usuário encontrado.',
+    columns: [
+      { key: 'id', label: 'ID', render: (user) => `#${user.id}` },
+      { key: 'nome', label: 'Nome' },
+      { key: 'email', label: 'E-mail' },
+      { key: 'role', label: 'Papel', render: (user) => createElement('span', { className: `status-badge ${getRoleBadgeClass(user.role)}`, textContent: roleLabel(user.role) }) },
+      {
+        key: 'status',
+        label: 'Status',
+        render: (user) => {
+          const el = createElement('span');
+          el.append(
+            createElement('span', { className: user.status === 'ativo' ? 'status-dot status-success' : 'status-dot status-danger' }),
+            document.createTextNode(user.status === 'ativo' ? ' Ativo' : ' Inativo')
+          );
+          return el;
+        }
+      }
+    ]
   });
-  table.append(head, body); wrapper.appendChild(table); return wrapper;
+
+  attachActionsRail(panel, users, createUserActionButtons);
+  return panel;
 }
 
 function createUserEditModal(user: UserRow, onSave: (data: UserUpdatePayload) => Promise<void>): HTMLElement {

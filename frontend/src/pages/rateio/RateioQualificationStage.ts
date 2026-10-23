@@ -67,7 +67,7 @@ function renderQualifiedList(data: RateioQualificacao, selectedUcIds: ReadonlySe
     return list;
   }
   const header = createElement('div', { className: 'rateio-qualificado-row rateio-qualificado-header' });
-  ['Cliente', 'Consumo', '% sugerido', ''].forEach((label) => header.appendChild(createElement('span', { textContent: label })));
+  ['Cliente', 'Apelido', 'Consumo', '% sugerido', ''].forEach((label) => header.appendChild(createElement('span', { textContent: label })));
   list.appendChild(header);
   qualified.forEach((uc) => {
     const row = createElement('div', { className: 'rateio-qualificado-row' });
@@ -78,6 +78,7 @@ function renderQualifiedList(data: RateioQualificacao, selectedUcIds: ReadonlySe
     checkbox.addEventListener('change', () => onToggleUc(uc.ucId, checkbox.checked));
     row.append(
       name,
+      createElement('span', { className: 'rateio-distribuicao-texto', textContent: uc.apelido || '-' }),
       createElement('span', { textContent: uc.consumo != null ? `${formatNumber(uc.consumo)} kWh` : '-' }),
       createElement('span', { textContent: `${formatNumber(uc.percentualSugerido)}%` }),
       checkbox

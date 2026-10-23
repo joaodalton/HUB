@@ -86,6 +86,7 @@ def funil_qualificacao(plant_id: int) -> dict:
         ucs_resultado.append({
             'ucId': uc.id,
             'ucCodigo': uc.codigo,
+            'apelido': uc.apelido,
             'clienteNome': uc.client.nome if uc.client else None,
             'consumo': rm.to_float(uc.consumo),
             'percentualSugerido': rm.to_float(percentual_sugerido) if percentual_sugerido is not None else 0.0,

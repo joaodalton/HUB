@@ -254,7 +254,7 @@
 
 .rateio-qualificado-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 100px 90px 32px;
+  grid-template-columns: minmax(0, 1fr) minmax(90px, .8fr) 100px 90px 32px;
   align-items: center;
   gap: 10px;
   padding: 10px 14px;
@@ -262,6 +262,14 @@
   font-size: 12.5px;
 }
 .rateio-qualificado-row:last-child { border-bottom: none; }
+
+.rateio-qualificado-row .rateio-distribuicao-texto {
+  text-align: left;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .rateio-qualificado-header {
   background: var(--panel-soft);
@@ -290,51 +298,84 @@
 
 .rateio-distribuicao-list {
   display: grid;
-  gap: 2px;
+  gap: 1px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
+  background: var(--border-soft);
 }
 
 .rateio-distribuicao-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 100px 90px 100px;
+  grid-template-columns: minmax(0, 1fr) 110px 100px 110px;
   align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--border-soft);
-  font-size: 12.5px;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--panel);
+  font-size: 13px;
 }
-.rateio-distribuicao-row:last-child { border-bottom: none; }
+
+.rateio-distribuicao-row span { text-align: center; }
+.rateio-distribuicao-row .rateio-qualificado-nome { text-align: left; }
 
 .rateio-distribuicao-header {
   background: var(--panel-soft);
   color: var(--text-faint);
-  font-size: 10.5px;
+  font-size: 11px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.04em;
+  padding: 10px 16px;
 }
+.rateio-distribuicao-header span { text-align: center; }
+.rateio-distribuicao-header span:first-child { text-align: left; }
 
-.rateio-percentual-sugerido { color: var(--text-faint); }
+.rateio-percentual-sugerido { color: var(--text-dim); }
 
 .rateio-distribuicao-row input[type="number"] {
   width: 100%;
-  height: 30px;
+  height: 32px;
   background: var(--panel-soft);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 0 8px;
+  font-size: 13px;
+  text-align: center;
+}
+
+/* Tela 4 do wizard: 6 colunas (nome, apelido, UC, consumo, sugestão, % real)
+   + botão remover -- diferente do modal "Editar distribuição", que reusa as
+   classes .rateio-distribuicao-* com o layout de 4 colunas acima. */
+.rateio-distribuicao-list--wizard .rateio-distribuicao-row {
+  grid-template-columns: minmax(110px, 1.3fr) minmax(90px, 1fr) minmax(80px, .8fr) 90px 90px 96px 32px;
+  gap: 10px;
+  padding: 8px 14px;
   font-size: 12.5px;
 }
 
-.rateio-distribuicao-row input[type="number"] {
-  width: 100%;
-  height: 30px;
-  background: var(--panel-soft);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 0 8px;
-  font-size: 12.5px;
+.rateio-distribuicao-list--wizard .rateio-distribuicao-header { padding: 8px 14px; }
+
+.rateio-distribuicao-list--wizard .rateio-distribuicao-texto {
+  text-align: left;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rateio-distribuicao-list--wizard .rateio-distribuicao-header span:nth-child(1),
+.rateio-distribuicao-list--wizard .rateio-distribuicao-header span:nth-child(2),
+.rateio-distribuicao-list--wizard .rateio-distribuicao-header span:nth-child(3) {
+  text-align: left;
+}
+
+.rateio-distribuicao-list--wizard .rateio-distribuicao-row .icon-button {
+  width: 28px;
+  height: 28px;
+}
+.rateio-distribuicao-list--wizard .rateio-distribuicao-row .icon-button .icon {
+  width: 15px;
+  height: 15px;
 }
 
 /* ---------- Modal "Editar distribuição" (PlantDistribuicaoModal.ts) ---------- */

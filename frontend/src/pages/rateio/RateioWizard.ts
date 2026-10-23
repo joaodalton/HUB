@@ -2,7 +2,7 @@ import { createElement } from '../../dom';
 import { useGlobalLoading } from '../../hooks/useGlobalLoading';
 import { useToast } from '../../hooks/useToast';
 import { updatePlantRateioConfig, type PlantRow } from '../../services/plantService';
-import { confirmarSelecaoRateio, getQualificacao, previewRateio, type RateioQualificacao, type RateioPreview } from '../../services/rateioService';
+import { confirmarSelecaoRateio, getQualificacao, previewRateio, type RateioQualificacao, type RateioQualificacaoUc, type RateioPreview } from '../../services/rateioService';
 import { getUcs, type UcRow } from '../../services/ucsService';
 import { renderRateioDistributionStage } from './RateioDistributionStage';
 import { renderRateioPlantPicker } from './RateioPlantPicker';
@@ -47,7 +47,8 @@ export function createRateioWizard(props: Props): HTMLElement {
       return;
     }
     if (stage === 'distribuicao' && plant && qualificacao) {
-      root.replaceChildren(createStepHeader(4, 'Distribuição'), renderRateioDistributionStage({ plant, qualificacao, preview, selectedUcIds, overrides, competencia, confirming, onBack: () => { stage = 'qualificacao'; render(); }, onCompetenciaChange: (value) => { competencia = value; }, onApprove: (selecoes) => void confirmRateio(plant.id, selecoes) }));
+      const distribuicaoUcs = buildDistribuicaoUcs(plant, qualificacao, ucs);
+      root.replaceChildren(createStepHeader(4, 'Distribuição'), renderRateioDistributionStage({ plant, ucs: distribuicaoUcs, preview, selectedUcIds, overrides, competencia, confirming, onBack: () => { stage = 'qualificacao'; render(); }, onCompetenciaChange: (value) => { competencia = value; }, onApprove: (selecoes) => void confirmRateio(plant.id, selecoes), onRemove: (ucId) => { selectedUcIds.delete(ucId); overrides.delete(ucId); render(); } }));
       return;
     }
     root.replaceChildren(createStepHeader(1, 'Selecionar usina'), renderRateioPlantPicker({ plants, loadError: props.loadError, selectedPlantId, connectedUcsCount, onSelect: selectPlant }));
@@ -70,9 +71,25 @@ export function createRateioWizard(props: Props): HTMLElement {
 
   async function loadQualificacao(plantId: number): Promise<void> {
     qualificacaoLoading = true; render();
-    try { qualificacao = await getQualificacao(plantId); }
+    try {
+      qualificacao = await getQualificacao(plantId);
+      selectedUcIds.clear();
+      qualificacao.ucs.filter((uc) => uc.qualificado).forEach((uc) => selectedUcIds.add(uc.ucId));
+      ucs.filter((uc) => uc.conexoes.some((conexao) => conexao.plantId === plantId)).forEach((uc) => selectedUcIds.add(uc.id));
+    }
     catch { qualificacao = null; toast.error('Não foi possível calcular a qualificação. Verifique se o backend está rodando.'); }
     finally { qualificacaoLoading = false; render(); }
+  }
+
+  function buildDistribuicaoUcs(plant: PlantRow, data: RateioQualificacao, ucsList: UcRow[]): RateioQualificacaoUc[] {
+    const combined = new Map<number, RateioQualificacaoUc>();
+    data.ucs.filter((uc) => uc.qualificado).forEach((uc) => combined.set(uc.ucId, uc));
+    ucsList.forEach((uc) => {
+      const conexao = uc.conexoes.find((item) => item.plantId === plant.id);
+      if (!conexao) return;
+      combined.set(uc.id, { ucId: uc.id, ucCodigo: uc.codigo, apelido: uc.apelido, clienteNome: uc.clienteNome, consumo: uc.consumo, percentualSugerido: Number(conexao.percentual), qualificado: true, motivo: 'Já conectado' });
+    });
+    return Array.from(combined.values());
   }
 
   async function saveReserva(plantId: number, value: number): Promise<void> {
@@ -86,7 +103,7 @@ export function createRateioWizard(props: Props): HTMLElement {
   }
 
   function continueToDistribution(): void {
-    if (!selectedUcIds.size) { toast.error('Selecione pelo menos um cliente qualificado antes de continuar.'); return; }
+    if (!selectedUcIds.size) { toast.error('Não há clientes qualificados nem conectados para esta usina.'); return; }
     stage = 'distribuicao'; render();
   }
 

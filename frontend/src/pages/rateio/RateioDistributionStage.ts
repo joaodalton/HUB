@@ -1,11 +1,12 @@
 import { createElement } from '../../dom';
+import { createIcon } from '../../components/Icon';
 import type { PlantRow } from '../../services/plantService';
-import type { RateioQualificacao, RateioPreview } from '../../services/rateioService';
+import type { RateioQualificacaoUc, RateioPreview } from '../../services/rateioService';
 import { createFunilStat, formatNumber, round2 } from './shared';
 
 type Props = {
   plant: PlantRow;
-  qualificacao: RateioQualificacao;
+  ucs: RateioQualificacaoUc[];
   preview: RateioPreview | null;
   selectedUcIds: ReadonlySet<number>;
   overrides: Map<number, number>;
@@ -14,23 +15,24 @@ type Props = {
   onBack: () => void;
   onCompetenciaChange: (value: string) => void;
   onApprove: (selecoes: Array<{ ucId: number; percentual: number }>) => void;
+  onRemove: (ucId: number) => void;
 };
 
 export function renderRateioDistributionStage(props: Props): HTMLElement {
-  const { plant, qualificacao, preview, selectedUcIds, overrides, competencia, confirming, onBack, onCompetenciaChange, onApprove } = props;
+  const { plant, ucs, preview, selectedUcIds, overrides, competencia, confirming, onBack, onCompetenciaChange, onApprove, onRemove } = props;
   const wrapper = createElement('section', { className: 'content-stack' });
   const panel = createElement('section', { className: 'data-panel rateio-distribuicao' });
   const title = createElement('div', { className: 'panel-title' });
   const titleText = createElement('div');
   titleText.append(createElement('span', { className: 'eyebrow', textContent: plant.nome }), createElement('h2', { textContent: 'Proposta de distribuição' }));
   title.appendChild(titleText); panel.appendChild(title);
-  const selected = qualificacao.ucs.filter((uc) => selectedUcIds.has(uc.ucId));
+  const selected = ucs.filter((uc) => selectedUcIds.has(uc.ucId));
   if (!selected.length) {
     panel.appendChild(createElement('p', { className: 'empty-state small', textContent: 'Nenhum cliente selecionado. Volte pra etapa anterior.' }));
     wrapper.appendChild(panel); return wrapper;
   }
 
-  const { list, inputs } = createDistributionList(selected, overrides);
+  const { list, inputs } = createDistributionList(selected, overrides, onRemove);
   panel.append(createSummary(preview, inputs), list, createCompetenciaField(competencia, onCompetenciaChange));
   const actions = createElement('div', { className: 'form-actions' });
   const back = createElement('button', { className: 'secondary-button', textContent: '← Voltar', type: 'button' });
@@ -68,23 +70,33 @@ function createSummary(preview: RateioPreview | null, inputs: Array<{ ucId: numb
   refresh(); summary.append(energy, balance, donutStat); return summary;
 }
 
-function createDistributionList(selected: RateioQualificacao['ucs'], overrides: Map<number, number>): { list: HTMLElement; inputs: Array<{ ucId: number; input: HTMLInputElement }> } {
-  const list = createElement('div', { className: 'rateio-distribuicao-list' });
+function createDistributionList(selected: RateioQualificacaoUc[], overrides: Map<number, number>, onRemove: (ucId: number) => void): { list: HTMLElement; inputs: Array<{ ucId: number; input: HTMLInputElement }> } {
+  const list = createElement('div', { className: 'rateio-distribuicao-list rateio-distribuicao-list--wizard' });
   const header = createElement('div', { className: 'rateio-distribuicao-row rateio-distribuicao-header' });
-  ['Cliente', 'Consumo', '% sugerida', '% real'].forEach((label) => header.appendChild(createElement('span', { textContent: label })));
+  ['Cliente', 'Apelido', 'UC', 'Consumo', '% sugerida', '% real', ''].forEach((label) => header.appendChild(createElement('span', { textContent: label })));
   list.appendChild(header);
   const inputs: Array<{ ucId: number; input: HTMLInputElement }> = [];
   selected.forEach((uc) => {
     const row = createElement('div', { className: 'rateio-distribuicao-row' });
-    const name = createElement('div', { className: 'rateio-qualificado-nome' });
-    name.append(createElement('strong', { textContent: uc.clienteNome ?? uc.ucCodigo }), createElement('span', { textContent: uc.ucCodigo }));
     const input = createElement('input');
     input.type = 'number'; input.min = '0'; input.max = '100'; input.step = '0.01';
     const initial = overrides.get(uc.ucId) ?? uc.percentualSugerido;
     input.value = String(initial); overrides.set(uc.ucId, initial);
     input.addEventListener('input', () => overrides.set(uc.ucId, Number(input.value) || 0));
     inputs.push({ ucId: uc.ucId, input });
-    row.append(name, createElement('span', { textContent: uc.consumo != null ? `${formatNumber(uc.consumo)} kWh` : '-' }), createElement('span', { className: 'rateio-percentual-sugerido', textContent: `${formatNumber(uc.percentualSugerido)}%` }), input);
+    const removeButton = createElement('button', { className: 'icon-button danger', type: 'button', title: 'Remover cliente da distribuição' });
+    removeButton.setAttribute('aria-label', 'Remover cliente da distribuição');
+    removeButton.appendChild(createIcon('trash'));
+    removeButton.addEventListener('click', () => onRemove(uc.ucId));
+    row.append(
+      createElement('span', { className: 'rateio-distribuicao-texto', textContent: uc.clienteNome || uc.ucCodigo }),
+      createElement('span', { className: 'rateio-distribuicao-texto', textContent: uc.apelido || '-' }),
+      createElement('span', { className: 'rateio-distribuicao-texto', textContent: uc.ucCodigo }),
+      createElement('span', { textContent: uc.consumo != null ? `${formatNumber(uc.consumo)} kWh` : '-' }),
+      createElement('span', { className: 'rateio-percentual-sugerido', textContent: `${formatNumber(uc.percentualSugerido)}%` }),
+      input,
+      removeButton
+    );
     list.appendChild(row);
   });
   return { list, inputs };

@@ -68,6 +68,7 @@ export async function confirmarSelecaoRateio(
 export type RateioQualificacaoUc = {
   ucId: number;
   ucCodigo: string;
+  apelido: string | null;
   clienteNome: string | null;
   consumo: number | null;
   percentualSugerido: number;

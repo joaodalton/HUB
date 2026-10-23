@@ -15,14 +15,14 @@ depends_on = None
 
 
 def upgrade():
+    with op.batch_alter_table('users', schema=None) as batch_op:
+        batch_op.alter_column('empresa_id', existing_type=sa.Integer(), nullable=True)
     conn = op.get_bind()
     conn.execute(sa.text("""
         UPDATE users SET empresa_id = NULL
         WHERE (is_platform_worker = true OR is_platform_admin = true)
         AND empresa_id IN (SELECT id FROM empresas WHERE slug = 'plataforma-interna')
     """))
-    with op.batch_alter_table('users', schema=None) as batch_op:
-        batch_op.alter_column('empresa_id', existing_type=sa.Integer(), nullable=True)
 
 
 def downgrade():

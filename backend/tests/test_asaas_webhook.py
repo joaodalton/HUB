@@ -302,6 +302,37 @@ class AsaasWebhookTest(IsolatedTestRuntime, unittest.TestCase):
             self.assertEqual(
                 Pendencia.query.filter_by(plant_id=plant_id, origem='repasse_usineiro').count(), 1)
 
+    def test_webhook_payment_received_cria_as_duas_pendencias_juntas_e_idempotente(self):
+        with self.app.app_context():
+            uc = ConsumerUnit.query.filter_by(empresa_id=1).one()
+            client = Client.query.filter_by(empresa_id=1).one()
+            documento = Document(empresa_id=1, nome='fatura.pdf')
+            db.session.add(documento)
+            db.session.flush()
+            invoice = FaturaConcessionaria(empresa_id=1, client_id=client.id, consumer_unit_id=uc.id,
+                document_id=documento.id, competencia='2026-09', arquivo_hash='hash-1')
+            plant = Plant(empresa_id=1, nome='Usina 1', uc='UC-USINA', kw_pico=Decimal('100'),
+                           repasse_tipo='valor_fixo', repasse_valor=Decimal('50.00'))
+            db.session.add_all([invoice, plant])
+            db.session.flush()
+            db.session.add(PlantConnection(empresa_id=1, consumer_unit_id=uc.id, plant_id=plant.id))
+            db.session.commit()
+            invoice_id, plant_id = invoice.id, plant.id
+
+        self.assertEqual(self.post().status_code, 200)
+        with self.app.app_context():
+            pendencias = Pendencia.query.filter_by(empresa_id=1).all()
+            self.assertEqual(len(pendencias), 2)
+            self.assertEqual(
+                {(p.origem, p.fatura_concessionaria_id, p.plant_id) for p in pendencias},
+                {('pagar_concessionaria', invoice_id, None), ('repasse_usineiro', None, plant_id)})
+
+        # Redelivery do mesmo evento: dedup por PaymentWebhookEvent ja evita reaplicar _aplicar,
+        # entao nenhuma das duas pendencias deve duplicar.
+        self.assertEqual(self.post().status_code, 200)
+        with self.app.app_context():
+            self.assertEqual(Pendencia.query.filter_by(empresa_id=1).count(), 2)
+
     def test_api_selection_never_uses_webhook_token_or_other_environment(self):
         with self.app.app_context():
             with self.assertRaises(AsaasError):

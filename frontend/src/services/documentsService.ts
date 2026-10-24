@@ -24,7 +24,7 @@ export async function getDocuments(clienteId?: number, ucId?: number, plantId?: 
   const params = new URLSearchParams();
   if (clienteId) params.set('clienteId', String(clienteId));
   if (ucId) params.set('ucId', String(ucId));
-  if (plantId) params.set('usinaId', String(plantId));
+  if (plantId) params.set('plantId', String(plantId));
 
   const query = params.toString();
   const response = await apiRequest<ApiResponse<DocumentRow[]>>(`/documents${query ? `?${query}` : ''}`);

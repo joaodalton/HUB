@@ -1,5 +1,5 @@
 """create_document/list_documents aceitam plantId: documento vinculado a uma
-usina e GET /api/v1/documents?usinaId= filtra por ela, com validacao de
+usina e GET /api/v1/documents?plantId= filtra por ela, com validacao de
 tenant igual a clienteId/ucId (documento nao pode apontar pra Plant de outra
 empresa)."""
 import hashlib
@@ -158,7 +158,7 @@ class DocumentServiceTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertIn(normal['id'], ids)
         self.assertNotIn(oculto['id'], ids)
 
-    def test_get_route_filtra_por_usina_id(self):
+    def test_get_route_filtra_por_plant_id(self):
         create_document({'nome': 'Contrato', 'plantId': self.plant.id}, FakeFileStorage(filename='c.pdf'))
         create_document({'nome': 'Outro', 'plantId': None}, FakeFileStorage(filename='d.pdf'))
         db.session.commit()
@@ -166,7 +166,7 @@ class DocumentServiceTest(IsolatedTestRuntime, unittest.TestCase):
         token = generate_token(self.owner_id)
         resposta = self.app.test_client().get(
             '/api/v1/documents',
-            query_string={'usinaId': self.plant.id},
+            query_string={'plantId': self.plant.id},
             headers={'Authorization': f'Bearer {token}'},
         )
         self.assertEqual(resposta.status_code, 200)

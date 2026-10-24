@@ -15,7 +15,7 @@ class DriveFolderTest(unittest.TestCase):
             {'id': 'folder', 'mimeType': 'application/vnd.google-apps.folder', 'parents': ['nested']},
             {'id': 'nested', 'parents': ['root']},
         ]
-        self.client.files().list.return_value.execute.return_value = [{'id': 'file', 'name': 'Conta.pdf'}]
+        self.client.files().list.return_value.execute.return_value = {'files': [{'id': 'file', 'name': 'Conta.pdf'}]}
 
         self.assertEqual(self.service.list_folder('folder'), [{'id': 'file', 'name': 'Conta.pdf'}])
         self.assertIn("'folder' in parents", self.client.files().list.call_args.kwargs['q'])

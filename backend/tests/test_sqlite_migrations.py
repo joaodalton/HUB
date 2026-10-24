@@ -72,7 +72,7 @@ class SQLiteMigrationsTest(unittest.TestCase):
             self.assertEqual(upgraded.returncode, 0, upgraded.stdout + upgraded.stderr)
             with closing(sqlite3.connect(path)) as connection:
                 self.assertEqual(connection.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='payment_webhook_events'").fetchone()[0], tenant_schema)
-                self.assertEqual(connection.execute('SELECT version_num FROM alembic_version').fetchone()[0], 'x8d1f60ab5c3')
+                self.assertEqual(connection.execute('SELECT version_num FROM alembic_version').fetchone()[0], 'd4e8f2a6c1b7')
                 connection.execute("INSERT INTO platform_asaas_webhook_events (event_id,event_type,external_payment_id,payload_hash,received_at) VALUES ('evt_1','PAYMENT_RECEIVED','pay_1',?,CURRENT_TIMESTAMP)", ('a' * 64,))
                 connection.commit()
                 with self.assertRaises(sqlite3.IntegrityError):
@@ -298,6 +298,28 @@ class SQLiteMigrationsTest(unittest.TestCase):
                 columns = {row[1] for row in connection.execute('PRAGMA table_info(plants)')}
                 self.assertNotIn('repasse_tipo', columns)
 
+    def test_document_file_hash_upgrade_preserves_legacy_rows_and_downgrade_removes_column(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'document-file-hash.db'
+            result = self._flask(path, 'upgrade', 'x8d1f60ab5c3')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection, connection:
+                connection.execute("INSERT INTO empresas (id,nome,slug,status) VALUES (91,'E','doc-hash','ativa')")
+                connection.execute("INSERT INTO documents (id,nome,storage_provider,storage_ref,empresa_id) "
+                                   "VALUES (91,'legado.pdf','google_drive','file-legacy',91)")
+            result = self._flask(path, 'upgrade', 'head')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection, connection:
+                self.assertEqual(connection.execute('SELECT file_hash FROM documents WHERE id=91').fetchone(), (None,))
+                connection.execute("INSERT INTO documents (id,nome,storage_provider,storage_ref,empresa_id,file_hash) "
+                                   "VALUES (92,'novo.pdf','s3','tenants/91/documents/geral/x.pdf',91,?)", ('a' * 64,))
+            result = self._flask(path, 'downgrade', 'x8d1f60ab5c3')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection:
+                columns = {row[1] for row in connection.execute('PRAGMA table_info(documents)')}
+                self.assertNotIn('file_hash', columns)
+                self.assertEqual(connection.execute('SELECT COUNT(*) FROM documents').fetchone()[0], 2)
+
     def _flask(self, database_path: Path, *args: str) -> subprocess.CompletedProcess:
         """Executa `flask db <upgrade|downgrade> [rev]` EM PROCESSO.
 
@@ -387,7 +409,7 @@ class SQLiteMigrationsTest(unittest.TestCase):
                 preview_indexes = {row[1] for row in connection.execute("PRAGMA index_list('import_previews')")}
             finally:
                 connection.close()
-            self.assertEqual(revision, 'x8d1f60ab5c3')
+            self.assertEqual(revision, 'd4e8f2a6c1b7')
             self.assertTrue({'empresa_id', 'fatura_concessionaria_id', 'fingerprint',
                              'regra_snapshot', 'entrada_normalizada', 'resultado',
                              'valor_final'}.issubset(snapshot_columns))
@@ -550,7 +572,7 @@ class SQLiteMigrationsTest(unittest.TestCase):
                     'SELECT empresa_id,titulo,fatura_concessionaria_id FROM pendencias WHERE id=91'
                 ).fetchone(), (91, 'Existente', None))
                 self.assertEqual(connection.execute('SELECT version_num FROM alembic_version').fetchone()[0],
-                                 'x8d1f60ab5c3')
+                                 'd4e8f2a6c1b7')
 
     def test_fatura_concessionaria_downgrade_preserves_source_records(self):
         with tempfile.TemporaryDirectory() as folder:

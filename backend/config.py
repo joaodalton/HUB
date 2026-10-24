@@ -77,6 +77,8 @@ class Config:
     ))
     # 100 MiB por arquivo ANEEL; limite exclusivo desta rota, em bytes.
     REGULATORY_TARIFF_MAX_BYTES = int(os.getenv('REGULATORY_TARIFF_MAX_BYTES', str(100 * 1024 * 1024)))
+    # Documento geral (cliente/UC/usina) enviado pra S3; limite exclusivo desta rota, em bytes.
+    DOCUMENT_MAX_BYTES = int(os.getenv('DOCUMENT_MAX_BYTES', str(20 * 1024 * 1024)))
     REGULATORY_TARIFF_TEMP_DIR = os.getenv('REGULATORY_TARIFF_TEMP_DIR', '')
     REGULATORY_TARIFF_MAX_ROWS = int(os.getenv('REGULATORY_TARIFF_MAX_ROWS', '100000'))
     REGULATORY_TARIFF_PREVIEW_TTL_MINUTES = int(os.getenv('REGULATORY_TARIFF_PREVIEW_TTL_MINUTES', '20'))

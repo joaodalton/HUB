@@ -25,6 +25,7 @@ from models.document import Document
 from models.empresa import Empresa
 from models.fatura_concessionaria import FaturaConcessionaria
 from models.google_account import GoogleAccount
+from models.setting import Setting
 from models.user import User
 from services import fatura_concessionaria_upload_service as upload_service
 from services import drive_service
@@ -199,6 +200,10 @@ class FaturaConcessionariaUploadTest(IsolatedTestRuntime, unittest.TestCase):
                 empresa_id=1, nome='Platform', email='platform@a.test', password_hash='x',
                 role='viewer', is_platform_admin=True,
             ))
+            # POST /api/v1/documents (upload de documento geral, nao de fatura) usa o
+            # fluxo pre-existente (Drive) nesta suite; o padrao da empresa passou a ser
+            # 's3' (STORAGE-2) -- fixa explicitamente pra nao mudar o comportamento testado aqui.
+            db.session.add(Setting(empresa_id=1, chave='document_storage_provider', valor='google_drive'))
             db.session.commit()
             cls.user_ids = {
                 user.email: user.id for user in db.session.execute(db.select(User)).scalars()

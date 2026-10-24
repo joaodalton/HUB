@@ -25,6 +25,7 @@ from models.client import Client  # noqa: E402
 from models.document import Document  # noqa: E402
 from models.fatura_concessionaria import FaturaConcessionaria  # noqa: E402
 from models.plant import Plant  # noqa: E402
+from models.setting import Setting  # noqa: E402
 from models.user import User  # noqa: E402
 from services.document_service import create_document, list_documents  # noqa: E402
 from utils.auth import generate_token  # noqa: E402
@@ -87,7 +88,11 @@ class DocumentServiceTest(IsolatedTestRuntime, unittest.TestCase):
             db.session.flush()
             owner = User(empresa_id=empresa_a.id, nome='Owner', email='owner@document-service.test',
                           password_hash='x', role='owner')
-            db.session.add(owner)
+            # Esta suite exercita o fluxo pre-existente (Drive); o padrao
+            # da empresa passou a ser 's3' (STORAGE-2) -- fixa explicitamente
+            # 'google_drive' pra nao mudar o comportamento testado aqui.
+            db.session.add_all([owner, Setting(
+                empresa_id=empresa_a.id, chave='document_storage_provider', valor='google_drive')])
             db.session.commit()
             cls.owner_id = owner.id
             cls.empresa_b_id = empresa_b.id

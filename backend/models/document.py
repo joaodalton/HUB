@@ -19,6 +19,8 @@ class Document(TenantMixin, db.Model):
     storage_provider = db.Column(db.String(30), nullable=False, default='local')
     storage_ref = db.Column(db.String(500), nullable=True)
     mime_type = db.Column(db.String(100), nullable=True)
+    # SHA-256 do conteudo; nulo pra documento legado (Drive/local) sem hash calculado.
+    file_hash = db.Column(db.String(64), nullable=True)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

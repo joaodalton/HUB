@@ -1,4 +1,6 @@
 # backend/routes/document_routes.py
+from io import BytesIO
+
 from flask import Blueprint, g, redirect, request, send_file, url_for
 
 from models.fatura_concessionaria import FaturaConcessionaria
@@ -9,9 +11,12 @@ from services.document_service import (
     delete_document,
     get_document,
     list_documents,
+    load_s3_document,
     rename_document,
     resolve_file_path
 )
+from services.log_service import LogService
+from services.object_storage import ObjectStorageError
 from services.permission_service import require_permission
 from utils.api_response import error_response, success_response
 
@@ -139,7 +144,17 @@ def download(document_id: int):
         invoice = FaturaConcessionaria.query.filter_by(
             empresa_id=g.current_empresa_id, document_id=document.id).first()
         if invoice is None:
-            return error_response('Documento nao encontrado.', 404)
+            if document.storage_provider != 's3':
+                return error_response('Documento nao encontrado.', 404)
+            # Documento geral no mesmo storage das faturas, sem vinculo com
+            # FaturaConcessionaria -- stream autenticado via backend, sem presigned URL.
+            try:
+                data, filename = load_s3_document(document)
+            except (ObjectStorageError, ValueError):
+                return error_response('Armazenamento de documentos indisponivel.', 503)
+            LogService.info(acao='download', mensagem=f'Documento {document.id} baixado', entidade='Document')
+            return send_file(BytesIO(data), mimetype=document.mime_type or 'application/octet-stream',
+                              as_attachment=True, download_name=filename)
         if g.current_user.is_platform_admin:
             selected = getattr(g, 'platform_view_empresa_id', None)
             if selected != document.empresa_id:

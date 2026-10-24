@@ -38,6 +38,7 @@ SETTINGS_KEYS_WHITELIST = frozenset({
     'show_company_name',
     'custom_css',
     'google_drive_root_folder_id',
+    'document_storage_provider',
 
     # === RATEIO ===
     'rateioBufferHabilitado',
@@ -75,6 +76,20 @@ SETTINGS_KEYS_WHITELIST = frozenset({
 })
 
 SENSITIVE_SETTINGS = frozenset({'resend_api_key'})
+
+DOCUMENT_STORAGE_PROVIDERS = frozenset({'s3', 'google_drive'})
+
+
+def get_document_storage_provider() -> str:
+    """Provider de storage pra upload de documento geral (cliente/UC/usina) da empresa atual.
+
+    Padrao 's3' quando o Setting nao existe ou tem valor invalido -- nunca cai
+    silenciosamente pro Drive por erro de configuracao.
+    """
+    setting = Setting.query.filter_by(chave='document_storage_provider').first()
+    if setting and setting.valor in DOCUMENT_STORAGE_PROVIDERS:
+        return setting.valor
+    return 's3'
 
 
 def get_all_settings() -> dict:
@@ -119,6 +134,10 @@ def update_settings(data: dict) -> dict:
             f'Chaves não permitidas: {", ".join(sorted(invalid_keys))}. '
             f'Lista de chaves válidas: {sorted(SETTINGS_KEYS_WHITELIST)}'
         )
+
+    if ('document_storage_provider' in data
+            and data['document_storage_provider'] not in DOCUMENT_STORAGE_PROVIDERS):
+        raise ValueError('document_storage_provider deve ser "s3" ou "google_drive".')
 
     # Todas as chaves são válidas — procede com a atualização
     for chave, valor in data.items():

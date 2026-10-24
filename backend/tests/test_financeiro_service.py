@@ -173,6 +173,19 @@ class FinanceiroServiceTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertEqual(pendencia.competencia, '2026-01')
         self.assertIn('valor', pendencia.metadados)
 
+    def test_verificar_e_criar_pendencia_repasse_arredonda_valor_para_centavos(self):
+        plant = Plant(empresa_id=1, nome='Usina 3b', uc='UC-USINA-3B', kw_pico=Decimal('100'),
+                       repasse_tipo='percentual', repasse_valor=Decimal('33.335'))
+        db.session.add(plant)
+        db.session.flush()
+        db.session.add(PlantConnection(empresa_id=1, consumer_unit_id=self.uc.id, plant_id=plant.id))
+        db.session.commit()
+
+        verificar_e_criar_pendencia_repasse(plant.id, '2026-01')
+        pendencia = Pendencia.query.filter_by(plant_id=plant.id, origem=ORIGEM_REPASSE_USINEIRO).one()
+        # calcular_repasse retorna 33.335 (100 * 33.335 / 100); congelado deve arredondar para 33.34 (ROUND_HALF_UP).
+        self.assertEqual(pendencia.metadados['valor'], '33.34')
+
     def test_verificar_e_criar_pendencia_repasse_idempotente(self):
         plant = Plant(empresa_id=1, nome='Usina 4', uc='UC-USINA-4', kw_pico=Decimal('100'),
                        repasse_tipo='valor_fixo', repasse_valor=Decimal('50.00'))

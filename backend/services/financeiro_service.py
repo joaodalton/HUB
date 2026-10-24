@@ -1,6 +1,6 @@
 # backend/services/financeiro_service.py
 from datetime import datetime
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 
 from sqlalchemy.exc import IntegrityError
@@ -182,7 +182,7 @@ def verificar_e_criar_pendencia_repasse(plant_id: int, competencia: str) -> None
                     f'Todas as UCs conectadas a usina {plant.nome} pagaram na competencia '
                     f'{competencia}; repasse ao usineiro pendente.'
                 ),
-                metadados={'valor': str(valor)},
+                metadados={'valor': str(valor.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))},
             ))
             db.session.flush()
     except IntegrityError:

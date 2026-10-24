@@ -103,6 +103,16 @@ class FinanceiroRoutesTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertFalse(any(c['clienteId'] == 20 for c in body['porCliente']))
         self.assertFalse(any(u['usinaId'] == 20 for u in body['porUsina']))
 
+    def test_dashboard_rejeita_competencia_com_formato_invalido(self):
+        response = self.client.get('/api/v1/financeiro/dashboard?competencia=2026-10-01',
+                                   headers=self.headers(1))
+        self.assertEqual(response.status_code, 400)
+
+    def test_dashboard_aceita_competencia_bem_formada(self):
+        response = self.client.get('/api/v1/financeiro/dashboard?competencia=2026-10',
+                                   headers=self.headers(1))
+        self.assertEqual(response.status_code, 200)
+
     def test_dashboard_requer_permissao_financeiro_read(self):
         url = '/api/v1/financeiro/dashboard?competencia=2026-10'
         self.assertEqual(self.client.get(url).status_code, 401)

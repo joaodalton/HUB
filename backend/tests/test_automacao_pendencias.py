@@ -160,6 +160,30 @@ class AutomacaoPendenciasTest(IsolatedTestRuntime, unittest.TestCase):
             resultado = auto.verificar_e_criar_pendencias()
         self.assertEqual(resultado['fatura_geracao_usina'], 0)
 
+    def test_verificar_fatura_geracao_usina_clampa_dia_emissao_em_mes_curto(self):
+        self.plant.dia_emissao_usina = 31
+        db.session.commit()
+        with patch('services.automacao_service.datetime') as mock_datetime:
+            mock_datetime.utcnow.side_effect = lambda: __import__('datetime').datetime(2026, 4, 30)
+            resultado = auto.verificar_e_criar_pendencias()
+        self.assertEqual(resultado['fatura_geracao_usina'], 1)
+        pendencia = Pendencia.query.filter_by(
+            plant_id=self.plant.id, origem=auto.REGRA_FATURA_GERACAO_USINA
+        ).one()
+        self.assertEqual(pendencia.competencia, '2026-04')
+
+    def test_verificar_fatura_geracao_usina_clampa_dia_emissao_em_fevereiro(self):
+        self.plant.dia_emissao_usina = 30
+        db.session.commit()
+        with patch('services.automacao_service.datetime') as mock_datetime:
+            mock_datetime.utcnow.side_effect = lambda: __import__('datetime').datetime(2026, 2, 28)
+            resultado = auto.verificar_e_criar_pendencias()
+        self.assertEqual(resultado['fatura_geracao_usina'], 1)
+        pendencia = Pendencia.query.filter_by(
+            plant_id=self.plant.id, origem=auto.REGRA_FATURA_GERACAO_USINA
+        ).one()
+        self.assertEqual(pendencia.competencia, '2026-02')
+
     def test_verificar_repasses_pendentes_cria_pendencia_perdida_na_corrida(self):
         self.plant.repasse_tipo = 'valor_fixo'
         self.plant.repasse_valor = Decimal('50.00')

@@ -11,6 +11,7 @@ Este serviço implementa as regras automáticas descritas em PENDENCIAS.md:
 As verificações são executadas sob demanda (ao abrir a tela de Pendências
 ou via botão "Verificar agora"), sem necessidade de scheduler.
 """
+import calendar
 from datetime import datetime, timedelta
 
 from flask import g
@@ -340,8 +341,10 @@ def _verificar_fatura_geracao_usina() -> int:
 
     usinas = Plant.query.filter(Plant.dia_emissao_usina.isnot(None)).all()
 
+    ultimo_dia_mes = calendar.monthrange(hoje.year, hoje.month)[1]
+
     for plant in usinas:
-        if hoje.day < plant.dia_emissao_usina:
+        if hoje.day < min(plant.dia_emissao_usina, ultimo_dia_mes):
             continue
 
         try:

@@ -1,11 +1,15 @@
 import { createElement } from '../dom';
-import { createInput } from '../components/formFields';
+import { createInput, createSelectField } from '../components/formFields';
 import { createRegulatoryTariffModal } from '../components/RegulatoryTariffModal';
 import { type RegulatoryTariffStatus } from '../services/regulatoryTariffsService';
+import { type DocumentStorageProvider } from '../services/settingsService';
 import { createPanelHeader } from './settingsShared';
 
 // ---------- Banco de dados ----------
 export function createDatabasePanel(googleAccounts: {
+  storageProvider: DocumentStorageProvider;
+  storageProviderLoaded: boolean;
+  onSaveStorageProvider: (provider: DocumentStorageProvider) => Promise<void>;
   rootFolderId: string;
   rootFolderLoaded: boolean;
   canManage: boolean;
@@ -17,6 +21,12 @@ export function createDatabasePanel(googleAccounts: {
   onRefreshRegulatory: () => Promise<void>;
 }): HTMLElement {
   const wrapper = createElement('section', { className: 'database-provider-stack' });
+  wrapper.appendChild(createStorageProviderPanel(
+    googleAccounts.storageProvider,
+    googleAccounts.storageProviderLoaded,
+    googleAccounts.canManage,
+    googleAccounts.onSaveStorageProvider
+  ));
   wrapper.appendChild(createDriveRootFolderPanel(
     googleAccounts.rootFolderId,
     googleAccounts.rootFolderLoaded,
@@ -60,6 +70,44 @@ function formatDate(value: string | null): string {
   if (!value) return '—';
   const [year, month, day] = value.split('-');
   return `${day}/${month}/${year}`;
+}
+
+function createStorageProviderPanel(
+  provider: DocumentStorageProvider,
+  loaded: boolean,
+  canManage: boolean,
+  onSave: (provider: DocumentStorageProvider) => Promise<void>
+): HTMLElement {
+  const section = createElement('section', { className: 'database-provider-card' });
+  section.appendChild(createPanelHeader('Documentos', 'Armazenamento de documentos'));
+
+  if (!loaded) {
+    section.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Carregando configuracao...' }));
+    return section;
+  }
+
+  const providerField = createSelectField('Onde guardar os documentos', provider, [
+    { value: 's3', label: 'Nosso armazenamento (B2/S3) — recomendado' },
+    { value: 'google_drive', label: 'Minha conta Google Drive' }
+  ]);
+  providerField.select.disabled = !canManage;
+  section.appendChild(providerField.field);
+
+  if (!canManage) return section;
+
+  const saveButton = createElement('button', { textContent: 'Salvar armazenamento', type: 'button' });
+  saveButton.addEventListener('click', async () => {
+    saveButton.disabled = true;
+    saveButton.textContent = 'Salvando...';
+    try {
+      await onSave(providerField.select.value as DocumentStorageProvider);
+    } finally {
+      saveButton.disabled = false;
+      saveButton.textContent = 'Salvar armazenamento';
+    }
+  });
+  section.appendChild(saveButton);
+  return section;
 }
 
 function createDriveRootFolderPanel(

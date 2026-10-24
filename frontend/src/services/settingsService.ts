@@ -144,3 +144,17 @@ export async function saveGoogleDriveRootFolderId(rootFolderId: string): Promise
     body: { google_drive_root_folder_id: rootFolderId.trim() }
   });
 }
+
+export type DocumentStorageProvider = 's3' | 'google_drive';
+
+export async function loadDocumentStorageProvider(): Promise<DocumentStorageProvider> {
+  const response = await apiRequest<ApiResponse<Record<string, string>>>('/settings');
+  return response.data.document_storage_provider === 'google_drive' ? 'google_drive' : 's3';
+}
+
+export async function saveDocumentStorageProvider(provider: DocumentStorageProvider): Promise<void> {
+  await apiRequest<ApiResponse<Record<string, string>>>('/settings', {
+    method: 'PUT',
+    body: { document_storage_provider: provider }
+  });
+}

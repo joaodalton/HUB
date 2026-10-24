@@ -45,6 +45,7 @@ export function createSettingsPage(): HTMLElement {
   actions.loadRecentLogs();
   actions.loadRateioConfig();
   actions.loadDriveRootFolder();
+  actions.loadDocumentStorageProviderSetting();
   if (isPlatformAdmin()) actions.loadRegulatoryTariffs();
   else state.regulatoryTariffLoaded = true;
   if (canManageSettings()) actions.loadApiCredentials();
@@ -106,6 +107,9 @@ export function createSettingsPage(): HTMLElement {
 
       case 'database':
         return createDatabasePanel({
+          storageProvider: state.documentStorageProvider,
+          storageProviderLoaded: state.documentStorageProviderLoaded,
+          onSaveStorageProvider: actions.handleSaveDocumentStorageProvider,
           rootFolderId: state.driveRootFolderId,
           rootFolderLoaded: state.driveRootFolderLoaded,
           canManage: canManageSettings(),

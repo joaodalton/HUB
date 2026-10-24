@@ -1,5 +1,5 @@
 import { getEmpresaAtual, updateEmpresaAtual, type EmpresaAtual, type EmpresaAtualUpdate } from '../services/empresaService';
-import { loadSettings, loadGoogleDriveRootFolderId, saveGoogleDriveRootFolderId } from '../services/settingsService';
+import { loadSettings, loadGoogleDriveRootFolderId, saveGoogleDriveRootFolderId, loadDocumentStorageProvider, saveDocumentStorageProvider, type DocumentStorageProvider } from '../services/settingsService';
 import { activateGoogleAccount, disconnectGoogleAccount, getGoogleAccounts, type GoogleAccountRow } from '../services/googleAccountService';
 import { getRecentLogs, type LogRow } from '../services/logsService';
 import { DEFAULT_RATEIO_CONFIG, getRateioConfig, saveRateioConfig, type RateioConfig } from '../services/rateioConfigService';
@@ -29,6 +29,8 @@ export function createSettingsActions(
     empresaAtualLoadError: false,
     driveRootFolderId: '',
     driveRootFolderLoaded: false,
+    documentStorageProvider: 's3' as DocumentStorageProvider,
+    documentStorageProviderLoaded: false,
     regulatoryTariffStatus: null as RegulatoryTariffStatus | null,
     regulatoryTariffLoaded: false,
     regulatoryTariffLoadError: null as 'permission' | 'unavailable' | 'internal' | 'unknown' | null
@@ -117,6 +119,30 @@ export function createSettingsActions(
       toast.success('Pasta raiz do Google Drive salva.');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Nao foi possivel salvar a pasta raiz do Google Drive.');
+      throw error;
+    } finally {
+      renderContent();
+    }
+  }
+
+  async function loadDocumentStorageProviderSetting(): Promise<void> {
+    try {
+      state.documentStorageProvider = await loadDocumentStorageProvider();
+    } catch {
+      state.documentStorageProvider = 's3';
+    } finally {
+      state.documentStorageProviderLoaded = true;
+      renderContent();
+    }
+  }
+
+  async function handleSaveDocumentStorageProvider(provider: DocumentStorageProvider): Promise<void> {
+    try {
+      await saveDocumentStorageProvider(provider);
+      state.documentStorageProvider = provider;
+      toast.success('Armazenamento de documentos atualizado.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível salvar o armazenamento de documentos.');
       throw error;
     } finally {
       renderContent();
@@ -255,5 +281,5 @@ export function createSettingsActions(
     }
   }
 
-  return { state, actions: { loadGoogleAccounts, handleActivateAccount, handleDisconnectAccount, refreshAppearance, loadRecentLogs, loadRateioConfig, loadDriveRootFolder, handleSaveDriveRootFolderId, handleSaveRateioConfig, loadApiCredentials, loadWhatsappIntegration, handleSaveWhatsappIntegration, handleTestWhatsappIntegration, handleDeleteWhatsappIntegration, loadEmpresaAtual, handleSaveEmpresaAtual, handleCreateApiCredential, handleUpdateApiCredential, loadRegulatoryTariffs, handleTestApiCredential, handleDeleteApiCredential } };
+  return { state, actions: { loadGoogleAccounts, handleActivateAccount, handleDisconnectAccount, refreshAppearance, loadRecentLogs, loadRateioConfig, loadDriveRootFolder, handleSaveDriveRootFolderId, loadDocumentStorageProviderSetting, handleSaveDocumentStorageProvider, handleSaveRateioConfig, loadApiCredentials, loadWhatsappIntegration, handleSaveWhatsappIntegration, handleTestWhatsappIntegration, handleDeleteWhatsappIntegration, loadEmpresaAtual, handleSaveEmpresaAtual, handleCreateApiCredential, handleUpdateApiCredential, loadRegulatoryTariffs, handleTestApiCredential, handleDeleteApiCredential } };
 }

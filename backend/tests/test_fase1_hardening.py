@@ -131,6 +131,21 @@ class Fase1HardeningTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertEqual(response.get_json()['code'], 'HTTP_404')
         self.assertTrue(response.headers.get('X-Request-ID'))
 
+    # --- Metricas agregadas por rota ---------------------------------------
+    def test_request_emits_aggregated_metrics_log(self):
+        headers = {'Authorization': f'Bearer {self._token(self.owner_id)}'}
+        with self.assertLogs('hub.metrics', level='INFO') as cm:
+            response = self.app.test_client().get('/api/v1/clients', headers=headers)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(any(r.msg == 'request_metrics' for r in cm.records))
+        record = next(r for r in cm.records if r.msg == 'request_metrics')
+        self.assertEqual(record.extra['status'], 200)
+        self.assertEqual(record.extra['method'], 'GET')
+        self.assertGreaterEqual(record.extra['count'], 1)
+        self.assertIn('avgMs', record.extra)
+        self.assertIn('maxMs', record.extra)
+        self.assertEqual(record.extra['errorRate'], 0.0)
+
     # --- Drive query -------------------------------------------------------
     def test_drive_literal_escape_neutralizes_backslash_and_quote(self):
         self.assertEqual(_escape_drive_literal("O'Brien"), "O\\'Brien")

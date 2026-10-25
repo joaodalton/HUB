@@ -7,11 +7,15 @@ engoliam o traceback e o cliente recebia 500 cru ou `str(exc)`. Agora:
   devolvido no header e incluido em toda linha de log;
 - excecao nao tratada vira JSON `{error, code, requestId}` sem detalhe
   interno, com traceback no log e no Sentry;
-- `logging.getLogger(__name__)` em qualquer modulo sai formatado em JSON.
+- `logging.getLogger(__name__)` em qualquer modulo sai formatado em JSON;
+- cada requisicao tambem emite uma linha `request_metrics` com latencia e
+  agregados (count/avg/max/errorRate) por rota+status -- ver `register_metrics`.
 """
 import json
 import logging
 import sys
+import threading
+import time
 import uuid
 from datetime import datetime, timezone
 
@@ -70,6 +74,60 @@ def register_request_id(app: Flask) -> None:
         request_id = getattr(g, 'request_id', None)
         if request_id:
             response.headers[REQUEST_ID_HEADER] = request_id
+        return response
+
+
+_metrics_lock = threading.Lock()
+_metrics: dict[tuple[str, int], dict[str, float]] = {}
+
+
+def register_metrics(app: Flask) -> None:
+    """Latencia por rota e taxa de erro, sem dependencia nova (sem Prometheus/StatsD).
+
+    Agrega em memoria, por processo, chaveado por (endpoint, status): contagem
+    (throughput), duracao media/maxima em ms e taxa de erro. "Erro" aqui e
+    status >= 500 (falha do servidor), coerente com o que `register_error_handlers`
+    e o Sentry ja tratam -- 4xx e resposta esperada da API, nao incidente.
+    A cada requisicao emite uma linha `request_metrics` no log JSON existente
+    com o snapshot atual do agregado da rota.
+    shortcut: agregado reseta a cada restart/deploy e nao soma entre workers
+    (cada processo gunicorn tem o seu); suficiente para olhar latencia/erro
+    nos logs do Render sem adicionar storage novo. Se precisar de retencao
+    historica ou visao cross-worker, migrar para storage dedicado.
+    """
+    logger = logging.getLogger('hub.metrics')
+
+    @app.before_request
+    def _start_metrics_timer():
+        g.metrics_start = time.monotonic()
+
+    @app.after_request
+    def _record_metrics(response):
+        start = getattr(g, 'metrics_start', None)
+        if start is None:
+            return response
+        duration_ms = (time.monotonic() - start) * 1000
+        route = request.endpoint or request.path
+        status = response.status_code
+        key = (route, status)
+        with _metrics_lock:
+            agg = _metrics.setdefault(key, {'count': 0, 'total_ms': 0.0, 'max_ms': 0.0, 'errors': 0})
+            agg['count'] += 1
+            agg['total_ms'] += duration_ms
+            agg['max_ms'] = max(agg['max_ms'], duration_ms)
+            if status >= 500:
+                agg['errors'] += 1
+            snapshot = dict(agg)
+        logger.info('request_metrics', extra={'extra': {
+            'route': route,
+            'method': request.method,
+            'status': status,
+            'durationMs': round(duration_ms, 2),
+            'avgMs': round(snapshot['total_ms'] / snapshot['count'], 2),
+            'maxMs': round(snapshot['max_ms'], 2),
+            'count': snapshot['count'],
+            'errorRate': round(snapshot['errors'] / snapshot['count'], 4),
+        }})
         return response
 
 

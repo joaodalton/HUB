@@ -25,9 +25,10 @@ def create_app() -> Flask:
 
     app = Flask(__name__)
     app.config.from_object(Config)
-    from utils.observability import configure_logging, register_error_handlers, register_request_id
+    from utils.observability import configure_logging, register_error_handlers, register_metrics, register_request_id
     configure_logging(app)
     register_request_id(app)
+    register_metrics(app)
     register_error_handlers(app)
     # Render (e qualquer LB) termina TLS e repassa X-Forwarded-For/Proto.
     # Sem ProxyFix, remote_addr e o IP do proxy e url_scheme e http.

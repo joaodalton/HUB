@@ -18,6 +18,7 @@ tmp/
 output/
 .pytest_cache/
 backend/.pytest_cache/
+.claude/settings.local.json
 backend/debug_*.py
 backend/scripts/debug_*.py
 backend/scripts/testar_*.py

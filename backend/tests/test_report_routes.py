@@ -86,6 +86,31 @@ class ReportRoutesTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.get_json()['data'], {'driveFileId': 'abc', 'webViewLink': 'https://x'})
 
+    @patch('routes.report_routes.gerar_relatorio_arquivo')
+    def test_gerar_formato_docx_retorna_binario(self, mock_gerar_arquivo):
+        mock_gerar_arquivo.return_value = (b'conteudo-docx', 'Cadastro.docx',
+                                            'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+        response = self.client.post('/api/v1/reports/gerar', json={'tipo': 'cadastro', 'formato': 'docx'},
+                                     headers=self._login_como('owner'))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.mimetype, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+        self.assertEqual(response.data, b'conteudo-docx')
+        self.assertIn('Cadastro.docx', response.headers.get('Content-Disposition', ''))
+
+    @patch('routes.report_routes.gerar_relatorio_arquivo')
+    def test_gerar_formato_office_valor_invalido_retorna_400(self, mock_gerar_arquivo):
+        mock_gerar_arquivo.side_effect = ValueError('Tipo de relatorio invalido.')
+        response = self.client.post('/api/v1/reports/gerar', json={'tipo': 'invalido', 'formato': 'xlsx'},
+                                     headers=self._login_como('owner'))
+        self.assertEqual(response.status_code, 400)
+
+    @patch('routes.report_routes.gerar_relatorio_arquivo')
+    def test_gerar_formato_office_sem_permissao_retorna_403(self, mock_gerar_arquivo):
+        response = self.client.post('/api/v1/reports/gerar', json={'tipo': 'cadastro', 'formato': 'xlsx'},
+                                     headers=self._login_como('operator'))
+        self.assertEqual(response.status_code, 403)
+        mock_gerar_arquivo.assert_not_called()
+
 
 if __name__ == '__main__':
     unittest.main()

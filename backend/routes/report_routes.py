@@ -1,12 +1,16 @@
-from flask import Blueprint, g, request
+from io import BytesIO
+
+from flask import Blueprint, g, request, send_file
 
 from extensions import limiter
 from services.google_reports_auth import ReportAccountMissingError, ReportScopeError
 from services.permission_service import require_permission
-from services.reports_service import gerar_relatorio
+from services.reports_service import gerar_relatorio, gerar_relatorio_arquivo
 from utils.api_response import error_response, success_response
 
 report_routes = Blueprint('report_routes', __name__, url_prefix='/api/v1/reports')
+
+_FORMATOS_ARQUIVO = {'docx', 'xlsx', 'pptx'}
 
 _TIPOS = [
     {'tipo': 'cadastro', 'label': 'Cadastro'},
@@ -26,12 +30,22 @@ def tipos():
 @limiter.limit('10 per minute')
 def gerar():
     body = request.get_json(silent=True) or {}
+    tipo = body.get('tipo', '')
+    formato = body.get('formato', '')
+    competencia = body.get('competencia')
+
+    if formato in _FORMATOS_ARQUIVO:
+        try:
+            dados, filename, mimetype = gerar_relatorio_arquivo(
+                empresa_id=g.current_empresa_id, tipo=tipo, formato=formato, competencia=competencia,
+            )
+        except ValueError as exc:
+            return error_response(str(exc), 400)
+        return send_file(BytesIO(dados), mimetype=mimetype, as_attachment=True, download_name=filename)
+
     try:
         resultado = gerar_relatorio(
-            empresa_id=g.current_empresa_id,
-            tipo=body.get('tipo', ''),
-            formato=body.get('formato', ''),
-            competencia=body.get('competencia'),
+            empresa_id=g.current_empresa_id, tipo=tipo, formato=formato, competencia=competencia,
         )
     except ValueError as exc:
         return error_response(str(exc), 400)

@@ -2,9 +2,12 @@
 de destino, coleta dado via services de dominio ja existentes (zero
 duplicacao de query) e delega ao renderizador certo. _coletar_* ficam neste
 mesmo arquivo nas Tasks 5-7 (cadastro, financeiro, rateio)."""
+import re
+
 from services.drive_service import _resolve_tenant_root_folder_id
 from services.google_reports_auth import get_report_credentials
 from services.google_report_renderers import ReportTable, render_as_doc, render_as_sheet, render_as_slide
+from services.office_report_renderers import render_as_docx, render_as_pptx, render_as_xlsx
 from services.client_service import list_clients
 from services.uc_service import list_ucs
 from services.plant_service import list_plants
@@ -12,8 +15,33 @@ from services.fatura_service import listar as listar_faturas
 from services.rateio_service import list_historico as list_historico_rateio
 
 _RENDERERS = {'doc': render_as_doc, 'sheet': render_as_sheet, 'slide': render_as_slide}
+_OFFICE_RENDERERS = {'docx': render_as_docx, 'xlsx': render_as_xlsx, 'pptx': render_as_pptx}
+_OFFICE_MIMETYPES = {
+    'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+}
 _TIPOS_VALIDOS = {'cadastro', 'financeiro', 'rateio'}
 _COLETORES = {}  # populado pelas Tasks 5-7: {'cadastro': _coletar_cadastro, ...}
+
+
+def _slugify_filename(titulo: str) -> str:
+    return re.sub(r'[^A-Za-z0-9_-]+', '_', titulo).strip('_') or 'relatorio'
+
+
+def _todos(list_fn, *args, **kwargs) -> list[dict]:
+    """list_clients/list_ucs/list_plants agora paginam (page/pageSize) e
+    retornam (itens, pagination). Relatorio precisa de TODOS os registros --
+    percorre as paginas no tamanho maximo em vez de assumir lista completa
+    de uma vez."""
+    page, page_size, itens = 1, 200, []
+    while True:
+        pagina, pagination = list_fn(*args, page=page, page_size=page_size, **kwargs)
+        itens.extend(pagina)
+        if page >= pagination['pages']:
+            break
+        page += 1
+    return itens
 
 
 def _pasta_relatorios(empresa_id: int) -> str:
@@ -35,11 +63,11 @@ def _mascarar_documento(valor: str | None) -> str:
 
 def _coletar_cadastro(empresa_id: int, competencia: str | None) -> ReportTable:
     linhas = []
-    for cliente in list_clients():
+    for cliente in _todos(list_clients):
         linhas.append(['Cliente', cliente.get('nome') or '', _mascarar_documento(cliente.get('cpf'))])
-    for uc in list_ucs():
+    for uc in _todos(list_ucs):
         linhas.append(['UC', uc.get('codigo') or '', ''])
-    for usina in list_plants():
+    for usina in _todos(list_plants):
         linhas.append(['Usina', usina.get('nome') or '', ''])
     return ReportTable(title='Relatorio de Cadastro', headers=['Tipo', 'Nome', 'Documento (mascarado)'], rows=linhas)
 
@@ -96,3 +124,17 @@ def gerar_relatorio(empresa_id: int, tipo: str, formato: str, competencia: str |
     tabela = _COLETORES[tipo](empresa_id, competencia)
     resultado = _RENDERERS[formato](credentials, tabela, parent_folder_id=pasta)
     return {'driveFileId': resultado['id'], 'webViewLink': resultado['webViewLink']}
+
+
+def gerar_relatorio_arquivo(empresa_id: int, tipo: str, formato: str, competencia: str | None = None) -> tuple[bytes, str, str]:
+    """Gera o relatorio localmente (docx/xlsx/pptx), sem depender de credencial
+    Google -- reaproveita o mesmo coletor usado pelos formatos nativos."""
+    if tipo not in _TIPOS_VALIDOS:
+        raise ValueError('Tipo de relatorio invalido.')
+    if formato not in _OFFICE_RENDERERS:
+        raise ValueError('Formato invalido.')
+
+    tabela = _COLETORES[tipo](empresa_id, competencia)
+    dados = _OFFICE_RENDERERS[formato](tabela)
+    filename = f'{_slugify_filename(tabela.title)}.{formato}'
+    return dados, filename, _OFFICE_MIMETYPES[formato]

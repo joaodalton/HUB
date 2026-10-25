@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 from services import reports_service
-from services.reports_service import gerar_relatorio
+from services.reports_service import gerar_relatorio, gerar_relatorio_arquivo
 from services.google_reports_auth import ReportScopeError, ReportAccountMissingError
 
 
@@ -66,9 +66,9 @@ class ReportsServiceTest(unittest.TestCase):
     @patch('services.reports_service.list_clients')
     def test_coletar_cadastro_mascara_documento_e_monta_linhas(self, mock_clients, mock_ucs, mock_plants):
         from services.reports_service import _coletar_cadastro
-        mock_clients.return_value = [{'id': 1, 'nome': 'Cliente A', 'cpf': '123.456.789-00'}]
-        mock_ucs.return_value = [{'id': 10, 'codigo': 'UC-1', 'clientId': 1}]
-        mock_plants.return_value = [{'id': 100, 'nome': 'Usina X'}]
+        mock_clients.return_value = ([{'id': 1, 'nome': 'Cliente A', 'cpf': '123.456.789-00'}], {'page': 1, 'pageSize': 200, 'total': 1, 'pages': 1})
+        mock_ucs.return_value = ([{'id': 10, 'codigo': 'UC-1', 'clientId': 1}], {'page': 1, 'pageSize': 200, 'total': 1, 'pages': 1})
+        mock_plants.return_value = ([{'id': 100, 'nome': 'Usina X'}], {'page': 1, 'pageSize': 200, 'total': 1, 'pages': 1})
 
         tabela = _coletar_cadastro(empresa_id=1, competencia=None)
 
@@ -87,6 +87,28 @@ class ReportsServiceTest(unittest.TestCase):
 
         mock_historico.assert_called_once_with(competencia='2026-09')
         self.assertEqual(tabela.rows[0][1], 'Usina X')
+
+    def test_gerar_relatorio_arquivo_tipo_invalido_levanta_value_error(self):
+        with self.assertRaises(ValueError):
+            gerar_relatorio_arquivo(empresa_id=1, tipo='inexistente', formato='docx')
+
+    def test_gerar_relatorio_arquivo_formato_invalido_levanta_value_error(self):
+        with self.assertRaises(ValueError):
+            gerar_relatorio_arquivo(empresa_id=1, tipo='cadastro', formato='sheet')
+
+    def test_gerar_relatorio_arquivo_nao_depende_de_credencial_google(self):
+        mock_coletor = MagicMock(return_value=MagicMock(title='Cadastro', headers=['Nome'], rows=[]))
+        mock_render = MagicMock(return_value=b'bytes-xlsx')
+
+        with patch.object(reports_service, '_COLETORES', {**reports_service._COLETORES, 'cadastro': mock_coletor}), \
+                patch.object(reports_service, '_OFFICE_RENDERERS', {**reports_service._OFFICE_RENDERERS, 'xlsx': mock_render}), \
+                patch('services.reports_service.get_report_credentials') as mock_creds:
+            dados, filename, mimetype = gerar_relatorio_arquivo(empresa_id=1, tipo='cadastro', formato='xlsx')
+
+        mock_creds.assert_not_called()
+        self.assertEqual(dados, b'bytes-xlsx')
+        self.assertEqual(filename, 'Cadastro.xlsx')
+        self.assertEqual(mimetype, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 
 if __name__ == '__main__':

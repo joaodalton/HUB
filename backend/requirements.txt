@@ -16,4 +16,6 @@ pypdf
 reportlab
 resend
 openpyxl
+python-docx
+python-pptx
 boto3

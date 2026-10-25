@@ -4,9 +4,13 @@ import { useToast } from '../hooks/useToast';
 import { createBaseLayout } from '../layouts/BaseLayout';
 import { ApiRequestError } from '../services/apiClient';
 import { getGoogleAuthorizeUrl } from '../services/googleAccountService';
-import { generateReport, getReportTypes, type ReportFormat, type ReportTypeOption } from '../services/reportsService';
+import { downloadReportFile, generateReport, getReportTypes, type ReportFormat, type ReportTypeOption } from '../services/reportsService';
 
-const FORMAT_LABELS: Record<ReportFormat, string> = { doc: 'Documento (Doc)', sheet: 'Planilha (Sheet)', slide: 'Apresentação (Slides)' };
+const FORMAT_LABELS: Record<ReportFormat, string> = {
+  doc: 'Documento (Doc)', sheet: 'Planilha (Sheet)', slide: 'Apresentação (Slides)',
+  docx: 'Word (.docx)', xlsx: 'Excel (.xlsx)', pptx: 'PowerPoint (.pptx)',
+};
+const FORMATOS_ARQUIVO: ReportFormat[] = ['docx', 'xlsx', 'pptx'];
 
 export function createReportsPage(): HTMLElement {
   const content = createElement('section', { className: 'content-stack' });
@@ -65,12 +69,17 @@ export function createReportsPage(): HTMLElement {
     loading.show();
     result.replaceChildren();
     try {
-      const report = await generateReport(tipo, formato, competencia);
-      const link = createElement('a', { textContent: 'Abrir no Google' }) as HTMLAnchorElement;
-      link.href = report.webViewLink;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      result.appendChild(link);
+      if (FORMATOS_ARQUIVO.includes(formato)) {
+        await downloadReportFile(tipo, formato, competencia);
+        result.appendChild(createElement('p', { textContent: 'Arquivo baixado.' }));
+      } else {
+        const report = await generateReport(tipo, formato, competencia);
+        const link = createElement('a', { textContent: 'Abrir no Google' }) as HTMLAnchorElement;
+        link.href = report.webViewLink;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        result.appendChild(link);
+      }
     } catch (error) {
       if (error instanceof ApiRequestError && error.code === 'GOOGLE_SCOPE_MISSING') {
         const warning = createElement('p', { className: 'importacao-error', textContent: 'Sua conta Google não tem permissão de escrita suficiente para gerar relatórios.' });

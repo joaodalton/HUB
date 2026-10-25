@@ -60,7 +60,7 @@ class ReportRoutesTest(IsolatedTestRuntime, unittest.TestCase):
         response = self.client.get('/api/v1/reports/tipos', headers=self.headers(1))
         self.assertEqual(response.status_code, 200)
         tipos = {item['tipo'] for item in response.get_json()['data']}
-        self.assertEqual(tipos, {'cadastro', 'financeiro', 'rateio'})
+        self.assertEqual(tipos, {'cadastro', 'financeiro', 'rateio', 'producao'})
 
     @patch('routes.report_routes.gerar_relatorio')
     def test_gerar_sem_permissao_retorna_403(self, mock_gerar):
@@ -96,6 +96,16 @@ class ReportRoutesTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertEqual(response.mimetype, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
         self.assertEqual(response.data, b'conteudo-docx')
         self.assertIn('Cadastro.docx', response.headers.get('Content-Disposition', ''))
+
+    @patch('routes.report_routes.gerar_relatorio_arquivo')
+    def test_gerar_tipo_producao_xlsx_retorna_binario(self, mock_gerar_arquivo):
+        mock_gerar_arquivo.return_value = (b'conteudo-xlsx', 'Estimativa_de_Producao.xlsx',
+                                            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response = self.client.post('/api/v1/reports/gerar', json={'tipo': 'producao', 'formato': 'xlsx'},
+                                     headers=self._login_como('owner'))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.mimetype, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        self.assertEqual(response.data, b'conteudo-xlsx')
 
     @patch('routes.report_routes.gerar_relatorio_arquivo')
     def test_gerar_formato_office_valor_invalido_retorna_400(self, mock_gerar_arquivo):

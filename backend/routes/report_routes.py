@@ -16,6 +16,7 @@ _TIPOS = [
     {'tipo': 'cadastro', 'label': 'Cadastro'},
     {'tipo': 'financeiro', 'label': 'Financeiro'},
     {'tipo': 'rateio', 'label': 'Rateio'},
+    {'tipo': 'producao', 'label': 'Estimativa de Produção'},
 ]
 
 

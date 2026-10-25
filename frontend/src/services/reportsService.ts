@@ -1,6 +1,6 @@
 import { apiBlobWithHeaders, apiRequest, type ApiResponse } from './apiClient';
 
-export type ReportType = 'cadastro' | 'financeiro' | 'rateio';
+export type ReportType = 'cadastro' | 'financeiro' | 'rateio' | 'producao';
 export type ReportFormat = 'doc' | 'sheet' | 'slide' | 'docx' | 'xlsx' | 'pptx';
 export type ReportTypeOption = { tipo: ReportType; label: string };
 export type GeneratedReport = { driveFileId: string; webViewLink: string };

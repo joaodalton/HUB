@@ -88,6 +88,37 @@ class ReportsServiceTest(unittest.TestCase):
         mock_historico.assert_called_once_with(competencia='2026-09')
         self.assertEqual(tabela.rows[0][1], 'Usina X')
 
+    @patch('services.reports_service.list_plants')
+    def test_coletar_producao_monta_meses_e_media(self, mock_plants):
+        from services.reports_service import _coletar_producao
+        mensal = {mes: 100.0 for mes in reports_service._MESES}
+        mock_plants.return_value = ([
+            {'nome': 'Usina X', 'kwPico': 50.0, 'producaoMensal': mensal, 'producaoMedia': 100.0},
+        ], {'page': 1, 'pageSize': 200, 'total': 1, 'pages': 1})
+
+        tabela = _coletar_producao(empresa_id=1, competencia=None)
+
+        self.assertEqual(tabela.title, 'Estimativa de Produção')
+        self.assertEqual(tabela.headers[0], 'Usina')
+        self.assertEqual(tabela.headers[-1], 'Média')
+        self.assertEqual(tabela.rows[0][0], 'Usina X')
+        self.assertEqual(tabela.rows[0][1], '50.00')
+        self.assertEqual(tabela.rows[0][2], '100.00')
+        self.assertEqual(tabela.rows[0][-1], '100.00')
+
+    @patch('services.reports_service.list_plants')
+    def test_coletar_producao_usina_sem_producao_nao_quebra(self, mock_plants):
+        from services.reports_service import _coletar_producao
+        mock_plants.return_value = ([
+            {'nome': 'Usina Y', 'kwPico': 10.0, 'producaoMensal': {}, 'producaoMedia': None},
+        ], {'page': 1, 'pageSize': 200, 'total': 1, 'pages': 1})
+
+        tabela = _coletar_producao(empresa_id=1, competencia=None)
+
+        self.assertEqual(tabela.rows[0][0], 'Usina Y')
+        self.assertEqual(tabela.rows[0][2], '0.00')
+        self.assertEqual(tabela.rows[0][-1], '')
+
     def test_gerar_relatorio_arquivo_tipo_invalido_levanta_value_error(self):
         with self.assertRaises(ValueError):
             gerar_relatorio_arquivo(empresa_id=1, tipo='inexistente', formato='docx')

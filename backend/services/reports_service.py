@@ -21,7 +21,8 @@ _OFFICE_MIMETYPES = {
     'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
 }
-_TIPOS_VALIDOS = {'cadastro', 'financeiro', 'rateio'}
+_TIPOS_VALIDOS = {'cadastro', 'financeiro', 'rateio', 'producao'}
+_MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
 _COLETORES = {}  # populado pelas Tasks 5-7: {'cadastro': _coletar_cadastro, ...}
 
 
@@ -111,6 +112,27 @@ def _coletar_rateio(empresa_id: int, competencia: str | None) -> ReportTable:
 
 
 _COLETORES['rateio'] = _coletar_rateio
+
+
+def _coletar_producao(empresa_id: int, competencia: str | None) -> ReportTable:
+    linhas = []
+    for usina in _todos(list_plants):
+        mensal = usina.get('producaoMensal') or {}
+        media = usina.get('producaoMedia')
+        linhas.append([
+            usina.get('nome') or '',
+            f"{usina.get('kwPico', 0):.2f}",
+            *[f'{mensal.get(mes, 0):.2f}' for mes in _MESES],
+            f'{media:.2f}' if media is not None else '',
+        ])
+    return ReportTable(
+        title='Estimativa de Produção',
+        headers=['Usina', 'kWp', 'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez', 'Média'],
+        rows=linhas,
+    )
+
+
+_COLETORES['producao'] = _coletar_producao
 
 
 def gerar_relatorio(empresa_id: int, tipo: str, formato: str, competencia: str | None = None) -> dict:

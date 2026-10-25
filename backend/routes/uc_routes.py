@@ -1,9 +1,11 @@
 # backend/routes/uc_routes.py
 from flask import Blueprint, request
 
+from extensions import limiter
 from services.uc_service import create_uc, delete_uc, get_concessionaria_password, get_uc, list_ucs, update_uc
 from services.permission_service import require_permission, require_quota, require_role
 from utils.api_response import error_response, success_response
+from utils.pagination import get_pagination_params
 
 
 uc_routes = Blueprint('uc_routes', __name__, url_prefix='/api/v1/ucs')
@@ -12,7 +14,9 @@ uc_routes = Blueprint('uc_routes', __name__, url_prefix='/api/v1/ucs')
 @uc_routes.route('', methods=['GET'])
 @require_permission('consumer_units.read')
 def index():
-    return success_response(list_ucs())
+    page, page_size = get_pagination_params()
+    ucs, pagination = list_ucs(page=page, page_size=page_size)
+    return success_response(ucs, pagination=pagination)
 
 
 @uc_routes.route('/<int:uc_id>', methods=['GET'])
@@ -42,6 +46,7 @@ def reveal_concessionaria_password(uc_id: int):
 
 
 @uc_routes.route('', methods=['POST'])
+@limiter.limit('30 per minute')
 @require_permission('consumer_units.create')
 @require_quota('ucs')
 def store():
@@ -61,6 +66,7 @@ def store():
 
 
 @uc_routes.route('/<int:uc_id>', methods=['PUT'])
+@limiter.limit('30 per minute')
 @require_permission('consumer_units.update')
 def update(uc_id: int):
     data = request.get_json(silent=True) or {}
@@ -79,6 +85,7 @@ def update(uc_id: int):
 
 
 @uc_routes.route('/<int:uc_id>', methods=['DELETE'])
+@limiter.limit('30 per minute')
 @require_permission('consumer_units.delete')
 def destroy(uc_id: int):
     if not delete_uc(uc_id):

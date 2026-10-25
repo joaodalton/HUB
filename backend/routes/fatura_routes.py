@@ -1,5 +1,6 @@
 from flask import Blueprint, g, request
 
+from extensions import limiter
 from services.asaas_client import AsaasError
 from services.asaas_webhook_service import WebhookError, processar_webhook
 from services.platform_asaas_webhook_service import receive_platform_webhook
@@ -17,6 +18,7 @@ def index():
 
 
 @fatura_routes.route('', methods=['POST'])
+@limiter.limit('10 per minute')
 @require_permission('faturas.create')
 def store():
     try:
@@ -43,6 +45,7 @@ def detail(fatura_id: int):
 
 
 @fatura_routes.route('/<int:fatura_id>/sincronizar', methods=['POST'])
+@limiter.limit('10 per minute')
 @require_permission('faturas.create')
 def sync(fatura_id: int):
     fatura = obter(fatura_id, g.current_empresa_id)
@@ -53,6 +56,7 @@ def sync(fatura_id: int):
 
 
 @fatura_routes.route('/<int:fatura_id>/cancelar', methods=['POST'])
+@limiter.limit('10 per minute')
 @require_permission('faturas.create')
 def cancel(fatura_id: int):
     fatura = obter(fatura_id, g.current_empresa_id)

@@ -58,6 +58,30 @@ async function notifyRequiredPasswordChange(response: Response): Promise<void> {
  *  services importam daqui em vez de redeclarar (30 copias divergentes antes). */
 export type ApiResponse<T> = { success?: boolean; message?: string; data: T };
 
+/** Metadados de paginacao -- mesmo contrato ja usado por
+ *  /billing-calculations/invoices (ver billingCalculationsService.ts),
+ *  reaproveitado pelas listagens principais (clients/ucs/plants/pendencias/
+ *  users/documents). 'pagination' vem como chave irma de 'data'. */
+export type Pagination = { page: number; pageSize: number; total: number; pages: number };
+
+/** Percorre todas as paginas de um endpoint paginado e concatena -- usado
+ *  pelos consumidores que ainda precisam da lista inteira (seletores,
+ *  relatorios, calculos), sem expor paginacao pra eles. */
+export async function fetchAllPages<T>(
+  fetchPage: (page: number, pageSize: number) => Promise<{ data: T[]; pagination: Pagination }>,
+  pageSize = 200
+): Promise<T[]> {
+  let page = 1;
+  let items: T[] = [];
+  while (true) {
+    const result = await fetchPage(page, pageSize);
+    items = items.concat(result.data);
+    if (result.data.length === 0 || page >= result.pagination.pages) break;
+    page += 1;
+  }
+  return items;
+}
+
 export class NetworkError extends ApiRequestError {
   constructor(public readonly reason: unknown) {
     super(0, 'Sem conexao com o servidor. Verifique sua internet e tente de novo.');

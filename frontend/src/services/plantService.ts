@@ -1,5 +1,5 @@
 // frontend/src/services/plantService.ts
-import { apiRequest, type ApiResponse } from './apiClient';
+import { apiRequest, fetchAllPages, type ApiResponse, type Pagination } from './apiClient';
 
 export type PlantRow = {
   id: number;
@@ -54,9 +54,19 @@ export type PlantPayload = {
 };
 
 
+export type PlantsPage = { data: PlantRow[]; pagination: Pagination };
+
+export async function getPlantsPage(page = 1, pageSize = 50): Promise<PlantsPage> {
+  const response = await apiRequest<ApiResponse<PlantRow[]> & Pick<PlantsPage, 'pagination'>>(
+    `/plants?page=${page}&pageSize=${pageSize}`
+  );
+  return { data: response.data, pagination: response.pagination };
+}
+
+// Lista completa (todas as paginas) -- mantido pra quem precisa do cadastro
+// inteiro pra selecao/calculo, sem expor paginacao a esses consumidores.
 export async function getPlants(): Promise<PlantRow[]> {
-  const response = await apiRequest<ApiResponse<PlantRow[]>>('/plants');
-  return response.data;
+  return fetchAllPages((page, pageSize) => getPlantsPage(page, pageSize));
 }
 
 export async function getAvailablePlants(): Promise<PlantRow[]> {

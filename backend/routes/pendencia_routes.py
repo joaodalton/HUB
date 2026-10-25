@@ -17,6 +17,7 @@ from services.pendencia_service import (
 )
 from services.permission_service import require_permission
 from utils.api_response import error_response, success_response
+from utils.pagination import get_pagination_params
 
 
 pendencia_routes = Blueprint('pendencia_routes', __name__, url_prefix='/api/v1/pendencias')
@@ -33,7 +34,9 @@ def index():
         'responsavelId': request.args.get('responsavelId', type=int),
         'clienteId': request.args.get('clienteId', type=int)
     }
-    return success_response(list_pendencias(filtros))
+    page, page_size = get_pagination_params()
+    pendencias, pagination = list_pendencias(filtros, page=page, page_size=page_size)
+    return success_response(pendencias, pagination=pagination)
 
 
 @pendencia_routes.route('/resumo', methods=['GET'])

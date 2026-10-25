@@ -6,16 +6,18 @@ from flask import g
 
 from extensions import db
 from models.plant import Plant
+from utils.pagination import paginate
 
 REPASSE_TIPOS_VALIDOS = ('percentual', 'valor_fixo')
 
 def _plant(plant_id): return Plant.query.filter_by(id=plant_id, empresa_id=g.current_empresa_id).first()
 
 
-def list_plants() -> list[dict]:
+def list_plants(page: int = 1, page_size: int = 50) -> tuple[list[dict], dict]:
     # Filtro automatico via TenantMixin (extensions.py)
-    plants = Plant.query.order_by(Plant.created_at.desc()).all()
-    return [plant.to_dict() for plant in plants]
+    query = Plant.query.order_by(Plant.created_at.desc())
+    plants, pagination = paginate(query, page, page_size)
+    return [plant.to_dict() for plant in plants], pagination
 
 
 def get_plant(plant_id: int) -> dict | None:

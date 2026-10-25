@@ -7,11 +7,12 @@ from sqlalchemy.orm import selectinload
 from extensions import db
 from models.pendencia import Pendencia, PendenciaComentario, PRIORIDADES
 from services.log_service import LogService
+from utils.pagination import paginate
 
 def _tenant(model, identifier): return model.query.filter_by(id=identifier, empresa_id=g.current_empresa_id).first()
 
 
-def list_pendencias(filtros: dict) -> list[dict]:
+def list_pendencias(filtros: dict, page: int = 1, page_size: int = 50) -> tuple[list[dict], dict]:
     # Filtro automatico via TenantMixin (extensions.py)
     query = Pendencia.query.options(
         selectinload(Pendencia.client),
@@ -37,8 +38,9 @@ def list_pendencias(filtros: dict) -> list[dict]:
     if filtros.get('clienteId'):
         query = query.filter(Pendencia.client_id == filtros['clienteId'])
 
-    pendencias = query.order_by(Pendencia.created_at.desc()).all()
-    return [pendencia.to_dict() for pendencia in pendencias]
+    query = query.order_by(Pendencia.created_at.desc())
+    pendencias, pagination = paginate(query, page, page_size)
+    return [pendencia.to_dict() for pendencia in pendencias], pagination
 
 
 def get_pendencia(pendencia_id: int) -> dict | None:

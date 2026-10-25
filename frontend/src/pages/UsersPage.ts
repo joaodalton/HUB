@@ -8,13 +8,20 @@ import { attachActionsRail, createDataTable } from '../components/DataTable';
 import { createIconStatCard } from '../components/IconStatCard';
 import { createInvitation, getInvitations, revokeInvitation, type InvitationRow } from '../services/invitationService';
 import { getCurrentUser } from '../services/authService';
-import { createUser, deleteUser, getUsers, setUserActive, updateUser, type UserPayload, type UserRole, type UserRow, type UserUpdatePayload } from '../services/userService';
+import { createPaginationNav } from '../components/PaginationNav';
+import { readPositiveListParam, writeListState } from '../services/listState';
+import type { Pagination } from '../services/apiClient';
+import { createUser, deleteUser, getUsersPage, setUserActive, updateUser, type UserPayload, type UserRole, type UserRow, type UserUpdatePayload } from '../services/userService';
+
+const PAGE_SIZE = 50;
 
 export function createUsersPage(): HTMLElement {
   const content = createElement('section', { className: 'content-stack' });
   const toast = useToast();
   const loading = useGlobalLoading();
   let users: UserRow[] = [];
+  let pagination: Pagination = { page: 1, pageSize: PAGE_SIZE, total: 0, pages: 0 };
+  let page: number = readPositiveListParam('pagina');
   let loaded = false;
   let loadError = '';
   let activeTab: 'users' | 'invitations' = 'users';
@@ -56,14 +63,24 @@ export function createUsersPage(): HTMLElement {
       panel.appendChild(empty);
     } else panel.appendChild(createUsersTable(users, handleSetActive, handleEdit));
     const metrics = activeTab === 'users'
-      ? createUserMetrics(users)
+      ? createUserMetrics(users, pagination.total)
       : createInvitationMetrics(invitations);
-    content.replaceChildren(tabs, metrics, pageActions, panel);
+    const pager = activeTab === 'users' && loaded && !loadError
+      ? createPaginationNav(pagination, !loaded, (nextPage) => {
+          page = nextPage; writeListState({ pagina: page }); void loadUsers();
+        }, 'Páginas de usuários')
+      : null;
+    content.replaceChildren(tabs, metrics, pageActions, panel, ...(pager ? [pager] : []));
   }
 
   async function loadUsers(): Promise<void> {
     loaded = false; loadError = ''; renderContent(); loading.show();
-    try { users = await getUsers(); }
+    try {
+      const result = await getUsersPage(page, PAGE_SIZE);
+      users = result.data;
+      pagination = result.pagination;
+      page = pagination.page;
+    }
     catch (error) { users = []; loadError = error instanceof Error ? error.message : 'Tente novamente em instantes.'; }
     finally { loaded = true; loading.hide(); renderContent(); }
   }
@@ -93,10 +110,13 @@ export function createUsersPage(): HTMLElement {
   async function handleResend(invite: InvitationRow): Promise<void> { await createInvitation({ email: invite.email, role: invite.role as Exclude<UserRole, 'owner'> }); toast.success('Novo convite criado.'); await loadInvitations(); }
 }
 
-function createUserMetrics(users: UserRow[]): HTMLElement {
+// total vem da paginacao do servidor (contagem real); ativo/admin sao
+// calculados sobre a pagina carregada -- aproximacao aceitavel enquanto a
+// maioria das empresas tiver poucas dezenas de usuarios (cabe numa pagina).
+function createUserMetrics(users: UserRow[], total: number): HTMLElement {
   const grid = createElement('section', { className: 'metric-grid' });
   grid.append(
-    createIconStatCard({ icon: 'clients', chipColor: 'blue', value: String(users.length), label: 'Usuários' }),
+    createIconStatCard({ icon: 'clients', chipColor: 'blue', value: String(total), label: 'Usuários' }),
     createIconStatCard({ icon: 'check', chipColor: 'green', value: String(users.filter((user) => user.status === 'ativo').length), label: 'Acessos ativos' }),
     createIconStatCard({ icon: 'lock', chipColor: 'purple', value: String(users.filter((user) => user.role === 'owner' || user.role === 'admin').length), label: 'Administradores' })
   );

@@ -1,9 +1,11 @@
 # backend/routes/user_routes.py
 from flask import Blueprint, g, request
 
+from extensions import limiter
 from services.permission_service import require_permission, require_quota
 from services.user_service import create_user, delete_user, list_users, set_user_active, update_user
 from utils.api_response import error_response, success_response
+from utils.pagination import get_pagination_params
 
 
 user_routes = Blueprint('user_routes', __name__, url_prefix='/api/v1/users')
@@ -12,10 +14,13 @@ user_routes = Blueprint('user_routes', __name__, url_prefix='/api/v1/users')
 @user_routes.route('', methods=['GET'])
 @require_permission('users.read')
 def index():
-    return success_response(list_users(g.current_empresa_id))
+    page, page_size = get_pagination_params()
+    users, pagination = list_users(g.current_empresa_id, page=page, page_size=page_size)
+    return success_response(users, pagination=pagination)
 
 
 @user_routes.route('', methods=['POST'])
+@limiter.limit('30 per minute')
 @require_permission('users.create')
 @require_quota('usuarios')
 def store():
@@ -30,6 +35,7 @@ def store():
 
 
 @user_routes.route('/<int:user_id>', methods=['PUT'])
+@limiter.limit('30 per minute')
 @require_permission('users.update')
 def update(user_id: int):
     try:
@@ -44,6 +50,7 @@ def update(user_id: int):
 
 
 @user_routes.route('/<int:user_id>', methods=['DELETE'])
+@limiter.limit('30 per minute')
 @require_permission('users.delete')
 def destroy(user_id: int):
     try:
@@ -56,6 +63,7 @@ def destroy(user_id: int):
 
 
 @user_routes.route('/<int:user_id>/ativo', methods=['PUT'])
+@limiter.limit('30 per minute')
 @require_permission('users.deactivate', 'users.reactivate')
 def update_active(user_id: int):
     data = request.get_json(silent=True) or {}

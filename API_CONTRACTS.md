@@ -85,6 +85,12 @@ Os `POST /clients`, `POST /ucs`, `POST /plants` e `POST /users` retornam `403` c
 ```
 `details` só aparece quando o backend manda explicitamente; a maioria dos erros só tem `error`.
 
+**Paginação server-side** (`utils/pagination.py`): `GET /clients`, `GET /ucs`, `GET /plants`, `GET /pendencias`, `GET /users` e `GET /documents` aceitam `page` (padrão `1`) e `pageSize` (padrão `50`, máximo `200`) como query params — mesmo nome e mesmo formato de metadados já usados por `GET /billing-calculations/invoices`. `data` continua sendo o array de itens da página (não muda de formato); os metadados vêm numa chave irmã de `data`:
+```json
+{ "success": true, "message": "OK", "data": [ /* itens da página */ ], "pagination": { "page": 1, "pageSize": 50, "total": 137, "pages": 3 } }
+```
+Quem não manda `page`/`pageSize` recebe a página 1 com até 50 itens (não a listagem inteira) — mudança de contrato: esses 6 endpoints não devolvem mais o array completo de uma vez. Consumidores que precisam do cadastro inteiro (seletores, relatórios, cálculos) devolvem para o padrão anterior percorrendo as páginas internamente (`fetchAllPages` no frontend, `_todos` em `reports_service.py`), sem expor paginação a eles.
+
 ---
 
 ## Saúde
@@ -133,7 +139,7 @@ Exige `users.update`; só acessa usuários da empresa autenticada (`User.query.f
 - `role`: `owner`/`admin`/`operator`/`financial`/`viewer`; `owner` é imutável — tentar alterá-lo retorna erro em qualquer caso (incluído o fluxo `admin → owner`).
 - `senha`: se presente, deve ter pelo menos 6 caracteres; se omitido/vazio, **não altera** a senha. Ao mudar, invalida tokens anteriores da sessão (`session_version += 1`) e o audit `password_changed` não contém o valor.
 - Retorna `404` se o usuário não pertencer à empresa autenticada.
-- `GET /users` e `POST /users` seguem o contrato existente de listagem/criação (`users.read`/`users.create`).
+- `GET /users?page=&pageSize=` é paginado (ver "Convenções gerais" acima); `POST /users` segue o contrato existente de criação (`users.create`).
 - A resposta `User` nunca exposes `password_hash`.
 
 ## Convites (`/convites`)
@@ -182,8 +188,8 @@ Templates WhatsApp também retornam `metaStatus` (`draft`, `pending`, `approved`
 
 Todas exigem token.
 
-### `GET /clients`
-`data` = array de `Client`:
+### `GET /clients?page=&pageSize=`
+Paginado (ver "Convenções gerais" acima): `data` = array de `Client` da página pedida; `pagination` traz os metadados. `data` = array de `Client`:
 ```json
 {
   "id": 1, "nome": "", "cpf": "", "email": "", "telefone": "",
@@ -227,8 +233,8 @@ Sem body. Apaga cliente e cascade de UCs/documentos vinculados. 404 se não exis
 
 CRUD avulso — a mesma lógica de campos e conexões (`apply_uc_fields`/`sync_connections` em `services/uc_service.py`) é reaproveitada quando a UC vem aninhada dentro de `/clients`.
 
-### `GET /ucs`
-`data` = array de `ConsumerUnit`:
+### `GET /ucs?page=&pageSize=`
+Paginado (ver "Convenções gerais" acima). `data` = array de `ConsumerUnit`:
 ```json
 {
   "id": 1, "clienteId": 1, "clienteNome": "",
@@ -274,8 +280,8 @@ Sem body. Cascade nas conexões. 404 se não existir.
 
 ## Usinas (`/plants`)
 
-### `GET /plants`
-`data` = array de `Plant`:
+### `GET /plants?page=&pageSize=`
+Paginado (ver "Convenções gerais" acima). `data` = array de `Plant`:
 ```json
 {
   "id": 1, "nome": "", "uc": "", "kwPico": 0.0,
@@ -317,8 +323,8 @@ Sucesso (201): `data` = `Category`. Erro: 400 (nome faltando), 409 (nome já exi
 
 ## Documentos (`/documents`)
 
-### `GET /documents?clienteId=&ucId=`
-Ambos filtros opcionais e combináveis. `data` = array de `Document`:
+### `GET /documents?clienteId=&ucId=&plantId=&page=&pageSize=`
+Filtros opcionais e combináveis. Paginado (ver "Convenções gerais" acima). `data` = array de `Document`:
 ```json
 {
   "id": 1, "nome": "", "clienteId": 1, "ucId": null,
@@ -418,8 +424,8 @@ Fila única com `tipo` discriminando `pendencia` (tarefa manual), `alerta` (avis
 **Categorias válidas** (mesma lista pros 3 tipos hoje): `Financeiro`, `Documentos`, `UCs`, `Usinas`, `Sistema`, `Mensagens`.
 **Prioridades**: `baixa`, `media`, `alta`, `critica`. **Status**: `aberta`, `resolvida`, `cancelada`.
 
-### `GET /pendencias?tipo=&categoria=&origem=&status=&prioridade=&responsavelId=&clienteId=`
-Todos os filtros opcionais e combináveis. `data` = array de `Pendencia`:
+### `GET /pendencias?tipo=&categoria=&origem=&status=&prioridade=&responsavelId=&clienteId=&page=&pageSize=`
+Todos os filtros opcionais e combináveis. Paginado (ver "Convenções gerais" acima). `data` = array de `Pendencia`:
 ```json
 {
   "id": 1, "tipo": "pendencia", "categoria": "Financeiro", "origem": "Manual",
@@ -575,6 +581,22 @@ Body: `{ "plantId": number }`. Baixa do Google Drive o Termo de Adesão de cada 
 Se o Google Drive/OAuth estiver indisponível, retorna 503 com mensagem clara; isso não invalida um formulário PDF já gerado.
 
 CNPJ e Estatuto **não têm rota própria** — são `Document` normais (ver `GET /empresas/documentos` e `GET /documents/<id>/download`), cadastrados uma vez em Configurações.
+
+---
+
+## Relatórios (`/reports`)
+
+Gera relatório (Cadastro, Financeiro ou Rateio) a partir de dado já existente no sistema. Requer `reports.read` (owner/admin/financial).
+
+### `GET /reports/tipos`
+`data` = array `{ "tipo": "cadastro"|"financeiro"|"rateio", "label": string }`.
+
+### `POST /reports/gerar`
+Body: `{ "tipo": "cadastro"|"financeiro"|"rateio", "formato": "doc"|"sheet"|"slide"|"docx"|"xlsx"|"pptx", "competencia"?: "AAAA-MM" }` (`competencia` só é usado pelos tipos `financeiro`/`rateio`, ignorado em `cadastro`). Rate limit `10/min`.
+
+- `formato` em `doc`/`sheet`/`slide`: gera um Google Doc/Sheet/Slide nativo na conta Google conectada da empresa (escopo `drive.file`). `data` = `{ "driveFileId": string, "webViewLink": string }`, status 201. Erros: 404 `GOOGLE_ACCOUNT_MISSING` se não há conta Google conectada; 409 `GOOGLE_SCOPE_MISSING` (com `details.missingScopes`) se a conta não tem o escopo necessário.
+- `formato` em `docx`/`xlsx`/`pptx`: gera o arquivo **localmente**, sem depender de conta Google/Drive. **Resposta binária** (`application/vnd.openxmlformats-officedocument.wordprocessingml.document`, `.spreadsheetml.sheet` ou `.presentationml.presentation`, respectivamente), `Content-Disposition: attachment` com nome do relatório.
+- `tipo`/`formato` inválidos: 400.
 
 ---
 

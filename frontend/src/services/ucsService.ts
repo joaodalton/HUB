@@ -1,5 +1,5 @@
 // frontend/src/services/ucService.ts
-import { apiRequest, type ApiResponse } from './apiClient';
+import { apiRequest, fetchAllPages, type ApiResponse, type Pagination } from './apiClient';
 import type { PlantConnection } from './clientsService';
 
 export type UcRow = {
@@ -49,9 +49,19 @@ export type UcPayload = {
 };
 
 
+export type UcsPage = { data: UcRow[]; pagination: Pagination };
+
+export async function getUcsPage(page = 1, pageSize = 50): Promise<UcsPage> {
+  const response = await apiRequest<ApiResponse<UcRow[]> & Pick<UcsPage, 'pagination'>>(
+    `/ucs?page=${page}&pageSize=${pageSize}`
+  );
+  return { data: response.data, pagination: response.pagination };
+}
+
+// Lista completa (todas as paginas) -- mantido pra quem precisa do cadastro
+// inteiro pra selecao/calculo, sem expor paginacao a esses consumidores.
 export async function getUcs(): Promise<UcRow[]> {
-  const response = await apiRequest<ApiResponse<UcRow[]>>('/ucs');
-  return response.data;
+  return fetchAllPages((page, pageSize) => getUcsPage(page, pageSize));
 }
 
 export async function createUc(data: UcPayload): Promise<UcRow> {

@@ -1,4 +1,4 @@
-import { apiBlob, apiRequest, apiUpload, type ApiResponse } from './apiClient';
+import { apiBlob, apiRequest, apiUpload, fetchAllPages, type ApiResponse, type Pagination } from './apiClient';
 
 export type DocumentRow = {
   id: number;
@@ -20,15 +20,34 @@ export type CategoryRow = {
 };
 
 
-export async function getDocuments(clienteId?: number, ucId?: number, plantId?: number): Promise<DocumentRow[]> {
-  const params = new URLSearchParams();
-  if (clienteId) params.set('clienteId', String(clienteId));
-  if (ucId) params.set('ucId', String(ucId));
-  if (plantId) params.set('plantId', String(plantId));
+type DocumentsFilter = { clienteId?: number; ucId?: number; plantId?: number };
 
+function buildDocumentsQuery(filtro: DocumentsFilter, page?: number, pageSize?: number): string {
+  const params = new URLSearchParams();
+  if (filtro.clienteId) params.set('clienteId', String(filtro.clienteId));
+  if (filtro.ucId) params.set('ucId', String(filtro.ucId));
+  if (filtro.plantId) params.set('plantId', String(filtro.plantId));
+  if (page) params.set('page', String(page));
+  if (pageSize) params.set('pageSize', String(pageSize));
   const query = params.toString();
-  const response = await apiRequest<ApiResponse<DocumentRow[]>>(`/documents${query ? `?${query}` : ''}`);
-  return response.data;
+  return query ? `?${query}` : '';
+}
+
+export type DocumentsPage = { data: DocumentRow[]; pagination: Pagination };
+
+export async function getDocumentsPage(filtro: DocumentsFilter = {}, page = 1, pageSize = 50): Promise<DocumentsPage> {
+  const response = await apiRequest<ApiResponse<DocumentRow[]> & Pick<DocumentsPage, 'pagination'>>(
+    `/documents${buildDocumentsQuery(filtro, page, pageSize)}`
+  );
+  return { data: response.data, pagination: response.pagination };
+}
+
+// Lista completa (todas as paginas) -- mantido pra quem precisa de todos os
+// documentos do filtro (ex.: painel do cliente), sem expor paginacao a
+// esses consumidores.
+export async function getDocuments(clienteId?: number, ucId?: number, plantId?: number): Promise<DocumentRow[]> {
+  const filtro: DocumentsFilter = { clienteId, ucId, plantId };
+  return fetchAllPages((page, pageSize) => getDocumentsPage(filtro, page, pageSize));
 }
 
 export async function uploadDocument(

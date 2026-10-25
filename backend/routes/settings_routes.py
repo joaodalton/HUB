@@ -1,6 +1,7 @@
 # backend/routes/settings_routes.py
 from flask import Blueprint, g, request
 
+from extensions import limiter
 from services.settings_service import get_all_settings, update_settings
 from services.drive_service import invalidate_drive_cache
 from services.permission_service import require_permission
@@ -19,6 +20,7 @@ def index():
 
 # PUT /api/v1/settings -- Body: {chave: valor, ...}. Cria ou atualiza cada chave enviada.
 @settings_routes.route('', methods=['PUT'])
+@limiter.limit('30 per minute')
 @require_permission('settings.update')
 def update():
     data = request.get_json(silent=True) or {}

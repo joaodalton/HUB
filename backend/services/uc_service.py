@@ -13,24 +13,25 @@ from services.log_service import LogService
 from services.uc_discount import parse_uc_discount
 from services.uc_code import normalize_uc_code
 from services.cad_identity import normalize_document
+from utils.pagination import paginate
 
 def _uc(uc_id): return ConsumerUnit.query.filter_by(id=uc_id, empresa_id=g.current_empresa_id).first()
 def _client(client_id): return Client.query.filter_by(id=client_id, empresa_id=g.current_empresa_id).first()
 def _plant(plant_id): return Plant.query.filter_by(id=plant_id, empresa_id=g.current_empresa_id).first()
 
 
-def list_ucs() -> list[dict]:
+def list_ucs(page: int = 1, page_size: int = 50) -> tuple[list[dict], dict]:
     # Filtro automatico via TenantMixin (extensions.py)
     # Por updated_at, nao created_at -- assim uma UC editada agora aparece no
     # topo, mesmo se foi criada ha meses. updated_at ja e mantido sozinho pelo
     # SQLAlchemy (onupdate=datetime.utcnow no model) a cada save.
-    ucs = (
+    query = (
         ConsumerUnit.query
         .options(selectinload(ConsumerUnit.client), selectinload(ConsumerUnit.conexoes).selectinload(PlantConnection.plant))
         .order_by(ConsumerUnit.updated_at.desc())
-        .all()
     )
-    return [uc.to_dict() for uc in ucs]
+    ucs, pagination = paginate(query, page, page_size)
+    return [uc.to_dict() for uc in ucs], pagination
 
 
 def get_uc(uc_id: int) -> dict | None:

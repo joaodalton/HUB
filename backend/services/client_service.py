@@ -8,22 +8,23 @@ from models.client import Client
 from models.consumer_unit import ConsumerUnit, PlantConnection
 from services.uc_service import apply_uc_fields, sync_connections, _parse_date
 from services.cad_identity import normalize_name, normalize_phone, normalize_cpf
+from utils.pagination import paginate
 
 def _client(client_id): return Client.query.filter_by(id=client_id, empresa_id=g.current_empresa_id).first()
 def _uc(uc_id): return ConsumerUnit.query.filter_by(id=uc_id, empresa_id=g.current_empresa_id).first()
 
 
-def list_clients() -> list[dict]:
+def list_clients(page: int = 1, page_size: int = 50) -> tuple[list[dict], dict]:
     # Filtro automatico via TenantMixin (extensions.py)
     # Client.to_dict() percorre ucs -> conexoes -> plant: sem eager load sao
     # 3 queries por cliente (N+1). selectinload resolve cada nivel em 1 query.
-    clients = (
+    query = (
         Client.query
         .options(selectinload(Client.ucs).selectinload(ConsumerUnit.conexoes).selectinload(PlantConnection.plant))
         .order_by(Client.created_at.desc())
-        .all()
     )
-    return [client.to_dict() for client in clients]
+    clients, pagination = paginate(query, page, page_size)
+    return [client.to_dict() for client in clients], pagination
 
 
 def get_client(client_id: int) -> dict | None:

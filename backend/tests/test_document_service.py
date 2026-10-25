@@ -138,7 +138,7 @@ class DocumentServiceTest(IsolatedTestRuntime, unittest.TestCase):
     def test_list_documents_filtra_por_plant_id(self):
         create_document({'nome': 'Contrato', 'plantId': self.plant.id}, FakeFileStorage(filename='a.pdf'))
         create_document({'nome': 'Outro', 'plantId': None}, FakeFileStorage(filename='b.pdf'))
-        resultado = list_documents(plant_id=self.plant.id)
+        resultado, _pagination = list_documents(plant_id=self.plant.id)
         self.assertEqual(len(resultado), 1)
         self.assertEqual(resultado[0]['plantId'], self.plant.id)
 
@@ -153,7 +153,7 @@ class DocumentServiceTest(IsolatedTestRuntime, unittest.TestCase):
         ))
         db.session.commit()
 
-        resultado = list_documents()
+        resultado, _pagination = list_documents()
         ids = [documento['id'] for documento in resultado]
         self.assertIn(normal['id'], ids)
         self.assertNotIn(oculto['id'], ids)

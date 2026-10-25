@@ -1,4 +1,4 @@
-import { apiRequest, type ApiResponse } from './apiClient';
+import { apiRequest, fetchAllPages, type ApiResponse, type Pagination } from './apiClient';
 
 export type PendenciaTipo = 'pendencia' | 'alerta' | 'erro';
 export type PendenciaPrioridade = 'baixa' | 'media' | 'alta' | 'critica';
@@ -81,16 +81,32 @@ export type PendenciaPayload = {
 };
 
 
-export async function getPendencias(filtros: PendenciaFiltros = {}): Promise<PendenciaRow[]> {
+function buildPendenciaQuery(filtros: PendenciaFiltros, page?: number, pageSize?: number): string {
   const params = new URLSearchParams();
   if (filtros.tipo) params.set('tipo', filtros.tipo);
   if (filtros.categoria) params.set('categoria', filtros.categoria);
   if (filtros.status) params.set('status', filtros.status);
   if (filtros.origem) params.set('origem', filtros.origem);
-
+  if (page) params.set('page', String(page));
+  if (pageSize) params.set('pageSize', String(pageSize));
   const query = params.toString();
-  const response = await apiRequest<ApiResponse<PendenciaRow[]>>(`/pendencias${query ? `?${query}` : ''}`);
-  return response.data;
+  return query ? `?${query}` : '';
+}
+
+export type PendenciasPage = { data: PendenciaRow[]; pagination: Pagination };
+
+export async function getPendenciasPage(filtros: PendenciaFiltros = {}, page = 1, pageSize = 50): Promise<PendenciasPage> {
+  const response = await apiRequest<ApiResponse<PendenciaRow[]> & Pick<PendenciasPage, 'pagination'>>(
+    `/pendencias${buildPendenciaQuery(filtros, page, pageSize)}`
+  );
+  return { data: response.data, pagination: response.pagination };
+}
+
+// Lista completa (todas as paginas) -- mantido pra quem precisa da fila
+// inteira (dashboard, agenda, calculos), sem expor paginacao a esses
+// consumidores.
+export async function getPendencias(filtros: PendenciaFiltros = {}): Promise<PendenciaRow[]> {
+  return fetchAllPages((page, pageSize) => getPendenciasPage(filtros, page, pageSize));
 }
 
 export async function getPendenciaResumo(): Promise<PendenciaResumo> {

@@ -5,7 +5,7 @@ from flask import Blueprint, g, jsonify, request, send_file
 from sqlalchemy import and_, exists, or_, select
 from sqlalchemy.orm import selectinload
 
-from extensions import db
+from extensions import db, limiter
 from models.calculo_cobranca import BillingCalculationExecution, BillingCalculationSnapshot
 from models.client import Client
 from models.consumer_unit import ConsumerUnit, PlantConnection
@@ -253,6 +253,7 @@ def download_invoice(invoice_id):
 
 
 @billing_calculation_routes.post('/invoices/upload')
+@limiter.limit('10 per minute')
 def upload_invoice_without_client():
     from routes.client_routes import upload_concessionaria_invoice
     return upload_concessionaria_invoice(None)
@@ -265,12 +266,14 @@ def index():
 
 
 @billing_calculation_routes.post('/invoices/<int:invoice_id>/execute')
+@limiter.limit('30 per minute')
 @require_permission('billing_calculations.execute')
 def execute(invoice_id):
     return _execute(invoice_id)
 
 
 @billing_calculation_routes.post('/invoices/<int:invoice_id>/gerar-boleto')
+@limiter.limit('10 per minute')
 @require_permission('faturas.create')
 def gerar_boleto(invoice_id):
     return _gerar_boleto(invoice_id)
@@ -310,6 +313,7 @@ def platform_clients(empresa_id):
 
 
 @platform_billing_calculation_routes.post('/clients/<int:client_id>/invoices/upload')
+@limiter.limit('10 per minute')
 def platform_upload(empresa_id, client_id):
     from routes.client_routes import upload_concessionaria_invoice
     return upload_concessionaria_invoice(client_id)
@@ -327,6 +331,7 @@ def platform_download_invoice(empresa_id, invoice_id):
 
 
 @platform_billing_calculation_routes.post('/invoices/upload')
+@limiter.limit('10 per minute')
 def platform_upload_without_client(empresa_id):
     from routes.client_routes import upload_concessionaria_invoice
     return upload_concessionaria_invoice(None)
@@ -338,11 +343,13 @@ def platform_index(empresa_id):
 
 
 @platform_billing_calculation_routes.post('/invoices/<int:invoice_id>/execute')
+@limiter.limit('30 per minute')
 def platform_execute(empresa_id, invoice_id):
     return _execute(invoice_id)
 
 
 @platform_billing_calculation_routes.post('/invoices/<int:invoice_id>/gerar-boleto')
+@limiter.limit('10 per minute')
 @require_permission('faturas.create')
 def platform_gerar_boleto(empresa_id, invoice_id):
     return _gerar_boleto(invoice_id)

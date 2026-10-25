@@ -18,6 +18,7 @@ from services.drive_service import get_drive_service
 from services.log_service import LogService
 from services.object_storage import get_object_storage
 from services.settings_service import get_document_storage_provider
+from utils.pagination import paginate
 
 # Continua existindo so pra servir documentos antigos (storage_provider='local'),
 # enviados antes da troca pro Drive -- nao usar mais pra upload novo (ver
@@ -28,7 +29,10 @@ def _client(identifier): return Client.query.filter_by(id=identifier, empresa_id
 def _uc(identifier): return ConsumerUnit.query.filter_by(id=identifier, empresa_id=g.current_empresa_id).first()
 def _plant(identifier): return Plant.query.filter_by(id=identifier, empresa_id=g.current_empresa_id).first()
 
-def list_documents(client_id: int | None = None, uc_id: int | None = None, plant_id: int | None = None) -> list[dict]:
+def list_documents(
+    client_id: int | None = None, uc_id: int | None = None, plant_id: int | None = None,
+    page: int = 1, page_size: int = 50,
+) -> tuple[list[dict], dict]:
     # Documento de boleto/fatura da concessionaria (fatura_concessionaria_upload_service.py)
     # fica salvo no storage, mas nunca deve aparecer na listagem de Documentos do cliente.
     query = Document.query.filter(
@@ -46,8 +50,9 @@ def list_documents(client_id: int | None = None, uc_id: int | None = None, plant
     if plant_id:
         query = query.filter(Document.plant_id == plant_id)
 
-    documents = query.order_by(Document.created_at.desc()).all()
-    return [document.to_dict() for document in documents]
+    query = query.order_by(Document.created_at.desc())
+    documents, pagination = paginate(query, page, page_size)
+    return [document.to_dict() for document in documents], pagination
 
 
 def get_document(document_id: int) -> Document | None:

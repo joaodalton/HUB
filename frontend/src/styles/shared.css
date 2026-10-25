@@ -402,6 +402,9 @@
   height: 14px;
 }
 
+/* ---------- Paginacao server-side (listagens principais) ---------- */
+.list-pagination { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-2); color: var(--text-dim); }
+
 /* ---------- Responsive Table ---------- */
 @media (max-width: 640px) {
   .metric-card strong {

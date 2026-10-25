@@ -8,6 +8,7 @@ from extensions import db
 from models.user import User
 from services.log_service import LogService
 from utils.auth import hash_password
+from utils.pagination import paginate
 
 # 'owner' de proposito fora daqui -- so nasce junto com a Empresa (ver
 # scripts/criar_empresa.py). Criar usuario "normal" (Owner/Admin convidando
@@ -15,9 +16,10 @@ from utils.auth import hash_password
 VALID_ROLES = {'admin', 'operator', 'financial', 'viewer'}
 
 
-def list_users(empresa_id: int) -> list[dict]:
-    users = User.query.filter_by(empresa_id=empresa_id).order_by(User.created_at.desc()).all()
-    return [user.to_dict() for user in users]
+def list_users(empresa_id: int, page: int = 1, page_size: int = 50) -> tuple[list[dict], dict]:
+    query = User.query.filter_by(empresa_id=empresa_id).order_by(User.created_at.desc())
+    users, pagination = paginate(query, page, page_size)
+    return [user.to_dict() for user in users], pagination
 
 
 def create_user(data: dict, empresa_id: int) -> dict:

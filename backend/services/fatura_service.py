@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from flask import g
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from sqlalchemy.orm import selectinload
 
 from extensions import db
 from models.client import Client
@@ -233,7 +234,12 @@ def gerar_boleto_concessionaria(fatura_concessionaria_id: int, empresa_id: int, 
 
 
 def listar(empresa_id: int, filtros: dict) -> list[dict]:
-    query = Fatura.query.filter_by(empresa_id=empresa_id)
+    # Fatura.to_dict() acessa client.nome e consumer_unit.codigo: sem eager
+    # load sao 2 queries extras por fatura (N+1). selectinload resolve em 1
+    # query por relationship, independente do numero de faturas.
+    query = Fatura.query.filter_by(empresa_id=empresa_id).options(
+        selectinload(Fatura.client), selectinload(Fatura.consumer_unit),
+    )
     for field, column in [('clienteId', Fatura.client_id), ('ucId', Fatura.consumer_unit_id), ('status', Fatura.asaas_status), ('competencia', Fatura.competencia)]:
         if filtros.get(field): query = query.filter(column == filtros[field])
     return [item.to_dict() for item in query.order_by(Fatura.created_at.desc()).all()]

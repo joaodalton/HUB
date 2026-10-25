@@ -6,6 +6,7 @@ import { useGlobalLoading } from '../hooks/useGlobalLoading';
 import { createBaseLayout } from '../layouts/BaseLayout';
 import { getDashboardResumo, type DashboardContagem, type DashboardPendencia, type DashboardResumo } from '../services/dashboardService';
 import { prioridadeLabel, prioridadeTone, tipoLabel } from '../services/pendenciasService';
+import { formatDate, formatDateTime } from '../utils/date';
 
 export function createDashboardPage(): HTMLElement {
   const content = createElement('section', { className: 'content-stack' });
@@ -146,14 +147,6 @@ function itemContext(item: DashboardPendencia): string {
     item.usinaNome ? `Usina: ${item.usinaNome}` : null
   ].filter((value): value is string => value !== null);
   return values.join(' · ') || 'Sem vínculo cadastrado';
-}
-
-function formatDate(value: string): string {
-  return new Date(value).toLocaleDateString('pt-BR');
-}
-
-function formatDateTime(value: string): string {
-  return new Date(value).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 }
 
 function navigate(path: string): void {

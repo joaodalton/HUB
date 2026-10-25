@@ -8,6 +8,7 @@ import {
   createWhatsappConversation, getWhatsappConversations, getWhatsappMessages, sendWhatsappText,
   type WhatsappConversation, type WhatsappMessage,
 } from '../services/whatsappService';
+import { formatDateTime } from '../utils/date';
 
 export function createMessagesPage(): HTMLElement {
   const content = createElement('section', { className: 'content-stack' });
@@ -133,4 +134,4 @@ export function createMessagesPage(): HTMLElement {
 }
 
 function canSend(): boolean { return ['owner', 'admin', 'operator'].includes(getCurrentUser()?.role ?? ''); }
-function formatDate(value: string | null): string { return value ? new Date(value).toLocaleString('pt-BR') : 'agora'; }
+function formatDate(value: string | null): string { return formatDateTime(value, 'agora'); }

@@ -4,6 +4,7 @@ import { createRegulatoryTariffModal } from '../components/RegulatoryTariffModal
 import { type RegulatoryTariffStatus } from '../services/regulatoryTariffsService';
 import { type DocumentStorageProvider } from '../services/settingsService';
 import { createPanelHeader } from './settingsShared';
+import { formatDate } from '../utils/date';
 
 // ---------- Banco de dados ----------
 export function createDatabasePanel(googleAccounts: {
@@ -64,12 +65,6 @@ function createRegulatoryTariffPanel(
   update.addEventListener('click', () => document.body.appendChild(createRegulatoryTariffModal(refresh)));
   panel.appendChild(update);
   return panel;
-}
-
-function formatDate(value: string | null): string {
-  if (!value) return '—';
-  const [year, month, day] = value.split('-');
-  return `${day}/${month}/${year}`;
 }
 
 function createStorageProviderPanel(

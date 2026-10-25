@@ -2,6 +2,7 @@ import { createElement } from '../dom';
 import type { FaturaRow } from '../services/faturasService';
 import { createModalShell } from './Modal';
 import { createStatusBadge, type StatusTone } from './StatusBadge';
+export { formatDate } from '../utils/date';
 
 export function createModal(title: string, eyebrow: string, onClose?: () => void): HTMLElement {
   const { overlay, dialog } = createModalShell(title, eyebrow, onClose);
@@ -53,6 +54,5 @@ export function createChargeCell(charges: Array<{ asaasId: string | null; asaasS
 }
 export function statusLabel(status: FaturaRow['asaasStatus']): string { return ({ pending: 'Pendente', received: 'Recebida', overdue: 'Vencida', canceled: 'Cancelada', refunded: 'Estornada' })[status]; }
 export function formatCurrency(value: string | number | null | undefined): string { return value == null ? '—' : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value)); }
-export function formatDate(value: string | null | undefined): string { return value ? new Date(`${value.slice(0, 10)}T12:00:00`).toLocaleDateString('pt-BR') : '—'; }
 export function formatReference(value: string | null): string { if (!value) return '—'; if (!/^\d{4}-\d{2}$/.test(value)) return value; const [year, month] = value.split('-'); return `${month}/${year}`; }
 export function currentMonth(): string { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`; }

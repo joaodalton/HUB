@@ -8,6 +8,7 @@ import { createPlatformLayout } from '../layouts/PlatformLayout';
 import { refreshCurrentUser } from '../services/authService';
 import { deletarEmpresa, entrarNaEmpresa, getPlatformEmpresas, type PlatformEmpresa } from '../services/platformService';
 import { invalidateSettingsCache } from '../services/settingsService';
+import { formatDate } from '../utils/date';
 
 export function createPlatformCompaniesPage(): HTMLElement {
   const content = createElement('div', { className: 'content-stack' });
@@ -89,8 +90,3 @@ export function createPlatformCompaniesPage(): HTMLElement {
 }
 
 function go(path: string): void { window.history.pushState({}, '', path); window.dispatchEvent(new PopStateEvent('popstate')); }
-function formatDate(value?: string | null): string {
-  if (!value) return '—';
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '—' : new Intl.DateTimeFormat('pt-BR').format(date);
-}

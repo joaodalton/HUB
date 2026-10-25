@@ -15,6 +15,7 @@ import {
   type BillingRule,
   type BillingRuleAssignment
 } from '../services/billingRulesService';
+import { formatDate } from '../utils/date';
 
 const METHOD_LABELS: Record<string, string> = {
   energia_compensada: 'Energia compensada',
@@ -220,11 +221,6 @@ function filterSelect(label: string, value: string, options: Array<{ value: stri
   select.addEventListener('change', () => onChange(select.value));
   field.append(createElement('span', { textContent: label }), select);
   return field;
-}
-
-function formatDate(value: string): string {
-  const [year, month, day] = value.slice(0, 10).split('-');
-  return year && month && day ? `${day}/${month}/${year}` : '—';
 }
 
 function navigate(path: string): void {

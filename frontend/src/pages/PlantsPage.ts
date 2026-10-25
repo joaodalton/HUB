@@ -1,11 +1,5 @@
 // frontend/src/pages/PlantsPage.ts
-import { attachActionsRail, createDataTable } from '../components/DataTable';
-import { createInfoField } from '../components/ClientDetailView';
-import { createIcon } from '../components/Icon';
-import { createIconStatCard, type IconStatCardProps } from '../components/IconStatCard';
 import { createPlantCard, type PlantFormData } from '../components/PlantCard';
-import { createStatusBadge } from '../components/StatusBadge';
-import { attachTooltip } from '../components/Tooltip';
 import { createImportacoesModal } from '../components/ImportacoesModal';
 import { createPlantDistribuicaoModal, type PlantDistribuicaoModalUc } from '../components/PlantDistribuicaoModal';
 import { createElement } from '../dom';
@@ -15,32 +9,16 @@ import { createBaseLayout } from '../layouts/BaseLayout';
 import {
   createPlant,
   deletePlant,
-  getPlantStatusSummary,
   getPlants,
-  plantStatusLabel,
-  plantStatusTone,
   removePlantConnection,
   type PlantRow,
-  type PlantStatusTone,
   updatePlant
 } from '../services/plantService';
 import { getUcs, type UcRow } from '../services/ucsService';
-import { createDebouncedInput, pageSlice, readListParam, readPositiveListParam, writeListState } from '../services/listState';
-
-type ConnectedUcRow = {
-  id: number;
-  connectionId: number;
-  codigo: string;
-  apelido: string;
-  cliente: string;
-  percentual: string;
-  status: string;
-};
-
-// Abas sem backend ainda (Documentos de usina, Financeiro = V3.0, Historico e
-// Logs nem tem model hoje) -- visiveis mas desabilitadas, mesmo padrao do
-// ClientDetailView.ts.
-const upcomingPlantTabs = ['Documentos', 'Financeiro', 'Histórico', 'Logs'];
+import { readListParam, readPositiveListParam, writeListState } from '../services/listState';
+import { renderPlantsListView, type PlantsListContext } from './plantsListView';
+import { renderPlantDetailView } from './plantsDetailView';
+import type { ConnectedUcRow } from './plantsShared';
 
 export function createPlantsPage(): HTMLElement {
   const content = createElement('section', { className: 'content-stack' });
@@ -55,6 +33,30 @@ export function createPlantsPage(): HTMLElement {
   let searchTerm = readListParam('busca') ?? '';
   let statusFilter: string | null = readListParam('status') ?? null;
   let page = readPositiveListParam('pagina');
+
+  const listContext: PlantsListContext = {
+    getPlants: () => plants,
+    getAllUcs: () => allUcs,
+    isLoading: () => isLoading,
+    loadError: () => loadError,
+    getSearchTerm: () => searchTerm,
+    setSearchTerm: (value) => { searchTerm = value; },
+    getStatusFilter: () => statusFilter,
+    setStatusFilter: (value) => { statusFilter = value; },
+    getPage: () => page,
+    setPage: (value) => { page = value; },
+    clearSelection: () => { selectedPlantId = null; },
+    onRetry: () => void loadPlants(),
+    onSelectPlant: (plant) => {
+      selectedPlantId = plant.id;
+      writeListState({ selecionada: plant.id });
+      renderContent();
+    },
+    onNewPlant: () => openPlantEditor(null),
+    onImport: () => document.body.appendChild(createImportacoesModal(() => void loadPlants())),
+    onEditPlant: (plant) => openPlantEditor(plant),
+    onDeletePlant: (plant) => void confirmDeletePlant(plant)
+  };
 
   const layout = createBaseLayout({
     content,
@@ -84,353 +86,25 @@ export function createPlantsPage(): HTMLElement {
     }
   }
 
-  function connectedUcs(plantId: number): ConnectedUcRow[] {
-    const rows: ConnectedUcRow[] = [];
-
-    allUcs.forEach((uc) => {
-      uc.conexoes
-        .filter((conexao) => conexao.plantId === plantId)
-        .forEach((conexao) => {
-          rows.push({
-            id: uc.id,
-            connectionId: conexao.id,
-            codigo: uc.codigo || 'Sem codigo',
-            apelido: uc.apelido || uc.clienteNome || 'Sem apelido',
-            cliente: uc.clienteNome ?? '-',
-            percentual: `${conexao.percentual}%`,
-            status: 'Ativa'
-          });
-        });
-    });
-
-    return rows;
-  }
-
-  function getFilteredPlants(): PlantRow[] {
-    return plants.filter((plant) => {
-      if (statusFilter && plant.status !== statusFilter) return false;
-
-      if (searchTerm) {
-        const haystack = normalize(`${plant.id} ${plant.nome} ${plant.cidade ?? ''} ${plant.uf ?? ''}`);
-        if (!haystack.includes(normalize(searchTerm))) return false;
-      }
-
-      return true;
-    });
-  }
-
   function renderContent(): void {
     const selectedPlant = plants.find((item) => item.id === selectedPlantId) ?? null;
-    content.replaceChildren(selectedPlant ? renderDetailView(selectedPlant) : renderListView());
-  }
-
-  // Toolbar (busca + acoes) e criada uma vez so; refresh() troca apenas os
-  // holders de cards/tabela por baixo -- assim o campo de busca nunca perde
-  // foco enquanto o usuario digita (replaceChildren no fragmento inteiro a
-  // cada tecla apagaria o input e o cursor).
-  function renderListView(): HTMLElement {
-    const fragment = createElement('div', { className: 'content-stack' });
-    const toolbar = createElement('div', { className: 'page-actions' });
-
-    const searchInput = createElement('input');
-    searchInput.type = 'text';
-    searchInput.placeholder = 'Pesquisar usinas...';
-    searchInput.value = searchTerm;
-    const applySearch = createDebouncedInput((value) => { if (value !== searchTerm) { searchTerm = value; page = 1; selectedPlantId = null; writeListState({ busca: value || null, pagina: null, selecionada: null }); refresh(); } });
-    searchInput.addEventListener('input', () => applySearch(searchInput.value));
-
-    const spacer = createElement('div');
-    spacer.style.flex = '1 0 auto';
-    spacer.style.minWidth = '0';
-
-    const newPlantButton = createElement('button', { className: 'button-with-icon', type: 'button' });
-    newPlantButton.append(createIcon('plus'), document.createTextNode('Nova Usina'));
-    newPlantButton.addEventListener('click', () => openPlantEditor(null));
-    const importButton = createElement('button', { className: 'secondary-button', textContent: 'Importação/exportação', type: 'button' });
-    importButton.addEventListener('click', () => document.body.appendChild(createImportacoesModal(() => void loadPlants())));
-
-    const archiveButton = createElement('button', { className: 'secondary-button', textContent: 'Arquivo ▾', type: 'button' });
-    archiveButton.disabled = true;
-    archiveButton.title = 'Importacao/exportacao em planilha -- em breve';
-
-    toolbar.append(importButton, newPlantButton, archiveButton);
-
-    const filtersRow = createElement('div', { className: 'page-actions' });
-    const statusFiltersHolder = createElement('div');
-    filtersRow.append(searchInput, spacer, statusFiltersHolder);
-
-    const statsHolder = createElement('div');
-    const tableHolder = createElement('div');
-    const paginationHolder = createElement('div');
-
-    function refresh(): void {
-      statusFiltersHolder.replaceChildren(createStatusFilters());
-      statsHolder.replaceChildren(createStatCards());
-      tableHolder.replaceChildren(createPlantsTable());
-      paginationHolder.replaceChildren(createPagination());
-    }
-
-    function createStatCards(): HTMLElement {
-      const totalPotencia = plants.reduce((sum, plant) => sum + Number(plant.kwPico || 0), 0);
-      const totalUcs = plants.reduce((sum, plant) => sum + connectedUcs(plant.id).length, 0);
-      const ocupacaoMedia = plants.length
-        ? plants.reduce((sum, plant) => sum + (100 - plant.percentualDisponivel), 0) / plants.length
-        : 0;
-      const geracaoEstimada = plants.reduce((sum, plant) => sum + (plant.producaoMedia ?? 0), 0);
-      const metrics: IconStatCardProps[] = [
-        { label: 'Potência total', value: `${formatValue(totalPotencia)} kWp`, chipColor: 'blue', icon: 'plants' },
-        { label: 'Ocupação média', value: `${formatValue(ocupacaoMedia)}%`, chipColor: 'amber', icon: 'rateio' },
-        { label: 'UCs vinculadas', value: String(totalUcs), chipColor: 'green', icon: 'ucs' },
-        { label: 'Geração estimada', value: `${formatValue(geracaoEstimada)} kWh`, chipColor: 'purple', icon: 'agenda' }
-      ];
-      const grid = createElement('section', { className: 'metric-grid' });
-      metrics.forEach((metric) => grid.appendChild(createIconStatCard(metric)));
-      return grid;
-    }
-
-    function createStatusFilters(): HTMLElement {
-      const summary = getPlantStatusSummary(plants);
-      const filters = createElement('div', { className: 'plant-status-filters' });
-      [
-        ['Todas', null, summary.total],
-        ['Ativas', 'Online', summary.ativas],
-        ['Em implantação', 'Implantacao', summary.emImplantacao],
-        ['Manutenção', 'Manutencao', summary.manutencao]
-      ].forEach(([label, status, count]) => {
-        const button = createElement('button', { className: statusFilter === status ? 'filter-chip active' : 'filter-chip', textContent: `${label} ${count}`, type: 'button' });
-        button.addEventListener('click', () => {
-          statusFilter = status as string | null;
-          page = 1; selectedPlantId = null;
-          writeListState({ status: statusFilter, pagina: null, selecionada: null });
-          refresh();
-        });
-        filters.appendChild(button);
-      });
-      return filters;
-    }
-
-    function createPlantsTable(): HTMLElement {
-      const filteredRows = getFilteredPlants();
-      const paged = pageSlice(filteredRows, page, 25); page = paged.page;
-      const isFiltered = Boolean(searchTerm || statusFilter);
-
-      const panel = createDataTable<PlantRow>({
-        title: 'Usinas cadastradas',
-        eyebrow: 'Listagem',
-        rows: paged.rows,
-        emptyMessage: loadError
-          ? 'Nao foi possivel carregar usinas.'
-          : isFiltered
-            ? 'Nenhuma usina encontrada para esse filtro.'
-            : 'Nenhuma usina cadastrada ainda.',
-        state: isLoading ? 'loading' : loadError ? 'error' : isFiltered ? 'filtered' : 'ready',
-        stateTitle: loadError ? 'Nao foi possivel carregar usinas' : isFiltered ? 'Nenhuma usina corresponde aos filtros' : 'Nenhuma usina cadastrada',
-        emptyAction: { label: 'Limpar filtros', onClick: () => { searchTerm = ''; statusFilter = null; page = 1; writeListState({ busca: null, status: null, pagina: null }); refresh(); } },
-        errorAction: { label: 'Tentar novamente', onClick: () => void loadPlants() },
-        onRowClick: (plant) => {
-          selectedPlantId = plant.id;
-          writeListState({ selecionada: plant.id });
-          renderContent();
-        },
-        columns: [
-          { key: 'id', label: 'ID', render: (plant) => `#${plant.id}` },
-          { key: 'nome', label: 'Nome da usina', render: (plant) => plant.nome },
-          { key: 'kwPico', label: 'Potência (kWp)', align: 'right' },
-          { key: 'ucsConectadas', label: 'UCs conectadas', align: 'right', render: (plant) => String(connectedUcs(plant.id).length) },
-          {
-            key: 'status',
-            label: 'Status',
-            render: (plant) => createStatusDotLabel(plantStatusLabel(plant.status), plantStatusTone(plant.status))
-          },
-          { key: 'cidadeUf', label: 'Cidade/UF', render: (plant) => plantLocationLabel(plant) },
-          { key: 'endereco', label: 'Endereço', defaultVisible: false, render: (plant) => plant.endereco || 'Não informado' },
-          { key: 'dataAtivacao', label: 'Data de ativação', defaultVisible: false, render: (plant) => plant.dataAtivacao || 'Não informado' },
-          { key: 'responsavel', label: 'Responsável', defaultVisible: false, render: (plant) => plant.responsavel || 'Não informado' },
-          { key: 'marcaInversor', label: 'Marca do inversor', defaultVisible: false, render: (plant) => plant.marcaInversor || 'Não informado' },
-          { key: 'telefoneProprietario', label: 'Telefone do proprietário', defaultVisible: false, render: (plant) => plant.telefoneProprietario || 'Não informado' },
-          { key: 'emailProprietario', label: 'Email do proprietário', defaultVisible: false, render: (plant) => plant.emailProprietario || 'Não informado' },
-          { key: 'percentualConsumo', label: '% Consumo da geração', defaultVisible: false, align: 'right', render: (plant) => `${(100 - plant.percentualDisponivel).toFixed(1)}%` }
-        ]
-      });
-
-      attachActionsRail(panel, paged.rows, createRowActionButtons);
-      return panel;
-    }
-
-    function createPagination(): HTMLElement {
-      const rows = getFilteredPlants(); const pages = Math.max(1, Math.ceil(rows.length / 25));
-      const nav = createElement('nav', { className: 'faturas-pagination' });
-      const previous = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Anterior' });
-      previous.disabled = page <= 1; previous.addEventListener('click', () => { page--; writeListState({ pagina: page }); refresh(); });
-      const next = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Próxima' });
-      next.disabled = page >= pages || rows.length === 0; next.addEventListener('click', () => { page++; writeListState({ pagina: page }); refresh(); });
-      nav.append(previous, createElement('span', { textContent: `${rows.length ? page : 0} de ${rows.length ? pages : 0}` }), next);
-      return nav;
-    }
-
-    refresh();
-    fragment.append(toolbar, filtersRow, statsHolder, tableHolder, paginationHolder);
-    return fragment;
-  }
-
-  function createRowActionButtons(plant: PlantRow): HTMLElement {
-    const wrap = createElement('div', { className: 'table-row-actions' });
-
-    const viewButton = createElement('button', { className: 'icon-button neutral', type: 'button' });
-    viewButton.appendChild(createIcon('eye'));
-    viewButton.title = 'Ver detalhes';
-    attachTooltip(viewButton, `Ver detalhes de ${plant.nome}`);
-    viewButton.setAttribute('aria-label', `Ver detalhes de ${plant.nome}`);
-    viewButton.addEventListener('click', (event) => {
-      event.stopPropagation();
-      selectedPlantId = plant.id;
-      writeListState({ selecionada: plant.id });
-      renderContent();
-    });
-
-    const editButton = createElement('button', { className: 'icon-button neutral', type: 'button' });
-    editButton.appendChild(createIcon('edit'));
-    editButton.title = 'Editar';
-    attachTooltip(editButton, `Editar ${plant.nome}`);
-    editButton.setAttribute('aria-label', `Editar ${plant.nome}`);
-    editButton.addEventListener('click', (event) => {
-      event.stopPropagation();
-      openPlantEditor(plant);
-    });
-
-    const deleteButton = createElement('button', { className: 'icon-button', type: 'button' });
-    deleteButton.appendChild(createIcon('trash'));
-    deleteButton.title = 'Excluir';
-    attachTooltip(deleteButton, `Excluir ${plant.nome}`);
-    deleteButton.setAttribute('aria-label', `Excluir ${plant.nome}`);
-    deleteButton.addEventListener('click', (event) => {
-      event.stopPropagation();
-      confirmDeletePlant(plant);
-    });
-
-    wrap.append(viewButton, editButton, deleteButton);
-    return wrap;
+    content.replaceChildren(selectedPlant ? renderDetailView(selectedPlant) : renderPlantsListView(listContext));
   }
 
   function renderDetailView(plant: PlantRow): HTMLElement {
-    const wrapper = createElement('section', { className: 'client-detail-view' });
-
-    const backLink = createElement('a', { className: 'detail-back-link', textContent: '← Usinas' });
-    backLink.href = '#';
-    backLink.addEventListener('click', (event) => {
-      event.preventDefault();
-      selectedPlantId = null;
-      writeListState({ selecionada: null }, 'replace');
-      renderContent();
+    return renderPlantDetailView({
+      plant,
+      allUcs,
+      onBack: () => {
+        selectedPlantId = null;
+        writeListState({ selecionada: null }, 'replace');
+        renderContent();
+      },
+      onEdit: (target) => openPlantEditor(target),
+      onDelete: (target) => void confirmDeletePlant(target),
+      onOpenDistribuicao: (target) => openDistribuicaoModal(target),
+      onRemoveConnection: (target, row) => void confirmRemoveConnection(target, row)
     });
-
-    const columns = createElement('div', { className: 'detail-columns' });
-    columns.append(createPlantInfoPanel(plant), createPlantSummaryPanel(plant));
-
-    wrapper.append(backLink, createPlantDetailHeader(plant), columns, createPlantTabsPanel(plant));
-    return wrapper;
-  }
-
-  function createPlantDetailHeader(plant: PlantRow): HTMLElement {
-    const header = createElement('div', { className: 'detail-header' });
-    const titleRow = createElement('div', { className: 'detail-title-row' });
-    const idTag = createElement('span', { className: 'cell-id-tag', textContent: `#${plant.id}` });
-    const heading = createElement('h2', { textContent: plant.nome });
-    const tone = plantStatusTone(plant.status);
-    const badge = createStatusBadge(plantStatusLabel(plant.status), tone);
-
-    const actions = createElement('div', { className: 'detail-actions' });
-    const editButton = createElement('button', { className: 'secondary-button button-with-icon', type: 'button' });
-    editButton.append(createIcon('edit'), document.createTextNode('Editar'));
-    const deleteButton = createElement('button', { className: 'danger-button button-with-icon', type: 'button' });
-    deleteButton.append(createIcon('trash'), document.createTextNode('Excluir'));
-
-    editButton.addEventListener('click', () => openPlantEditor(plant));
-    deleteButton.addEventListener('click', () => confirmDeletePlant(plant));
-
-    titleRow.append(idTag, heading, badge);
-    actions.append(editButton, deleteButton);
-    header.append(titleRow, actions);
-
-    return header;
-  }
-
-  function createPlantInfoPanel(plant: PlantRow): HTMLElement {
-    const panel = createElement('aside', { className: 'detail-info-panel' });
-    const eyebrow = createElement('span', { className: 'eyebrow', textContent: 'Informações gerais' });
-    const grid = createElement('div', { className: 'detail-info-grid' });
-
-    grid.append(
-      createInfoField('Potência (kWp)', plant.kwPico),
-      createInfoField('Cidade/UF', plantLocationLabel(plant)),
-      createInfoField('Endereço', plant.endereco || 'Não informado'),
-      createInfoField('Data de ativação', plant.dataAtivacao || 'Não informado'),
-      createInfoField('Responsável', plant.responsavel || 'Não informado'),
-      createInfoField('UCs conectadas', String(connectedUcs(plant.id).length)),
-      createInfoField('Marca do inversor', plant.marcaInversor || 'Não informado'),
-      createInfoField('Telefone do proprietário', plant.telefoneProprietario || 'Não informado'),
-      createInfoField('Email do proprietário', plant.emailProprietario || 'Não informado')
-    );
-
-    panel.append(eyebrow, grid);
-    return panel;
-  }
-
-  function createPlantSummaryPanel(plant: PlantRow): HTMLElement {
-    const panel = createElement('aside', { className: 'detail-info-panel plant-summary-panel' });
-    const eyebrow = createElement('span', { className: 'eyebrow', textContent: 'Resumo' });
-    const rows = createElement('div', { className: 'plant-summary-rows' });
-    const activeCount = connectedUcs(plant.id).length;
-
-    // "UCs disponiveis" / "UCs aguardando" nao tem contrapartida no backend
-    // ainda (nao existe esse conceito no model hoje) -- mostrando "-" em vez
-    // de inventar numero. "UCs ativas" e real (contagem de PlantConnection).
-    rows.append(
-      createSummaryRow('UCs ativas', String(activeCount)),
-      createSummaryRow('UCs disponíveis', '-'),
-      createSummaryRow('UCs aguardando', '-')
-    );
-
-    const occupied = Math.max(0, Math.min(100, 100 - plant.percentualDisponivel));
-    const occupancy = createElement('div', { className: 'plant-summary-occupancy' });
-    occupancy.append(createSummaryRow('% Ocupação', `${occupied}%`), createOccupancyBar(occupied));
-
-    panel.append(eyebrow, rows, occupancy, createMonthlyProductionChart(plant));
-    return panel;
-  }
-
-  function createPlantTabsPanel(plant: PlantRow): HTMLElement {
-    const panel = createElement('section', { className: 'detail-tabs-panel' });
-    const tabs = createElement('div', { className: 'detail-tabs' });
-    const ucsTab = createElement('button', { className: 'detail-tab active', textContent: 'UCs conectadas', type: 'button' });
-
-    tabs.appendChild(ucsTab);
-
-    upcomingPlantTabs.forEach((label) => {
-      const tab = createElement('button', { className: 'detail-tab disabled', textContent: label, type: 'button' });
-      tab.disabled = true;
-      tab.title = 'Em breve';
-      tabs.appendChild(tab);
-    });
-
-    panel.append(tabs, createConnectedUcsActions(plant), createConnectedUcsTable(plant));
-    return panel;
-  }
-
-  function createConnectedUcsActions(plant: PlantRow): HTMLElement {
-    const bar = createElement('div', { className: 'page-actions' });
-    const spacer = createElement('div');
-    spacer.style.flex = '1 0 auto';
-    spacer.style.minWidth = '0';
-
-    const editButton = createElement('button', { className: 'secondary-button button-with-icon', type: 'button' });
-    editButton.append(createIcon('edit'), document.createTextNode('Editar distribuição'));
-    editButton.disabled = connectedUcs(plant.id).length === 0;
-    editButton.title = editButton.disabled ? 'Nenhuma UC conectada ainda' : 'Editar percentual das UCs conectadas';
-    editButton.addEventListener('click', () => openDistribuicaoModal(plant));
-
-    bar.append(spacer, editButton);
-    return bar;
   }
 
   function openDistribuicaoModal(plant: PlantRow): void {
@@ -460,33 +134,6 @@ export function createPlantsPage(): HTMLElement {
       },
       onError: (message) => toast.error(message)
     }));
-  }
-
-  function createConnectedUcsTable(plant: PlantRow): HTMLElement {
-    const rows = connectedUcs(plant.id);
-
-    return createDataTable<ConnectedUcRow>({
-      title: 'UCs conectadas',
-      eyebrow: 'Rateio',
-      rows,
-      emptyMessage: 'Nenhuma UC conectada a esta usina ainda.',
-      columns: [
-        { key: 'uc', label: 'UC', render: (row) => createIdNameCell(row.codigo, row.apelido) },
-        { key: 'cliente', label: 'Cliente' },
-        { key: 'percentual', label: '% Rateio', align: 'right' },
-        { key: 'status', label: 'Status', render: (row) => createStatusDotLabel(row.status, 'success') },
-        { key: 'acao', label: '', align: 'right', render: (row) => createRemoveConnectionButton(plant, row) }
-      ]
-    });
-  }
-
-  function createRemoveConnectionButton(plant: PlantRow, row: ConnectedUcRow): HTMLElement {
-    const button = createElement('button', { className: 'icon-button', type: 'button' });
-    button.appendChild(createIcon('x'));
-    button.title = 'Desconectar da usina';
-    button.setAttribute('aria-label', `Desconectar ${row.codigo} da usina`);
-    button.addEventListener('click', () => confirmRemoveConnection(plant, row));
-    return button;
   }
 
   async function confirmRemoveConnection(plant: PlantRow, row: ConnectedUcRow): Promise<void> {
@@ -557,66 +204,4 @@ export function createPlantsPage(): HTMLElement {
       loading.hide();
     }
   }
-}
-
-function createIdNameCell(idLabel: string, name: string): HTMLElement {
-  const wrap = createElement('div', { className: 'cell-id-name' });
-  wrap.append(
-    createElement('span', { className: 'cell-id-tag', textContent: idLabel }),
-    createElement('span', { textContent: name })
-  );
-  return wrap;
-}
-
-function createStatusDotLabel(label: string, tone: PlantStatusTone): HTMLElement {
-  return createStatusBadge(label, tone);
-}
-
-function createOccupancyBar(percent: number): HTMLElement {
-  const track = createElement('div', { className: 'occupancy-bar-track' });
-  const fill = createElement('div', { className: percent > 85 ? 'occupancy-bar-fill warning' : 'occupancy-bar-fill success' });
-  fill.style.width = `${percent}%`;
-  track.appendChild(fill);
-  return track;
-}
-
-function createMonthlyProductionChart(plant: PlantRow): HTMLElement {
-  const values = Object.entries(plant.producaoMensal);
-  if (!values.some(([, value]) => value > 0)) return createElement('span');
-
-  const max = Math.max(...values.map(([, value]) => value), 1);
-  const chart = createElement('section', { className: 'plant-production-chart' });
-  const bars = createElement('div', { className: 'plant-production-bars' });
-  values.forEach(([month, value]) => {
-    const bar = createElement('span', { className: 'plant-production-bar', title: `${month}: ${formatValue(value)} kWh` });
-    bar.style.height = `${Math.max(6, (value / max) * 100)}%`;
-    const column = createElement('div', { className: 'plant-production-column' });
-    column.append(bar, createElement('small', { textContent: month.slice(0, 3).toUpperCase() }));
-    bars.appendChild(column);
-  });
-  chart.append(createElement('span', { className: 'eyebrow', textContent: 'Geração mensal' }), bars);
-  return chart;
-}
-
-function createSummaryRow(label: string, value: string): HTMLElement {
-  const row = createElement('div', { className: 'plant-summary-row' });
-  row.append(createElement('span', { textContent: label }), createElement('strong', { textContent: value }));
-  return row;
-}
-
-function plantLocationLabel(plant: PlantRow): string {
-  if (plant.cidade && plant.uf) return `${plant.cidade}/${plant.uf}`;
-  if (plant.cidade) return plant.cidade;
-  return '-';
-}
-
-function formatValue(value: number): string {
-  return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 }).format(value);
-}
-
-function normalize(value: string): string {
-  return value
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
 }

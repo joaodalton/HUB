@@ -73,6 +73,14 @@ SETTINGS_KEYS_WHITELIST = frozenset({
     'max_login_attempts',
     'password_min_length',
     'allowed_roles',
+
+    # === RELATÓRIOS (template de origem, por categoria) ===
+    'report_template_documento_drive_file_id',
+    'report_template_documento_document_id',
+    'report_template_planilha_drive_file_id',
+    'report_template_planilha_document_id',
+    'report_template_apresentacao_drive_file_id',
+    'report_template_apresentacao_document_id',
 })
 
 SENSITIVE_SETTINGS = frozenset({'resend_api_key'})

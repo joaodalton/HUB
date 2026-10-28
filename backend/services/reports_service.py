@@ -6,13 +6,21 @@ import re
 
 from services.drive_service import _resolve_tenant_root_folder_id
 from services.google_reports_auth import get_report_credentials
-from services.google_report_renderers import ReportTable, render_as_doc, render_as_sheet, render_as_slide
-from services.office_report_renderers import render_as_docx, render_as_pptx, render_as_xlsx
+from services.google_report_renderers import (
+    ReportTable, render_as_doc, render_as_doc_from_template, render_as_sheet, render_as_sheet_from_template,
+    render_as_slide, render_as_slide_from_template,
+)
+from services.office_report_renderers import (
+    render_as_docx, render_as_docx_from_template, render_as_pptx, render_as_pptx_from_template,
+    render_as_xlsx, render_as_xlsx_from_template,
+)
 from services.client_service import list_clients
 from services.uc_service import list_ucs
 from services.plant_service import list_plants
 from services.fatura_service import listar as listar_faturas
 from services.rateio_service import list_historico as list_historico_rateio
+from services.report_template_service import get_template
+from services.report_source_template_service import resolve_drive_file_id, resolve_upload_bytes
 
 _RENDERERS = {'doc': render_as_doc, 'sheet': render_as_sheet, 'slide': render_as_slide}
 _OFFICE_RENDERERS = {'docx': render_as_docx, 'xlsx': render_as_xlsx, 'pptx': render_as_pptx}
@@ -21,6 +29,32 @@ _OFFICE_MIMETYPES = {
     'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
 }
+# Categoria do template de ORIGEM (Relatorios > Templates) por formato --
+# doc/docx usam a mesma categoria 'documento' (mesmo conteudo, dois
+# formatos de arquivo), idem sheet/xlsx 'planilha' e slide/pptx 'apresentacao'.
+_FORMATO_CATEGORIA = {
+    'doc': 'documento', 'docx': 'documento',
+    'sheet': 'planilha', 'xlsx': 'planilha',
+    'slide': 'apresentacao', 'pptx': 'apresentacao',
+}
+def _render_from_template_google(formato: str, credentials, drive_file_id: str, tabela, pasta: str) -> dict:
+    # if/elif em vez de dict de funcoes: um dict capturaria a funcao original
+    # na importacao do modulo, e um teste que faz @patch('...render_as_doc_from_template')
+    # nao afetaria mais essa referencia ja capturada. Nomes soltos aqui sao
+    # resolvidos no namespace do modulo a cada chamada, entao o patch funciona.
+    if formato == 'doc':
+        return render_as_doc_from_template(credentials, drive_file_id, tabela, parent_folder_id=pasta)
+    if formato == 'sheet':
+        return render_as_sheet_from_template(credentials, drive_file_id, tabela, parent_folder_id=pasta)
+    return render_as_slide_from_template(credentials, drive_file_id, tabela, parent_folder_id=pasta)
+
+
+def _render_from_template_office(formato: str, template_bytes: bytes, tabela) -> bytes:
+    if formato == 'docx':
+        return render_as_docx_from_template(template_bytes, tabela)
+    if formato == 'xlsx':
+        return render_as_xlsx_from_template(template_bytes, tabela)
+    return render_as_pptx_from_template(template_bytes, tabela)
 _TIPOS_VALIDOS = {'cadastro', 'financeiro', 'rateio', 'producao'}
 _MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
 _COLETORES = {}  # populado pelas Tasks 5-7: {'cadastro': _coletar_cadastro, ...}
@@ -135,7 +169,7 @@ def _coletar_producao(empresa_id: int, competencia: str | None) -> ReportTable:
 _COLETORES['producao'] = _coletar_producao
 
 
-def gerar_relatorio(empresa_id: int, tipo: str, formato: str, competencia: str | None = None) -> dict:
+def gerar_relatorio(empresa_id: int, tipo: str, formato: str, competencia: str | None = None, template_id: str | None = None) -> dict:
     if tipo not in _TIPOS_VALIDOS:
         raise ValueError('Tipo de relatorio invalido.')
     if formato not in _RENDERERS:
@@ -144,11 +178,22 @@ def gerar_relatorio(empresa_id: int, tipo: str, formato: str, competencia: str |
     credentials = get_report_credentials(empresa_id)
     pasta = _pasta_relatorios(empresa_id)
     tabela = _COLETORES[tipo](empresa_id, competencia)
-    resultado = _RENDERERS[formato](credentials, tabela, parent_folder_id=pasta)
+
+    # Se a empresa configurou um arquivo PROPRIO do Google Drive como origem
+    # pra esta categoria (Relatorios > Templates), usa ele em vez de gerar
+    # do zero -- preserva a marca da empresa, a cor do template (abaixo)
+    # nunca se aplica nesse caminho.
+    drive_file_id = resolve_drive_file_id(_FORMATO_CATEGORIA[formato], empresa_id)
+    if drive_file_id:
+        resultado = _render_from_template_google(formato, credentials, drive_file_id, tabela, pasta)
+        return {'driveFileId': resultado['id'], 'webViewLink': resultado['webViewLink']}
+
+    template = get_template(template_id, empresa_id)
+    resultado = _RENDERERS[formato](credentials, tabela, parent_folder_id=pasta, template=template)
     return {'driveFileId': resultado['id'], 'webViewLink': resultado['webViewLink']}
 
 
-def gerar_relatorio_arquivo(empresa_id: int, tipo: str, formato: str, competencia: str | None = None) -> tuple[bytes, str, str]:
+def gerar_relatorio_arquivo(empresa_id: int, tipo: str, formato: str, competencia: str | None = None, template_id: str | None = None) -> tuple[bytes, str, str]:
     """Gera o relatorio localmente (docx/xlsx/pptx), sem depender de credencial
     Google -- reaproveita o mesmo coletor usado pelos formatos nativos."""
     if tipo not in _TIPOS_VALIDOS:
@@ -157,6 +202,16 @@ def gerar_relatorio_arquivo(empresa_id: int, tipo: str, formato: str, competenci
         raise ValueError('Formato invalido.')
 
     tabela = _COLETORES[tipo](empresa_id, competencia)
-    dados = _OFFICE_RENDERERS[formato](tabela)
+
+    # Mesma logica do formato Google em gerar_relatorio() -- se tem arquivo
+    # office proprio configurado pra esta categoria, usa ele.
+    template_bytes = resolve_upload_bytes(_FORMATO_CATEGORIA[formato], empresa_id)
+    if template_bytes:
+        dados = _render_from_template_office(formato, template_bytes, tabela)
+        filename = f'{_slugify_filename(tabela.title)}.{formato}'
+        return dados, filename, _OFFICE_MIMETYPES[formato]
+
+    template = get_template(template_id, empresa_id)
+    dados = _OFFICE_RENDERERS[formato](tabela, template=template)
     filename = f'{_slugify_filename(tabela.title)}.{formato}'
     return dados, filename, _OFFICE_MIMETYPES[formato]

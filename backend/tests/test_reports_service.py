@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 from services import reports_service
 from services.reports_service import gerar_relatorio, gerar_relatorio_arquivo
 from services.google_reports_auth import ReportScopeError, ReportAccountMissingError
+from services.report_templates import default_template
 
 
 class ReportsServiceTest(unittest.TestCase):
@@ -27,9 +28,10 @@ class ReportsServiceTest(unittest.TestCase):
         with self.assertRaises(ReportAccountMissingError):
             gerar_relatorio(empresa_id=1, tipo='cadastro', formato='sheet')
 
+    @patch('services.reports_service.resolve_drive_file_id', return_value=None)
     @patch('services.reports_service._pasta_relatorios')
     @patch('services.reports_service.get_report_credentials')
-    def test_gerar_relatorio_cadastro_sheet_chama_renderer_certo(self, mock_creds, mock_pasta):
+    def test_gerar_relatorio_cadastro_sheet_chama_renderer_certo(self, mock_creds, mock_pasta, mock_resolve):
         mock_creds.return_value = 'creds'
         mock_pasta.return_value = 'folder-1'
         mock_coletor = MagicMock(return_value=MagicMock(title='Cadastro', headers=['Nome'], rows=[]))
@@ -40,7 +42,7 @@ class ReportsServiceTest(unittest.TestCase):
             result = gerar_relatorio(empresa_id=1, tipo='cadastro', formato='sheet')
 
         self.assertEqual(result, {'driveFileId': 'abc', 'webViewLink': 'https://x'})
-        mock_render.assert_called_once_with('creds', mock_coletor.return_value, parent_folder_id='folder-1')
+        mock_render.assert_called_once_with('creds', mock_coletor.return_value, parent_folder_id='folder-1', template=default_template())
 
     @patch('services.reports_service.listar_faturas')
     def test_coletar_financeiro_agrupa_por_competencia(self, mock_listar):
@@ -119,6 +121,59 @@ class ReportsServiceTest(unittest.TestCase):
         self.assertEqual(tabela.rows[0][2], '0.00')
         self.assertEqual(tabela.rows[0][-1], '')
 
+    @patch('services.reports_service.render_as_doc_from_template')
+    @patch('services.reports_service.resolve_drive_file_id')
+    @patch('services.reports_service._pasta_relatorios')
+    @patch('services.reports_service.get_report_credentials')
+    def test_gerar_relatorio_doc_usa_template_proprio_quando_configurado(self, mock_creds, mock_pasta, mock_resolve, mock_render_template):
+        mock_creds.return_value = 'creds'
+        mock_pasta.return_value = 'folder-1'
+        mock_resolve.return_value = 'drive-file-123'
+        mock_render_template.return_value = {'id': 'copia-1', 'webViewLink': 'https://doc-copia'}
+        mock_coletor = MagicMock(return_value=MagicMock(title='Cadastro', headers=['Nome'], rows=[]))
+        mock_render_padrao = MagicMock()
+
+        with patch.object(reports_service, '_COLETORES', {**reports_service._COLETORES, 'cadastro': mock_coletor}), \
+                patch.object(reports_service, '_RENDERERS', {**reports_service._RENDERERS, 'doc': mock_render_padrao}):
+            result = gerar_relatorio(empresa_id=1, tipo='cadastro', formato='doc')
+
+        self.assertEqual(result, {'driveFileId': 'copia-1', 'webViewLink': 'https://doc-copia'})
+        mock_render_template.assert_called_once_with('creds', 'drive-file-123', mock_coletor.return_value, parent_folder_id='folder-1')
+        mock_render_padrao.assert_not_called()
+
+    @patch('services.reports_service.resolve_drive_file_id')
+    @patch('services.reports_service._pasta_relatorios')
+    @patch('services.reports_service.get_report_credentials')
+    def test_gerar_relatorio_doc_sem_template_proprio_usa_fluxo_normal(self, mock_creds, mock_pasta, mock_resolve):
+        mock_creds.return_value = 'creds'
+        mock_pasta.return_value = 'folder-1'
+        mock_resolve.return_value = None
+        mock_coletor = MagicMock(return_value=MagicMock(title='Cadastro', headers=['Nome'], rows=[]))
+        mock_render_padrao = MagicMock(return_value={'id': 'abc', 'webViewLink': 'https://x'})
+
+        with patch.object(reports_service, '_COLETORES', {**reports_service._COLETORES, 'cadastro': mock_coletor}), \
+                patch.object(reports_service, '_RENDERERS', {**reports_service._RENDERERS, 'doc': mock_render_padrao}):
+            result = gerar_relatorio(empresa_id=1, tipo='cadastro', formato='doc')
+
+        self.assertEqual(result, {'driveFileId': 'abc', 'webViewLink': 'https://x'})
+        mock_render_padrao.assert_called_once()
+
+    @patch('services.reports_service.render_as_docx_from_template')
+    @patch('services.reports_service.resolve_upload_bytes')
+    def test_gerar_relatorio_arquivo_docx_usa_template_proprio_quando_configurado(self, mock_resolve, mock_render_template):
+        mock_resolve.return_value = b'template-bytes'
+        mock_render_template.return_value = b'docx-com-marca-da-empresa'
+        mock_coletor = MagicMock(return_value=MagicMock(title='Cadastro', headers=['Nome'], rows=[]))
+        mock_render_padrao = MagicMock()
+
+        with patch.object(reports_service, '_COLETORES', {**reports_service._COLETORES, 'cadastro': mock_coletor}), \
+                patch.object(reports_service, '_OFFICE_RENDERERS', {**reports_service._OFFICE_RENDERERS, 'docx': mock_render_padrao}):
+            dados, filename, mimetype = gerar_relatorio_arquivo(empresa_id=1, tipo='cadastro', formato='docx')
+
+        self.assertEqual(dados, b'docx-com-marca-da-empresa')
+        mock_render_template.assert_called_once_with(b'template-bytes', mock_coletor.return_value)
+        mock_render_padrao.assert_not_called()
+
     def test_gerar_relatorio_arquivo_tipo_invalido_levanta_value_error(self):
         with self.assertRaises(ValueError):
             gerar_relatorio_arquivo(empresa_id=1, tipo='inexistente', formato='docx')
@@ -127,7 +182,8 @@ class ReportsServiceTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             gerar_relatorio_arquivo(empresa_id=1, tipo='cadastro', formato='sheet')
 
-    def test_gerar_relatorio_arquivo_nao_depende_de_credencial_google(self):
+    @patch('services.reports_service.resolve_upload_bytes', return_value=None)
+    def test_gerar_relatorio_arquivo_nao_depende_de_credencial_google(self, mock_resolve):
         mock_coletor = MagicMock(return_value=MagicMock(title='Cadastro', headers=['Nome'], rows=[]))
         mock_render = MagicMock(return_value=b'bytes-xlsx')
 

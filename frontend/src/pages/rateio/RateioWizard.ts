@@ -87,7 +87,7 @@ export function createRateioWizard(props: Props): HTMLElement {
     ucsList.forEach((uc) => {
       const conexao = uc.conexoes.find((item) => item.plantId === plant.id);
       if (!conexao) return;
-      combined.set(uc.id, { ucId: uc.id, ucCodigo: uc.codigo, apelido: uc.apelido, clienteNome: uc.clienteNome, consumo: uc.consumo, percentualSugerido: Number(conexao.percentual), qualificado: true, motivo: 'Já conectado' });
+      combined.set(uc.id, { ucId: uc.id, ucCodigo: uc.codigo, apelido: uc.apelido, clienteNome: uc.clienteNome, consumo: uc.consumo, diaEmissaoFatura: uc.diaEmissaoFatura, percentualSugerido: Number(conexao.percentual), qualificado: true, motivo: 'Já conectado' });
     });
     return Array.from(combined.values());
   }

@@ -21,9 +21,14 @@ export function renderRateioQualificationStage(props: Props): HTMLElement {
   const panel = createElement('section', { className: 'data-panel rateio-qualificacao-panel' });
   const title = createElement('div', { className: 'panel-title' });
   const titleText = createElement('div');
+  const diaEmissaoUsina = qualificacao?.diaEmissaoUsina ?? plant.diaEmissaoUsina;
   titleText.append(
     createElement('span', { className: 'eyebrow', textContent: plant.nome }),
-    createElement('h2', { textContent: 'Funil dos Qualificados' })
+    createElement('h2', { textContent: 'Funil dos Qualificados' }),
+    createElement('span', {
+      className: 'settings-hint',
+      textContent: diaEmissaoUsina != null ? `Dia de emissão da usina: ${diaEmissaoUsina}` : 'Usina sem dia de emissão cadastrado.'
+    })
   );
   title.appendChild(titleText); panel.appendChild(title);
 
@@ -67,7 +72,7 @@ function renderQualifiedList(data: RateioQualificacao, selectedUcIds: ReadonlySe
     return list;
   }
   const header = createElement('div', { className: 'rateio-qualificado-row rateio-qualificado-header' });
-  ['Cliente', 'Apelido', 'Consumo', '% sugerido', ''].forEach((label) => header.appendChild(createElement('span', { textContent: label })));
+  ['Cliente', 'Apelido', 'Consumo', 'Dia de emissão', '% sugerido', ''].forEach((label) => header.appendChild(createElement('span', { textContent: label })));
   list.appendChild(header);
   qualified.forEach((uc) => {
     const row = createElement('div', { className: 'rateio-qualificado-row' });
@@ -80,6 +85,7 @@ function renderQualifiedList(data: RateioQualificacao, selectedUcIds: ReadonlySe
       name,
       createElement('span', { className: 'rateio-distribuicao-texto', textContent: uc.apelido || '-' }),
       createElement('span', { textContent: uc.consumo != null ? `${formatNumber(uc.consumo)} kWh` : '-' }),
+      createElement('span', { textContent: uc.diaEmissaoFatura != null ? String(uc.diaEmissaoFatura) : '-' }),
       createElement('span', { textContent: `${formatNumber(uc.percentualSugerido)}%` }),
       checkbox
     );

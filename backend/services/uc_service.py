@@ -10,6 +10,7 @@ from models.consumer_unit import ConsumerUnit, PlantConnection
 from models.api_credential import ApiCredential
 from models.plant import Plant
 from services.log_service import LogService
+from services import rateio_math as rm
 from services.uc_discount import parse_uc_discount
 from services.uc_code import normalize_uc_code
 from services.cad_identity import normalize_document
@@ -281,13 +282,24 @@ def sync_connections(uc: ConsumerUnit, conexoes_data: list[dict]) -> None:
             )
             continue  # usina foi excluida; ignora conexao orfa
 
+        percentual_novo = rm.to_decimal(conexao_data.get('percentual', 0) or 0, campo='percentual')
+        soma_existente = rm.soma_percentuais(
+            c.percentual for c in PlantConnection.query.filter_by(plant_id=plant.id).all()
+        )
+        total_projetado = rm.soma_percentuais([soma_existente, percentual_novo])
+        if rm.excede_limite(total_projetado):
+            raise ValueError(
+                f'Vincular esta UC a usina "{plant.nome}" deixaria o rateio em {total_projetado}% -- excede 100%. '
+                'Ajuste o percentual ou desvincule outra UC antes.'
+            )
+
         novas_usinas_validas.add(plant.id)
 
         db.session.add(PlantConnection(
             empresa_id=g.current_empresa_id,
             consumer_unit_id=uc.id,
             plant_id=plant.id,
-            percentual=conexao_data.get('percentual', 0)
+            percentual=percentual_novo
         ))
 
     permanece_conectada = bool((set(existentes_por_usina) & ids_enviados) | novas_usinas_validas)

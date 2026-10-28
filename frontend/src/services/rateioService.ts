@@ -71,6 +71,7 @@ export type RateioQualificacaoUc = {
   apelido: string | null;
   clienteNome: string | null;
   consumo: number | null;
+  diaEmissaoFatura: number | null;
   percentualSugerido: number;
   qualificado: boolean;
   motivo: string;
@@ -78,6 +79,7 @@ export type RateioQualificacaoUc = {
 
 export type RateioQualificacao = {
   plantId: number;
+  diaEmissaoUsina: number | null;
   totalClientes: number;
   qualificados: number;
   ucs: RateioQualificacaoUc[];
@@ -112,6 +114,51 @@ export async function atualizarDistribuicao(
     method: 'PUT',
     body: { plantId, atualizacoes }
   });
+  return response.data;
+}
+
+export type RateioExecucao = {
+  lote: string;
+  plantId: number;
+  usinaNome: string | null;
+  competencia: string;
+  criadoEm: string | null;
+  quantidadeUcs: number;
+};
+
+export async function getHistoricoExecucoes(plantId?: number): Promise<RateioExecucao[]> {
+  const query = plantId ? `?plantId=${plantId}` : '';
+  const response = await apiRequest<ApiResponse<RateioExecucao[]>>(`/rateio/historico/execucoes${query}`);
+  return response.data;
+}
+
+export type RateioExecucaoUc = {
+  id: number;
+  competencia: string;
+  plantId: number;
+  usinaNome: string | null;
+  ucId: number;
+  ucCodigo: string | null;
+  percentual: number;
+  percentualAnterior: number | null;
+  consumoConsiderado: number | null;
+  producaoConsiderada: number | null;
+  manual: boolean;
+  status: 'novo' | 'alterado' | 'igual';
+};
+
+export type RateioExecucaoDetalhe = {
+  lote: string;
+  plantId: number;
+  usinaNome: string | null;
+  competencia: string;
+  criadoEm: string | null;
+  temExecucaoAnterior: boolean;
+  ucs: RateioExecucaoUc[];
+};
+
+export async function getHistoricoExecucaoDetalhe(lote: string): Promise<RateioExecucaoDetalhe> {
+  const response = await apiRequest<ApiResponse<RateioExecucaoDetalhe>>(`/rateio/historico/execucoes/${encodeURIComponent(lote)}`);
   return response.data;
 }
 

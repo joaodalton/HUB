@@ -16,6 +16,12 @@ class RateioHistorico(TenantMixin, db.Model):
     producao_considerada = db.Column(db.Numeric(10, 2), nullable=True)
     manual = db.Column(db.Boolean, nullable=False, default=False)
 
+    # Identifica as linhas gravadas numa MESMA chamada de aplicar_rateio()/
+    # confirmar_selecao() -- agrupa "uma execucao do rateio" pra tela de
+    # historico, sem depender de comparar created_at (nao tem garantia de
+    # ser identico entre linhas da mesma chamada).
+    lote = db.Column(db.String(36), nullable=True, index=True)
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     plant = db.relationship('Plant')
@@ -33,5 +39,6 @@ class RateioHistorico(TenantMixin, db.Model):
             'consumoConsiderado': float(self.consumo_considerado) if self.consumo_considerado is not None else None,
             'producaoConsiderada': float(self.producao_considerada) if self.producao_considerada is not None else None,
             'manual': self.manual,
+            'lote': self.lote,
             'criadoEm': self.created_at.isoformat() if self.created_at else None
         }

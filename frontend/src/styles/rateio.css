@@ -254,7 +254,7 @@
 
 .rateio-qualificado-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(90px, .8fr) 100px 90px 32px;
+  grid-template-columns: minmax(0, 1fr) minmax(90px, .8fr) 100px 110px 90px 32px;
   align-items: center;
   gap: 10px;
   padding: 10px 14px;

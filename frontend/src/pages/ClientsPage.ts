@@ -124,7 +124,6 @@ export function createClientsPage(): HTMLElement {
       blocks.push(createClientEditor());
     }
 
-    blocks.push(table);
     content.replaceChildren(...blocks);
     if (viewingClient) content.appendChild(createClientDrawer(viewingClient));
   }
@@ -247,7 +246,7 @@ function formatClientBirthDate(value: string | null): string {
 }
 
 function createPagination(page: number, pages: number, total: number, onPage: (page: number) => void): HTMLElement {
-  const nav = createElement('nav', { className: 'faturas-pagination' });
+  const nav = createElement('nav', { className: 'faturas-pagination pagination-left' });
   const previous = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Anterior' });
   previous.disabled = page <= 1;
   previous.addEventListener('click', () => onPage(page - 1));

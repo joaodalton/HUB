@@ -230,7 +230,7 @@ export function renderPlantsListView(ctx: PlantsListContext): HTMLElement {
   function createPagination(): HTMLElement {
     const rows = getFilteredPlants(ctx); const pages = Math.max(1, Math.ceil(rows.length / 25));
     const page = ctx.getPage();
-    const nav = createElement('nav', { className: 'faturas-pagination' });
+    const nav = createElement('nav', { className: 'faturas-pagination pagination-left' });
     const previous = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Anterior' });
     previous.disabled = page <= 1; previous.addEventListener('click', () => { ctx.setPage(page - 1); writeListState({ pagina: page - 1 }); refresh(); });
     const next = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Próxima' });

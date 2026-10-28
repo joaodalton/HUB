@@ -193,6 +193,7 @@ graph TD
     models_rateio_historico["models.rateio_historico"]
     models_regra_cobranca_assignment["models.regra_cobranca_assignment"]
     models_regulatory_tariff["models.regulatory_tariff"]
+    models_report_template["models.report_template"]
     models_setting["models.setting"]
     models_user["models.user"]
     models_whatsapp["models.whatsapp"]
@@ -246,6 +247,8 @@ graph TD
     services_asaas_status["services.asaas_status"]
     services_asaas_webhook_service["services.asaas_webhook_service"]
     services_auth_service["services.auth_service"]
+    services_automacao_cliente_service["services.automacao_cliente_service"]
+    services_automacao_regras["services.automacao_regras"]
     services_automacao_service["services.automacao_service"]
     services_billing_calculation_contracts["services.billing_calculation_contracts"]
     services_billing_calculation_engine["services.billing_calculation_engine"]
@@ -284,8 +287,10 @@ graph TD
     services_invoice_validation_service["services.invoice_validation_service"]
     services_log_service["services.log_service"]
     services_message_template_service["services.message_template_service"]
+    services_neon_service["services.neon_service"]
     services_oauth_service["services.oauth_service"]
     services_object_storage["services.object_storage"]
+    services_office_report_renderers["services.office_report_renderers"]
     services_password_reset_service["services.password_reset_service"]
     services_pendencia_service["services.pendencia_service"]
     services_permission_service["services.permission_service"]
@@ -293,6 +298,7 @@ graph TD
     services_platform_asaas_webhook_service["services.platform_asaas_webhook_service"]
     services_platform_worker_service["services.platform_worker_service"]
     services_quota_service["services.quota_service"]
+    services_rateio_calculo["services.rateio_calculo"]
     services_rateio_excel_service["services.rateio_excel_service"]
     services_rateio_formulario_service["services.rateio_formulario_service"]
     services_rateio_math["services.rateio_math"]
@@ -301,6 +307,8 @@ graph TD
     services_regra_cobranca_assignment_service["services.regra_cobranca_assignment_service"]
     services_regulatory_tariff_import_service["services.regulatory_tariff_import_service"]
     services_regulatory_tariff_repository["services.regulatory_tariff_repository"]
+    services_report_template_service["services.report_template_service"]
+    services_report_templates["services.report_templates"]
     services_reports_service["services.reports_service"]
     services_settings_service["services.settings_service"]
     services_tariff_selector["services.tariff_selector"]
@@ -316,6 +324,7 @@ graph TD
     utils_crypto["utils.crypto"]
     utils_files["utils.files"]
     utils_observability["utils.observability"]
+    utils_pagination["utils.pagination"]
     utils_tenant["utils.tenant"]
   end
   app --> config
@@ -420,6 +429,7 @@ graph TD
   models_regra_cobranca_assignment --> extensions
   models_regra_cobranca_assignment --> services_billing_calculation_contracts
   models_regulatory_tariff --> extensions
+  models_report_template --> extensions
   models_setting --> extensions
   models_user --> extensions
   models_whatsapp --> extensions
@@ -462,17 +472,23 @@ graph TD
   routes_category_routes --> models_category
   routes_category_routes --> services_permission_service
   routes_category_routes --> utils_api_response
+  routes_client_routes --> extensions
   routes_client_routes --> services_client_service
   routes_client_routes --> services_fatura_concessionaria_upload_service
   routes_client_routes --> services_permission_service
   routes_client_routes --> utils_api_response
+  routes_client_routes --> utils_pagination
   routes_dashboard_routes --> services_dashboard_service
   routes_dashboard_routes --> services_permission_service
   routes_dashboard_routes --> utils_api_response
+  routes_document_routes --> extensions
   routes_document_routes --> models_fatura_concessionaria
   routes_document_routes --> services_document_service
+  routes_document_routes --> services_log_service
+  routes_document_routes --> services_object_storage
   routes_document_routes --> services_permission_service
   routes_document_routes --> utils_api_response
+  routes_document_routes --> utils_pagination
   routes_drive_routes --> services_drive_service
   routes_drive_routes --> services_permission_service
   routes_drive_routes --> utils_api_response
@@ -486,6 +502,7 @@ graph TD
   routes_empresa_routes --> services_empresa_service
   routes_empresa_routes --> services_permission_service
   routes_empresa_routes --> utils_api_response
+  routes_fatura_routes --> extensions
   routes_fatura_routes --> services_asaas_client
   routes_fatura_routes --> services_asaas_webhook_service
   routes_fatura_routes --> services_fatura_service
@@ -524,15 +541,23 @@ graph TD
   routes_pendencia_routes --> services_pendencia_service
   routes_pendencia_routes --> services_permission_service
   routes_pendencia_routes --> utils_api_response
+  routes_pendencia_routes --> utils_pagination
+  routes_plant_routes --> extensions
   routes_plant_routes --> services_permission_service
   routes_plant_routes --> services_plant_service
   routes_plant_routes --> services_uc_service
   routes_plant_routes --> utils_api_response
+  routes_plant_routes --> utils_pagination
+  routes_platform_routes --> config
   routes_platform_routes --> extensions
+  routes_platform_routes --> models_client
+  routes_platform_routes --> models_consumer_unit
   routes_platform_routes --> models_empresa
+  routes_platform_routes --> models_plant
   routes_platform_routes --> models_user
   routes_platform_routes --> services_empresa_service
   routes_platform_routes --> services_log_service
+  routes_platform_routes --> services_neon_service
   routes_platform_routes --> services_permission_service
   routes_platform_routes --> utils_api_response
   routes_platform_routes --> utils_auth
@@ -559,18 +584,24 @@ graph TD
   routes_report_routes --> extensions
   routes_report_routes --> services_google_reports_auth
   routes_report_routes --> services_permission_service
+  routes_report_routes --> services_report_template_service
   routes_report_routes --> services_reports_service
   routes_report_routes --> utils_api_response
+  routes_settings_routes --> extensions
   routes_settings_routes --> services_drive_service
   routes_settings_routes --> services_permission_service
   routes_settings_routes --> services_settings_service
   routes_settings_routes --> utils_api_response
+  routes_uc_routes --> extensions
   routes_uc_routes --> services_permission_service
   routes_uc_routes --> services_uc_service
   routes_uc_routes --> utils_api_response
+  routes_uc_routes --> utils_pagination
+  routes_user_routes --> extensions
   routes_user_routes --> services_permission_service
   routes_user_routes --> services_user_service
   routes_user_routes --> utils_api_response
+  routes_user_routes --> utils_pagination
   routes_whatsapp_routes --> extensions
   routes_whatsapp_routes --> services
   routes_whatsapp_routes --> services_permission_service
@@ -601,12 +632,18 @@ graph TD
   services_auth_service --> models_user
   services_auth_service --> services_log_service
   services_auth_service --> utils_auth
+  services_automacao_cliente_service --> models_client
+  services_automacao_cliente_service --> models_document
+  services_automacao_cliente_service --> services_automacao_regras
+  services_automacao_cliente_service --> services_pendencia_service
+  services_automacao_regras --> models_pendencia
   services_automacao_service --> extensions
   services_automacao_service --> models_client
   services_automacao_service --> models_consumer_unit
-  services_automacao_service --> models_document
   services_automacao_service --> models_pendencia
   services_automacao_service --> models_plant
+  services_automacao_service --> services_automacao_cliente_service
+  services_automacao_service --> services_automacao_regras
   services_automacao_service --> services_financeiro_service
   services_automacao_service --> services_log_service
   services_automacao_service --> services_pendencia_service
@@ -651,6 +688,7 @@ graph TD
   services_client_service --> models_consumer_unit
   services_client_service --> services_cad_identity
   services_client_service --> services_uc_service
+  services_client_service --> utils_pagination
   services_commercial_deduction_resolver --> services_billing_calculation_contracts
   services_commercial_deduction_resolver --> services_fio_b_resolver
   services_commercial_deduction_resolver --> services_invoice_compensation
@@ -671,9 +709,13 @@ graph TD
   services_document_service --> models_client
   services_document_service --> models_consumer_unit
   services_document_service --> models_document
+  services_document_service --> models_fatura_concessionaria
   services_document_service --> models_plant
   services_document_service --> services_drive_service
   services_document_service --> services_log_service
+  services_document_service --> services_object_storage
+  services_document_service --> services_settings_service
+  services_document_service --> utils_pagination
   services_document_tariff_resolver --> services_invoice_compensation
   services_document_tariff_resolver --> services_invoice_normalization_service
   services_document_tariff_resolver --> services_invoice_parsers_schemas
@@ -753,6 +795,7 @@ graph TD
   services_fatura_service --> models_user
   services_fatura_service --> services_asaas_client
   services_fatura_service --> services_asaas_status
+  services_fatura_service --> services_email_service
   services_fatura_service --> services_log_service
   services_fatura_service --> services_permission_service
   services_financeiro_service --> extensions
@@ -770,6 +813,7 @@ graph TD
   services_gd_compensation_pending_service --> models_pendencia
   services_gd_compensation_pending_service --> models_plant
   services_gd_compensation_pending_service --> services_log_service
+  services_google_report_renderers --> services_report_templates
   services_google_reports_auth --> models_google_account
   services_google_reports_auth --> services_drive_service
   services_grupo_regra_cobranca_service --> extensions
@@ -812,6 +856,7 @@ graph TD
   services_message_template_service --> models_log_entry
   services_message_template_service --> models_message_template
   services_message_template_service --> services_email_template_service
+  services_neon_service --> config
   services_oauth_service --> config
   services_oauth_service --> extensions
   services_oauth_service --> models_google_account
@@ -819,6 +864,8 @@ graph TD
   services_oauth_service --> services_drive_service
   services_oauth_service --> services_log_service
   services_object_storage --> services_drive_service
+  services_office_report_renderers --> services_google_report_renderers
+  services_office_report_renderers --> services_report_templates
   services_password_reset_service --> config
   services_password_reset_service --> extensions
   services_password_reset_service --> models_password_reset_token
@@ -835,10 +882,12 @@ graph TD
   services_pendencia_service --> models_plant
   services_pendencia_service --> models_user
   services_pendencia_service --> services_log_service
+  services_pendencia_service --> utils_pagination
   services_permission_service --> services_quota_service
   services_permission_service --> utils_api_response
   services_plant_service --> extensions
   services_plant_service --> models_plant
+  services_plant_service --> utils_pagination
   services_platform_asaas_webhook_service --> config
   services_platform_asaas_webhook_service --> extensions
   services_platform_asaas_webhook_service --> models_platform_asaas_webhook_event
@@ -853,6 +902,11 @@ graph TD
   services_quota_service --> models_limite_contratado
   services_quota_service --> models_plant
   services_quota_service --> models_user
+  services_rateio_calculo --> extensions
+  services_rateio_calculo --> models_consumer_unit
+  services_rateio_calculo --> models_plant
+  services_rateio_calculo --> services
+  services_rateio_calculo --> services_settings_service
   services_rateio_excel_service --> models_empresa
   services_rateio_excel_service --> services_rateio_formulario_service
   services_rateio_formulario_service --> extensions
@@ -871,7 +925,7 @@ graph TD
   services_rateio_service --> models_rateio_historico
   services_rateio_service --> services
   services_rateio_service --> services_log_service
-  services_rateio_service --> services_settings_service
+  services_rateio_service --> services_rateio_calculo
   services_regra_cobranca_assignment_service --> extensions
   services_regra_cobranca_assignment_service --> models_client
   services_regra_cobranca_assignment_service --> models_consumer_unit
@@ -884,13 +938,18 @@ graph TD
   services_regulatory_tariff_import_service --> services_aneel_ckan_client
   services_regulatory_tariff_repository --> models_regulatory_tariff
   services_regulatory_tariff_repository --> services_fio_b_resolver
+  services_report_template_service --> extensions
+  services_report_template_service --> models_report_template
+  services_report_template_service --> services_report_templates
   services_reports_service --> services_client_service
   services_reports_service --> services_drive_service
   services_reports_service --> services_fatura_service
   services_reports_service --> services_google_report_renderers
   services_reports_service --> services_google_reports_auth
+  services_reports_service --> services_office_report_renderers
   services_reports_service --> services_plant_service
   services_reports_service --> services_rateio_service
+  services_reports_service --> services_report_template_service
   services_reports_service --> services_uc_service
   services_settings_service --> extensions
   services_settings_service --> models_setting
@@ -904,15 +963,18 @@ graph TD
   services_uc_service --> models_client
   services_uc_service --> models_consumer_unit
   services_uc_service --> models_plant
+  services_uc_service --> services
   services_uc_service --> services_cad_identity
   services_uc_service --> services_log_service
   services_uc_service --> services_uc_code
   services_uc_service --> services_uc_discount
+  services_uc_service --> utils_pagination
   services_user_service --> config
   services_user_service --> extensions
   services_user_service --> models_user
   services_user_service --> services_log_service
   services_user_service --> utils_auth
+  services_user_service --> utils_pagination
   services_whatsapp_service --> config
   services_whatsapp_service --> extensions
   services_whatsapp_service --> models_api_credential
@@ -950,6 +1012,7 @@ graph TD
     components_DetailDrawer["components/DetailDrawer"]
     components_DetailHeader["components/DetailHeader"]
     components_DocumentLinkModal["components/DocumentLinkModal"]
+    components_EditCompanyModal["components/EditCompanyModal"]
     components_ErrorBoundary["components/ErrorBoundary"]
     components_FaturasUi["components/FaturasUi"]
     components_Header["components/Header"]
@@ -959,6 +1022,7 @@ graph TD
     components_IntegrationCard["components/IntegrationCard"]
     components_Loading["components/Loading"]
     components_Modal["components/Modal"]
+    components_PaginationNav["components/PaginationNav"]
     components_PlantCard["components/PlantCard"]
     components_PlantConnectionsField["components/PlantConnectionsField"]
     components_PlantDistribuicaoModal["components/PlantDistribuicaoModal"]
@@ -1005,6 +1069,7 @@ graph TD
     pages_PlatformCompaniesPage["pages/PlatformCompaniesPage"]
     pages_PlatformFuncionariosPage["pages/PlatformFuncionariosPage"]
     pages_PlatformOverviewPage["pages/PlatformOverviewPage"]
+    pages_PlatformStoragePage["pages/PlatformStoragePage"]
     pages_RateioPage["pages/RateioPage"]
     pages_ReportsPage["pages/ReportsPage"]
     pages_ResetPasswordPage["pages/ResetPasswordPage"]
@@ -1013,7 +1078,15 @@ graph TD
     pages_UcsPage["pages/UcsPage"]
     pages_UsersPage["pages/UsersPage"]
     pages_faturasInvoiceDetail["pages/faturasInvoiceDetail"]
+    pages_pendencias_PendenciasDetailPanel["pages/pendencias/PendenciasDetailPanel"]
+    pages_pendencias_PendenciasEditorModal["pages/pendencias/PendenciasEditorModal"]
+    pages_pendencias_PendenciasListView["pages/pendencias/PendenciasListView"]
+    pages_pendencias_shared["pages/pendencias/shared"]
+    pages_plantsDetailView["pages/plantsDetailView"]
+    pages_plantsListView["pages/plantsListView"]
+    pages_plantsShared["pages/plantsShared"]
     pages_rateio_RateioFormularioView["pages/rateio/RateioFormularioView"]
+    pages_rateio_RateioHistoricoView["pages/rateio/RateioHistoricoView"]
     pages_rateio_RateioWizard["pages/rateio/RateioWizard"]
     pages_settingsActions["pages/settingsActions"]
     pages_settingsAppearance["pages/settingsAppearance"]
@@ -1096,11 +1169,16 @@ graph TD
   components_CreateCompanyModal --> components_cadastroFields
   components_CreateCompanyModal --> services_empresaService
   components_DashboardCards --> components_Icon
+  components_DataTable --> components_Icon
+  components_DataTable --> components_Modal
   components_DataTable --> components_StatusBadge
   components_DataTable --> components_UiState
   components_DocumentLinkModal --> components_CategoryPicker
   components_DocumentLinkModal --> services_clientsService
   components_DocumentLinkModal --> services_documentsService
+  components_EditCompanyModal --> components_cadastroFields
+  components_EditCompanyModal --> services_empresaService
+  components_EditCompanyModal --> services_platformService
   components_ErrorBoundary --> components_Toast
   components_FaturasUi --> components_Modal
   components_FaturasUi --> components_StatusBadge
@@ -1266,40 +1344,35 @@ graph TD
   pages_MessagesPage --> services_authService
   pages_MessagesPage --> services_clientsService
   pages_MessagesPage --> services_whatsappService
-  pages_PendenciasPage --> components_ClientDetailView
-  pages_PendenciasPage --> components_DataTable
-  pages_PendenciasPage --> components_Icon
-  pages_PendenciasPage --> components_IconStatCard
-  pages_PendenciasPage --> components_StatusBadge
-  pages_PendenciasPage --> components_formFields
   pages_PendenciasPage --> hooks_useGlobalLoading
   pages_PendenciasPage --> hooks_useToast
   pages_PendenciasPage --> layouts_BaseLayout
+  pages_PendenciasPage --> pages_pendencias_PendenciasDetailPanel
+  pages_PendenciasPage --> pages_pendencias_PendenciasEditorModal
+  pages_PendenciasPage --> pages_pendencias_PendenciasListView
+  pages_PendenciasPage --> pages_pendencias_shared
   pages_PendenciasPage --> services_clientsService
   pages_PendenciasPage --> services_listState
-  pages_PendenciasPage --> services_logsService
   pages_PendenciasPage --> services_pendenciaCategoriasService
   pages_PendenciasPage --> services_pendenciasService
   pages_PendenciasPage --> services_plantService
   pages_PendenciasPage --> services_ucsService
   pages_PlaceholderPage --> layouts_BaseLayout
-  pages_PlantsPage --> components_ClientDetailView
-  pages_PlantsPage --> components_DataTable
-  pages_PlantsPage --> components_Icon
-  pages_PlantsPage --> components_IconStatCard
   pages_PlantsPage --> components_ImportacoesModal
   pages_PlantsPage --> components_PlantCard
   pages_PlantsPage --> components_PlantDistribuicaoModal
-  pages_PlantsPage --> components_StatusBadge
-  pages_PlantsPage --> components_Tooltip
   pages_PlantsPage --> hooks_useGlobalLoading
   pages_PlantsPage --> hooks_useToast
   pages_PlantsPage --> layouts_BaseLayout
+  pages_PlantsPage --> pages_plantsDetailView
+  pages_PlantsPage --> pages_plantsListView
+  pages_PlantsPage --> pages_plantsShared
   pages_PlantsPage --> services_listState
   pages_PlantsPage --> services_plantService
   pages_PlantsPage --> services_ucsService
   pages_PlatformCompaniesPage --> components_CreateCompanyModal
   pages_PlatformCompaniesPage --> components_DataTable
+  pages_PlatformCompaniesPage --> components_EditCompanyModal
   pages_PlatformCompaniesPage --> components_Icon
   pages_PlatformCompaniesPage --> components_StatusBadge
   pages_PlatformCompaniesPage --> hooks_useToast
@@ -1318,13 +1391,19 @@ graph TD
   pages_PlatformOverviewPage --> components_UiState
   pages_PlatformOverviewPage --> layouts_PlatformLayout
   pages_PlatformOverviewPage --> services_platformService
+  pages_PlatformStoragePage --> components_StatusBadge
+  pages_PlatformStoragePage --> components_UiState
+  pages_PlatformStoragePage --> layouts_PlatformLayout
+  pages_PlatformStoragePage --> services_platformService
   pages_RateioPage --> hooks_useGlobalLoading
   pages_RateioPage --> hooks_useToast
   pages_RateioPage --> layouts_BaseLayout
   pages_RateioPage --> pages_rateio_RateioFormularioView
+  pages_RateioPage --> pages_rateio_RateioHistoricoView
   pages_RateioPage --> pages_rateio_RateioWizard
   pages_RateioPage --> services_plantService
   pages_RateioPage --> services_ucsService
+  pages_ReportsPage --> components_Icon
   pages_ReportsPage --> hooks_useGlobalLoading
   pages_ReportsPage --> hooks_useToast
   pages_ReportsPage --> layouts_BaseLayout
@@ -1369,12 +1448,15 @@ graph TD
   pages_UsersPage --> components_DataTable
   pages_UsersPage --> components_Icon
   pages_UsersPage --> components_IconStatCard
+  pages_UsersPage --> components_PaginationNav
   pages_UsersPage --> components_formFields
   pages_UsersPage --> hooks_useGlobalLoading
   pages_UsersPage --> hooks_useToast
   pages_UsersPage --> layouts_BaseLayout
+  pages_UsersPage --> services_apiClient
   pages_UsersPage --> services_authService
   pages_UsersPage --> services_invitationService
+  pages_UsersPage --> services_listState
   pages_UsersPage --> services_userService
   pages_faturasInvoiceDetail --> components_DetailDrawer
   pages_faturasInvoiceDetail --> components_FaturasUi
@@ -1384,6 +1466,24 @@ graph TD
   pages_faturasInvoiceDetail --> services_clientsService
   pages_faturasInvoiceDetail --> services_faturasService
   pages_faturasInvoiceDetail --> services_pendenciasService
+  pages_plantsDetailView --> components_ClientDetailView
+  pages_plantsDetailView --> components_DataTable
+  pages_plantsDetailView --> components_Icon
+  pages_plantsDetailView --> components_StatusBadge
+  pages_plantsDetailView --> pages_plantsShared
+  pages_plantsDetailView --> services_plantService
+  pages_plantsDetailView --> services_ucsService
+  pages_plantsListView --> components_DataTable
+  pages_plantsListView --> components_Icon
+  pages_plantsListView --> components_IconStatCard
+  pages_plantsListView --> components_Tooltip
+  pages_plantsListView --> pages_plantsShared
+  pages_plantsListView --> services_listState
+  pages_plantsListView --> services_plantService
+  pages_plantsListView --> services_ucsService
+  pages_plantsShared --> components_StatusBadge
+  pages_plantsShared --> services_plantService
+  pages_plantsShared --> services_ucsService
   pages_settingsActions --> services_apiClient
   pages_settingsActions --> services_apiCredentialsService
   pages_settingsActions --> services_empresaService
@@ -1402,6 +1502,7 @@ graph TD
   pages_settingsDatabase --> components_formFields
   pages_settingsDatabase --> pages_settingsShared
   pages_settingsDatabase --> services_regulatoryTariffsService
+  pages_settingsDatabase --> services_settingsService
   pages_settingsGeneral --> components_cadastroFields
   pages_settingsGeneral --> components_formFields
   pages_settingsGeneral --> pages_settingsShared
@@ -1477,6 +1578,7 @@ graph TD
   services_router --> pages_PlatformCompaniesPage
   services_router --> pages_PlatformFuncionariosPage
   services_router --> pages_PlatformOverviewPage
+  services_router --> pages_PlatformStoragePage
   services_router --> pages_RateioPage
   services_router --> pages_ReportsPage
   services_router --> pages_ResetPasswordPage

@@ -224,6 +224,16 @@ Falha de processamento
 
 Falha de automação
 
+Falha na emissão de fatura (Asaas) — `services/automacao_service.py::_verificar_faturas_erro_emissao`
+
+Falha no processamento (parser) de fatura de concessionária — `services/fatura_concessionaria_upload_service.py`
+
+Falha no envio de e-mail/WhatsApp — `services/email_service.py`, `services/whatsapp_service.py`
+
+Conta Google (Drive) desconectada — `services/drive_service.py::_build_oauth_credentials`
+
+Sessão de usuário desativado em uso — `utils/auth.py::_registrar_pendencia_sessao_usuario_inativo`
+
 5. Prioridades
 
 Prioridade

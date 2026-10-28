@@ -370,6 +370,12 @@ def criar_empresa_com_owner(data: dict) -> dict:
             metadados={'empresaId': empresa.id, 'ownerId': owner.id}
         )
 
+        # Nova empresa muda a contagem de tenants, o que muda o resultado do
+        # guard em get_drive_service() (empresa unica vs. 2+); limpa o cache
+        # inteiro pra nenhuma empresa ja cacheada ficar com root antigo errado.
+        from services.drive_service import invalidate_drive_cache
+        invalidate_drive_cache()
+
         return {
             'empresa': empresa.to_dict(),
             'owner': owner.to_dict()

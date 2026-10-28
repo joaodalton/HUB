@@ -9,6 +9,10 @@ export function listDriveFolder(folderId: string): Promise<DriveItem[]> {
   return apiRequest<DriveItem[]>(`/drive/folders/${encodeURIComponent(folderId)}`);
 }
 
+export function listDriveRoot(): Promise<DriveItem[]> {
+  return apiRequest<DriveItem[]>('/drive/root');
+}
+
 export function downloadReservedZip(items: DriveItem[]): Promise<Blob> {
   return apiBlob('/drive/download-zip', {
     method: 'POST',

@@ -195,8 +195,9 @@ def _concluir_emissao(fatura, payment):
                   f'<p><a href="{fatura.boleto_url}">Acessar boleto</a></p>'),
         )
     except Exception as exc:
-        LogService.error(acao='fatura_email_falhou', mensagem=f'Falha ao notificar cliente por email: {exc}',
-                         entidade='Fatura', entidade_id=fatura.id)
+        LogService.error(acao='fatura_email_falhou',
+                         mensagem='Falha ao notificar cliente por email sobre a fatura emitida.',
+                         entidade='Fatura', entidade_id=fatura.id, metadados={'erro': str(exc)})
     return fatura.to_dict()
 
 

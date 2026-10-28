@@ -30,14 +30,28 @@ def _ensure_configured() -> bool:
     return True
 
 
+def _mensagem_amigavel_envio(exc: Exception) -> str:
+    """Traduz falha do provedor de e-mail pra algo que a empresa entenda e
+    possa agir sobre, sem citar nome/URL de configuracao de fornecedor --
+    isso e detalhe de infraestrutura da plataforma, nao da empresa-tenant.
+    O detalhe tecnico bruto continua disponivel em metadados pra debug."""
+    texto = str(exc).lower()
+    if 'rate limit' in texto or '429' in texto:
+        return 'muitos e-mails enviados em um curto periodo -- tente novamente em alguns minutos'
+    if 'domain' in texto or ('from' in texto and 'address' in texto) or 'api key' in texto or 'unauthorized' in texto:
+        return 'o servico de envio de e-mail nao esta configurado corretamente -- contate o suporte'
+    return 'entre em contato com o suporte caso o problema persista'
+
+
 def send_email(to: str, subject: str, html: str, text: str | None = None) -> bool:
     """Retorna True se a tentativa de envio foi feita, False se RESEND_API_KEY
     nao esta configurada (no-op silencioso pro chamador, so loga warning)."""
     if not _ensure_configured():
         LogService.warning(
             acao='email_not_configured',
-            mensagem=f'RESEND_API_KEY nao configurada -- e-mail para {to} ("{subject}") nao foi enviado.',
-            entidade='Email'
+            mensagem=f'O servico de envio de e-mail nao esta configurado -- e-mail para {to} ("{subject}") nao foi enviado.',
+            entidade='Email',
+            metadados={'motivo': 'RESEND_API_KEY ausente'}
         )
         return False
 
@@ -57,7 +71,8 @@ def send_email(to: str, subject: str, html: str, text: str | None = None) -> boo
     except Exception as exc:
         LogService.error(
             acao='email_failed',
-            mensagem=f'Falha ao enviar e-mail "{subject}" para {to}: {exc}',
-            entidade='Email'
+            mensagem=f'Falha ao enviar e-mail "{subject}" para {to}: {_mensagem_amigavel_envio(exc)}.',
+            entidade='Email',
+            metadados={'erro': str(exc)}
         )
         return False

@@ -46,7 +46,7 @@ def _todos(list_fn, *args, **kwargs) -> list[dict]:
 
 
 def _pasta_relatorios(empresa_id: int) -> str:
-    raiz = _resolve_tenant_root_folder_id(allow_account_root=True)
+    raiz = _resolve_tenant_root_folder_id(empresa_id)
     # Nesta primeira entrega os arquivos vao direto na raiz do tenant (mesma
     # pasta que o Drive ja usa) -- criar uma subpasta dedicada "Relatorios HUB"
     # fica pra uma iteracao futura se o volume de relatorios justificar.

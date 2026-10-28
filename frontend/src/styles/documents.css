@@ -65,16 +65,85 @@
 
 .workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-columns: 260px minmax(0, 1fr) 320px;
   gap: 20px;
-  align-items: start;
+  align-items: stretch;
+}
+
+@media (max-width: 1280px) {
+  .workspace { grid-template-columns: 220px minmax(0, 1fr) 320px; }
 }
 
 @media (max-width: 1000px) {
   .workspace { grid-template-columns: 1fr; }
 }
 
+.tree-column { display: grid; align-self: stretch; }
 .main-column { display: grid; gap: 20px; }
+.side-column { display: grid; gap: 20px; }
+
+/* ---------- Arvore de pastas do Drive ---------- */
+
+.drive-tree {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  min-height: 480px;
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+  align-self: stretch;
+}
+
+.drive-tree-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.drive-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.drive-tree-toggle {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  color: var(--text-faint);
+  font-size: 10px;
+  padding: 0;
+  cursor: pointer;
+}
+
+.drive-tree-root-label,
+.drive-tree-folder-label,
+.drive-tree-file {
+  background: transparent;
+  border: none;
+  padding: 2px 4px;
+  font-size: 13px;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.drive-tree-file {
+  color: var(--text-dim);
+  text-decoration: none;
+}
+
+.drive-tree-root-label:hover,
+.drive-tree-folder-label:hover,
+.drive-tree-file:hover {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
 
 .result-row, .reserved-row {
   display: flex;

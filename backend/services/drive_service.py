@@ -1,5 +1,6 @@
 import io
 import zipfile
+from collections import deque
 
 from flask import g
 from google.auth.transport.requests import Request as GoogleAuthRequest
@@ -23,6 +24,13 @@ class GoogleDriveService:
     def __init__(self, credentials, root_folder_id: str) -> None:
         self.client = build('drive', 'v3', credentials=credentials)
         self.root_folder_id = root_folder_id
+        # Cache de IDs ja confirmados como descendentes legitimos da raiz, pra evitar
+        # repetir a varredura cara de _descends_from_root a cada chamada igual. So
+        # guarda confirmacao POSITIVA: a instancia (e esse cache junto) e descartada
+        # inteira por invalidate_drive_cache() quando a config/conta do tenant muda,
+        # e um item so entra aqui depois de achado dentro da raiz -- nunca negativo,
+        # pra nao negar acesso a um item recem-movido pra dentro da raiz.
+        self._confirmed_within_root: set[str] = set()
 
     # Lista fechada de proposito -- ainda e um whitelist, so mais largo que so PDF/pasta,
     # pra alimentar o filtro dinamico de "Tipo de arquivo" no frontend com algo real.
@@ -75,6 +83,21 @@ class GoogleDriveService:
         ).execute()
         return results.get('files', [])
 
+    def list_root(self) -> list[dict]:
+        """Lista o conteudo da raiz logica do tenant, sem o frontend precisar
+        saber o ID dela: delega pra list_folder quando ha pasta configurada,
+        ou usa o alias 'root' da API quando a raiz e a da propria conta Google."""
+        if self.root_folder_id:
+            return self.list_folder(self.root_folder_id)
+
+        mime_filter = ' or '.join(f"mimeType='{mime}'" for mime in self._SEARCHABLE_MIME_TYPES)
+        results = self.client.files().list(
+            q=f"'root' in parents and ({mime_filter}) and trashed=false",
+            fields="files(id, name, mimeType, webViewLink, iconLink, modifiedTime)",
+            pageSize=50
+        ).execute()
+        return results.get('files', [])
+
     def get_authorized_item(self, item_id: str) -> dict:
         try:
             metadata = self.client.files().get(
@@ -89,9 +112,32 @@ class GoogleDriveService:
         return metadata
 
     def _is_within_root(self, item_id: str, parents: list[str]) -> bool:
-        if not self.root_folder_id or item_id == self.root_folder_id:
+        if item_id == self.root_folder_id:
+            return True
+        if item_id in self._confirmed_within_root:
+            return True
+        if not self.root_folder_id:
+            # Raiz vazia so e permitida (ver _resolve_tenant_root_folder_id) quando
+            # existe exatamente uma empresa no sistema -- nesse caso a raiz da conta
+            # Google inteira E a raiz logica do tenant, entao "sem limite" e correto.
+            # Se passar a existir mais de uma empresa, root_folder_id nunca fica vazio
+            # (a resolucao exige configuracao explicita), entao cair aqui com root_folder_id
+            # vazio so acontece no caso de empresa unica -- falha fechada em qualquer outro caso.
             return True
 
+        if parents:
+            return self._ascends_to_root(item_id, parents)
+
+        # O Google as vezes omite/zera 'parents' no files().get() direto (acesso
+        # via compartilhamento, nao por posse do item), mesmo quando o item E
+        # filho real da raiz -- confirmado contra a API real. Tratar "parents
+        # ausente" como "fora do escopo" nega item legitimo; tratar como "dentro
+        # do escopo" reabriria o vazamento cross-tenant. Fallback: confirma por
+        # busca DESCENDENTE a partir da raiz (mesma query que list_folder ja usa,
+        # escopada no root_folder_id, nao depende do campo parents do item alvo).
+        return self._descends_from_root(item_id)
+
+    def _ascends_to_root(self, item_id: str, parents: list[str]) -> bool:
         pending = list(parents)
         visited = {item_id}
         while pending:
@@ -106,6 +152,43 @@ class GoogleDriveService:
             except Exception:
                 return False
             pending.extend(metadata.get('parents', []))
+        return False
+
+    # shortcut: BFS descendente limitado a _MAX_DESCEND_NODES pastas visitadas --
+    # arvores legitimas maiores que isso falham fechado (nega acesso) em vez de
+    # custar uma varredura ilimitada. O cache em _confirmed_within_root evita
+    # repetir essa varredura pra IDs ja confirmados antes.
+    _MAX_DESCEND_NODES = 500
+
+    def _descends_from_root(self, item_id: str) -> bool:
+        pending: deque[str] = deque([self.root_folder_id])
+        visited: set[str] = set()
+        while pending and len(visited) < self._MAX_DESCEND_NODES:
+            folder_id = pending.popleft()
+            if folder_id in visited:
+                continue
+            visited.add(folder_id)
+            page_token = None
+            while True:
+                try:
+                    results = self.client.files().list(
+                        q=f"'{folder_id}' in parents and trashed=false",
+                        fields="nextPageToken, files(id, mimeType)",
+                        pageSize=1000,
+                        pageToken=page_token
+                    ).execute()
+                except Exception:
+                    break
+                for child in results.get('files', []):
+                    if child.get('id') == item_id:
+                        self._confirmed_within_root.add(item_id)
+                        return True
+                    if child.get('mimeType') == 'application/vnd.google-apps.folder':
+                        self._confirmed_within_root.add(child['id'])
+                        pending.append(child['id'])
+                page_token = results.get('nextPageToken')
+                if not page_token:
+                    break
         return False
 
     def create_reserved_zip(self, file_ids: list[str]) -> io.BytesIO:
@@ -209,15 +292,17 @@ class GoogleDriveService:
 _drive_service_cache: dict[int, GoogleDriveService] = {}
 
 
-def _build_oauth_credentials():
-    """Credenciais da conta Google conectada via OAuth (a marcada is_active=True).
-    Retorna None se nao houver conta conectada ou se o token nao puder ser renovado
-    -- nesses casos get_drive_service() cai pro credentials.json de service account,
-    em vez de derrubar a rota."""
+def _build_oauth_credentials(empresa_id: int):
+    """Credenciais da conta Google conectada via OAuth (a marcada is_active=True)
+    DA EMPRESA INFORMADA -- sem o filtro por empresa_id, a primeira conta OAuth
+    ativa no banco (de qualquer tenant) seria usada pra todo mundo. Retorna None
+    se nao houver conta conectada ou se o token nao puder ser renovado -- nesses
+    casos get_drive_service() cai pro credentials.json de service account, em
+    vez de derrubar a rota."""
     from models.google_account import GoogleAccount  # import tardio: evita ciclo no app factory
     from services.log_service import LogService
 
-    account = GoogleAccount.query.filter_by(is_active=True).first()
+    account = GoogleAccount.query.filter_by(empresa_id=empresa_id, is_active=True).first()
     if not account:
         return None
 
@@ -246,9 +331,74 @@ def _build_oauth_credentials():
             entidade='GoogleAccount',
             metadados={'id': account.id, 'erro': str(exc)}
         )
+        _registrar_pendencia_conta_desconectada(account)
         return None
 
+    _resolver_pendencia_conta_desconectada(account)
     return credentials
+
+
+def _registrar_pendencia_conta_desconectada(account) -> None:
+    """Erro em Pendencias (categoria Sistema) quando o refresh falha. Essa
+    funcao roda em toda requisicao que use o Drive -- dedupe agressivo
+    obrigatorio (so cria se nao houver nenhuma pendencia aberta pra essa
+    conta ainda). Nunca propaga: falha aqui nao pode derrubar a rota."""
+    try:
+        from extensions import db
+        from models.pendencia import Pendencia
+        from services.automacao_regras import REGRA_CONTA_DESCONECTADA
+
+        abertas = Pendencia.query.filter_by(
+            empresa_id=account.empresa_id, status='aberta', categoria='Sistema',
+        ).all()
+        if any(
+            isinstance(p.metadados, dict)
+            and p.metadados.get('regra') == REGRA_CONTA_DESCONECTADA
+            and p.metadados.get('googleAccountId') == account.id
+            for p in abertas
+        ):
+            return
+        db.session.add(Pendencia(
+            empresa_id=account.empresa_id, tipo='erro', categoria='Sistema',
+            origem='Automacao',
+            titulo=f'Conta Google {account.email} desconectada',
+            descricao=(
+                f'Token da conta {account.email} nao renovou (revogacao/expiracao '
+                f'ou rede fora do ar). Reconecte em Configuracoes se persistir.'
+            ),
+            prioridade='alta',
+            metadados={'regra': REGRA_CONTA_DESCONECTADA, 'googleAccountId': account.id},
+        ))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+
+def _resolver_pendencia_conta_desconectada(account) -> None:
+    """Auto-resolve a pendencia de conta desconectada na primeira chamada que
+    conseguir renovar o token de novo. Nunca propaga."""
+    try:
+        from datetime import datetime
+
+        from extensions import db
+        from models.pendencia import Pendencia
+        from services.automacao_regras import REGRA_CONTA_DESCONECTADA
+
+        abertas = Pendencia.query.filter_by(
+            empresa_id=account.empresa_id, status='aberta', categoria='Sistema',
+        ).all()
+        for pendencia in abertas:
+            metadados = pendencia.metadados or {}
+            if (
+                isinstance(metadados, dict)
+                and metadados.get('regra') == REGRA_CONTA_DESCONECTADA
+                and metadados.get('googleAccountId') == account.id
+            ):
+                pendencia.status = 'resolvida'
+                pendencia.resolved_at = datetime.utcnow()
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
 
 
 def _build_service_account_credentials():
@@ -274,33 +424,32 @@ def get_drive_service() -> GoogleDriveService:
     if empresa_id in _drive_service_cache:
         return _drive_service_cache[empresa_id]
 
-    credentials = _build_oauth_credentials()
-    uses_oauth = credentials is not None
-    if not uses_oauth:
+    credentials = _build_oauth_credentials(empresa_id)
+    if credentials is None:
         credentials = _build_service_account_credentials()
 
-    root_folder_id = _resolve_tenant_root_folder_id(allow_account_root=uses_oauth)
+    root_folder_id = _resolve_tenant_root_folder_id(empresa_id)
 
     service = GoogleDriveService(credentials, root_folder_id)
     _drive_service_cache[empresa_id] = service
     return service
 
 
-def _resolve_tenant_root_folder_id(*, allow_account_root: bool = False) -> str:
+def _resolve_tenant_root_folder_id(empresa_id: int) -> str:
     from models.empresa import Empresa
     from models.setting import Setting
 
-    setting = Setting.query.filter_by(chave='google_drive_root_folder_id').first()
+    setting = Setting.query.filter_by(empresa_id=empresa_id, chave='google_drive_root_folder_id').first()
     if setting and setting.valor:
         return setting.valor.strip()
 
-    if Empresa.query.count() == 1 and Config.GOOGLE_DRIVE_ROOT_FOLDER_ID:
-        return Config.GOOGLE_DRIVE_ROOT_FOLDER_ID
-
-    # OAuth pertence a uma única empresa. Sem pasta configurada, a raiz dessa
-    # conta é o escopo natural; service accounts continuam exigindo um limite.
-    if allow_account_root:
-        return ''
+    # So empresa UNICA no sistema pode ficar sem pasta configurada: nesse caso
+    # nao ha outro tenant pra vazar dado, e a raiz da propria conta (OAuth ou
+    # Config.GOOGLE_DRIVE_ROOT_FOLDER_ID) e um limite seguro. Com mais de uma
+    # empresa, exigir configuracao explicita e o unico jeito de garantir
+    # isolamento -- por isso o branch OAuth e o branch Config usam o MESMO guard.
+    if Empresa.query.count() == 1:
+        return Config.GOOGLE_DRIVE_ROOT_FOLDER_ID or ''
 
     raise RuntimeError(
         'Pasta raiz do Google Drive nao configurada para esta empresa. '

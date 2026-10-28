@@ -1,4 +1,5 @@
 import { createDocumentLinkModal } from '../components/DocumentLinkModal';
+import { createDriveTreeView } from '../components/DriveTreeView';
 import { createReservedPanel } from '../components/ReservedPanel';
 import { createResultsPanel } from '../components/ResultsList';
 import { createSearchPanel } from '../components/SearchPanel';
@@ -9,7 +10,7 @@ import { useToast } from '../hooks/useToast';
 import { createBaseLayout } from '../layouts/BaseLayout';
 import { getClients, type ClientRow } from '../services/clientsService';
 import { fileTypeLabel, isFolder, matchesDateRange, matchesFilter, matchesType } from '../services/documentRules';
-import { downloadReservedZip, listDriveFolder, searchDriveItems } from '../services/driveService';
+import { downloadReservedZip, listDriveFolder, listDriveRoot, searchDriveItems } from '../services/driveService';
 import { getDocuments, type DocumentRow } from '../services/documentsService';
 import type { DriveItem, FilterKey } from '../types';
 
@@ -21,6 +22,7 @@ export function createDocumentsPage(): HTMLElement {
   let currentResults: DriveItem[] = [];
   let folderStack: DriveItem[] = [];
   let searchTerm = '';
+  let atRoot = false;
   let clients: ClientRow[] = [];
   let documents: DocumentRow[] = [];
   const reservedItems = new Map<string, DriveItem>();
@@ -59,13 +61,23 @@ export function createDocumentsPage(): HTMLElement {
     }
   });
 
+  const driveTreeView = createDriveTreeView({
+    onSelectFolder: openFolder,
+    onOpenRoot: openRoot,
+    onError: (message) => toast.error(message)
+  });
+
   const workspace = createElement('section', { className: 'workspace' });
   const content = createElement('section', { className: 'content-stack' });
   const statsHolder = createElement('div');
+  const treeColumn = createElement('aside', { className: 'tree-column' });
   const mainColumn = createElement('section', { className: 'main-column' });
+  const sideColumn = createElement('aside', { className: 'side-column' });
 
+  treeColumn.append(driveTreeView.element);
   mainColumn.append(searchPanel.element, resultsPanel.element);
-  workspace.append(mainColumn, reservedPanel.element);
+  sideColumn.append(reservedPanel.element);
+  workspace.append(treeColumn, mainColumn, sideColumn);
   content.append(statsHolder, workspace);
   renderReserved();
   loadClients();
@@ -104,6 +116,7 @@ export function createDocumentsPage(): HTMLElement {
   async function runSearch(term: string): Promise<void> {
     searchTerm = term;
     folderStack = [];
+    atRoot = false;
     resultsPanel.setFolderName(null);
     if (!term) {
       currentResults = [];
@@ -121,6 +134,25 @@ export function createDocumentsPage(): HTMLElement {
     } catch (error) {
       currentResults = [];
       const message = error instanceof Error ? error.message : 'Nao foi possivel pesquisar documentos.';
+      resultsPanel.setMessage(message);
+      toast.error(message);
+    } finally {
+      loading.hide();
+    }
+  }
+
+  async function openRoot(): Promise<void> {
+    resultsPanel.setLoading();
+    loading.show();
+
+    try {
+      currentResults = await listDriveRoot();
+      folderStack = [];
+      atRoot = true;
+      resultsPanel.setFolderName('Pasta raiz do Drive');
+      updateResults();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Nao foi possivel abrir a pasta raiz.';
       resultsPanel.setMessage(message);
       toast.error(message);
     } finally {
@@ -149,6 +181,10 @@ export function createDocumentsPage(): HTMLElement {
   function openParentFolder(): void {
     folderStack.pop();
     if (folderStack.length === 0) {
+      if (atRoot) {
+        void openRoot();
+        return;
+      }
       void runSearch(searchTerm);
       return;
     }

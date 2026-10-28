@@ -84,8 +84,9 @@ def callback():
     except Exception as exc:
         LogService.error(
             acao='oauth_callback_failed',
-            mensagem=f'Falha inesperada no callback OAuth: {exc}',
-            entidade='GoogleAccount'
+            mensagem='Falha inesperada ao concluir a autorizacao de conta Google.',
+            entidade='GoogleAccount',
+            metadados={'erro': str(exc)}
         )
         # Detalhe interno fica no log; o usuario recebe um motivo generico.
         return _finish(redirect(_frontend_oauth_redirect('erro', 'Falha ao concluir a autorizacao. Tente de novo.')))

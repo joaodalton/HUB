@@ -29,6 +29,16 @@ def search():
     return jsonify(service.search_files(query_text))
 
 
+@drive_routes.route('/root')
+@require_permission('documents.read')
+def root_contents():
+    service, error = _resolve_service()
+    if error:
+        return error
+
+    return jsonify(service.list_root())
+
+
 @drive_routes.route('/folders/<string:folder_id>')
 @require_permission('documents.read')
 def folder_contents(folder_id: str):

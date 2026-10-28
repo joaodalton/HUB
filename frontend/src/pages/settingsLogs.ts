@@ -60,7 +60,6 @@ export function createLogsPanel(logs: LogRow[], loaded: boolean): HTMLElement {
     columns: [
       { key: 'dataFormatada', label: 'Data/Hora' },
       { key: 'nivel', label: 'Nível' },
-      { key: 'acao', label: 'Ação' },
       { key: 'mensagem', label: 'Mensagem' }
     ]
   });
@@ -92,19 +91,41 @@ function createLogEntityChart(logs: LogRow[]): HTMLElement {
   return panel;
 }
 
+// Rotulos amigaveis so pra acoes mais comuns -- nao e um sistema de
+// traducao pra todo slug do backend, so cobre os mais frequentes. O resto
+// cai no fallback humanizeAction().
+const ACTION_LABELS: Record<string, string> = {
+  login: 'Login realizado',
+  login_failed: 'Falha no login',
+  email_sent: 'E-mail enviado',
+  email_failed: 'Falha no envio de e-mail',
+  email_not_configured: 'E-mail não configurado',
+  create: 'Criação de registro',
+  update: 'Atualização de registro',
+  delete: 'Exclusão de registro',
+  download: 'Download de documento'
+};
+
+function humanizeAction(acao: string): string {
+  if (ACTION_LABELS[acao]) return ACTION_LABELS[acao];
+  const text = acao.replace(/_/g, ' ');
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 function openLogDrawer(log: LogRow): void {
   const content = createElement('div', { className: 'log-drawer-content' });
-  const metadata = createElement('pre', { className: 'log-metadata' });
-  metadata.textContent = JSON.stringify(log.metadados ?? {}, null, 2);
+  const isError = log.nivel === 'error';
+  const message = createElement('p', {
+    className: isError ? 'log-drawer-message log-drawer-message-error' : 'log-drawer-message',
+    textContent: log.mensagem || humanizeAction(log.acao)
+  });
   content.append(
-    createElement('p', { textContent: log.mensagem || log.acao }),
-    createElement('span', { className: 'settings-hint', textContent: formattedLogDate(log) }),
-    createElement('h3', { textContent: 'Metadados' }),
-    metadata
+    message,
+    createElement('span', { className: 'settings-hint', textContent: formattedLogDate(log) })
   );
   const badge = createElement('span', { className: `log-level log-level-${log.nivel}`, textContent: log.nivel });
   const drawer = createDetailDrawer({
-    title: log.acao,
+    title: humanizeAction(log.acao),
     badge,
     tabs: [{ label: 'Detalhes', content }],
     onClose: () => drawer.remove()

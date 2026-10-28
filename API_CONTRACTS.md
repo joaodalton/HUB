@@ -633,7 +633,7 @@ As rotas `GET /config/database` e `POST /config/database/{provider,google-drive,
 
 ## OAuth Google (`/oauth/google`)
 
-Fluxo de autorização de usuário real (PKCE). Depois de conectar e aprovar no Google, a conta ativa é usada diretamente, inclusive sua raiz do Drive — não há ID de pasta obrigatório. Contas ficam salvas em `GoogleAccount`, refresh token criptografado (nunca exposto em nenhum `to_dict`). Uma pasta raiz continua opcional para restringir o OAuth ou obrigatória para a service account compartilhada entre empresas.
+Fluxo de autorização de usuário real (PKCE). Depois de conectar e aprovar no Google, a conta ativa (filtrada por `empresa_id`, nunca a primeira conta ativa de qualquer tenant) é usada diretamente, inclusive sua raiz do Drive — ID de pasta é opcional **somente** quando existe uma única empresa no sistema. Contas ficam salvas em `GoogleAccount`, refresh token criptografado (nunca exposto em nenhum `to_dict`). Com mais de uma empresa cadastrada, `google_drive_root_folder_id` é obrigatório para toda empresa (OAuth ou service account) — sem isso, o acesso ao Drive falha com erro em vez de usar a raiz inteira da conta, o que vazaria dado entre tenants.
 
 O callback registrado e `FRONTEND_URL` devem usar HTTPS absoluto sem credenciais ou fragmento em produção. HTTP só é permitido para `localhost`/loopback quando `FLASK_DEBUG=true` **e** `OAUTH_ALLOW_INSECURE_TRANSPORT=true` forem configurados explicitamente; a aplicação remove a exceção de transporte inseguro do OAuthlib em qualquer outro ambiente. A validação padrão de escopos do OAuthlib permanece ativa.
 
@@ -1329,6 +1329,9 @@ Erros: 400 (sem arquivo / tipo inválido), 503 (Google Drive indisponível).
 ## Google Drive — busca legada (`/drive`)
 
 Usa a conta OAuth ativa se houver uma; cai pro `credentials.json` de service account se não. Prefixo real: `/api/v1/drive` (`drive_routes.py`, `url_prefix='/api/v1/drive'`).
+
+### `GET /drive/root`
+Retorna o mesmo formato de `/drive/search`, mas lista o conteúdo da raiz lógica do tenant (pasta configurada em `google_drive_root_folder_id`, ou raiz da própria conta OAuth quando não há outra empresa no sistema) sem o frontend precisar saber o ID dela. Requer `documents.read`. Erro (503) se não houver credencial válida.
 
 ### `GET /drive/search?q=texto`
 Retorna array cru do Google (não passa pelo envelope `success_response`): `[{ id, name, mimeType, webViewLink, iconLink, modifiedTime }, ...]`. Busca os arquivos e pastas permitidos pela raiz configurada da empresa; OAuth sem raiz configurada usa o escopo da conta conectada.

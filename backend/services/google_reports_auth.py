@@ -31,7 +31,7 @@ def get_report_credentials(empresa_id: int):
     if missing:
         raise ReportScopeError(missing)
 
-    credentials = _build_oauth_credentials()
+    credentials = _build_oauth_credentials(empresa_id)
     if credentials is None:
         raise ReportAccountMissingError('Token da conta Google ativa nao pode ser renovado.')
     return credentials

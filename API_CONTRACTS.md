@@ -478,7 +478,10 @@ Executa todas as regras automáticas de pendências. Body: nenhum. Retorna:
       "ucs_sem_usina": 0,
       "clientes_sem_uc": 0,
       "campos_faltando": 0,
-      "documentos_faltando": 0
+      "documentos_faltando": 0,
+      "fatura_geracao_usina": 0,
+      "repasses_pendentes": 0,
+      "faturas_erro_emissao": 0
     },
     "resolvidas": 0,
     "total_criadas": 0

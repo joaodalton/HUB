@@ -1,6 +1,6 @@
-"""send_email(): mensagem de erro visivel ao tenant nao vaza detalhe tecnico
-de fornecedor externo (nome/URL de configuracao) -- detalhe bruto fica so em
-metadados, pra debug."""
+"""send_email(): falha de envio so gera Pendencia quando ha tenant conhecido
+(g.current_empresa_id) -- fluxos publicos (reset de senha, convite) continuam
+so logando, sem Pendencia."""
 import os
 import sys
 import tempfile
@@ -19,6 +19,7 @@ from config import Config  # noqa: E402
 from extensions import db  # noqa: E402
 from models.empresa import Empresa  # noqa: E402
 from models.log_entry import LogEntry  # noqa: E402
+from models.pendencia import Pendencia  # noqa: E402
 from services import email_service  # noqa: E402
 try:
     from .support import IsolatedTestRuntime  # noqa: E402
@@ -51,6 +52,24 @@ class EmailServiceTest(IsolatedTestRuntime, unittest.TestCase):
 
     def tearDown(self):
         Config.RESEND_API_KEY = self.original_key
+        with self.app.app_context():
+            Pendencia.query.delete()
+            db.session.commit()
+
+    def test_send_failure_with_tenant_creates_pendencia_once(self):
+        with self.app.test_request_context('/'):
+            g.current_empresa_id = 1
+            with patch('services.email_service.resend.Emails.send', side_effect=Exception('falha smtp')):
+                self.assertFalse(email_service.send_email('cliente@x.test', 'Assunto', '<p>x</p>'))
+                self.assertFalse(email_service.send_email('cliente@x.test', 'Assunto', '<p>x</p>'))
+            abertas = Pendencia.query.filter_by(empresa_id=1, categoria='Mensagens', status='aberta').all()
+            self.assertEqual(len(abertas), 1)
+
+    def test_send_failure_without_tenant_never_creates_pendencia(self):
+        with self.app.app_context():
+            with patch('services.email_service.resend.Emails.send', side_effect=Exception('falha smtp')):
+                self.assertFalse(email_service.send_email('publico@x.test', 'Reset de senha', '<p>x</p>'))
+            self.assertEqual(Pendencia.query.count(), 0)
 
     def test_send_failure_logs_friendly_message_without_vendor_detail(self):
         erro_resend = (

@@ -15,11 +15,15 @@ from models.client import Client
 from models.consumer_unit import ConsumerUnit
 from models.fatura_concessionaria import FaturaConcessionaria
 from models.document import Document
+from models.pendencia import Pendencia
+from services.invoice_parsers.schemas import IssueSeverity
 from services.object_storage import get_object_storage
 from services.fatura_processing_service import FaturaProcessingService
 from services.invoice_parsers.extraction import MinimalExtractor
 from services.invoice_parsers.registry import default_registry
 from services.uc_code import find_document_ucs
+
+ORIGEM_ERRO_PROCESSAMENTO = 'erro_processamento_fatura'
 
 
 class InvoiceUploadError(ValueError):
@@ -158,10 +162,33 @@ def upload_invoice(client_id: int | None, file_storage) -> tuple[dict, bool]:
 
     # Falha de extracao nao invalida o upload ja persistido; process() grava seu proprio status/erro.
     try:
-        FaturaProcessingService().process(invoice.id, document=file_bytes)
+        resultado = FaturaProcessingService().process(invoice.id, document=file_bytes)
+        if any(issue.severity == IssueSeverity.CRITICAL for issue in resultado.issues):
+            _registrar_pendencia_erro_processamento(invoice, resultado)
     except Exception:
         current_app.logger.error('Falha ao disparar extracao automatica da fatura: %s', invoice.id)
     return _result(invoice, False), False
+
+
+def _registrar_pendencia_erro_processamento(invoice: FaturaConcessionaria, resultado) -> None:
+    """Pendencia de erro (categoria Documentos) quando o parser encontra issue
+    CRITICAL. Dedupe automatico via uq_pendencias_fatura_origem
+    (empresa_id, fatura_concessionaria_id, origem) -- nao impede o upload."""
+    criticas = [issue.message for issue in resultado.issues if issue.severity == IssueSeverity.CRITICAL]
+    pendencia = Pendencia(
+        empresa_id=invoice.empresa_id, tipo='erro', categoria='Documentos',
+        origem=ORIGEM_ERRO_PROCESSAMENTO,
+        titulo=f'Falha ao processar fatura {invoice.id}',
+        descricao='Erro(s) critico(s) na extracao: ' + '; '.join(criticas),
+        client_id=invoice.client_id, consumer_unit_id=invoice.consumer_unit_id,
+        fatura_concessionaria_id=invoice.id, prioridade='alta',
+        metadados={'origem': ORIGEM_ERRO_PROCESSAMENTO, 'faturaConcessionariaId': invoice.id},
+    )
+    try:
+        db.session.add(pendencia)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
 
 
 def _discard_attempt(storage, key: str) -> None:

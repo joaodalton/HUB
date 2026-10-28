@@ -16,6 +16,9 @@ REGRA_CLIENTE_SEM_UC = 'cliente_sem_uc'
 REGRA_CAMPOS_OBRIGATORIOS = 'campos_obrigatorios'
 REGRA_DOCUMENTOS_OBRIGATORIOS = 'documentos_obrigatorios'
 REGRA_FATURA_GERACAO_USINA = 'fatura_geracao_usina'
+REGRA_FATURA_ERRO_EMISSAO = 'fatura_erro_emissao'
+REGRA_CONTA_DESCONECTADA = 'conta_google_desconectada'
+REGRA_SESSAO_USUARIO_INATIVO = 'sessao_usuario_inativo'
 _TITULO_LEGADO = {
     REGRA_UC_SEM_USINA: 'sem usina',
     REGRA_CLIENTE_SEM_UC: 'sem uc',

@@ -27,6 +27,7 @@ from sqlalchemy.exc import IntegrityError
 from extensions import db
 from models.client import Client
 from models.consumer_unit import ConsumerUnit, PlantConnection
+from models.fatura import Fatura
 from models.pendencia import Pendencia
 from models.plant import Plant
 from services.automacao_cliente_service import (  # noqa: F401 (reexport)
@@ -42,6 +43,7 @@ from services.automacao_regras import (  # noqa: F401 (reexport)
     REGRA_CAMPOS_OBRIGATORIOS,
     REGRA_CLIENTE_SEM_UC,
     REGRA_DOCUMENTOS_OBRIGATORIOS,
+    REGRA_FATURA_ERRO_EMISSAO,
     REGRA_FATURA_GERACAO_USINA,
     REGRA_UC_SEM_USINA,
     _ja_existe_pendencia_ativa,
@@ -71,6 +73,7 @@ def verificar_e_criar_pendencias():
         'documentos_faltando': 0,
         'fatura_geracao_usina': 0,
         'repasses_pendentes': 0,
+        'faturas_erro_emissao': 0,
     }
 
     # 1. UC sem usina vinculada
@@ -90,6 +93,9 @@ def verificar_e_criar_pendencias():
 
     # 6. Repasses ao usineiro perdidos por corrida entre webhooks concorrentes
     resultado['repasses_pendentes'] = _verificar_repasses_pendentes()
+
+    # 7. Faturas (cobranca Asaas) que falharam na emissao/consulta
+    resultado['faturas_erro_emissao'] = _verificar_faturas_erro_emissao()
 
     LogService.info(
         acao='automacao',
@@ -240,6 +246,47 @@ def _verificar_repasses_pendentes() -> int:
     return criados
 
 
+def _verificar_faturas_erro_emissao() -> int:
+    """Cria um erro em Pendencias pra cada Fatura (cobranca Asaas) que ficou
+    com status_interno='erro_emissao' (ver fatura_service.py::emitir()).
+    Dedupe por faturaId em metadados (Fatura nao tem FK propria em Pendencia,
+    so FaturaConcessionaria tem)."""
+    criados = 0
+    abertas = Pendencia.query.filter_by(status='aberta', categoria='Financeiro').all()
+    ja_notificadas = {
+        p.metadados.get('faturaId') for p in abertas
+        if isinstance(p.metadados, dict) and p.metadados.get('regra') == REGRA_FATURA_ERRO_EMISSAO
+    }
+
+    faturas = Fatura.query.filter(Fatura.status_interno == 'erro_emissao').all()
+    for fatura in faturas:
+        if fatura.id in ja_notificadas:
+            continue
+
+        db.session.add(Pendencia(
+            empresa_id=fatura.empresa_id,
+            tipo='erro',
+            categoria='Financeiro',
+            origem='Automacao',
+            titulo=f'Falha na emissao da fatura {fatura.id} ({fatura.competencia})',
+            descricao=(
+                f'A fatura {fatura.id}, competencia {fatura.competencia}, falhou '
+                f'na emissao ou consulta junto ao Asaas (status_interno=erro_emissao).'
+            ),
+            client_id=fatura.client_id,
+            consumer_unit_id=fatura.consumer_unit_id,
+            competencia=fatura.competencia,
+            prioridade='alta',
+            metadados={'regra': REGRA_FATURA_ERRO_EMISSAO, 'faturaId': fatura.id},
+        ))
+        criados += 1
+
+    if criados > 0:
+        db.session.commit()
+
+    return criados
+
+
 def resolver_pendencias_resolvidas():
     """
     Verifica pendências que devem ser resolvidas automaticamente:
@@ -330,6 +377,27 @@ def resolver_pendencias_resolvidas():
                 entidade_id=pendencia.id
             )
             resolvidas += 1
+
+    # 4. Fatura com erro de emissao - resolve se a fatura saiu do erro_emissao
+    for pendencia in por_regra.get(REGRA_FATURA_ERRO_EMISSAO, []):
+        metadados = pendencia.metadados or {}
+        fatura_id = metadados.get('faturaId') if isinstance(metadados, dict) else None
+        if not fatura_id:
+            continue
+
+        fatura = Fatura.query.filter_by(id=fatura_id, empresa_id=g.current_empresa_id).first()
+        if not fatura or fatura.status_interno == 'erro_emissao':
+            continue
+
+        pendencia.status = 'resolvida'
+        pendencia.resolved_at = datetime.utcnow()
+        LogService.info(
+            acao='auto_resolver',
+            mensagem=f'Pendencia "{pendencia.titulo}" resolvida automaticamente (fatura saiu de erro_emissao)',
+            entidade='Pendencia',
+            entidade_id=pendencia.id
+        )
+        resolvidas += 1
 
     if resolvidas > 0:
         db.session.commit()

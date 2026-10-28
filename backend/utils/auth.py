@@ -185,6 +185,41 @@ def resolve_current_user_optional():
     user = db.session.get(User, token_data.get('user_id'))
     return user if user and user.status == 'ativo' and user.session_version == token_data.get('session_version') else None
 
+def _registrar_pendencia_sessao_usuario_inativo(user) -> None:
+    """Pendencia de erro (categoria Sistema) quando um usuario desativado
+    tenta usar um token antigo. Roda ANTES de g.current_empresa_id existir --
+    empresa_id vem explicito de user.empresa_id. Fail-safe obrigatorio: erro
+    aqui jamais pode atrasar ou substituir o 401 que o middleware ja retorna."""
+    try:
+        from models.pendencia import Pendencia
+        from services.automacao_regras import REGRA_SESSAO_USUARIO_INATIVO
+
+        abertas = Pendencia.query.filter_by(
+            empresa_id=user.empresa_id, status='aberta', categoria='Sistema',
+        ).all()
+        if any(
+            isinstance(p.metadados, dict)
+            and p.metadados.get('regra') == REGRA_SESSAO_USUARIO_INATIVO
+            and p.metadados.get('userId') == user.id
+            for p in abertas
+        ):
+            return
+        db.session.add(Pendencia(
+            empresa_id=user.empresa_id, tipo='erro', categoria='Sistema',
+            origem='Automacao',
+            titulo=f'Sessao de usuario desativado ({user.email}) em uso',
+            descricao=(
+                f'O usuario {user.email} esta com status "{user.status}" mas uma '
+                f'sessao antiga tentou autenticar com token ja emitido.'
+            ),
+            prioridade='alta',
+            metadados={'regra': REGRA_SESSAO_USUARIO_INATIVO, 'userId': user.id},
+        ))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+
 def register_auth_middleware(app, public_paths: set[str], public_path_prefixes: set[str] = frozenset()) -> None:
     @app.before_request
     def _require_auth():
@@ -221,7 +256,15 @@ def register_auth_middleware(app, public_paths: set[str], public_path_prefixes: 
         from models.empresa import Empresa
 
         user = db.session.get(User, token_data.get('user_id'))
-        if not user or user.status != 'ativo' or user.session_version != token_data.get('session_version'):
+        if not user:
+            return error_response('Usuario invalido ou inativo.', 401)
+        if user.status != 'ativo':
+            # Conta desativada/removida logicamente mas ainda existe -- so aqui
+            # o tenant (empresa_id) e conhecido. Mismatch isolado de
+            # session_version (logout/troca de senha normal) NAO entra aqui.
+            _registrar_pendencia_sessao_usuario_inativo(user)
+            return error_response('Usuario invalido ou inativo.', 401)
+        if user.session_version != token_data.get('session_version'):
             return error_response('Usuario invalido ou inativo.', 401)
 
         # A partir daqui, toda query contra um model com TenantMixin

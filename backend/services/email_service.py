@@ -9,6 +9,7 @@ Uso:
     from services.email_service import send_email
     send_email(to='cliente@exemplo.com', subject='...', html='...', text='...')
 """
+from flask import g
 import resend
 
 from config import Config
@@ -75,4 +76,28 @@ def send_email(to: str, subject: str, html: str, text: str | None = None) -> boo
             entidade='Email',
             metadados={'erro': str(exc)}
         )
+        # So registra Pendencia com tenant conhecido -- send_email tambem roda
+        # em fluxos publicos (reset de senha, convite) sem empresa na sessao.
+        if getattr(g, 'current_empresa_id', None) is not None:
+            _registrar_pendencia_envio_falhou(to, subject)
         return False
+
+
+def _registrar_pendencia_envio_falhou(to: str, subject: str) -> None:
+    from extensions import db
+    from models.pendencia import Pendencia
+
+    ja_existe = Pendencia.query.filter_by(
+        status='aberta', categoria='Mensagens', origem='email_falhou',
+    ).filter(Pendencia.titulo == f'Falha ao enviar e-mail para {to}').first()
+    if ja_existe:
+        return
+    db.session.add(Pendencia(
+        empresa_id=g.current_empresa_id, tipo='erro', categoria='Mensagens',
+        origem='email_falhou',
+        titulo=f'Falha ao enviar e-mail para {to}',
+        descricao=f'Assunto: "{subject}".',
+        prioridade='media',
+        metadados={'destinatario': to, 'assunto': subject},
+    ))
+    db.session.commit()

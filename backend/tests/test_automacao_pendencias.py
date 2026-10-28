@@ -184,6 +184,42 @@ class AutomacaoPendenciasTest(IsolatedTestRuntime, unittest.TestCase):
         ).one()
         self.assertEqual(pendencia.competencia, '2026-02')
 
+    def test_verificar_faturas_erro_emissao_cria_pendencia(self):
+        fatura = Fatura(
+            empresa_id=1, client_id=self.cliente.id, consumer_unit_id=self.uc.id,
+            concessionaria='CEMIG', competencia='2026-01', valor=100,
+            mes_vencimento=date(2026, 1, 10), status_interno='erro_emissao',
+        )
+        db.session.add(fatura)
+        db.session.commit()
+
+        resultado = auto.verificar_e_criar_pendencias()
+        self.assertEqual(resultado['faturas_erro_emissao'], 1)
+        pendencia = Pendencia.query.filter_by(categoria='Financeiro', status='aberta').one()
+        self.assertEqual(pendencia.metadados['faturaId'], fatura.id)
+        self.assertEqual(pendencia.client_id, self.cliente.id)
+
+        # Roda de novo: nao duplica.
+        resultado = auto.verificar_e_criar_pendencias()
+        self.assertEqual(resultado['faturas_erro_emissao'], 0)
+        self.assertEqual(Pendencia.query.filter_by(categoria='Financeiro').count(), 1)
+
+    def test_verificar_faturas_erro_emissao_resolve_quando_fatura_sai_do_erro(self):
+        fatura = Fatura(
+            empresa_id=1, client_id=self.cliente.id, consumer_unit_id=self.uc.id,
+            concessionaria='CEMIG', competencia='2026-01', valor=100,
+            mes_vencimento=date(2026, 1, 10), status_interno='erro_emissao',
+        )
+        db.session.add(fatura)
+        db.session.commit()
+        auto.verificar_e_criar_pendencias()
+
+        fatura.status_interno = 'emitida'
+        db.session.commit()
+        self.assertEqual(auto.resolver_pendencias_resolvidas(), 1)
+        pendencia = Pendencia.query.filter_by(categoria='Financeiro').one()
+        self.assertEqual(pendencia.status, 'resolvida')
+
     def test_verificar_repasses_pendentes_cria_pendencia_perdida_na_corrida(self):
         self.plant.repasse_tipo = 'valor_fixo'
         self.plant.repasse_valor = Decimal('50.00')

@@ -715,6 +715,30 @@ class FaturaConcessionariaUploadTest(IsolatedTestRuntime, unittest.TestCase):
             self.assertEqual((Document.query.count(), FaturaConcessionaria.query.count()), (1, 1))
         self.assertEqual(len(self.store.files), 1)
 
+    def test_critical_processing_issue_creates_pendencia_erro_once(self):
+        from services.fatura_processing_service import ProcessingResult, ProcessingStatus
+        from services.invoice_parsers.schemas import ExtractionIssue, IssueSeverity
+        from models.pendencia import Pendencia
+
+        resultado = ProcessingResult(ProcessingStatus.ERROR, issues=(
+            ExtractionIssue('PARSING_EXECUTION_FAILED', IssueSeverity.CRITICAL, 'Falha tecnica.'),
+        ))
+        with self.app.app_context():
+            document = Document(empresa_id=1, client_id=1, nome='fatura.pdf', storage_provider='s3', storage_ref='k')
+            db.session.add(document)
+            db.session.flush()
+            invoice = FaturaConcessionaria(empresa_id=1, client_id=1, document_id=document.id, arquivo_hash='h' * 64)
+            db.session.add(invoice)
+            db.session.commit()
+            upload_service._registrar_pendencia_erro_processamento(invoice, resultado)
+            upload_service._registrar_pendencia_erro_processamento(invoice, resultado)  # dedupe
+            abertas = Pendencia.query.filter_by(
+                empresa_id=1, categoria='Documentos', origem=upload_service.ORIGEM_ERRO_PROCESSAMENTO,
+            ).all()
+            self.assertEqual(len(abertas), 1)
+            self.assertEqual(abertas[0].fatura_concessionaria_id, invoice.id)
+            self.assertEqual(abertas[0].tipo, 'erro')
+
 
 if __name__ == '__main__':
     unittest.main()

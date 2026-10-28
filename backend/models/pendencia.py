@@ -6,6 +6,7 @@ from extensions import db, TenantMixin
 TIPOS = ('pendencia', 'alerta', 'erro')
 PRIORIDADES = ('baixa', 'media', 'alta', 'critica')
 STATUSES = ('aberta', 'resolvida', 'cancelada')
+RESPONSAVEL_TIPOS = ('usuario', 'cargo')
 
 # Categorias fixas por tipo. Hoje os 3 tipos apontam pra mesma lista de
 # proposito -- decisao registrada com o Joao (2026-08): comeca igual pros 3,
@@ -45,6 +46,8 @@ class Pendencia(TenantMixin, db.Model):
     prazo = db.Column(db.DateTime, nullable=True)
     prioridade = db.Column(db.String(20), nullable=False, default='media')
     responsavel_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    responsavel_tipo = db.Column(db.String(20), nullable=False, default='usuario')
+    responsavel_cargo = db.Column(db.String(20), nullable=True)
     status = db.Column(db.String(20), nullable=False, default='aberta')
 
     competencia = db.Column(db.String(7), nullable=True)
@@ -97,6 +100,8 @@ class Pendencia(TenantMixin, db.Model):
             'prioridade': self.prioridade,
             'responsavelId': responsavel_compativel.id if responsavel_compativel else None,
             'responsavelNome': responsavel_compativel.email if responsavel_compativel else None,
+            'responsavelTipo': self.responsavel_tipo,
+            'responsavelCargo': self.responsavel_cargo,
             'status': self.status,
             'metadados': self.metadados,
             'criadoEm': self.created_at.isoformat() if self.created_at else None,

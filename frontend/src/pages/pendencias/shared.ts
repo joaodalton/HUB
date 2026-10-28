@@ -18,9 +18,10 @@ import {
 } from '../../services/pendenciasService';
 import type { PlantRow } from '../../services/plantService';
 import type { UcRow } from '../../services/ucsService';
+import type { UserRow } from '../../services/userService';
 import { formatDateTime } from '../../utils/date';
 // Reexportados para os demais modulos nao precisarem importar diretamente dos services.
-export type { ClientRow, PlantRow, UcRow };
+export type { ClientRow, PlantRow, UcRow, UserRow };
 
 export const PAGE_SIZE = 25;
 
@@ -37,6 +38,7 @@ export interface PendenciasState {
   clients: ClientRow[];
   ucs: UcRow[];
   plants: PlantRow[];
+  users: UserRow[];
   categoriaExtras: string[];
   loadError: boolean;
   isLoading: boolean;

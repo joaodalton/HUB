@@ -1,8 +1,25 @@
 import { apiRequest, fetchAllPages, type ApiResponse, type Pagination } from './apiClient';
+import type { UserRole } from './userService';
 
 export type PendenciaTipo = 'pendencia' | 'alerta' | 'erro';
 export type PendenciaPrioridade = 'baixa' | 'media' | 'alta' | 'critica';
 export type PendenciaStatus = 'aberta' | 'resolvida' | 'cancelada';
+export type ResponsavelTipo = 'usuario' | 'cargo';
+
+export const ROLES: UserRole[] = ['owner', 'admin', 'operator', 'financial', 'viewer'];
+
+// Mesmo mapa de UsersPage.ts (roleLabel) -- duplicado de proposito pra nao
+// criar dependencia cruzada entre paginas nao relacionadas.
+export function roleLabel(role: UserRole): string {
+  const labels: Record<UserRole, string> = {
+    owner: 'Proprietário',
+    admin: 'Administrador',
+    operator: 'Operacional',
+    financial: 'Financeiro',
+    viewer: 'Visualizador'
+  };
+  return labels[role];
+}
 
 export const PRIORIDADES: PendenciaPrioridade[] = ['baixa', 'media', 'alta', 'critica'];
 
@@ -43,8 +60,10 @@ export type PendenciaRow = {
   faturaId: number | null;
   prazo: string | null;
   prioridade: PendenciaPrioridade;
+  responsavelTipo: ResponsavelTipo;
   responsavelId: number | null;
   responsavelNome: string | null;
+  responsavelCargo: UserRole | null;
   status: PendenciaStatus;
   metadados: Record<string, unknown> | null;
   criadoEm: string | null;
@@ -78,6 +97,9 @@ export type PendenciaPayload = {
   usinaId: number | null;
   prazo: string;
   prioridade: PendenciaPrioridade;
+  responsavelTipo?: ResponsavelTipo;
+  responsavelId?: number | null;
+  responsavelCargo?: UserRole | null;
 };
 
 
@@ -212,4 +234,10 @@ export function vinculacaoLabel(pendencia: PendenciaRow): string {
   if (pendencia.usinaNome) partes.push(`Usina: ${pendencia.usinaNome}`);
   if (pendencia.documentoNome) partes.push(`Documento: ${pendencia.documentoNome}`);
   return partes.length > 0 ? partes.join(' · ') : '-';
+}
+
+export function responsavelLabel(pendencia: PendenciaRow): string {
+  if (pendencia.responsavelTipo === 'cargo' && pendencia.responsavelCargo) return `Cargo: ${roleLabel(pendencia.responsavelCargo)}`;
+  if (pendencia.responsavelNome) return pendencia.responsavelNome;
+  return '-';
 }

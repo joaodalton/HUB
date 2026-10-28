@@ -65,7 +65,8 @@ def store():
     if not data.get('categoria'):
         return error_response('Categoria e obrigatoria.', 400)
 
-    data.setdefault('responsavelId', g.current_user.id)
+    if data.get('responsavelTipo', 'usuario') == 'usuario':
+        data.setdefault('responsavelId', g.current_user.id)
 
     try:
         pendencia = criar_pendencia_manual(data)

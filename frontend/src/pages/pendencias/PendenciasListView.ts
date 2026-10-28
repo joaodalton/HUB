@@ -3,7 +3,7 @@ import { createElement } from '../../dom';
 import { createIconStatCard, type IconStatCardProps } from '../../components/IconStatCard';
 import { createDataTable } from '../../components/DataTable';
 import { createIcon } from '../../components/Icon';
-import { verificarPendencias, vinculacaoLabel, type PendenciaRow } from '../../services/pendenciasService';
+import { responsavelLabel, verificarPendencias, vinculacaoLabel, type PendenciaRow } from '../../services/pendenciasService';
 import { createDebouncedInput, pageSlice, writeListState } from '../../services/listState';
 import {
   compareOperationalPriority,
@@ -189,6 +189,7 @@ export function renderListView(ctx: PendenciasContext): HTMLElement {
         { key: 'categoria', label: 'Categoria' },
         { key: 'origem', label: 'Origem' },
         { key: 'vinculacao', label: 'Vinculação', render: (item) => vinculacaoLabel(item) },
+        { key: 'responsavel', label: 'Responsável', render: (item) => responsavelLabel(item) },
         { key: 'prazo', label: 'Prazo', render: (item) => formatDate(item.prazo) },
         { key: 'prioridade', label: 'Prioridade', render: (item) => createPrioridadeBadge(item.prioridade) },
         { key: 'status', label: 'Status', render: (item) => createStatusDot(item.status) }

@@ -436,6 +436,7 @@ Todos os filtros opcionais e combináveis. Paginado (ver "Convenções gerais" a
   "documentoId": null, "documentoNome": null,
   "prazo": null, "prioridade": "media",
   "responsavelId": 1, "responsavelNome": "admin@hub.com",
+  "responsavelTipo": "usuario", "responsavelCargo": null,
   "status": "aberta", "metadados": null,
   "criadoEm": "...", "atualizadoEm": "...", "resolvidoEm": null,
   "comentarios": [{ "id": 1, "pendenciaId": 1, "autorId": 1, "autorNome": "admin@hub.com", "texto": "", "criadoEm": "..." }]
@@ -443,15 +444,17 @@ Todos os filtros opcionais e combináveis. Paginado (ver "Convenções gerais" a
 ```
 `responsavelNome`/`autorNome` usam o **email** do usuário — `User` não tem campo "nome" hoje.
 
+**Responsável — usuário ou cargo**: `responsavelTipo` é `usuario` (default, compatível com dados antigos) ou `cargo`. Quando `usuario`: `responsavelId` aponta pra um `User` da mesma empresa, `responsavelCargo` fica `null`. Quando `cargo`: `responsavelCargo` precisa ser um de `ROLES` (`owner`, `admin`, `operator`, `financial`, `viewer` — ver `models/user.py`), e `responsavelId` fica sempre `null` (regra de exclusividade; qualquer `responsavelId` enviado junto com `responsavelTipo: "cargo"` é ignorado).
+
 ### `GET /pendencias/resumo`
 `data` = `{ "pendencias": 5, "alertas": 2, "erros": 1 }` — contagem por tipo, **só status `aberta`**. Alimenta os cards do topo da tela.
 
 ### `GET /pendencias/<id>` — `data` = `Pendencia`. 404 se não existir.
 
 ### `POST /pendencias`
-Body obrigatório: `titulo`, `categoria` (precisa estar em `CATEGORIAS_POR_TIPO['pendencia']`). Opcionais: `descricao`, `clienteId`, `ucId`, `usinaId`, `documentoId`, `prazo` (ISO ou `YYYY-MM-DD`), `prioridade` (default `media`), `responsavelId` (default: usuário logado).
+Body obrigatório: `titulo`, `categoria` (precisa estar em `CATEGORIAS_POR_TIPO['pendencia']`). Opcionais: `descricao`, `clienteId`, `ucId`, `usinaId`, `documentoId`, `prazo` (ISO ou `YYYY-MM-DD`), `prioridade` (default `media`), `responsavelTipo` (`usuario` ou `cargo`, default `usuario`), `responsavelId` (só quando `responsavelTipo` é `usuario`; default: usuário logado), `responsavelCargo` (obrigatório e precisa estar em `ROLES` quando `responsavelTipo` é `cargo`).
 **Sempre cria tipo `pendencia`** — não existe jeito de criar `alerta`/`erro` por essa rota (são gerados só pelo sistema, via `POST /pendencias/verificar` ou regras automáticas internas).
-Sucesso (201): `data` = `Pendencia`. Erros: 400 (`titulo`/`categoria` faltando ou inválidos).
+Sucesso (201): `data` = `Pendencia`. Erros: 400 (`titulo`/`categoria`/`responsavelTipo`/`responsavelCargo` faltando ou inválidos).
 
 ### `PUT /pendencias/<id>` — mesmo formato, todos os campos opcionais. 404 se não existir.
 

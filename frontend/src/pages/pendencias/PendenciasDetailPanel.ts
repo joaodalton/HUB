@@ -9,6 +9,7 @@ import {
   deletePendencia,
   reabrirPendencia,
   resolverPendencia,
+  responsavelLabel,
   vinculacaoLabel,
   type PendenciaRow
 } from '../../services/pendenciasService';
@@ -61,7 +62,7 @@ export function renderDetailPanel(ctx: PendenciasContext, pendencia: PendenciaRo
     createInfoField('Origem', pendencia.origem),
     createInfoField('Vinculação', vinculacaoLabel(pendencia)),
     createInfoField('Prazo', formatDate(pendencia.prazo)),
-    createInfoField('Responsável', pendencia.responsavelNome ?? 'Não definido'),
+    createInfoField('Responsável', responsavelLabel(pendencia)),
     createInfoField('Criada em', formatDate(pendencia.criadoEm))
   );
 

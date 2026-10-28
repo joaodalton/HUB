@@ -5,11 +5,37 @@ from flask import g
 from sqlalchemy.orm import selectinload
 
 from extensions import db
-from models.pendencia import Pendencia, PendenciaComentario, PRIORIDADES
+from models.pendencia import Pendencia, PendenciaComentario, PRIORIDADES, RESPONSAVEL_TIPOS
+from models.user import ROLES
 from services.log_service import LogService
 from utils.pagination import paginate
 
 def _tenant(model, identifier): return model.query.filter_by(id=identifier, empresa_id=g.current_empresa_id).first()
+
+
+def _resolver_responsavel(data: dict, empresa_id: int, atual_tipo: str, atual_id, atual_cargo):
+    """Valida e resolve responsavel_id/responsavel_tipo/responsavel_cargo a
+    partir do payload, preservando valores atuais quando a chave nao vem no
+    payload (semantica de update parcial). Garante a exclusividade: tipo
+    'cargo' zera responsavel_id, tipo 'usuario' zera responsavel_cargo."""
+    tipo = data.get('responsavelTipo', atual_tipo)
+    if tipo not in RESPONSAVEL_TIPOS:
+        raise ValueError(f'responsavelTipo invalido. Use uma de: {", ".join(RESPONSAVEL_TIPOS)}.')
+
+    if tipo == 'cargo':
+        cargo = data.get('responsavelCargo', atual_cargo)
+        if cargo not in ROLES:
+            raise ValueError(f'responsavelCargo invalido. Use uma de: {", ".join(ROLES)}.')
+        return None, tipo, cargo
+
+    # tipo == 'usuario'
+    responsavel_id = data.get('responsavelId', atual_id)
+    if responsavel_id:
+        from models.user import User
+        responsavel = User.query.filter_by(id=responsavel_id, empresa_id=empresa_id).first()
+        if not responsavel:
+            raise ValueError('Responsavel pertence a outra empresa.')
+    return responsavel_id, tipo, None
 
 
 def list_pendencias(filtros: dict, page: int = 1, page_size: int = 50) -> tuple[list[dict], dict]:
@@ -117,17 +143,13 @@ def _criar(tipo: str, origem: str, data: dict) -> dict:
         if not doc or doc.empresa_id != empresa_id:
             raise ValueError('Documento pertence a outra empresa.')
 
-    if data.get('responsavelId'):
-        # User não usa TenantMixin porque o login precisa encontrá-lo antes
-        # de haver empresa na requisição. Por isso esta referência cruzada
-        # precisa do filtro explícito: Pendencia.to_dict expõe o email do
-        # responsável e jamais pode apontar para usuário de outro tenant.
-        from models.user import User
-        responsavel = User.query.filter_by(
-            id=data['responsavelId'], empresa_id=empresa_id
-        ).first()
-        if not responsavel:
-            raise ValueError('Responsavel pertence a outra empresa.')
+    # Responsavel pode ser um usuario fixo ou um cargo (ver models/pendencia.py
+    # RESPONSAVEL_TIPOS). _resolver_responsavel aplica a exclusividade e a
+    # validacao de tenant (User não usa TenantMixin, login precisa achar por
+    # email antes de ter empresa na sessão -- por isso o filtro manual).
+    responsavel_id, responsavel_tipo, responsavel_cargo = _resolver_responsavel(
+        data, empresa_id, atual_tipo='usuario', atual_id=None, atual_cargo=None
+    )
 
     pendencia = Pendencia(
         empresa_id=g.current_empresa_id,
@@ -142,7 +164,9 @@ def _criar(tipo: str, origem: str, data: dict) -> dict:
         document_id=data.get('documentoId'),
         prazo=_parse_datetime(data.get('prazo')),
         prioridade=prioridade,
-        responsavel_id=data.get('responsavelId'),
+        responsavel_id=responsavel_id,
+        responsavel_tipo=responsavel_tipo,
+        responsavel_cargo=responsavel_cargo,
         metadados=data.get('metadados')
     )
     db.session.add(pendencia)
@@ -191,13 +215,16 @@ def update_pendencia(pendencia_id: int, data: dict) -> dict | None:
             raise ValueError('Documento pertence a outra empresa.')
         pendencia.document_id = data['documentoId']
 
-    if 'responsavelId' in data and data['responsavelId'] is not None:
-        from models.user import User
-        responsavel = User.query.filter_by(
-            id=data['responsavelId'], empresa_id=g.current_empresa_id
-        ).first()
-        if not responsavel:
-            raise ValueError('Responsavel pertence a outra empresa.')
+    if 'responsavelId' in data or 'responsavelTipo' in data or 'responsavelCargo' in data:
+        responsavel_id, responsavel_tipo, responsavel_cargo = _resolver_responsavel(
+            data, g.current_empresa_id,
+            atual_tipo=pendencia.responsavel_tipo,
+            atual_id=pendencia.responsavel_id,
+            atual_cargo=pendencia.responsavel_cargo
+        )
+        pendencia.responsavel_id = responsavel_id
+        pendencia.responsavel_tipo = responsavel_tipo
+        pendencia.responsavel_cargo = responsavel_cargo
 
     if 'categoria' in data:
         categoria = (data['categoria'] or '').strip()
@@ -213,7 +240,6 @@ def update_pendencia(pendencia_id: int, data: dict) -> dict | None:
     pendencia.titulo = data.get('titulo', pendencia.titulo).strip()
     pendencia.descricao = data.get('descricao', pendencia.descricao)
     pendencia.prazo = _parse_datetime(data['prazo']) if 'prazo' in data else pendencia.prazo
-    pendencia.responsavel_id = data.get('responsavelId', pendencia.responsavel_id)
 
     db.session.commit()
     LogService.info(

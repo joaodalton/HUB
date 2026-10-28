@@ -8,6 +8,7 @@ import { getPendencias, getPendenciaResumo, verificarPendencias, type PendenciaT
 import { getExtraCategorias } from '../services/pendenciaCategoriasService';
 import { getPlants } from '../services/plantService';
 import { getUcs } from '../services/ucsService';
+import { getUsers } from '../services/userService';
 import { readListParam, readPositiveListParam } from '../services/listState';
 import { renderListView } from './pendencias/PendenciasListView';
 import { renderDetailPanel } from './pendencias/PendenciasDetailPanel';
@@ -29,6 +30,7 @@ export function createPendenciasPage(): HTMLElement {
     clients: [],
     ucs: [],
     plants: [],
+    users: [],
     categoriaExtras: [],
     loadError: false,
     isLoading: true,
@@ -60,18 +62,29 @@ export function createPendenciasPage(): HTMLElement {
   renderContent();
   void loadAll();
 
+  // Polling periodico: reaproveita a mesma verificacao automatica do load
+  // inicial, pra pegar pendencia/alerta criado por outro processo enquanto
+  // a tela fica aberta. O router nunca desmonta paginas (so troca o
+  // conteudo do root) -- sem isso o interval ficaria rodando pra sempre em
+  // segundo plano apos navegar pra outra tela. `popstate` dispara em toda
+  // navegacao real (Sidebar/voltar do navegador; ver router.ts/Sidebar.ts),
+  // nunca em filtro/paginacao internos (writeListState so usa pushState).
+  const pollId = window.setInterval(() => { void runVerificacaoAutomatica(); }, 60000);
+  window.addEventListener('popstate', () => window.clearInterval(pollId), { once: true });
+
   return layout;
 
   async function loadAll(): Promise<void> {
     state.isLoading = true;
     loading.show();
     try {
-      const [pendenciasData, resumoData, clientsData, ucsData, plantsData, categoriaExtrasData] = await Promise.all([
+      const [pendenciasData, resumoData, clientsData, ucsData, plantsData, usersData, categoriaExtrasData] = await Promise.all([
         getPendencias(),
         getPendenciaResumo(),
         getClients(),
         getUcs(),
         getPlants(),
+        getUsers(),
         getExtraCategorias()
       ]);
       state.pendencias = pendenciasData;
@@ -79,6 +92,7 @@ export function createPendenciasPage(): HTMLElement {
       state.clients = clientsData;
       state.ucs = ucsData;
       state.plants = plantsData;
+      state.users = usersData;
       state.categoriaExtras = categoriaExtrasData;
       state.loadError = false;
     } catch {

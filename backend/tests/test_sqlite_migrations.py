@@ -72,7 +72,7 @@ class SQLiteMigrationsTest(unittest.TestCase):
             self.assertEqual(upgraded.returncode, 0, upgraded.stdout + upgraded.stderr)
             with closing(sqlite3.connect(path)) as connection:
                 self.assertEqual(connection.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='payment_webhook_events'").fetchone()[0], tenant_schema)
-                self.assertEqual(connection.execute('SELECT version_num FROM alembic_version').fetchone()[0], 'd4e8f2a6c1b7')
+                self.assertEqual(connection.execute('SELECT version_num FROM alembic_version').fetchone()[0], '918e7595f818')
                 connection.execute("INSERT INTO platform_asaas_webhook_events (event_id,event_type,external_payment_id,payload_hash,received_at) VALUES ('evt_1','PAYMENT_RECEIVED','pay_1',?,CURRENT_TIMESTAMP)", ('a' * 64,))
                 connection.commit()
                 with self.assertRaises(sqlite3.IntegrityError):
@@ -409,7 +409,7 @@ class SQLiteMigrationsTest(unittest.TestCase):
                 preview_indexes = {row[1] for row in connection.execute("PRAGMA index_list('import_previews')")}
             finally:
                 connection.close()
-            self.assertEqual(revision, 'd4e8f2a6c1b7')
+            self.assertEqual(revision, '918e7595f818')
             self.assertTrue({'empresa_id', 'fatura_concessionaria_id', 'fingerprint',
                              'regra_snapshot', 'entrada_normalizada', 'resultado',
                              'valor_final'}.issubset(snapshot_columns))
@@ -572,7 +572,7 @@ class SQLiteMigrationsTest(unittest.TestCase):
                     'SELECT empresa_id,titulo,fatura_concessionaria_id FROM pendencias WHERE id=91'
                 ).fetchone(), (91, 'Existente', None))
                 self.assertEqual(connection.execute('SELECT version_num FROM alembic_version').fetchone()[0],
-                                 'd4e8f2a6c1b7')
+                                 '918e7595f818')
 
     def test_fatura_concessionaria_downgrade_preserves_source_records(self):
         with tempfile.TemporaryDirectory() as folder:

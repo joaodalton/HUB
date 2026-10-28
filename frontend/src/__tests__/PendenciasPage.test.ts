@@ -11,6 +11,7 @@ vi.mock('../layouts/BaseLayout', () => ({
 vi.mock('../services/clientsService', () => ({ getClients: vi.fn() }));
 vi.mock('../services/ucsService', () => ({ getUcs: vi.fn() }));
 vi.mock('../services/plantService', () => ({ getPlants: vi.fn() }));
+vi.mock('../services/userService', () => ({ getUsers: vi.fn() }));
 vi.mock('../services/pendenciaCategoriasService', () => ({
   getExtraCategorias: vi.fn(),
   addExtraCategoria: vi.fn(),
@@ -35,11 +36,12 @@ vi.mock('../services/pendenciasService', async () => {
 });
 
 import {
-  getPendencias, getPendenciaResumo, verificarPendencias, createPendencia
+  getPendencias, getPendenciaResumo, verificarPendencias, createPendencia, updatePendencia
 } from '../services/pendenciasService';
 import { getClients } from '../services/clientsService';
 import { getUcs } from '../services/ucsService';
 import { getPlants } from '../services/plantService';
+import { getUsers } from '../services/userService';
 import { getExtraCategorias } from '../services/pendenciaCategoriasService';
 import { getEntityLogs } from '../services/logsService';
 import { createPendenciasPage } from '../pages/PendenciasPage';
@@ -54,7 +56,8 @@ const pendencia = {
   id: 1, tipo: 'pendencia' as const, categoria: 'Financeiro', origem: 'Manual',
   titulo: 'Revisar contrato', descricao: 'Falta assinatura.', clienteId: null, clienteNome: null,
   ucId: null, ucCodigo: null, usinaId: null, usinaNome: null, documentoId: null, documentoNome: null,
-  faturaId: null, prazo: null, prioridade: 'media' as const, responsavelId: null, responsavelNome: null,
+  faturaId: null, prazo: null, prioridade: 'media' as const, responsavelTipo: 'usuario' as const,
+  responsavelId: null, responsavelNome: null, responsavelCargo: null,
   status: 'aberta' as const, metadados: null, criadoEm: '2026-01-01T00:00:00', atualizadoEm: null,
   resolvidoEm: null, comentarios: []
 };
@@ -66,6 +69,7 @@ describe('PendenciasPage', () => {
     vi.mocked(getClients).mockResolvedValue([]);
     vi.mocked(getUcs).mockResolvedValue([]);
     vi.mocked(getPlants).mockResolvedValue([]);
+    vi.mocked(getUsers).mockResolvedValue([]);
     vi.mocked(getExtraCategorias).mockResolvedValue([]);
     vi.mocked(getEntityLogs).mockResolvedValue([]);
     vi.mocked(verificarPendencias).mockResolvedValue({ verificacoes: { ucs_sem_usina: 0, clientes_sem_uc: 0, campos_faltando: 0, documentos_faltando: 0 }, resolvidas: 0, total_criadas: 0 });
@@ -154,6 +158,89 @@ describe('PendenciasPage', () => {
 
     expect(createPendencia).toHaveBeenCalledTimes(1);
     expect(vi.mocked(createPendencia).mock.calls[0][0]).toMatchObject({ titulo: 'Nova pendência de teste' });
+    overlay?.remove();
+  });
+
+  it('sends only responsavelId when tipo stays "usuário" (PendenciasEditorModal)', async () => {
+    vi.mocked(getPendencias).mockResolvedValue([]);
+    vi.mocked(getPendenciaResumo).mockResolvedValue({ pendencias: 0, alertas: 0, erros: 0 });
+    vi.mocked(createPendencia).mockResolvedValue(pendencia);
+    const content = createPendenciasPage();
+    await flush();
+
+    const newButton = Array.from(content.querySelectorAll('button')).find((button) => button.textContent?.includes('Nova Pendência'));
+    newButton?.click();
+
+    const overlay = document.querySelector('.modal-overlay');
+    const tituloInput = overlay!.querySelector<HTMLInputElement>('input[type="text"]');
+    tituloInput!.value = 'Teste responsável usuário';
+    tituloInput!.dispatchEvent(new Event('input'));
+
+    const form = overlay!.querySelector('form');
+    form?.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+    await flush();
+
+    const payload = vi.mocked(createPendencia).mock.calls[0][0];
+    expect(payload.responsavelTipo).toBe('usuario');
+    expect(payload.responsavelCargo).toBeFalsy();
+    expect('responsavelId' in payload).toBe(true);
+    overlay?.remove();
+  });
+
+  it('sends only responsavelCargo when tipo is switched to "cargo" (PendenciasEditorModal)', async () => {
+    vi.mocked(getPendencias).mockResolvedValue([]);
+    vi.mocked(getPendenciaResumo).mockResolvedValue({ pendencias: 0, alertas: 0, erros: 0 });
+    vi.mocked(createPendencia).mockResolvedValue(pendencia);
+    const content = createPendenciasPage();
+    await flush();
+
+    const newButton = Array.from(content.querySelectorAll('button')).find((button) => button.textContent?.includes('Nova Pendência'));
+    newButton?.click();
+
+    const overlay = document.querySelector('.modal-overlay');
+    const tituloInput = overlay!.querySelector<HTMLInputElement>('input[type="text"]');
+    tituloInput!.value = 'Teste responsável cargo';
+    tituloInput!.dispatchEvent(new Event('input'));
+
+    const selects = Array.from(overlay!.querySelectorAll('select'));
+    const tipoSelect = selects.find((select) => Array.from(select.options).some((option) => option.value === 'cargo'));
+    expect(tipoSelect).toBeInstanceOf(HTMLSelectElement);
+    tipoSelect!.value = 'cargo';
+    tipoSelect!.dispatchEvent(new Event('change'));
+
+    const form = overlay!.querySelector('form');
+    form?.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+    await flush();
+
+    const payload = vi.mocked(createPendencia).mock.calls[0][0];
+    expect(payload.responsavelTipo).toBe('cargo');
+    expect(payload.responsavelId).toBeFalsy();
+    expect(payload.responsavelCargo).toBe('owner');
+    overlay?.remove();
+  });
+
+  it('pre-selects tipo "cargo" when editing a pendencia with responsavelTipo cargo (PendenciasEditorModal)', async () => {
+    const cargoPendencia = { ...pendencia, responsavelTipo: 'cargo' as const, responsavelCargo: 'financial' as const, responsavelId: null };
+    vi.mocked(getPendencias).mockResolvedValue([cargoPendencia]);
+    vi.mocked(getPendenciaResumo).mockResolvedValue(resumo);
+    vi.mocked(updatePendencia).mockResolvedValue(cargoPendencia);
+    const content = createPendenciasPage();
+    await flush();
+
+    const row = content.querySelector('tbody tr');
+    row?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flush();
+
+    const editButton = Array.from(content.querySelectorAll('button')).find((button) => button.textContent?.includes('Editar'));
+    editButton?.click();
+
+    const overlay = document.querySelector('.modal-overlay');
+    expect(overlay).not.toBeNull();
+    const selects = Array.from(overlay!.querySelectorAll('select'));
+    const tipoSelect = selects.find((select) => Array.from(select.options).some((option) => option.value === 'cargo'));
+    expect(tipoSelect!.value).toBe('cargo');
+    const cargoSelect = selects.find((select) => select !== tipoSelect && Array.from(select.options).some((option) => option.value === 'financial'));
+    expect(cargoSelect!.value).toBe('financial');
     overlay?.remove();
   });
 });

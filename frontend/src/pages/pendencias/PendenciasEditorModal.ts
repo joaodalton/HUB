@@ -1,17 +1,63 @@
 // frontend/src/pages/pendencias/PendenciasEditorModal.ts
 import { createElement } from '../../dom';
-import { createFormSection, createInput, createSelect } from '../../components/formFields';
+import { createFormSection, createInput, createSelect, createSelectField } from '../../components/formFields';
 import {
   CATEGORIAS_POR_TIPO,
   createPendencia,
   PRIORIDADES,
+  roleLabel,
+  ROLES,
   updatePendencia,
   type PendenciaPayload,
   type PendenciaPrioridade,
-  type PendenciaRow
+  type PendenciaRow,
+  type ResponsavelTipo
 } from '../../services/pendenciasService';
 import { addExtraCategoria } from '../../services/pendenciaCategoriasService';
+import type { UserRole } from '../../services/userService';
 import { createVinculacaoSelect, type PendenciasContext } from './shared';
+
+// Toggle usuario/cargo + o select correspondente abaixo -- so um dos dois
+// selects fica visivel por vez (regra de exclusividade e aplicada no
+// backend, aqui e so UX pra deixar claro que e "ou um ou outro").
+function createResponsavelField(ctx: PendenciasContext, pendencia: PendenciaRow | null) {
+  const tipoInicial: ResponsavelTipo = pendencia?.responsavelTipo ?? 'usuario';
+  const tipo = createSelectField('Tipo de responsável', tipoInicial, [
+    { value: 'usuario', label: 'Usuário' },
+    { value: 'cargo', label: 'Cargo' }
+  ]);
+  const usuario = createVinculacaoSelect(
+    'Responsável (usuário)',
+    ctx.state.users.map((item) => ({ id: item.id, label: item.nome })),
+    pendencia?.responsavelTipo === 'usuario' ? pendencia.responsavelId : null
+  );
+  const cargo = createSelectField(
+    'Responsável (cargo)',
+    pendencia?.responsavelTipo === 'cargo' && pendencia.responsavelCargo ? pendencia.responsavelCargo : ROLES[0],
+    ROLES.map((role) => ({ value: role, label: roleLabel(role) }))
+  );
+
+  function updateVisibility(): void {
+    const isCargo = tipo.select.value === 'cargo';
+    usuario.field.style.display = isCargo ? 'none' : '';
+    cargo.field.style.display = isCargo ? '' : 'none';
+  }
+  tipo.select.addEventListener('change', updateVisibility);
+  updateVisibility();
+
+  function getPayload(): Pick<PendenciaPayload, 'responsavelTipo' | 'responsavelId' | 'responsavelCargo'> {
+    if (tipo.select.value === 'cargo') {
+      return { responsavelTipo: 'cargo', responsavelId: null, responsavelCargo: cargo.select.value as UserRole };
+    }
+    return {
+      responsavelTipo: 'usuario',
+      responsavelId: usuario.select.value ? Number(usuario.select.value) : null,
+      responsavelCargo: null
+    };
+  }
+
+  return { tipoField: tipo.field, usuarioField: usuario.field, cargoField: cargo.field, getPayload };
+}
 
 // Select de categoria + botao "+ categoria" -- mesmo espirito do
 // CategoryPicker.ts (usado em Documentos), mas Pendencia nao tem model de
@@ -82,6 +128,7 @@ export function openPendenciaEditor(ctx: PendenciasContext, pendencia: Pendencia
   const clienteField = createVinculacaoSelect('Cliente (opcional)', ctx.state.clients.map((item) => ({ id: item.id, label: item.nome })), pendencia?.clienteId ?? null);
   const ucField = createVinculacaoSelect('UC (opcional)', ctx.state.ucs.map((item) => ({ id: item.id, label: item.codigo })), pendencia?.ucId ?? null);
   const usinaField = createVinculacaoSelect('Usina (opcional)', ctx.state.plants.map((item) => ({ id: item.id, label: item.nome })), pendencia?.usinaId ?? null);
+  const responsavel = createResponsavelField(ctx, pendencia);
 
   const actions = createElement('div', { className: 'form-actions' });
   const saveButton = createElement('button', { textContent: 'Salvar pendência', type: 'submit' });
@@ -114,7 +161,8 @@ export function openPendenciaEditor(ctx: PendenciasContext, pendencia: Pendencia
       ucId: ucField.select.value ? Number(ucField.select.value) : null,
       usinaId: usinaField.select.value ? Number(usinaField.select.value) : null,
       prazo: prazo.input.value,
-      prioridade: prioridade.select.value as PendenciaPrioridade
+      prioridade: prioridade.select.value as PendenciaPrioridade,
+      ...responsavel.getPayload()
     };
 
     ctx.loading.show();
@@ -141,6 +189,7 @@ export function openPendenciaEditor(ctx: PendenciasContext, pendencia: Pendencia
     header,
     createFormSection('Informações principais', titulo.field, categoria.field, prioridade.field, prazo.field, descricao),
     createFormSection('Relacionamento', clienteField.field, ucField.field, usinaField.field),
+    createFormSection('Responsável', responsavel.tipoField, responsavel.usuarioField, responsavel.cargoField),
     actions
   );
   panel.appendChild(form);

@@ -23,6 +23,7 @@ import { createBillingRuleEditorPage } from '../pages/BillingRuleEditorPage';
 import { createPlatformOverviewPage } from '../pages/PlatformOverviewPage';
 import { createPlatformCompaniesPage } from '../pages/PlatformCompaniesPage';
 import { createPlatformFuncionariosPage } from '../pages/PlatformFuncionariosPage';
+import { createPlatformStoragePage } from '../pages/PlatformStoragePage';
 import { ensureSession, getCurrentUser, isAuthenticated } from './authService';
 import { loadSettings } from './settingsService';
 
@@ -56,7 +57,8 @@ export function createRouter(root: HTMLElement) {
     { path: '/integracoes', render: createSettingsPage },
     { path: '/platform', render: createPlatformOverviewPage },
     { path: '/platform/companies', render: createPlatformCompaniesPage },
-    { path: '/platform/funcionarios', render: createPlatformFuncionariosPage }
+    { path: '/platform/funcionarios', render: createPlatformFuncionariosPage },
+    { path: '/platform/armazenamento', render: createPlatformStoragePage }
   ];
 
   let appearanceLoaded = false;
@@ -135,7 +137,7 @@ export function createRouter(root: HTMLElement) {
 
     if (isAuthenticated() && platformUser && path.startsWith('/platform')
       && path !== '/platform' && path !== '/platform/companies'
-      && !(platformAdmin && path === '/platform/funcionarios')) {
+      && !(platformAdmin && (path === '/platform/funcionarios' || path === '/platform/armazenamento'))) {
       redirect('/platform');
       return;
     }

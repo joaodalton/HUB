@@ -13,13 +13,18 @@ from flask import Blueprint, g, jsonify
 from sqlalchemy import func
 
 from extensions import db
+from models.client import Client
+from models.consumer_unit import ConsumerUnit
 from models.empresa import Empresa
+from models.plant import Plant
 from models.user import User
-from services.empresa_service import excluir_empresa
+from services.empresa_service import _sem_filtro_de_tenant_ambiente, excluir_empresa
 from services.log_service import LogService
+from services.neon_service import NeonError, get_storage_summary
 from services.permission_service import require_platform_access, require_platform_admin
 from utils.api_response import error_response, success_response
 from utils.auth import clear_platform_view_cookie, set_platform_view_cookie
+from config import Config
 
 
 platform_routes = Blueprint('platform_routes', __name__, url_prefix='/api/v1/platform')
@@ -37,21 +42,32 @@ def overview():
 @platform_routes.route('/empresas', methods=['GET'])
 @require_platform_access()
 def listar_empresas():
-    rows = (
-        db.session.query(Empresa, func.count(User.id).label('total_usuarios'))
-        .outerjoin(User, User.empresa_id == Empresa.id)
-        .group_by(Empresa.id)
-        .order_by(Empresa.nome)
-        .all()
-    )
+    empresas = Empresa.query.order_by(Empresa.nome).all()
+
+    # Client/ConsumerUnit/Plant sao TenantMixin: o filtro automatico de
+    # tenant (extensions.py) restringiria a contagem a empresa do admin
+    # logado. Precisamos contar entre todas as empresas aqui.
+    with _sem_filtro_de_tenant_ambiente():
+        clientes_por_empresa = dict(
+            db.session.query(Client.empresa_id, func.count(Client.id)).group_by(Client.empresa_id).all()
+        )
+        ucs_por_empresa = dict(
+            db.session.query(ConsumerUnit.empresa_id, func.count(ConsumerUnit.id)).group_by(ConsumerUnit.empresa_id).all()
+        )
+        usinas_por_empresa = dict(
+            db.session.query(Plant.empresa_id, func.count(Plant.id)).group_by(Plant.empresa_id).all()
+        )
+
     return success_response([{
         'id': empresa.id,
         'nome': empresa.nome,
         'slug': empresa.slug,
         'status': empresa.status,
-        'totalUsuarios': total_usuarios,
+        'totalClientes': clientes_por_empresa.get(empresa.id, 0),
+        'totalUcs': ucs_por_empresa.get(empresa.id, 0),
+        'totalUsinas': usinas_por_empresa.get(empresa.id, 0),
         'createdAt': empresa.created_at.isoformat() if empresa.created_at else None,
-    } for empresa, total_usuarios in rows])
+    } for empresa in empresas])
 
 
 @platform_routes.route('/empresas/<int:empresa_id>', methods=['DELETE'])
@@ -100,6 +116,23 @@ def entrar_na_empresa(empresa_id: int):
     })
     set_platform_view_cookie(response, empresa.id, g.current_user.id)
     return response
+
+
+@platform_routes.route('/neon-storage', methods=['GET'])
+@require_platform_admin()
+def neon_storage():
+    try:
+        ambientes = get_storage_summary()
+    except NeonError as exc:
+        return error_response(str(exc), 502, code='NEON_API_ERROR')
+
+    sentry_env = Config.SENTRY_ENVIRONMENT.lower()
+    ambiente_atual = 'producao' if sentry_env.startswith('prod') else 'dev'
+
+    return success_response({
+        'ambienteAtual': ambiente_atual,
+        'ambientes': ambientes,
+    })
 
 
 @platform_routes.route('/sair', methods=['POST'])

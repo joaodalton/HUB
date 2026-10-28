@@ -152,3 +152,11 @@ class Config:
         'pool_pre_ping': True,
         'pool_recycle': 280
     }
+
+    # Painel "Plataforma > Armazenamento": so leitura, via API do Neon
+    # (console.neon.tech), nunca troca a conexao ativa (SQLALCHEMY_DATABASE_URI
+    # fica fixa no boot). Vazio = card de armazenamento daquele ambiente
+    # some da pagina, mesmo espirito do Sentry/Resend sem chave configurada.
+    NEON_API_KEY = os.getenv('NEON_API_KEY', '')
+    NEON_PROJECT_ID_DEV = os.getenv('NEON_PROJECT_ID_DEV', '')
+    NEON_PROJECT_ID_PROD = os.getenv('NEON_PROJECT_ID_PROD', '')

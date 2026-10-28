@@ -10,11 +10,12 @@ vi.mock('../services/platformWorkerService', async () => {
     ...actual,
     getPlatformWorkers: vi.fn(),
     createPlatformWorker: vi.fn(),
+    updatePlatformWorker: vi.fn(),
     revokePlatformWorker: vi.fn(),
   };
 });
 
-import { getPlatformWorkers, createPlatformWorker } from '../services/platformWorkerService';
+import { getPlatformWorkers, createPlatformWorker, updatePlatformWorker } from '../services/platformWorkerService';
 import { createPlatformFuncionariosPage } from '../pages/PlatformFuncionariosPage';
 
 async function flush(): Promise<void> {
@@ -74,5 +75,35 @@ describe('PlatformFuncionariosPage', () => {
     await flush();
 
     expect(createPlatformWorker).toHaveBeenCalledWith({ nome: 'Novo Fiscal', email: 'novo@hub.com', senha: 'senha123' });
+  });
+
+  it('calls updatePlatformWorker with only the filled fields on edit submit', async () => {
+    vi.mocked(getPlatformWorkers).mockResolvedValue([worker]);
+    vi.mocked(updatePlatformWorker).mockResolvedValue(worker);
+    const content = createPlatformFuncionariosPage();
+    document.body.appendChild(content);
+    await flush();
+
+    const editButton = Array.from(content.querySelectorAll('button')).find((button) => button.textContent?.includes('Editar'));
+    expect(editButton).toBeInstanceOf(HTMLButtonElement);
+    editButton?.click();
+
+    const modalInputs = document.querySelectorAll<HTMLInputElement>('.modal-overlay input');
+    const nomeInput = Array.from(modalInputs).find((input) => input.type === 'text');
+    const emailInput = Array.from(modalInputs).find((input) => input.type === 'email');
+    const senhaInput = Array.from(modalInputs).find((input) => input.type === 'password');
+    expect(nomeInput?.value).toBe('Fiscal Um');
+    expect(emailInput?.value).toBe('fiscal@hub.com');
+    expect(senhaInput?.value).toBe('');
+
+    nomeInput!.value = 'Fiscal Editado';
+    nomeInput!.dispatchEvent(new Event('input'));
+
+    const saveButton = Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Salvar');
+    saveButton?.click();
+    await flush();
+
+    expect(updatePlatformWorker).toHaveBeenCalledWith(1, { nome: 'Fiscal Editado', email: 'fiscal@hub.com' });
+    document.querySelector('.modal-overlay')?.remove();
   });
 });

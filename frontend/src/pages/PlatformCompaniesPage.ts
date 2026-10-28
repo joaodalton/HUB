@@ -1,5 +1,6 @@
 import { createCompanyModal } from '../components/CreateCompanyModal';
-import { createDataTable } from '../components/DataTable';
+import { createEditCompanyModal } from '../components/EditCompanyModal';
+import { attachActionsRail, createDataTable } from '../components/DataTable';
 import { createIcon } from '../components/Icon';
 import { createStatusBadge } from '../components/StatusBadge';
 import { createElement } from '../dom';
@@ -30,7 +31,7 @@ export function createPlatformCompaniesPage(): HTMLElement {
   const render = (loading = false): void => {
     const term = search.value.trim().toLocaleLowerCase('pt-BR');
     const rows = companies.filter((item) => !term || [item.nome, item.slug].some((value) => value.toLocaleLowerCase('pt-BR').includes(term)));
-    tableHost.replaceChildren(createDataTable<PlatformEmpresa>({
+    const panel = createDataTable<PlatformEmpresa>({
       title: 'Empresas', eyebrow: 'Tenant context', rows,
       state: loading ? 'loading' : failed ? 'error' : term && !rows.length ? 'filtered' : 'ready',
       stateTitle: failed ? 'Não foi possível carregar as empresas.' : undefined,
@@ -41,11 +42,14 @@ export function createPlatformCompaniesPage(): HTMLElement {
         { key: 'nome', label: 'Nome' },
         { key: 'slug', label: 'Identificador' },
         { key: 'status', label: 'Status', render: (row) => createStatusBadge(row.status, row.status.toLowerCase().startsWith('ativ') ? 'success' : 'warning') },
-        { key: 'totalUsuarios', label: 'Usuários', render: (row) => String(row.totalUsuarios ?? '—') },
-        { key: 'createdAt', label: 'Criada em', render: (row) => formatDate(row.createdAt) },
-        { key: 'action', label: 'Ação', align: 'right', render: createActions }
+        { key: 'totalClientes', label: 'Clientes', render: (row) => String(row.totalClientes ?? '—') },
+        { key: 'totalUcs', label: 'UCs', render: (row) => String(row.totalUcs ?? '—') },
+        { key: 'totalUsinas', label: 'Usinas', render: (row) => String(row.totalUsinas ?? '—') },
+        { key: 'createdAt', label: 'Criada em', render: (row) => formatDate(row.createdAt) }
       ]
-    }));
+    });
+    attachActionsRail(panel, rows, createActions);
+    tableHost.replaceChildren(panel);
   };
   const load = (): void => { failed = false; render(true); void getPlatformEmpresas().then((data) => { companies = data; render(); }).catch(() => { failed = true; render(); }); };
   const createEnterButton = (company: PlatformEmpresa): HTMLElement => {
@@ -80,9 +84,23 @@ export function createPlatformCompaniesPage(): HTMLElement {
     });
     return button;
   };
+  const createEditButton = (company: PlatformEmpresa): HTMLElement => {
+    const button = createElement('button', { className: 'icon-button neutral', type: 'button' });
+    button.appendChild(createIcon('edit'));
+    button.title = 'Editar';
+    button.setAttribute('aria-label', `Editar ${company.nome}`);
+    button.addEventListener('click', () => {
+      document.body.appendChild(createEditCompanyModal({
+        empresa: company,
+        onSaved: () => { useToast().success('Empresa atualizada.'); load(); },
+        onError: (message) => useToast().error(message)
+      }));
+    });
+    return button;
+  };
   const createActions = (company: PlatformEmpresa): HTMLElement => {
     const wrapper = createElement('div', { className: 'table-row-actions' });
-    wrapper.append(createEnterButton(company), createDeleteButton(company));
+    wrapper.append(createEditButton(company), createEnterButton(company), createDeleteButton(company));
     return wrapper;
   };
   search.addEventListener('input', () => render()); load();

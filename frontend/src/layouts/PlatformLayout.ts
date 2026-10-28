@@ -13,7 +13,10 @@ export function createPlatformLayout({ content, title, description }: PlatformLa
     { label: 'Visão geral', path: '/platform', icon: 'dashboard' },
     { label: 'Empresas', path: '/platform/companies', icon: 'clients' }
   ];
-  if (user?.isPlatformAdmin) links.push({ label: 'Funcionários', path: '/platform/funcionarios', icon: 'user' });
+  if (user?.isPlatformAdmin) {
+    links.push({ label: 'Funcionários', path: '/platform/funcionarios', icon: 'user' });
+    links.push({ label: 'Armazenamento', path: '/platform/armazenamento', icon: 'settings' });
+  }
   const shell = createElement('div', { className: 'app-shell platform-shell' });
   const body = createElement('div', { className: 'app-body' });
   const sidebar = createElement('aside', { className: 'sidebar platform-sidebar' });

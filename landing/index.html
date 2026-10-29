@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HUB — Gestão de energia por assinatura</title>
+<meta name="description" content="Clientes, UCs e usinas organizados. Rateio automático, cobrança pelo ASAAS e conexão com WhatsApp e e-mail.">
+<style>
+html, body { margin: 0; }
+body { background: #f6f8fb; }
+a { text-decoration: none; }
+.nav-link { color: #475569; font-size: 13px; font-weight: 500; padding: 8px 4px; }
+.nav-link:hover { color: #0f172a; }
+.btn-primary:hover { background: #e0611f; }
+.btn-secondary:hover { background: #e3e9f1; }
+</style>
+</head>
+<body>
+<div style="background: #f6f8fb; color: #0f172a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: 14px; line-height: 1.5; width: 100%; box-sizing: border-box;">
+
+  <!-- NAV -->
+  <header style="border-bottom: 1px solid #d5dde8;">
+    <div style="max-width: 1120px; margin: 0 auto; padding: 16px 24px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px;">
+      <a href="#topo" style="display: flex; align-items: center; gap: 8px; color: #0f172a; font-weight: 700; font-size: 16px;">
+        <span style="width: 28px; height: 28px; border-radius: 6px; background: #f0713a; color: #0b0f19; display: flex; align-items: center; justify-content: center; font-weight: 800;">H</span>
+        HUB
+      </a>
+      <nav style="display: flex; flex-wrap: wrap; align-items: center; gap: 16px;">
+        <a class="nav-link" href="#diferenciais">Diferenciais</a>
+        <a class="nav-link" href="#comparativo">Comparativo</a>
+        <a class="nav-link" href="#planos">Planos</a>
+        <a class="nav-link" href="[URL_DO_APP]/login">Entrar</a>
+        <a class="btn-primary" href="#contato" style="background: #f0713a; color: #0b0f19; font-weight: 600; font-size: 13.5px; letter-spacing: 0.01em; padding: 0 16px; min-height: 44px; border-radius: 12px; display: inline-flex; align-items: center;">Falar com a equipe</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- HERO -->
+  <section id="topo" style="max-width: 1120px; margin: 0 auto; padding: 80px 24px 72px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr)); gap: 48px; align-items: center;">
+    <div style="display: flex; flex-direction: column; gap: 24px;">
+      <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #c2410c;">Gestão de energia por assinatura</span>
+      <h1 style="margin: 0; font-size: clamp(34px, 5vw, 54px); line-height: 1.08; font-weight: 700; letter-spacing: -0.025em; text-wrap: balance;">Clientes, UCs e usinas organizados. Rateio e cobrança no automático.</h1>
+      <p style="margin: 0; font-size: 17px; line-height: 1.6; color: #475569; max-width: 520px; text-wrap: pretty;">O HUB reúne tudo o que sua operação precisa em um painel só: cadastro, documentos, rateio automático, cobrança pelo ASAAS e conexão com WhatsApp e e-mail.</p>
+      <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+        <a class="btn-primary" href="#contato" style="background: #f0713a; color: #0b0f19; font-weight: 600; font-size: 13.5px; letter-spacing: 0.01em; padding: 0 24px; min-height: 48px; border-radius: 12px; display: inline-flex; align-items: center;">Falar com a equipe</a>
+        <a class="btn-secondary" href="#planos" style="background: #eef2f7; color: #0f172a; border: 1px solid #d5dde8; font-weight: 500; font-size: 13.5px; padding: 0 24px; min-height: 48px; box-sizing: border-box; border-radius: 12px; display: inline-flex; align-items: center;">Ver planos</a>
+      </div>
+    </div>
+
+    <!-- Rateio visual -->
+    <div style="background: #ffffff; border: 1px solid #d5dde8; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 24px; box-shadow: 0 12px 40px rgba(15,23,42,0.12), 0 4px 12px rgba(15,23,42,0.08);">
+      <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px;">
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <span style="font-size: 16px; font-weight: 700;">Rateio da usina</span>
+          <span style="font-size: 12px; color: #475569;">Usina de 75 kWp · exemplo ilustrativo</span>
+        </div>
+        <span style="font-size: 12px; font-weight: 500; color: #047857; background: rgba(52,211,153,0.1); border: 1px solid rgba(52,211,153,0.2); border-radius: 999px; padding: 2px 10px;">Rateio calculado</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 16px;">
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; justify-content: space-between; font-size: 13px;"><span>Cliente A</span><span style="font-weight: 700; font-variant-numeric: tabular-nums;">50%</span></div>
+          <div style="height: 8px; border-radius: 999px; background: #eef2f7;"><div style="width: 50%; height: 8px; border-radius: 999px; background: #f0713a;"></div></div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; justify-content: space-between; font-size: 13px;"><span>Cliente B</span><span style="font-weight: 700; font-variant-numeric: tabular-nums;">30%</span></div>
+          <div style="height: 8px; border-radius: 999px; background: #eef2f7;"><div style="width: 30%; height: 8px; border-radius: 999px; background: #158dfd;"></div></div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; justify-content: space-between; font-size: 13px;"><span>Cliente C</span><span style="font-weight: 700; font-variant-numeric: tabular-nums;">20%</span></div>
+          <div style="height: 8px; border-radius: 999px; background: #eef2f7;"><div style="width: 20%; height: 8px; border-radius: 999px; background: #059669;"></div></div>
+        </div>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+        <span style="font-size: 12px; color: #475569; background: #eef2f7; border: 1px solid #d5dde8; border-radius: 999px; padding: 2px 10px;">Cobrança ASAAS</span>
+        <span style="font-size: 12px; color: #475569; background: #eef2f7; border: 1px solid #d5dde8; border-radius: 999px; padding: 2px 10px;">WhatsApp</span>
+        <span style="font-size: 12px; color: #475569; background: #eef2f7; border: 1px solid #d5dde8; border-radius: 999px; padding: 2px 10px;">E-mail</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- DIFERENCIAIS -->
+  <section id="diferenciais" style="border-top: 1px solid #d5dde8;">
+    <div style="max-width: 1120px; margin: 0 auto; padding: 80px 24px; display: flex; flex-direction: column; gap: 32px;">
+      <div style="display: flex; flex-direction: column; gap: 8px; max-width: 640px;">
+        <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #c2410c;">Diferenciais</span>
+        <h2 style="margin: 0; font-size: clamp(26px, 3.4vw, 36px); line-height: 1.15; font-weight: 700; letter-spacing: -0.02em; text-wrap: balance;">Menos planilha, menos retrabalho, mais controle.</h2>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 16px;">
+
+        <div style="background: #ffffff; border: 1px solid #d5dde8; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 16px;">
+          <span style="width: 40px; height: 40px; border-radius: 10px; background: #dbeafe; color: #1d6fb8; display: flex; align-items: center; justify-content: center;">
+            <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5 9-5z"></path><path d="M3 13l9 5 9-5"></path></svg>
+          </span>
+          <h3 style="margin: 0; font-size: 16px; font-weight: 700;">Organização de ponta a ponta</h3>
+          <p style="margin: 0; color: #475569;">Clientes, UCs, usinas e documentos no mesmo lugar, cada um ligado ao que importa. Cada pendência no seu lugar.</p>
+        </div>
+
+        <div style="background: #ffffff; border: 1px solid #d5dde8; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 16px;">
+          <span style="width: 40px; height: 40px; border-radius: 10px; background: #d1fae5; color: #059669; display: flex; align-items: center; justify-content: center;">
+            <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="12" r="2.5"></circle><circle cx="18" cy="6" r="2.5"></circle><circle cx="18" cy="18" r="2.5"></circle><path d="M8.2 10.8l7.6-3.6M8.2 13.2l7.6 3.6"></path></svg>
+          </span>
+          <h3 style="margin: 0; font-size: 16px; font-weight: 700;">Rateio automático</h3>
+          <p style="margin: 0; color: #475569;">Defina a distribuição da usina e o HUB divide o crédito entre as UCs. Sem conta manual, sem erro de planilha.</p>
+        </div>
+
+        <div style="background: #ffffff; border: 1px solid #d5dde8; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 16px;">
+          <span style="width: 40px; height: 40px; border-radius: 10px; background: #ede9fe; color: #6d28d9; display: flex; align-items: center; justify-content: center;">
+            <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"></rect><path d="M3 10h18M7 15h4"></path></svg>
+          </span>
+          <h3 style="margin: 0; font-size: 16px; font-weight: 700;">Pagamentos com ASAAS</h3>
+          <p style="margin: 0; color: #475569;">Usamos o ASAAS, o melhor sistema de pagamentos que encontramos, para gerar e acompanhar as cobranças dos seus clientes.</p>
+        </div>
+
+        <div style="background: #ffffff; border: 1px solid #d5dde8; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 16px;">
+          <span style="width: 40px; height: 40px; border-radius: 10px; background: #d1fae5; color: #059669; display: flex; align-items: center; justify-content: center;">
+            <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 01-11.8 7L4 20.5l1.5-4.8A8 8 0 1121 12z"></path></svg>
+          </span>
+          <h3 style="margin: 0; font-size: 16px; font-weight: 700;">Conexão com WhatsApp</h3>
+          <p style="margin: 0; color: #475569;">Fale com o cliente pelo canal que ele mais usa, direto do HUB.</p>
+        </div>
+
+        <div style="background: #ffffff; border: 1px solid #d5dde8; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 16px;">
+          <span style="width: 40px; height: 40px; border-radius: 10px; background: #fef3c7; color: #b45309; display: flex; align-items: center; justify-content: center;">
+            <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"></rect><path d="M3.5 7l8.5 6 8.5-6"></path></svg>
+          </span>
+          <h3 style="margin: 0; font-size: 16px; font-weight: 700;">Conexão com e-mail</h3>
+          <p style="margin: 0; color: #475569;">Avisos e documentos por e-mail, integrados ao cadastro do cliente.</p>
+        </div>
+
+        <div style="background: #ffffff; border: 1px solid #d5dde8; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+            <span style="width: 40px; height: 40px; border-radius: 10px; background: #dbeafe; color: #1d6fb8; display: flex; align-items: center; justify-content: center;">
+              <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6.5"></circle><path d="M16 16l4.5 4.5"></path></svg>
+            </span>
+            <span style="font-size: 12px; font-weight: 500; color: #92400e; background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.2); border-radius: 999px; padding: 2px 10px;">Em breve</span>
+          </div>
+          <h3 style="margin: 0; font-size: 16px; font-weight: 700;">Busca automática nas concessionárias</h3>
+          <p style="margin: 0; color: #475569;">Protocolos e faturas buscados direto nas concessionárias e anexados à UC.</p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- COMPARATIVO -->
+  <section id="comparativo" style="border-top: 1px solid #d5dde8; background: #eef2f7;">
+    <div style="max-width: 1120px; margin: 0 auto; padding: 80px 24px; display: flex; flex-direction: column; gap: 32px;">
+      <div style="display: flex; flex-direction: column; gap: 8px; max-width: 640px;">
+        <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #c2410c;">Comparativo</span>
+        <h2 style="margin: 0; font-size: clamp(26px, 3.4vw, 36px); line-height: 1.15; font-weight: 700; letter-spacing: -0.02em; text-wrap: balance;">O HUB frente aos outros sistemas de gestão de energia.</h2>
+      </div>
+      <div style="overflow-x: auto; border: 1px solid #dbe3ed; border-radius: 16px; background: #ffffff;">
+        <table style="width: 100%; min-width: 640px; border-collapse: collapse; font-size: 14px;">
+          <thead>
+            <tr style="background: #e8edf4;">
+              <th scope="col" style="text-align: left; padding: 16px 24px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: #475569;">Recurso</th>
+              <th scope="col" style="text-align: left; padding: 16px 24px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: #c2410c;">HUB</th>
+              <th scope="col" style="text-align: left; padding: 16px 24px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: #475569;">Outros sistemas</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-top: 1px solid #dbe3ed;">
+              <th scope="row" style="text-align: left; padding: 16px 24px; font-weight: 600;">Organização de clientes, UCs e usinas</th>
+              <td style="padding: 16px 24px; color: #047857; font-weight: 500;">Tudo em um painel</td>
+              <td style="padding: 16px 24px; color: #475569;">Cadastros separados</td>
+            </tr>
+            <tr style="border-top: 1px solid #dbe3ed;">
+              <th scope="row" style="text-align: left; padding: 16px 24px; font-weight: 600;">Rateio</th>
+              <td style="padding: 16px 24px; color: #047857; font-weight: 500;">Automático</td>
+              <td style="padding: 16px 24px; color: #475569;">Manual ou parcial</td>
+            </tr>
+            <tr style="border-top: 1px solid #dbe3ed;">
+              <th scope="row" style="text-align: left; padding: 16px 24px; font-weight: 600;">Pagamentos</th>
+              <td style="padding: 16px 24px; color: #047857; font-weight: 500;">ASAAS integrado</td>
+              <td style="padding: 16px 24px; color: #475569;">Sistema próprio ou externo</td>
+            </tr>
+            <tr style="border-top: 1px solid #dbe3ed;">
+              <th scope="row" style="text-align: left; padding: 16px 24px; font-weight: 600;">WhatsApp e e-mail</th>
+              <td style="padding: 16px 24px; color: #047857; font-weight: 500;">Conectados ao HUB</td>
+              <td style="padding: 16px 24px; color: #475569;">Fora do sistema</td>
+            </tr>
+            <tr style="border-top: 1px solid #dbe3ed;">
+              <th scope="row" style="text-align: left; padding: 16px 24px; font-weight: 600;">Protocolos e faturas nas concessionárias</th>
+              <td style="padding: 16px 24px;"><span style="font-size: 12px; font-weight: 500; color: #92400e; background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.2); border-radius: 999px; padding: 2px 10px;">Busca automática em breve</span></td>
+              <td style="padding: 16px 24px; color: #475569;">Busca manual</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- EM BREVE -->
+  <section style="border-top: 1px solid #d5dde8;">
+    <div style="max-width: 1120px; margin: 0 auto; padding: 80px 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr)); gap: 48px; align-items: center;">
+      <div style="display: flex; flex-direction: column; gap: 16px;">
+        <span style="align-self: flex-start; font-size: 12px; font-weight: 500; color: #92400e; background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.2); border-radius: 999px; padding: 2px 10px;">Em breve</span>
+        <h2 style="margin: 0; font-size: clamp(26px, 3.4vw, 36px); line-height: 1.15; font-weight: 700; letter-spacing: -0.02em; text-wrap: balance;">Protocolos e faturas direto das concessionárias.</h2>
+        <p style="margin: 0; font-size: 16px; line-height: 1.6; color: #475569; max-width: 520px; text-wrap: pretty;">Chega de abrir o portal de cada concessionária. Em breve o HUB busca protocolos e faturas por conta própria e anexa tudo ao cadastro da UC.</p>
+      </div>
+      <div style="background: #ffffff; border: 1px solid #d5dde8; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 16px;">
+        <div style="display: flex; align-items: center; gap: 16px;">
+          <span style="width: 32px; height: 32px; border-radius: 10px; background: #eef2f7; border: 1px solid #d5dde8; display: flex; align-items: center; justify-content: center; color: #475569; font-weight: 700; font-size: 13px;">1</span>
+          <span>O HUB consulta a concessionária</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 16px;">
+          <span style="width: 32px; height: 32px; border-radius: 10px; background: #eef2f7; border: 1px solid #d5dde8; display: flex; align-items: center; justify-content: center; color: #475569; font-weight: 700; font-size: 13px;">2</span>
+          <span>Protocolo e fatura chegam ao cadastro da UC</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 16px;">
+          <span style="width: 32px; height: 32px; border-radius: 10px; background: #eef2f7; border: 1px solid #d5dde8; display: flex; align-items: center; justify-content: center; color: #475569; font-weight: 700; font-size: 13px;">3</span>
+          <span>Rateio e cobrança seguem a partir dali</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PLANOS -->
+  
+
+  <!-- CONTATO -->
+  <section id="planos" style="border-top: 1px solid #d5dde8; background: #eef2f7">
+    <div style="max-width: 1120px; margin: 0 auto; padding: 80px 24px; display: flex; flex-direction: column; gap: 32px">
+      <div style="display: flex; flex-direction: column; gap: 8px; max-width: 640px;">
+        <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #c2410c;">Planos</span>
+        <h2 style="margin: 0; font-size: clamp(26px, 3.4vw, 36px); line-height: 1.15; font-weight: 700; letter-spacing: -0.02em; text-wrap: balance;">Comece pelo plano Básico.</h2>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 16px; align-items: stretch;">
+
+        <div style="background: #ffffff; border: 1px solid #f0713a; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 24px;">
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <span style="font-size: 16px; font-weight: 700;">Básico</span>
+            <div style="display: flex; align-items: baseline; gap: 4px;">
+              <span style="font-size: 36px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums;">R$ 500</span>
+              <span style="color: #475569;">/mês</span>
+            </div>
+          </div>
+          <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; color: #475569; flex-grow: 1;">
+            <li style="display: flex; gap: 8px;"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#047857" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 2px;"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>Clientes, UCs, usinas e documentos</li>
+            <li style="display: flex; gap: 8px;"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#047857" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 2px;"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>Rateio automático</li>
+            <li style="display: flex; gap: 8px;"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#047857" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 2px;"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>Cobrança com ASAAS</li>
+            <li style="display: flex; gap: 8px;"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#047857" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 2px;"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>Conexão com WhatsApp e e-mail</li>
+          </ul>
+          <a class="btn-primary" href="#contato" style="background: #f0713a; color: #0b0f19; font-weight: 600; font-size: 13.5px; letter-spacing: 0.01em; min-height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center;">Contratar o Básico</a>
+        </div>
+
+        <div style="background: #ffffff; border: 1px solid #dbe3ed; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 24px;">
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <span style="font-size: 16px; font-weight: 700;">Plano 2</span>
+            <span style="font-size: 36px; font-weight: 700; letter-spacing: -0.02em; color: #475569;">Em breve</span>
+          </div>
+          <p style="margin: 0; color: #475569; flex-grow: 1;">Novas camadas de recursos chegando ao HUB.</p>
+          <button disabled="" style="background: #eef2f7; color: #475569; border: 1px solid #d5dde8; font: inherit; font-weight: 500; font-size: 13.5px; min-height: 44px; border-radius: 12px; cursor: not-allowed;">Em breve</button>
+        </div>
+
+        <div style="background: #ffffff; border: 1px solid #dbe3ed; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 24px;">
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <span style="font-size: 16px; font-weight: 700;">Plano 3</span>
+            <span style="font-size: 36px; font-weight: 700; letter-spacing: -0.02em; color: #475569;">Em breve</span>
+          </div>
+          <p style="margin: 0; color: #475569; flex-grow: 1;">Novas camadas de recursos chegando ao HUB.</p>
+          <button disabled="" style="background: #eef2f7; color: #475569; border: 1px solid #d5dde8; font: inherit; font-weight: 500; font-size: 13.5px; min-height: 44px; border-radius: 12px; cursor: not-allowed;">Em breve</button>
+        </div>
+
+        
+
+      </div>
+    </div>
+  </section><section id="contato" style="border-top: 1px solid #d5dde8;">
+    <div style="max-width: 1120px; margin: 0 auto; padding: 80px 24px; display: flex; flex-direction: column; align-items: flex-start; gap: 24px;">
+      <h2 style="margin: 0; font-size: clamp(28px, 4vw, 42px); line-height: 1.12; font-weight: 700; letter-spacing: -0.02em; max-width: 720px; text-wrap: balance;">Coloque sua operação de energia em ordem com o HUB.</h2>
+      <p style="margin: 0; font-size: 16px; line-height: 1.6; color: #475569; max-width: 520px;">Fale com a equipe e veja o HUB funcionando com os seus clientes.</p>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 16px;">
+        <a class="btn-primary" href="#contato" style="background: #f0713a; color: #0b0f19; font-weight: 600; font-size: 13.5px; letter-spacing: 0.01em; padding: 0 24px; min-height: 48px; border-radius: 12px; display: inline-flex; align-items: center;">Falar com a equipe</a>
+        <span style="color: #475569; font-size: 13px;">[SEU WHATSAPP OU E-MAIL DE CONTATO]</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- RODAPÉ -->
+  <footer style="border-top: 1px solid #d5dde8;">
+    <div style="max-width: 1120px; margin: 0 auto; padding: 24px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 16px; color: #475569; font-size: 13px;">
+      <span style="display: flex; align-items: center; gap: 8px; color: #0f172a; font-weight: 700;">
+        <span style="width: 24px; height: 24px; border-radius: 6px; background: #f0713a; color: #0b0f19; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px;">H</span>
+        HUB
+      </span>
+      <span>© 2026 HUB. Todos os direitos reservados.</span>
+    </div>
+  </footer>
+
+</div>
+</body>
+</html>

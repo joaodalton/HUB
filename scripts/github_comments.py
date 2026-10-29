@@ -10,7 +10,7 @@ REPO_OWNER = "joaodalton"
 REPO_NAME = "HUB"
 
 def get_token():
-    env_path = os.path.join(os.path.dirname(__file__), "backend", ".env")
+    env_path = os.path.join(os.path.dirname(__file__), "..", "backend", ".env")
     with open(env_path, 'r', encoding='utf-8', errors='replace') as f:
         for line in f:
             line = line.strip()

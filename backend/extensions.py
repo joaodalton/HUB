@@ -96,7 +96,7 @@ class TenantMixin:
     a coluna 'empresa_id' e o filtro na mão em cada service/rota. O listener
     logo abaixo injeta automaticamente WHERE empresa_id = <empresa da
     sessão atual> em toda query ORM contra uma classe que usa esse mixin --
-    é a mitigação estrutural do risco que o VISAO.md (secao 2.1) apontava
+    é a mitigação estrutural do risco que o Documentos/md/product/VISAO.md (secao 2.1) apontava
     pro modelo multi-tenant ('query esquecida vaza dado entre empresas').
     Exceção deliberada: User NÃO usa esse mixin (ver models/user.py) porque
     o login precisa localizar o usuário ANTES de existir uma empresa "atual"

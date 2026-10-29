@@ -20,7 +20,7 @@ def bootstrap():
     # de todo o banco" não faz mais sentido quando podem existir várias
     # empresas. Criar empresa + admin agora é manual, via
     # scripts/criar_empresa.py, direto no servidor -- decisão registrada em
-    # VISAO.md secao 2.1 (self-signup público fica pra depois, se um dia
+    # Documentos/md/product/VISAO.md secao 2.1 (self-signup público fica pra depois, se um dia
     # fizer sentido).
     return error_response(
         'Bootstrap publico desativado. Empresas sao criadas manualmente -- '

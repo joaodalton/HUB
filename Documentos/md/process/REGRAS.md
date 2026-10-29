@@ -12,7 +12,7 @@ descritos em detalhe em `.paperclip-agent-bundles/`: `hub-backend-developer`,
 - Um revisor nunca edita, formata, aplica patch, comita, faz deploy ou
   atualiza documentação — os quatro `hub-*-reviewer` têm `Write`/`Edit`
   removidos do `tools` da própria definição, não é só instrução de prompt.
-- Toda tarefa roda dentro de um Task Contract (`docs/TASK_CONTRACT.md`):
+- Toda tarefa roda dentro de um Task Contract (`Documentos/md/TASK_CONTRACT.md`):
   `Files expected` define o escopo, `Files prohibited` é fronteira dura,
   `File ownership` garante um único escritor por arquivo.
 - O parecer de um revisor (`PASS` / `PASS_WITH_NOTES` / `BLOCK`) vale só para
@@ -41,4 +41,4 @@ framework de agentes já presente no projeto (não confundir nem apagar). Rode
 colide antes de delegar uma tarefa.
 
 Detalhe completo de cada papel: `.paperclip-agent-bundles/README.md` e
-`docs/TASK_CONTRACT.md`.
+`Documentos/md/TASK_CONTRACT.md`.

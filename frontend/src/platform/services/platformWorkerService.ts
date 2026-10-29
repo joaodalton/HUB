@@ -1,4 +1,4 @@
-import { apiRequest, type ApiResponse } from './apiClient';
+import { apiRequest, type ApiResponse } from '../../services/apiClient';
 
 export type PlatformWorker = {
   id: number;

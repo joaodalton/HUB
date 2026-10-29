@@ -2,7 +2,7 @@
 """
 Motor de automação de pendências do HUB.
 
-Este serviço implementa as regras automáticas descritas em PENDENCIAS.md:
+Este serviço implementa as regras automáticas descritas em Documentos/md/architecture/PENDENCIAS.md:
 - UC sem usina vinculada há 7 dias
 - Cliente sem UC cadastrada
 - Campos obrigatórios faltando no cliente

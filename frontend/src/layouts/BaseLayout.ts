@@ -6,7 +6,7 @@ import { createToastContainer } from '../components/Toast';
 import { createCommandPalette } from '../components/CommandPalette';
 import { createIcon } from '../components/Icon';
 import { getCurrentUser, refreshCurrentUser } from '../services/authService';
-import { sairDaVisualizacao } from '../services/platformService';
+import { sairDaVisualizacao } from '../platform/services/platformService';
 import { invalidateSettingsCache } from '../services/settingsService';
 
 type BaseLayoutOptions = {

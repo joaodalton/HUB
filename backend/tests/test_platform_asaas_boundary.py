@@ -11,7 +11,7 @@ from config import Config
 from extensions import db
 from models.fatura import Fatura
 from models.payment_webhook_event import PaymentWebhookEvent
-from models.platform_asaas_webhook_event import PlatformAsaasWebhookEvent
+from hub_platform.models.platform_asaas_webhook_event import PlatformAsaasWebhookEvent
 from models.api_credential import ApiCredential
 from sqlalchemy.exc import OperationalError
 from services.asaas_client import AsaasClient, PlatformAsaasService, AsaasError

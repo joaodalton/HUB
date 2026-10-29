@@ -1,7 +1,7 @@
 """
 Cria uma empresa (tenant) nova + um convite pro primeiro owner definir a
 propria senha. Uso manual, direto no servidor -- roda depois que o pagamento
-do plano foi confirmado (decisao registrada em VISAO.md secao 2.1: nao e
+do plano foi confirmado (decisao registrada em Documentos/md/product/VISAO.md secao 2.1: nao e
 self-signup publico).
 
 O comando imprime um LINK -- copie e mande pro cliente (WhatsApp/email, na

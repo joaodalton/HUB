@@ -1,5 +1,5 @@
-import { apiRequest, type ApiResponse } from './apiClient';
-import type { EmpresaRow } from './empresaService';
+import { apiRequest, type ApiResponse } from '../../services/apiClient';
+import type { EmpresaRow } from '../../services/empresaService';
 
 
 export type PlatformOverview = {

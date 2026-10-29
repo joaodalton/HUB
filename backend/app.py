@@ -83,7 +83,7 @@ def create_app() -> Flask:
     from models.grupo_regra_cobranca import GrupoRegraCobranca  # type: ignore
     from models.regra_cobranca_assignment import RegraCobrancaAssignment  # type: ignore
     from models.payment_webhook_event import PaymentWebhookEvent  # type: ignore
-    from models.platform_asaas_webhook_event import PlatformAsaasWebhookEvent  # type: ignore
+    from hub_platform.models.platform_asaas_webhook_event import PlatformAsaasWebhookEvent  # type: ignore
     from models.assinatura import Assinatura  # type: ignore
     from models.limite_contratado import LimiteContratado  # type: ignore
     from models.whatsapp import WhatsappIntegration, WhatsappConversation, WhatsappMessage  # type: ignore
@@ -115,8 +115,8 @@ def create_app() -> Flask:
     from routes.user_routes import user_routes
     from routes.invitation_routes import invitation_routes
     from routes.rateio_routes import rateio_routes
-    from routes.platform_routes import platform_routes
-    from routes.platform_worker_routes import platform_worker_routes
+    from hub_platform.routes.platform_routes import platform_routes
+    from hub_platform.routes.platform_worker_routes import platform_worker_routes
     from routes.email_template_routes import email_template_routes
     from routes.api_credential_routes import api_credential_routes
     from routes.import_routes import import_routes

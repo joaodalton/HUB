@@ -7,7 +7,7 @@ nunca pode gerenciar outros workers).
 from flask import Blueprint, request
 
 from services.permission_service import require_platform_admin
-from services.platform_worker_service import (
+from hub_platform.services.platform_worker_service import (
     create_platform_worker,
     list_platform_workers,
     revoke_platform_worker,

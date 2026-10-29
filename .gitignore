@@ -36,7 +36,7 @@ backend/scripts/testar_*.py
 !.codex/agents/tester.toml
 .maestri/
 .superpowers/
-docs/superpowers/
+Documentos/md/superpowers/
 .obsidian/
 graphify-out/
 backend/tests/fixtures/invoices/copel/private/

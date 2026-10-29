@@ -1,9 +1,9 @@
-import { attachActionsRail, createDataTable } from '../components/DataTable';
-import { createInput } from '../components/formFields';
-import { createIcon } from '../components/Icon';
-import { createStatusBadge } from '../components/StatusBadge';
-import { createElement } from '../dom';
-import { useToast } from '../hooks/useToast';
+import { attachActionsRail, createDataTable } from '../../components/DataTable';
+import { createInput } from '../../components/formFields';
+import { createIcon } from '../../components/Icon';
+import { createStatusBadge } from '../../components/StatusBadge';
+import { createElement } from '../../dom';
+import { useToast } from '../../hooks/useToast';
 import { createPlatformLayout } from '../layouts/PlatformLayout';
 import { createPlatformWorker, getPlatformWorkers, revokePlatformWorker, updatePlatformWorker, type PlatformWorker } from '../services/platformWorkerService';
 

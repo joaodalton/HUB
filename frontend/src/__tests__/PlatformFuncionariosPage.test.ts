@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../layouts/PlatformLayout', () => ({
+vi.mock('../platform/layouts/PlatformLayout', () => ({
   createPlatformLayout: ({ content }: { content: HTMLElement }) => content,
 }));
 
-vi.mock('../services/platformWorkerService', async () => {
-  const actual = await vi.importActual<typeof import('../services/platformWorkerService')>('../services/platformWorkerService');
+vi.mock('../platform/services/platformWorkerService', async () => {
+  const actual = await vi.importActual<typeof import('../platform/services/platformWorkerService')>('../platform/services/platformWorkerService');
   return {
     ...actual,
     getPlatformWorkers: vi.fn(),
@@ -15,8 +15,8 @@ vi.mock('../services/platformWorkerService', async () => {
   };
 });
 
-import { getPlatformWorkers, createPlatformWorker, updatePlatformWorker } from '../services/platformWorkerService';
-import { createPlatformFuncionariosPage } from '../pages/PlatformFuncionariosPage';
+import { getPlatformWorkers, createPlatformWorker, updatePlatformWorker } from '../platform/services/platformWorkerService';
+import { createPlatformFuncionariosPage } from '../platform/pages/PlatformFuncionariosPage';
 
 async function flush(): Promise<void> {
   await Promise.resolve(); await Promise.resolve(); await Promise.resolve();

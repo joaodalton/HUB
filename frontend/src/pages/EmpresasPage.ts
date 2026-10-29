@@ -9,7 +9,7 @@ import { createIconStatCard } from '../components/IconStatCard';
 import { createBaseLayout } from '../layouts/BaseLayout';
 import { createEmpresa, getEmpresaAtual, getEmpresaDocumentos, getEmpresas, updateEmpresaPlatform, type EmpresaAtual, type EmpresaDocumentos, type EmpresaRow } from '../services/empresaService';
 import { getCurrentUser, refreshCurrentUser } from '../services/authService';
-import { entrarNaEmpresa, sairDaVisualizacao } from '../services/platformService';
+import { entrarNaEmpresa, sairDaVisualizacao } from '../platform/services/platformService';
 import { getDashboardResumo, type DashboardResumo } from '../services/dashboardService';
 
 export function createEmpresasPage(): HTMLElement {

@@ -2,7 +2,7 @@
 import { maskCnpjInput } from './cadastroFields';
 import { createElement } from '../dom';
 import { updateEmpresaPlatform } from '../services/empresaService';
-import type { PlatformEmpresa } from '../services/platformService';
+import type { PlatformEmpresa } from '../platform/services/platformService';
 
 type EditCompanyModalOptions = {
   empresa: PlatformEmpresa;

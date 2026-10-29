@@ -1,9 +1,9 @@
-import { createElement } from '../dom';
-import { createHeader } from '../components/Header';
-import { createIcon, type IconName } from '../components/Icon';
-import { createLoading } from '../components/Loading';
-import { createToastContainer } from '../components/Toast';
-import { getCurrentUser, logout } from '../services/authService';
+import { createElement } from '../../dom';
+import { createHeader } from '../../components/Header';
+import { createIcon, type IconName } from '../../components/Icon';
+import { createLoading } from '../../components/Loading';
+import { createToastContainer } from '../../components/Toast';
+import { getCurrentUser, logout } from '../../services/authService';
 
 type PlatformLayoutOptions = { content: HTMLElement; title: string; description?: string };
 

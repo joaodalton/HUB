@@ -1,6 +1,6 @@
-import { createIconStatCard } from '../components/IconStatCard';
-import { createUiState } from '../components/UiState';
-import { createElement } from '../dom';
+import { createIconStatCard } from '../../components/IconStatCard';
+import { createUiState } from '../../components/UiState';
+import { createElement } from '../../dom';
 import { createPlatformLayout } from '../layouts/PlatformLayout';
 import { getPlatformOverview } from '../services/platformService';
 

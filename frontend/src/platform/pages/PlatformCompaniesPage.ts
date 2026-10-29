@@ -1,15 +1,15 @@
-import { createCompanyModal } from '../components/CreateCompanyModal';
-import { createEditCompanyModal } from '../components/EditCompanyModal';
-import { attachActionsRail, createDataTable } from '../components/DataTable';
-import { createIcon } from '../components/Icon';
-import { createStatusBadge } from '../components/StatusBadge';
-import { createElement } from '../dom';
-import { useToast } from '../hooks/useToast';
+import { createCompanyModal } from '../../components/CreateCompanyModal';
+import { createEditCompanyModal } from '../../components/EditCompanyModal';
+import { attachActionsRail, createDataTable } from '../../components/DataTable';
+import { createIcon } from '../../components/Icon';
+import { createStatusBadge } from '../../components/StatusBadge';
+import { createElement } from '../../dom';
+import { useToast } from '../../hooks/useToast';
 import { createPlatformLayout } from '../layouts/PlatformLayout';
-import { refreshCurrentUser } from '../services/authService';
+import { refreshCurrentUser } from '../../services/authService';
 import { deletarEmpresa, entrarNaEmpresa, getPlatformEmpresas, type PlatformEmpresa } from '../services/platformService';
-import { invalidateSettingsCache } from '../services/settingsService';
-import { formatDate } from '../utils/date';
+import { invalidateSettingsCache } from '../../services/settingsService';
+import { formatDate } from '../../utils/date';
 
 export function createPlatformCompaniesPage(): HTMLElement {
   const content = createElement('div', { className: 'content-stack' });

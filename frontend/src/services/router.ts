@@ -20,10 +20,10 @@ import { createMessagesPage } from '../pages/MessagesPage';
 import { createReportsPage } from '../pages/ReportsPage';
 import { createBillingRulesPage } from '../pages/BillingRulesPage';
 import { createBillingRuleEditorPage } from '../pages/BillingRuleEditorPage';
-import { createPlatformOverviewPage } from '../pages/PlatformOverviewPage';
-import { createPlatformCompaniesPage } from '../pages/PlatformCompaniesPage';
-import { createPlatformFuncionariosPage } from '../pages/PlatformFuncionariosPage';
-import { createPlatformStoragePage } from '../pages/PlatformStoragePage';
+import { createPlatformOverviewPage } from '../platform/pages/PlatformOverviewPage';
+import { createPlatformCompaniesPage } from '../platform/pages/PlatformCompaniesPage';
+import { createPlatformFuncionariosPage } from '../platform/pages/PlatformFuncionariosPage';
+import { createPlatformStoragePage } from '../platform/pages/PlatformStoragePage';
 import { ensureSession, getCurrentUser, isAuthenticated } from './authService';
 import { loadSettings } from './settingsService';
 

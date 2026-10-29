@@ -17,7 +17,7 @@ Este arquivo não repete aquelas regras — só cobre o que falta.
 - Do what has been asked; nothing more, nothing less
 - NEVER create files unless absolutely necessary — prefer editing existing files
 - NEVER create documentation files unless explicitly requested
-- NEVER save working files or tests to root — use `backend/tests`, `docs/`, `scripts/`
+- NEVER save working files or tests to root — use `backend/tests`, `Documentos/md/`, `scripts/`
 - ALWAYS read a file before editing it
 - NEVER commit secrets, credentials, or .env files
 - NEVER add a `Co-Authored-By` trailer (no attribution configurado em `.claude/settings.json`)
@@ -55,4 +55,4 @@ provedor padrão — não assuma Google Drive como único destino.
 Isolamento por `empresa_id` é requisito crítico, não feature — qualquer
 mudança em `models/`, `extensions.py` (Session/Query) ou rotas que leem
 dado por tenant passa obrigatoriamente por `hub-security-reviewer`, nunca
-auto-aprovada. Ver `SECURITY.md`.
+auto-aprovada. Ver `Documentos/md/compliance/SECURITY.md`.

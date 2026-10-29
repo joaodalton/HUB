@@ -1,6 +1,6 @@
-import { createElement } from '../dom';
-import { createStatusBadge } from '../components/StatusBadge';
-import { createUiState } from '../components/UiState';
+import { createElement } from '../../dom';
+import { createStatusBadge } from '../../components/StatusBadge';
+import { createUiState } from '../../components/UiState';
 import { createPlatformLayout } from '../layouts/PlatformLayout';
 import { getNeonStorage, type NeonEnvironmentStorage, type NeonStorageSummary } from '../services/platformService';
 

@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from config import Config
 from extensions import db
-from models.platform_asaas_webhook_event import PlatformAsaasWebhookEvent
+from hub_platform.models.platform_asaas_webhook_event import PlatformAsaasWebhookEvent
 from services.asaas_webhook_service import WebhookError, _text
 
 

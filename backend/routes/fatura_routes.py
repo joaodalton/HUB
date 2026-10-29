@@ -3,7 +3,7 @@ from flask import Blueprint, g, request
 from extensions import limiter
 from services.asaas_client import AsaasError
 from services.asaas_webhook_service import WebhookError, processar_webhook
-from services.platform_asaas_webhook_service import receive_platform_webhook
+from hub_platform.services.platform_asaas_webhook_service import receive_platform_webhook
 from services.fatura_service import EmissaoPendente, cancelar, emitir, listar, obter, resumo, sincronizar
 from services.permission_service import require_permission
 from utils.api_response import error_response, success_response

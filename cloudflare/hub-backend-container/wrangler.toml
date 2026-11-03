@@ -1,0 +1,16 @@
+name = "hub-backend-container"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+[[containers]]
+class_name = "HubBackendContainer"
+image = "../../backend/Dockerfile"
+max_instances = 1
+
+[[durable_objects.bindings]]
+name = "HUB_BACKEND_CONTAINER"
+class_name = "HubBackendContainer"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["HubBackendContainer"]

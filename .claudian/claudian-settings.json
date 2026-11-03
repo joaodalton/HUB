@@ -1,8 +1,7 @@
 {
   "userName": "joao",
-  "permissionMode": "auto",
+  "permissionMode": "acceptEdits",
   "model": "openai-codex/gpt-5.6-luna",
-  "thinkingBudget": "off",
   "effortLevel": "high",
   "serviceTier": "default",
   "enableAutoTitleGeneration": true,
@@ -24,7 +23,6 @@
   "providerConfigs": {
     "claude": {
       "enabled": true,
-      "responseStyle": "Default",
       "cliPath": "",
       "cliPathsByHost": {},
       "loadUserSettings": true,
@@ -37,20 +35,6 @@
       "environmentVariables": "",
       "environmentHash": "",
       "selectedModels": [
-        {
-          "value": "default",
-          "label": "Default (recommended)",
-          "description": "Sonnet 5 · Efficient for routine tasks",
-          "resolvedModel": "claude-sonnet-5",
-          "reasoningMetadataResolved": true,
-          "supportedEffortLevels": [
-            "low",
-            "medium",
-            "high",
-            "xhigh",
-            "max"
-          ]
-        },
         {
           "value": "claude-haiku-4-5-20251001",
           "label": "Haiku 4.5",
@@ -73,7 +57,17 @@
             "max"
           ]
         }
-      ]
+      ],
+      "outputStyle": null,
+      "promptSuggestions": false,
+      "discoveredOutputStyles": [
+        "default",
+        "Proactive",
+        "Concise",
+        "Explanatory",
+        "Learning"
+      ],
+      "sessionEnvironmentHash": ""
     },
     "codex": {
       "enabled": false,
@@ -86,9 +80,11 @@
       ],
       "enableUltraEffort": false,
       "responseStyle": "pragmatic",
+      "responseVerbosity": "default",
       "reasoningSummary": "detailed",
       "environmentVariables": "",
       "environmentHash": "runtime-input:v1:ed54f4f5238abeec7f65a5da1e468c9a639e157a7d1c7753b53f54ba1196e8a0",
+      "sessionEnvironmentHash": "runtime-input:v1:cf4a613a63a895356fbc95544817979656506c93b9fb3fe1c76833522e1c19fc",
       "installationMethodsByHost": {},
       "wslDistroOverridesByHost": {},
       "selectedModels": [
@@ -148,7 +144,6 @@
       "environmentVariables": "",
       "modelAliases": {},
       "preferredThinkingByModel": {},
-      "selectedMode": "",
       "thinkingOptionsByModel": {},
       "visibleModels": [],
       "selectedModels": []
@@ -161,12 +156,27 @@
       "environmentVariables": "",
       "modelAliases": {},
       "preferredThinkingByModel": {},
+      "sessionEnvironmentHash": "",
       "visibleModels": [],
+      "selectedModels": []
+    },
+    "deepseek": {
+      "enabled": false,
+      "codeMode": false,
+      "presetPlugins": "",
+      "cliPath": "",
+      "cliPathsByHost": {},
+      "environmentVariables": "",
+      "environmentHash": "",
+      "visibleModels": [],
+      "modelAliases": {},
+      "preferredReasoningByModel": {},
       "selectedModels": []
     }
   },
   "settingsProvider": "claude",
   "lastSelectedChatModel": null,
+  "inlineEditModel": null,
   "savedProviderModel": {
     "codex": "openai-codex/gpt-5.6-luna"
   },
@@ -174,25 +184,28 @@
     "codex": "high"
   },
   "savedProviderServiceTier": {},
-  "savedProviderThinkingBudget": {},
   "savedProviderPermissionMode": {
-    "claude": "auto",
+    "claude": "acceptEdits",
     "codex": "normal"
   },
   "pendingProviderSessionInvalidations": {},
-  "maxWarmAgentProcesses": 5,
   "enableAutoScroll": true,
   "showMessageTimestamps": false,
   "deferMathRenderingDuringStreaming": true,
+  "pluginRenderedFenceLanguages": [],
   "expandFileEditsByDefault": false,
   "chatViewPlacement": "right-sidebar",
   "enableZenMode": true,
+  "zenModePosition": null,
   "enableDualPane": true,
   "dualPaneSide": "right",
   "restoreTabsOnStartup": true,
   "skillsSynced": false,
   "sessionManagerOrganization": "list",
   "sessionManagerSort": "last-updated",
+  "sessionAutoArchiveAfter": "off",
   "pinnedLinkedContentPaths": [],
-  "hiddenCommands": []
+  "hiddenCommands": [],
+  "thinkingBudget": "off",
+  "savedProviderThinkingBudget": {}
 }

@@ -144,6 +144,8 @@ def criar_ucs(empresa_id: int, clientes: list[Client], usinas: list[Plant]) -> N
     extras = random.sample(clientes, k=N_UCS - N_CLIENTS)
     atribuicoes.extend(extras)
 
+    ucs_por_usina: dict[int, list[ConsumerUnit]] = {}
+
     for idx, cliente in enumerate(atribuicoes, start=1):
         inicio = date.today() - timedelta(days=random.randint(30, 1000))
         uc = ConsumerUnit(
@@ -172,14 +174,27 @@ def criar_ucs(empresa_id: int, clientes: list[Client], usinas: list[Plant]) -> N
         db.session.flush()
 
         usina = random.choice(usinas)
-        conexao = PlantConnection(
-            empresa_id=empresa_id,
-            consumer_unit_id=uc.id,
-            plant_id=usina.id,
-            percentual=Decimal(str(round(random.uniform(1, 25), 2))),
-            percentual_manual=False,
-        )
-        db.session.add(conexao)
+        ucs_por_usina.setdefault(usina.id, []).append(uc)
+
+    # Percentuais sorteados por peso e normalizados por usina, pra soma das
+    # conexoes de uma mesma usina nunca passar de 100%.
+    for usina_id, ucs in ucs_por_usina.items():
+        pesos = [random.uniform(1, 25) for _ in ucs]
+        teto = random.uniform(95, 100)
+        soma_pesos = sum(pesos)
+        percentuais = [round(teto * peso / soma_pesos, 2) for peso in pesos]
+        ajuste = round(teto - sum(percentuais), 2)
+        percentuais[-1] = round(percentuais[-1] + ajuste, 2)
+
+        for uc, pct in zip(ucs, percentuais):
+            conexao = PlantConnection(
+                empresa_id=empresa_id,
+                consumer_unit_id=uc.id,
+                plant_id=usina_id,
+                percentual=Decimal(str(pct)),
+                percentual_manual=False,
+            )
+            db.session.add(conexao)
 
 
 def main() -> None:

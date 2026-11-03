@@ -3,7 +3,6 @@ import { createHeader } from '../components/Header';
 import { createLoading } from '../components/Loading';
 import { createSidebar } from '../components/Sidebar';
 import { createToastContainer } from '../components/Toast';
-import { createCommandPalette } from '../components/CommandPalette';
 import { createIcon } from '../components/Icon';
 import { getCurrentUser, refreshCurrentUser } from '../services/authService';
 import { sairDaVisualizacao } from '../platform/services/platformService';
@@ -27,8 +26,6 @@ export function createBaseLayout({ content, eyebrow, title, description }: BaseL
   const overlay = createElement('div', { className: 'sidebar-overlay' });
 
   const header = createHeader({ eyebrow, title, description });
-  const palette = createCommandPalette();
-  header.appendChild(palette.trigger);
   const contextBanner = createPlatformContextBanner();
   main.append(header);
   if (contextBanner) main.appendChild(contextBanner);
@@ -59,7 +56,7 @@ export function createBaseLayout({ content, eyebrow, title, description }: BaseL
   });
   applySidebarPreference();
   body.append(sidebar, main);
-  shell.append(overlay, body, palette.element, createLoading(), createToastContainer());
+  shell.append(overlay, body, createLoading(), createToastContainer());
 
   // Toggle do menu mobile
   const menuToggle = createElement('button', {

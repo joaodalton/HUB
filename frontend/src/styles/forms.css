@@ -102,6 +102,22 @@
 .form-field-error { color: var(--danger, #f87171); }
 .form-field [aria-invalid="true"] { border-color: var(--danger, #f87171); }
 
+/* Sem isto, o navegador usa o color-scheme do SO (nao o tema do HUB) pro
+   texto/icone nativo de input[type=month|date|time] -- pode ficar branco
+   sobre fundo claro. Mesmo padrao de faturas.css. */
+.form-field input[type="month"],
+.form-field input[type="date"],
+.form-field input[type="time"] {
+  color-scheme: dark;
+  color: #f1f5f9 !important;
+}
+[data-theme="light"] .form-field input[type="month"],
+[data-theme="light"] .form-field input[type="date"],
+[data-theme="light"] .form-field input[type="time"] {
+  color-scheme: light;
+  color: #162033 !important;
+}
+
 .form-field input,
 .form-field select {
   height: var(--control-height);

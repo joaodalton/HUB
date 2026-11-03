@@ -44,6 +44,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius);
   text-align: left;
+  color: var(--text);
 }
 .rateio-plant-row:hover { background: var(--panel-hover); border-color: var(--accent-border); }
 .rateio-plant-row.active { border-color: var(--accent); background: var(--accent-bg); }
@@ -422,7 +423,7 @@
   border-radius: var(--radius-input);
   background-color: var(--panel-soft);
   color: var(--text);
-  color-scheme: dark;
+  color-scheme: var(--hub-color-scheme, dark);
 }
 
 .rateio-picker select:hover { border-color: var(--border-soft); }

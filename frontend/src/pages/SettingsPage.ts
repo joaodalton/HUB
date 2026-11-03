@@ -10,26 +10,27 @@ import { createHomePanel, createLogsPanel } from './settingsLogs';
 import { createDatabasePanel } from './settingsDatabase';
 import { createAppearancePanel } from './settingsAppearance';
 import { canManageSettings, isPlatformAdmin } from './settingsShared';
+import { t } from '../services/i18nService';
 
 type SettingsCategory = 'home' | 'geral' | 'database' | 'apis' | 'automations' | 'logs' | 'appearance' | 'administration';
 
 type CategoryDefinition = {
   key: SettingsCategory;
-  label: string;
+  labelKey: string;
   // false = categoria so existe na navegacao, ainda sem backend por tras.
   // Mostra um aviso "em breve" em vez de fingir que a funcionalidade existe.
   ready: boolean;
 };
 
 const CATEGORIES: CategoryDefinition[] = [
-  { key: 'home', label: 'Home', ready: true },
-  { key: 'geral', label: 'Geral', ready: true },
-  { key: 'database', label: 'Banco de Dados', ready: true },
-  { key: 'apis', label: 'APIs e Integrações', ready: true },
-  { key: 'automations', label: 'Automações', ready: false },
-  { key: 'logs', label: 'Logs', ready: true },
-  { key: 'appearance', label: 'Aparência', ready: true },
-  { key: 'administration', label: 'Administração', ready: true }
+  { key: 'home', labelKey: 'settings.category.home', ready: true },
+  { key: 'geral', labelKey: 'settings.category.geral', ready: true },
+  { key: 'database', labelKey: 'settings.category.database', ready: true },
+  { key: 'apis', labelKey: 'settings.category.apis', ready: true },
+  { key: 'automations', labelKey: 'settings.category.automations', ready: false },
+  { key: 'logs', labelKey: 'settings.category.logs', ready: true },
+  { key: 'appearance', labelKey: 'settings.category.appearance', ready: true },
+  { key: 'administration', labelKey: 'settings.category.administration', ready: true }
 ];
 
 export function createSettingsPage(): HTMLElement {
@@ -57,8 +58,8 @@ export function createSettingsPage(): HTMLElement {
 
   const layout = createBaseLayout({
     content,
-    eyebrow: 'Configuracoes',
-    title: 'Organize integrações, banco de dados e parametros do HUB'
+    eyebrow: t('settings.eyebrow'),
+    title: t('settings.title')
   });
 
   // So depois do createBaseLayout() acima -- e o createToastContainer() la dentro --
@@ -149,7 +150,7 @@ export function createSettingsPage(): HTMLElement {
         return createAppearancePanel(getSettings(), state.appearanceLoaded, toast.success, toast.error);
 
       case 'administration':
-        if (!isPlatformAdmin()) return createElement('p', { className: 'settings-hint', textContent: 'Acesso restrito ao administrador da plataforma.' });
+        if (!isPlatformAdmin()) return createElement('p', { className: 'settings-hint', textContent: t('settings.administration.restricted') });
         billingDiagnosticsPanel ??= createBillingDiagnosticsPanel();
         return billingDiagnosticsPanel;
 
@@ -187,7 +188,7 @@ function handleGoogleOAuthRedirect(
 
 function createCategoryNav(active: SettingsCategory, onChange: (category: SettingsCategory) => void): HTMLElement {
   const nav = createElement('nav', { className: 'settings-category-nav' });
-  nav.appendChild(createElement('span', { className: 'settings-category-heading', textContent: 'Categorias' }));
+  nav.appendChild(createElement('span', { className: 'settings-category-heading', textContent: t('settings.category.heading') }));
 
   CATEGORIES.filter((category) => category.key !== 'administration' || isPlatformAdmin()).forEach((category) => {
     const link = createElement('button', {
@@ -195,9 +196,9 @@ function createCategoryNav(active: SettingsCategory, onChange: (category: Settin
       type: 'button'
     });
 
-    link.appendChild(createElement('span', { textContent: category.label }));
+    link.appendChild(createElement('span', { textContent: t(category.labelKey) }));
     if (!category.ready) {
-      link.appendChild(createElement('span', { className: 'settings-category-tag', textContent: 'em breve' }));
+      link.appendChild(createElement('span', { className: 'settings-category-tag', textContent: t('settings.category.comingSoonTag') }));
     }
 
     link.addEventListener('click', () => onChange(category.key));
@@ -210,11 +211,11 @@ function createCategoryNav(active: SettingsCategory, onChange: (category: Settin
 function categoryMessage(category: SettingsCategory): string {
   switch (category) {
     case 'apis':
-      return 'Em construção — integrações externas (Asaas, WhatsApp, concessionárias, inversores) entram a partir da V2.0, quando cada uma for conectada de verdade.';
+      return t('settings.comingSoon.apis');
     case 'automations':
-      return 'Em construção — automações dependem das integrações de APIs acima, ainda não implementadas.';
+      return t('settings.comingSoon.automations');
     default:
-      return 'Em construção.';
+      return t('settings.comingSoon.default');
   }
 }
 

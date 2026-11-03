@@ -4,6 +4,7 @@ import { saveSettings, resetAppearanceToDefaults, applyAppearanceSettings, apply
 import { refreshSidebarBrand } from '../components/Sidebar';
 import { getThemePreference, setThemePreference, type ThemePreference } from '../services/themeService';
 import { createPanelHeader } from './settingsShared';
+import { t } from '../services/i18nService';
 
 // ---------- Aparencia ----------
 
@@ -14,21 +15,21 @@ export function createAppearancePanel(
   notifyError: (message: string) => void
 ): HTMLElement {
   const panel = createElement('section', { className: 'settings-panel appearance-panel' });
-  const header = createPanelHeader('Aparência', 'Identidade visual e preferências do HUB');
+  const header = createPanelHeader(t('settings.appearance.heading'), t('settings.appearance.description'));
 
   if (!loaded) {
     panel.append(header, createElement('p', {
       className: 'settings-hint',
-      textContent: 'Carregando aparencia salva...'
+      textContent: t('settings.appearance.loading')
     }));
     return panel;
   }
 
   const body = createElement('div', { className: 'settings-form' });
-  const themeTitle = createElement('span', { className: 'settings-subheading', textContent: 'Tema' });
+  const themeTitle = createElement('span', { className: 'settings-subheading', textContent: t('settings.appearance.themeSubheading') });
   const themeOptions = createElement('div', { className: 'theme-options' });
   const currentTheme = getThemePreference();
-  ([['dark', 'Escuro'], ['light', 'Claro'], ['system', 'Sistema']] as const).forEach(([value, label]) => {
+  ([['dark', t('settings.appearance.themeDark')], ['light', t('settings.appearance.themeLight')], ['system', t('settings.appearance.themeSystem')]] as const).forEach(([value, label]) => {
     const option = createElement('label', { className: 'theme-option' });
     const input = createElement('input');
     input.type = 'radio'; input.name = 'hub-theme'; input.value = value; input.checked = currentTheme === value;
@@ -38,11 +39,11 @@ export function createAppearancePanel(
   });
 
   const logoField = createElement('label', { className: 'form-field' });
-  const logoLabel = createElement('span', { textContent: 'Logotipo' });
+  const logoLabel = createElement('span', { textContent: t('settings.appearance.logoLabel') });
   const logoRow = createElement('div', { className: 'logo-row' });
   const preview = createElement('div', { className: 'logo-preview' });
   const logoInput = createElement('input');
-  const logoButton = createElement('button', { className: 'secondary-button', textContent: 'Alterar logo', type: 'button' });
+  const logoButton = createElement('button', { className: 'secondary-button', textContent: t('settings.appearance.changeLogo'), type: 'button' });
 
   logoInput.type = 'file';
   logoInput.accept = 'image/png,image/jpeg';
@@ -55,18 +56,18 @@ export function createAppearancePanel(
     if (!file) return;
 
     logoButton.disabled = true;
-    logoButton.textContent = 'Enviando...';
+    logoButton.textContent = t('settings.appearance.uploading');
 
     try {
       const logoDataUrl = await readFileAsDataUrl(file);
       await saveSettings({ logoDataUrl });
       renderLogoPreview(preview, logoDataUrl);
-      notify('Logo atualizada.');
+      notify(t('settings.appearance.logoUpdated'));
     } catch {
-      notifyError('Nao foi possivel salvar a logo.');
+      notifyError(t('settings.appearance.logoError'));
     } finally {
       logoButton.disabled = false;
-      logoButton.textContent = 'Alterar logo';
+      logoButton.textContent = t('settings.appearance.changeLogo');
       logoInput.value = '';
     }
   });
@@ -74,23 +75,23 @@ export function createAppearancePanel(
   logoRow.append(preview, logoButton, logoInput);
   logoField.append(logoLabel, logoRow);
 
-  const language = createSelectField('Idioma', settings.language, [
+  const language = createSelectField(t('settings.appearance.languageLabel'), settings.language, [
     { value: 'pt-BR', label: 'Português (Brasil)' },
     { value: 'en-US', label: 'English' }
   ]);
   const languageHint = createElement('p', {
     className: 'settings-hint',
-    textContent: 'A troca de idioma so guarda a preferencia por enquanto -- ainda nao traduz os textos da interface.'
+    textContent: t('settings.appearance.languageHint')
   });
 
-  const companyName = createInput('Nome da empresa', 'text', settings.companyName);
+  const companyName = createInput(t('settings.appearance.companyName'), 'text', settings.companyName);
 
-  const colorsTitle = createElement('span', { className: 'settings-subheading', textContent: 'Cores do tema' });
+  const colorsTitle = createElement('span', { className: 'settings-subheading', textContent: t('settings.appearance.colorsSubheading') });
   const colorGrid = createElement('div', { className: 'color-field-grid' });
-  const backgroundColor = createColorField('Fundo', settings.backgroundColor);
-  const cardColor = createColorField('Fundo dos cards', settings.cardColor);
-  const textColor = createColorField('Texto geral', settings.textColor);
-  const accentColor = createColorField('Cor de seleção', settings.accentColor);
+  const backgroundColor = createColorField(t('settings.appearance.backgroundColor'), settings.backgroundColor);
+  const cardColor = createColorField(t('settings.appearance.cardColor'), settings.cardColor);
+  const textColor = createColorField(t('settings.appearance.textColor'), settings.textColor);
+  const accentColor = createColorField(t('settings.appearance.accentColor'), settings.accentColor);
 
   const colorFields = [
     { field: backgroundColor, key: 'backgroundColor' as const },
@@ -113,12 +114,12 @@ export function createAppearancePanel(
   colorGrid.append(backgroundColor.field, cardColor.field, textColor.field, accentColor.field);
 
   const actions = createElement('div', { className: 'form-actions' });
-  const saveButton = createElement('button', { textContent: 'Salvar aparência', type: 'button' });
-  const resetButton = createElement('button', { className: 'secondary-button', textContent: 'Restaurar padrão', type: 'button' });
+  const saveButton = createElement('button', { textContent: t('settings.appearance.save'), type: 'button' });
+  const resetButton = createElement('button', { className: 'secondary-button', textContent: t('common.restoreDefault'), type: 'button' });
 
   saveButton.addEventListener('click', async () => {
     saveButton.disabled = true;
-    saveButton.textContent = 'Salvando...';
+    saveButton.textContent = t('common.saving');
 
     try {
       await saveSettings({
@@ -129,14 +130,14 @@ export function createAppearancePanel(
         textColor: textColor.input.value,
         accentColor: accentColor.input.value
       });
-      notify('Aparência salva.');
+      notify(t('settings.appearance.saved'));
       refreshSidebarBrand();
     } catch {
-      notifyError('Nao foi possivel salvar a aparencia no backend.');
+      notifyError(t('settings.appearance.saveError'));
       applyAppearanceSettings();
     } finally {
       saveButton.disabled = false;
-      saveButton.textContent = 'Salvar aparência';
+      saveButton.textContent = t('settings.appearance.save');
     }
   });
 
@@ -148,9 +149,9 @@ export function createAppearancePanel(
 
     try {
       await resetAppearanceToDefaults();
-      notify('Cores restauradas para o padrão.');
+      notify(t('settings.appearance.restored'));
     } catch {
-      notifyError('Nao foi possivel restaurar o padrao no backend.');
+      notifyError(t('settings.appearance.restoreError'));
     }
   });
 
@@ -182,13 +183,13 @@ function renderLogoPreview(container: HTMLElement, logoDataUrl: string): void {
   container.replaceChildren();
 
   if (!logoDataUrl) {
-    container.textContent = 'Sem logo';
+    container.textContent = t('settings.appearance.noLogo');
     return;
   }
 
   const image = createElement('img');
   image.src = logoDataUrl;
-  image.alt = 'Logotipo configurado';
+  image.alt = t('settings.appearance.logoAlt');
   image.className = 'logo-preview-image';
   container.appendChild(image);
 }

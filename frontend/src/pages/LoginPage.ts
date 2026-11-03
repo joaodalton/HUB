@@ -3,6 +3,7 @@ import { createIcon } from '../components/Icon';
 import { HUB_VERSION } from '../components/Sidebar';
 import { config } from '../services/config';
 import { login, type AuthUser } from '../services/authService';
+import { t } from '../services/i18nService';
 
 // Sem auto-cadastro publico (decisao 2026-08-19) -- todo acesso nasce de
 // convite (Invitation/aceitar-convite), inclusive pra empresa nova (ver
@@ -19,23 +20,23 @@ export function createLoginPage(onSuccess: (user: AuthUser) => void): HTMLElemen
   }
 
   function createLoginView(): HTMLElement {
-    const heading = createElement('h1', { textContent: 'Bem-vindo ao HUB' });
-    const subheading = createElement('p', { className: 'login-form-subtitle', textContent: 'Faça login para continuar' });
+    const heading = createElement('h1', { textContent: t('auth.login.heading') });
+    const subheading = createElement('p', { className: 'login-form-subtitle', textContent: t('auth.login.subheading') });
 
     const form = createElement('form', { className: 'login-form' });
-    const emailField = createLoginField('E-mail', 'email', 'usuario@email.com', 'user');
-    const senhaField = createLoginField('Senha', 'password', '••••••••••••', 'lock', true);
+    const emailField = createLoginField(t('auth.login.emailLabel'), 'email', t('auth.login.emailPlaceholder'), 'user');
+    const senhaField = createLoginField(t('auth.login.senhaLabel'), 'password', '••••••••••••', 'lock', true);
 
     const rememberRow = createElement('label', { className: 'login-checkbox-row' });
     const rememberInput = createElement('input');
     rememberInput.type = 'checkbox';
-    rememberRow.append(rememberInput, createElement('span', { textContent: 'Lembrar meu acesso' }));
+    rememberRow.append(rememberInput, createElement('span', { textContent: t('auth.login.rememberMe') }));
 
     const errorText = createElement('p', { className: 'login-error' });
     errorText.hidden = true;
 
     const submitButton = createElement('button', { className: 'login-submit-button button-with-icon', type: 'submit' });
-    submitButton.append(createIcon('login'), document.createTextNode('Entrar no HUB'));
+    submitButton.append(createIcon('login'), document.createTextNode(t('auth.login.submit')));
 
     form.append(emailField.field, senhaField.field, rememberRow, errorText, submitButton);
 
@@ -49,7 +50,7 @@ export function createLoginPage(onSuccess: (user: AuthUser) => void): HTMLElemen
         const user = await login(emailField.input.value.trim(), senhaField.input.value, rememberInput.checked);
         onSuccess(user);
       } catch (error) {
-        errorText.textContent = error instanceof Error ? error.message : 'Não foi possível entrar.';
+        errorText.textContent = error instanceof Error ? error.message : t('auth.login.genericError');
         errorText.hidden = false;
       } finally {
         submitButton.disabled = false;
@@ -57,7 +58,7 @@ export function createLoginPage(onSuccess: (user: AuthUser) => void): HTMLElemen
       }
     });
 
-    const forgotLink = createElement('a', { className: 'login-forgot-link', textContent: 'Esqueci minha senha' });
+    const forgotLink = createElement('a', { className: 'login-forgot-link', textContent: t('auth.login.forgotPassword') });
     forgotLink.href = '/esqueci-senha';
     forgotLink.addEventListener('click', (event) => {
       event.preventDefault();
@@ -88,14 +89,14 @@ function createLoginIllustration(): HTMLElement {
   const brandText = createElement('span', { className: 'login-illustration-title', textContent: 'HUB' });
   brand.append(mark, brandText);
 
-  const subtitle = createElement('p', { className: 'login-illustration-subtitle', textContent: 'Sistema de Gestão' });
+  const subtitle = createElement('p', { className: 'login-illustration-subtitle', textContent: t('auth.login.subtitle') });
 
   const art = createElement('div', { className: 'login-illustration-art' });
   art.innerHTML = loginArtMarkup();
 
   const tagline = createElement('p', {
     className: 'login-illustration-tagline',
-    textContent: 'Conectando usinas, unidades e pessoas.'
+    textContent: t('auth.login.tagline')
   });
 
   panel.append(brand, subtitle, art, tagline);
@@ -189,12 +190,12 @@ function createLoginField(
   if (isPassword) {
     const toggle = createElement('button', { className: 'login-field-toggle', type: 'button' });
     toggle.appendChild(createIcon('eye'));
-    toggle.setAttribute('aria-label', 'Mostrar senha');
+    toggle.setAttribute('aria-label', t('auth.login.showPassword'));
 
     toggle.addEventListener('click', () => {
       const isHidden = input.type === 'password';
       input.type = isHidden ? 'text' : 'password';
-      toggle.setAttribute('aria-label', isHidden ? 'Ocultar senha' : 'Mostrar senha');
+      toggle.setAttribute('aria-label', isHidden ? t('auth.login.hidePassword') : t('auth.login.showPassword'));
     });
 
     inputWrap.appendChild(toggle);
@@ -208,7 +209,7 @@ function createLoginStatusFooter(): HTMLElement {
   const footer = createElement('div', { className: 'login-status-footer' });
   const statusText = createElement('span', { className: 'login-status-text' });
   const dot = createElement('span', { className: 'login-status-dot' });
-  const label = createElement('span', { textContent: 'Verificando servidor...' });
+  const label = createElement('span', { textContent: t('auth.login.checkingServer') });
 
   statusText.append(dot, label);
   const version = createElement('span', { className: 'login-status-version', textContent: `HUB ${HUB_VERSION}` });
@@ -222,11 +223,11 @@ function createLoginStatusFooter(): HTMLElement {
     .then((response) => {
       if (!response.ok) throw new Error();
       dot.classList.add('online');
-      label.textContent = 'Servidor Online';
+      label.textContent = t('auth.login.serverOnline');
     })
     .catch(() => {
       dot.classList.add('offline');
-      label.textContent = 'Servidor Offline';
+      label.textContent = t('auth.login.serverOffline');
     });
 
   return footer;

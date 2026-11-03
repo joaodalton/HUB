@@ -7,36 +7,42 @@ import { type ApiCredentialPayload, type ApiCredentialProvider, type ApiCredenti
 import { getGoogleAuthorizeUrl, type GoogleAccountRow } from '../services/googleAccountService';
 import { type WhatsappIntegration, type WhatsappIntegrationInput } from '../services/whatsappService';
 import { createPanelHeader, createToggle } from './settingsShared';
+import { t } from '../services/i18nService';
 
 // ---------- APIs e integrações ----------
 
-const API_PROVIDER_OPTIONS: Array<{ value: ApiCredentialProvider; label: string; descricao: string; logo: BrandName }> = [
-  { value: 'resend', label: 'Resend (e-mail)', descricao: 'Envio de e-mails transacionais.', logo: 'resend' },
-  { value: 'asaas', label: 'Asaas (financeiro)', descricao: 'Cobranças e faturas da empresa.', logo: 'asaas' }
-];
+function apiProviderOptions(): Array<{ value: ApiCredentialProvider; label: string; descricao: string; logo: BrandName }> {
+  return [
+    { value: 'resend', label: t('settings.integrations.resendLabel'), descricao: t('settings.integrations.resendDescricao'), logo: 'resend' },
+    { value: 'asaas', label: t('settings.integrations.asaasLabel'), descricao: t('settings.integrations.asaasDescricao'), logo: 'asaas' }
+  ];
+}
 
 function asaasCredentialLabel(nome: string): string {
-  const labels: Record<string, string> = {
-    api_key_sandbox: 'Chave de API — Sandbox',
-    api_key_producao: 'Chave de API — Produção',
-    webhook_token_sandbox: 'Token do webhook — Sandbox',
-    webhook_token_producao: 'Token do webhook — Produção'
+  const keys: Record<string, string> = {
+    api_key_sandbox: 'settings.integrations.apiKeySandboxLabel',
+    api_key_producao: 'settings.integrations.apiKeyProducaoLabel',
+    webhook_token_sandbox: 'settings.integrations.webhookTokenSandboxLabel',
+    webhook_token_producao: 'settings.integrations.webhookTokenProducaoLabel'
   };
-  return labels[nome] ?? nome;
+  return (keys[nome] && t(keys[nome])) ?? nome;
 }
 
 function credentialCopy(provider: ApiCredentialProvider, replacing = false, nome = ''): { label: string; hint: string; placeholder: string } {
-  if (provider === 'asaas') return {
-    label: `${replacing ? 'Novo ' : ''}${nome.startsWith('webhook_token') ? 'token do webhook' : 'chave de API'}${replacing ? ' (opcional)' : ''}`,
-    hint: nome.startsWith('webhook_token')
-      ? 'Token de autenticação configurado no webhook do Asaas. O Asaas envia esse valor no header asaas-access-token; não use a chave de API aqui.'
-      : 'Chave de API da conta Asaas usada pelo HUB para criar e consultar cobranças. Não use o token do webhook aqui.',
-    placeholder: replacing ? 'Deixe em branco para manter o atual' : ''
-  };
+  if (provider === 'asaas') {
+    const isWebhook = nome.startsWith('webhook_token');
+    return {
+      label: replacing
+        ? (isWebhook ? t('settings.integrations.newWebhookTokenOptional') : t('settings.integrations.newApiKeyOptional'))
+        : (isWebhook ? t('settings.integrations.webhookTokenBaseLabel') : t('settings.integrations.apiKeyBaseLabel')),
+      hint: isWebhook ? t('settings.integrations.webhookTokenHint') : t('settings.integrations.apiKeyHint'),
+      placeholder: replacing ? t('settings.integrations.keepCurrentPlaceholder') : ''
+    };
+  }
   return {
-    label: replacing ? 'Novo segredo (opcional)' : 'Segredo de acesso',
-    hint: 'O segredo é enviado apenas para ser protegido no servidor; ele não será listado, preenchido novamente nem gravado pelo navegador.',
-    placeholder: replacing ? 'Deixe em branco para manter o atual' : ''
+    label: replacing ? t('settings.integrations.newSecretOptional') : t('settings.integrations.secretField'),
+    hint: t('settings.integrations.secretSentOnlyHint'),
+    placeholder: replacing ? t('settings.integrations.keepCurrentPlaceholder') : ''
   };
 }
 
@@ -60,21 +66,21 @@ export function createApiCredentialsPanel(
   onDisconnectGoogleAccount: (id: number) => void
 ): HTMLElement {
   const panel = createElement('section', { className: 'settings-panel' });
-  panel.appendChild(createPanelHeader('APIs e Integrações', 'Credenciais por empresa para serviços externos. O segredo nunca é exibido depois de salvo.'));
+  panel.appendChild(createPanelHeader(t('settings.integrations.heading'), t('settings.integrations.description')));
 
   if (!canManage) {
-    panel.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Seu perfil não tem permissão para visualizar ou administrar credenciais de integração.' }));
+    panel.appendChild(createElement('p', { className: 'settings-hint', textContent: t('settings.integrations.denied') }));
     return panel;
   }
 
   if (!loaded) {
-    panel.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Carregando integrações...' }));
+    panel.appendChild(createElement('p', { className: 'settings-hint', textContent: t('settings.integrations.loading') }));
     return panel;
   }
 
   if (loadError) {
-    const message = createElement('p', { className: 'settings-hint', textContent: 'Não foi possível carregar as integrações.' });
-    const retry = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Tentar novamente' });
+    const message = createElement('p', { className: 'settings-hint', textContent: t('settings.integrations.loadError') });
+    const retry = createElement('button', { className: 'secondary-button', type: 'button', textContent: t('common.retry') });
     retry.addEventListener('click', () => void onRetry());
     panel.append(message, retry);
     return panel;
@@ -85,14 +91,14 @@ export function createApiCredentialsPanel(
   // O formulario so existe dentro do modal, aberto ao clicar no card. Salvar/remover fecham o modal
   // (a tela inteira e re-renderizada pelo estado); testar mantem aberto.
   const openModal = (title: string, build: (close: () => void) => HTMLElement[]): void => {
-    const modal = createModalShell(title, 'Integração');
+    const modal = createModalShell(title, t('settings.integrations.heading'));
     const content = createElement('div', { className: 'integration-modal-content' });
     content.append(...build(modal.close));
     modal.body.appendChild(content);
     document.body.appendChild(modal.overlay);
   };
 
-  API_PROVIDER_OPTIONS.forEach((provider) => {
+  apiProviderOptions().forEach((provider) => {
     const providerCredentials = credentials.filter((credential) => credential.provider === provider.value);
     grid.appendChild(createIntegrationCard({
       nome: provider.label,
@@ -113,7 +119,7 @@ export function createApiCredentialsPanel(
           return card;
         });
         const content = createElement('div', { className: 'integration-modal-content' });
-        const add = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Adicionar outra credencial' });
+        const add = createElement('button', { className: 'secondary-button', type: 'button', textContent: t('settings.integrations.addAnother') });
         add.addEventListener('click', () => content.replaceChildren(createApiCredentialForm(create, provider.value)));
         content.append(...cards, add);
         return [content];
@@ -121,9 +127,9 @@ export function createApiCredentialsPanel(
     }));
   });
   grid.appendChild(createIntegrationCard({
-    nome: 'WhatsApp Meta Cloud API', descricao: 'Número, token permanente e aprovação de templates por empresa.', logo: 'whatsapp',
+    nome: t('settings.integrations.whatsappLabel'), descricao: t('settings.integrations.whatsappDescricao'), logo: 'whatsapp',
     status: whatsapp?.configured ? 'conectado' : 'nao_configurado',
-    onConfigurar: () => openModal('WhatsApp Meta Cloud API', (close) => [createWhatsappIntegrationForm(
+    onConfigurar: () => openModal(t('settings.integrations.whatsappLabel'), (close) => [createWhatsappIntegrationForm(
       whatsapp,
       whatsappLoaded,
       async (input) => { await onSaveWhatsapp(input); close(); },
@@ -132,9 +138,9 @@ export function createApiCredentialsPanel(
     )])
   }));
   grid.appendChild(createIntegrationCard({
-    nome: 'Login com Google', descricao: 'Contas Google conectadas via OAuth, usadas pelo Drive e outros serviços.', logo: 'google',
+    nome: t('settings.integrations.googleLabel'), descricao: t('settings.integrations.googleDescricao'), logo: 'google',
     status: googleAccounts.some((account) => account.ativa) ? 'conectado' : 'nao_configurado',
-    onConfigurar: () => openModal('Login com Google', () => [createGoogleAccountsSection(googleAccounts, onActivateGoogleAccount, onDisconnectGoogleAccount)])
+    onConfigurar: () => openModal(t('settings.integrations.googleLabel'), () => [createGoogleAccountsSection(googleAccounts, onActivateGoogleAccount, onDisconnectGoogleAccount)])
   }));
   panel.appendChild(grid);
   return panel;
@@ -149,9 +155,9 @@ function createGoogleAccountsSection(
   const section = createElement('section', { className: 'database-provider-card' });
   const header = createElement('div', { className: 'provider-header' });
   const text = createElement('div');
-  const eyebrow = createElement('span', { className: 'eyebrow', textContent: 'OAuth' });
-  const heading = createElement('h2', { textContent: 'Contas Google conectadas' });
-  const connectLink = createElement('a', { className: 'small-button', textContent: 'Conectar nova conta' });
+  const eyebrow = createElement('span', { className: 'eyebrow', textContent: t('settings.integrations.googleAccountsEyebrow') });
+  const heading = createElement('h2', { textContent: t('settings.integrations.googleAccountsHeading') });
+  const connectLink = createElement('a', { className: 'small-button', textContent: t('settings.integrations.connectNewAccount') });
 
   connectLink.href = getGoogleAuthorizeUrl();
 
@@ -162,7 +168,7 @@ function createGoogleAccountsSection(
   if (accounts.length === 0) {
     section.appendChild(createElement('p', {
       className: 'settings-hint',
-      textContent: 'Nenhuma conta conectada ainda. Conecte, aprove no Google e use os arquivos da conta: não é preciso informar ID de pasta.'
+      textContent: t('settings.integrations.noAccounts')
     }));
     return section;
   }
@@ -174,23 +180,23 @@ function createGoogleAccountsSection(
     const valueRow = createElement('dd', { className: 'account-row' });
     const status = createElement('span', {
       className: account.ativa ? 'provider-badge success' : 'provider-badge',
-      textContent: account.ativa ? 'Ativa' : 'Inativa'
+      textContent: account.ativa ? t('settings.integrations.active') : t('settings.integrations.inactive')
     });
     const activateButton = createElement('button', {
       className: 'secondary-button',
-      textContent: 'Usar esta conta',
+      textContent: t('settings.integrations.useThisAccount'),
       type: 'button'
     });
     const disconnectButton = createElement('button', {
       className: 'danger-button',
-      textContent: 'Desconectar',
+      textContent: t('settings.integrations.disconnect'),
       type: 'button'
     });
 
     activateButton.disabled = account.ativa;
     activateButton.addEventListener('click', () => onActivate(account.id));
     disconnectButton.addEventListener('click', () => {
-      if (window.confirm(`Desconectar a conta ${account.email}?`)) onDisconnect(account.id);
+      if (window.confirm(`${t('settings.integrations.disconnect')} ${account.email}?`)) onDisconnect(account.id);
     });
 
     valueRow.append(status, activateButton, disconnectButton);
@@ -209,21 +215,21 @@ function createWhatsappIntegrationForm(
   onDelete: () => Promise<void>
 ): HTMLElement {
   const form = createElement('form', { className: 'settings-form api-credential-form' });
-  form.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Use o token permanente do usuário de sistema da Meta. Ele é cifrado e nunca volta para esta tela.' }));
-  if (!loaded) { form.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Carregando configuração WhatsApp...' })); return form; }
-  const phoneId = createInput('Phone Number ID', 'text', integration?.phoneNumberId ?? '', true);
-  const wabaId = createInput('WhatsApp Business Account ID', 'text', integration?.businessAccountId ?? '', true);
-  const display = createInput('Número exibido (opcional)', 'text', integration?.displayPhoneNumber ?? '', false);
-  const token = createInput(integration ? 'Novo token permanente (opcional)' : 'Token permanente', 'password', '', !integration);
+  form.appendChild(createElement('p', { className: 'settings-hint', textContent: t('settings.integrations.whatsappTokenHint') }));
+  if (!loaded) { form.appendChild(createElement('p', { className: 'settings-hint', textContent: t('settings.integrations.whatsappLoading') })); return form; }
+  const phoneId = createInput(t('settings.integrations.phoneNumberId'), 'text', integration?.phoneNumberId ?? '', true);
+  const wabaId = createInput(t('settings.integrations.wabaId'), 'text', integration?.businessAccountId ?? '', true);
+  const display = createInput(t('settings.integrations.displayNumber'), 'text', integration?.displayPhoneNumber ?? '', false);
+  const token = createInput(integration ? t('settings.integrations.newToken') : t('settings.integrations.token'), 'password', '', !integration);
   token.input.autocomplete = 'new-password';
-  const enabled = createToggle('Ativar integração para esta empresa', integration?.enabled ?? true);
+  const enabled = createToggle(t('settings.integrations.enableIntegration'), integration?.enabled ?? true);
   const actions = createElement('div', { className: 'form-actions' });
-  const save = createElement('button', { type: 'submit', textContent: 'Salvar WhatsApp' });
+  const save = createElement('button', { type: 'submit', textContent: t('settings.integrations.saveWhatsapp') });
   actions.appendChild(save);
   if (integration) {
-    const test = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Testar conexão' });
+    const test = createElement('button', { className: 'secondary-button', type: 'button', textContent: t('settings.integrations.testConnection') });
     test.addEventListener('click', () => void onTest());
-    const remove = createElement('button', { className: 'danger-button', type: 'button', textContent: 'Desconectar' });
+    const remove = createElement('button', { className: 'danger-button', type: 'button', textContent: t('settings.integrations.disconnect') });
     remove.addEventListener('click', () => void onDelete());
     actions.append(test, remove);
   }
@@ -245,8 +251,8 @@ function createApiCredentialCard(
 ): HTMLElement {
   const card = createElement('details', { className: 'api-credential-card' });
   const summary = createElement('summary', { className: 'api-credential-summary' });
-  const provider = API_PROVIDER_OPTIONS.find((option) => option.value === credential.provider)?.label ?? credential.provider;
-  const status = createElement('span', { className: credential.configurada ? 'provider-badge success' : 'provider-badge warning', textContent: credential.configurada ? 'Configurada' : 'Sem segredo' });
+  const provider = apiProviderOptions().find((option) => option.value === credential.provider)?.label ?? credential.provider;
+  const status = createElement('span', { className: credential.configurada ? 'provider-badge success' : 'provider-badge warning', textContent: credential.configurada ? t('settings.integrations.configured') : t('settings.integrations.noSecret') });
   const title = createElement('div', { className: 'api-credential-title' });
   title.append(createElement('strong', { textContent: credential.provider === 'asaas' ? asaasCredentialLabel(credential.nome) : credential.nome }), createElement('span', { textContent: provider }));
   summary.append(title, status);
@@ -254,40 +260,40 @@ function createApiCredentialCard(
   const body = createElement('form', { className: 'settings-form api-credential-form' });
   const providerField = createElement('label', { className: 'form-field' });
   providerField.append(
-    createElement('span', { textContent: 'Provedor' }),
+    createElement('span', { textContent: t('settings.integrations.provider') }),
     createElement('strong', { textContent: provider })
   );
-  const nameField = createInput('Nome da integração', 'text', credential.nome, true);
+  const nameField = createInput(t('settings.integrations.integrationName'), 'text', credential.nome, true);
   const copy = credentialCopy(credential.provider, true, credential.nome);
   const secretField = createInput(copy.label, 'password', '', false);
   secretField.input.autocomplete = 'new-password';
   secretField.input.placeholder = copy.placeholder;
-  const hint = createElement('p', { className: 'settings-hint', textContent: `${copy.hint} Por segurança, o valor atual não pode ser consultado ou exibido.` });
+  const hint = createElement('p', { className: 'settings-hint', textContent: `${copy.hint} ${t('settings.integrations.secretNotRetrievableSuffix')}` });
   if (credential.provider === 'asaas') {
     nameField.input.readOnly = true;
-    nameField.field.appendChild(createElement('small', { className: 'settings-hint', textContent: 'Identificador técnico fixo: alterar o nome impediria o HUB de localizar esta credencial.' }));
+    nameField.field.appendChild(createElement('small', { className: 'settings-hint', textContent: t('settings.integrations.asaasFixedIdHint') }));
   }
   const actions = createElement('div', { className: 'form-actions' });
-  const save = createElement('button', { type: 'submit', textContent: 'Salvar alterações' });
-  const test = credential.provider === 'asaas' ? createElement('button', { className: 'secondary-button', type: 'button', textContent: credential.nome.startsWith('webhook_token') ? 'Verificar cifra local' : 'Testar chave API' }) : null;
-  const remove = createElement('button', { className: 'danger-button', type: 'button', textContent: 'Remover' });
+  const save = createElement('button', { type: 'submit', textContent: t('settings.integrations.saveChanges') });
+  const test = credential.provider === 'asaas' ? createElement('button', { className: 'secondary-button', type: 'button', textContent: credential.nome.startsWith('webhook_token') ? t('settings.integrations.verifyLocalCipher') : t('settings.integrations.testApiKey') }) : null;
+  const remove = createElement('button', { className: 'danger-button', type: 'button', textContent: t('common.remove') });
   body.addEventListener('submit', async (event) => {
     event.preventDefault();
     const nome = nameField.input.value.trim();
     if (!nome) { nameField.input.focus(); return; }
     save.disabled = true;
-    save.textContent = 'Salvando...';
+    save.textContent = t('common.saving');
     try {
       const segredo = secretField.input.value;
       await onUpdate(credential.id, { nome, ...(segredo ? { segredo } : {}) });
     } catch {
       save.disabled = false;
-      save.textContent = 'Salvar alterações';
+      save.textContent = t('settings.integrations.saveChanges');
     }
   });
   if (test) test.addEventListener('click', () => void onTest(credential));
   remove.addEventListener('click', async () => {
-    if (!window.confirm(`Remover a integração "${credential.nome}"?`)) return;
+    if (!window.confirm(`${t('common.remove')}: "${credential.nome}"?`)) return;
     remove.disabled = true;
     await onDelete(credential.id);
     remove.disabled = false;
@@ -300,20 +306,20 @@ function createApiCredentialCard(
 
 function createApiCredentialForm(onCreate: (data: Required<ApiCredentialPayload>) => Promise<void>, provider: ApiCredentialProvider): HTMLElement {
   const form = createElement('form', { className: 'settings-form api-credential-form' });
-  form.appendChild(createElement('h3', { textContent: 'Adicionar integração' }));
-  const nameField = createInput('Nome da integração', 'text', '', true);
-  const asaasType = createSelectField('Credencial Asaas', 'api_key', [
-    { value: 'api_key', label: 'Chave de API (envio e consulta de cobranças)' },
-    { value: 'webhook_token', label: 'Token do webhook (recebimento de eventos)' }
+  form.appendChild(createElement('h3', { textContent: t('settings.integrations.addIntegration') }));
+  const nameField = createInput(t('settings.integrations.integrationName'), 'text', '', true);
+  const asaasType = createSelectField(t('settings.integrations.asaasCredentialType'), 'api_key', [
+    { value: 'api_key', label: t('settings.integrations.asaasApiKeyOption') },
+    { value: 'webhook_token', label: t('settings.integrations.asaasWebhookOption') }
   ]);
-  const asaasEnvironment = createSelectField('Ambiente Asaas', 'sandbox', [
-    { value: 'sandbox', label: 'Sandbox (testes)' },
-    { value: 'producao', label: 'Produção' }
+  const asaasEnvironment = createSelectField(t('settings.integrations.asaasEnvironment'), 'sandbox', [
+    { value: 'sandbox', label: t('settings.integrations.sandbox') },
+    { value: 'producao', label: t('settings.integrations.producao') }
   ]);
-  const secretField = createInput('Segredo de acesso', 'password', '', true);
+  const secretField = createInput(t('settings.integrations.secretField'), 'password', '', true);
   secretField.input.autocomplete = 'new-password';
   const hint = createElement('p', { className: 'settings-hint' });
-  const webhookHint = createElement('p', { className: 'settings-hint api-webhook-hint', textContent: 'O ambiente ativo é definido por ASAAS_API_BASE_URL no servidor. Use credenciais da mesma conta e ambiente. Configure no Asaas o webhook para /api/v1/webhooks/asaas com o mesmo token cadastrado aqui. O teste do token verifica apenas se ele foi armazenado corretamente.' });
+  const webhookHint = createElement('p', { className: 'settings-hint api-webhook-hint', textContent: t('settings.integrations.webhookEnvHint') });
   const isAsaas = provider === 'asaas';
   function refreshProviderCopy(): void {
     const nome = `${asaasType.select.value}_${asaasEnvironment.select.value}`;
@@ -331,7 +337,7 @@ function createApiCredentialForm(onCreate: (data: Required<ApiCredentialPayload>
   asaasEnvironment.select.addEventListener('change', refreshProviderCopy);
   refreshProviderCopy();
   const actions = createElement('div', { className: 'form-actions' });
-  const submit = createElement('button', { type: 'submit', textContent: 'Adicionar' });
+  const submit = createElement('button', { type: 'submit', textContent: t('settings.integrations.add') });
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     const nome = isAsaas
@@ -341,12 +347,12 @@ function createApiCredentialForm(onCreate: (data: Required<ApiCredentialPayload>
     if (!nome) { nameField.input.focus(); return; }
     if (!segredo) { secretField.input.focus(); return; }
     submit.disabled = true;
-    submit.textContent = 'Adicionando...';
+    submit.textContent = t('settings.integrations.adding');
     try {
       await onCreate({ provider, nome, segredo });
     } catch {
       submit.disabled = false;
-      submit.textContent = 'Adicionar';
+      submit.textContent = t('settings.integrations.add');
     }
   });
   actions.appendChild(submit);

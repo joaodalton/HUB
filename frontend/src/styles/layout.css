@@ -530,6 +530,77 @@
   color: var(--text-faint);
 }
 
+.header-controls {
+  display: flex;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+.language-switcher {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.language-switcher-option,
+.theme-toggle-button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel-soft);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.theme-toggle-button .icon,
+.theme-toggle-button svg {
+  width: 16px;
+  height: 16px;
+  max-width: none;
+  flex-shrink: 0;
+}
+
+.language-switcher-flag {
+  width: 20px;
+  height: 14px;
+  max-width: none;
+  border-radius: 2px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+/* Tooltip desses botoes abre pra baixo (o padrao global abre pra cima, mas
+   aqui colide com o conteudo da pagina logo abaixo do header). */
+.theme-toggle-button[data-tooltip]::after,
+.language-switcher-option[data-tooltip]::after {
+  top: calc(100% + 8px);
+  bottom: auto;
+  transform: translate(-50%, -4px);
+}
+.theme-toggle-button[data-tooltip]:hover::after,
+.theme-toggle-button[data-tooltip]:focus-visible::after,
+.language-switcher-option[data-tooltip]:hover::after,
+.language-switcher-option[data-tooltip]:focus-visible::after {
+  transform: translate(-50%, 0);
+}
+
+.language-switcher-option:hover,
+.theme-toggle-button:hover {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+
+.language-switcher-option.is-active {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
 /* Mobile masthead adjustments */
 @media (max-width: 768px) {
   .masthead-text h1 {

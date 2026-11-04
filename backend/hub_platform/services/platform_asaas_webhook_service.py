@@ -38,11 +38,29 @@ def receive_platform_webhook(payload, token):
         db.session.rollback()
         existing = PlatformAsaasWebhookEvent.query.filter_by(event_id=payload['id']).first()
         if existing and existing.payload_hash == payload_hash:
+            # Redelivery genuina do mesmo evento (mesmo event_id): confirmar_pagamento
+            # e idempotente, entao chamar de novo e seguro -- e e o unico jeito de
+            # recuperar um pedido que ficou travado 'pendente' porque o e-mail falhou
+            # na entrega anterior (um event_id dedupe'd nunca mais chegaria aqui pra
+            # tentar de novo, se nao fosse por este retry).
+            _confirmar_pedido_plano_se_aplicavel(payload, reference)
             return
         raise WebhookError(409) from None
     except SQLAlchemyError:
         db.session.rollback()
         raise WebhookError(503) from None
 
-    if payload.get('event') == 'PAYMENT_CONFIRMED' and reference and reference.startswith('hub-platform-pedido-'):
-        confirmar_pagamento(reference)
+    _confirmar_pedido_plano_se_aplicavel(payload, reference)
+
+
+def _confirmar_pedido_plano_se_aplicavel(payload, reference):
+    # PIX/boleto tipicamente disparam PAYMENT_RECEIVED, nao PAYMENT_CONFIRMED
+    # (majoritariamente de cartao) -- aceitar os dois, confirmar_pagamento e
+    # idempotente entao um duplo disparo pro mesmo pagamento e inofensivo.
+    if (payload.get('event') not in ('PAYMENT_CONFIRMED', 'PAYMENT_RECEIVED')
+            or not reference or not reference.startswith('hub-platform-pedido-')):
+        return
+    if not confirmar_pagamento(reference):
+        # Envio do e-mail de cadastro falhou -- resposta nao-2xx faz a Asaas
+        # redeliverar o webhook, dando uma nova chance a confirmar_pagamento.
+        raise WebhookError(503)

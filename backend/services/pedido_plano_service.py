@@ -1,5 +1,10 @@
-"""criar_pedido: abre checkout de assinatura de plano (pedido pendente + ASAAS)."""
+"""pedido_plano_service: checkout publico de assinatura de plano, fim a fim --
+criar_pedido (abre pedido pendente + assinatura ASAAS), confirmar_pagamento
+(chamado pelo webhook quando o pagamento e confirmado -- gera token de
+cadastro e envia e-mail) e concluir_cadastro (consome o token e cria
+Empresa + Assinatura + owner User)."""
 import hashlib
+import re
 import secrets
 from datetime import datetime, timedelta
 
@@ -17,12 +22,20 @@ from services.email_service import send_email
 from services.log_service import LogService
 from utils.auth import hash_password
 
+_SLUG_RE = re.compile(r'^[a-z0-9-]{1,60}$')
+
 
 def _asaas_transport():
     return PlatformAsaasService()
 
 
 def criar_pedido(email: str, plano_chave: str, dados_pagamento: dict) -> dict:
+    if not isinstance(email, str) or not email.strip():
+        raise ValueError('Email e obrigatorio.')
+    if not isinstance(plano_chave, str):
+        raise ValueError('Plano inexistente ou nao comercializavel.')
+    if not isinstance(dados_pagamento, dict):
+        raise ValueError('Dados de pagamento invalidos.')
     if plano_chave not in PLANOS or not PLANOS[plano_chave]['comprável']:
         raise ValueError('Plano inexistente ou nao comercializavel.')
     plano = get_plano(plano_chave)
@@ -76,13 +89,18 @@ def _gerar_token() -> tuple[str, str]:
     return token_cru, token_hash
 
 
-def confirmar_pagamento(external_reference: str) -> None:
-    """Chamado pelo webhook da Asaas quando PAYMENT_CONFIRMED. Idempotente:
-    replay do mesmo evento (ou qualquer chamada apos o pedido ja ter saido
-    de 'pendente') e no-op -- nao gera segundo token nem reenvia e-mail."""
+def confirmar_pagamento(external_reference: str) -> bool:
+    """Chamado pelo webhook da Asaas quando o pagamento e confirmado.
+    Idempotente: replay do mesmo evento (ou qualquer chamada apos o pedido ja
+    ter saido de 'pendente') e no-op -- nao gera segundo token nem reenvia
+    e-mail. Retorna False somente quando ha um pedido 'pendente' pra esse
+    external_reference e o envio do e-mail falhou -- o webhook chamador deve
+    tratar isso como falha (nao-2xx) pra Asaas redeliverar o evento e essa
+    funcao ser chamada de novo; True em qualquer outro caso (nada a fazer, ou
+    concluido com sucesso agora)."""
     pedido = PedidoPlano.query.filter_by(external_reference=external_reference).first()
     if not pedido or pedido.status != 'pendente':
-        return
+        return True
 
     token_cru, token_hash = _gerar_token()
     enviado = _enviar_email_pagamento_confirmado(pedido, token_cru)
@@ -91,12 +109,13 @@ def confirmar_pagamento(external_reference: str) -> None:
         # aqui -- pedido fica 'pendente' pra um proximo webhook (redelivery da Asaas)
         # tentar de novo, em vez de ficar travado pelo guard de idempotencia pra sempre.
         db.session.rollback()
-        return
+        return False
 
     pedido.token_hash = token_hash
     pedido.status = 'pago'
     pedido.expires_at = datetime.utcnow() + timedelta(days=7)
     db.session.commit()
+    return True
 
 
 def _enviar_email_pagamento_confirmado(pedido: PedidoPlano, token_cru: str) -> bool:
@@ -137,9 +156,16 @@ def _buscar_pedido_valido(token_cru: str) -> PedidoPlano:
 
 
 def concluir_cadastro(token_cru: str, nome_empresa: str, slug: str, senha: str) -> dict:
+    if not all(isinstance(v, str) for v in (token_cru, nome_empresa, slug, senha)):
+        raise ValueError('Token, nomeEmpresa, slug e senha precisam ser texto.')
+
     nome_empresa = nome_empresa.strip()
     if not nome_empresa:
         raise ValueError('Nome da empresa e obrigatorio.')
+    if len(nome_empresa) > 150:  # mesmo limite de Empresa.nome (db.String(150))
+        raise ValueError('Nome da empresa muito longo (maximo 150 caracteres).')
+    if not _SLUG_RE.match(slug):
+        raise ValueError('Slug invalido -- use apenas letras minusculas, numeros e hifen (ate 60 caracteres).')
     if len(senha) < 6:
         raise ValueError('Senha precisa ter pelo menos 6 caracteres.')
 
@@ -147,6 +173,14 @@ def concluir_cadastro(token_cru: str, nome_empresa: str, slug: str, senha: str) 
 
     if Empresa.query.filter_by(slug=slug).first():
         raise ValueError(f'Ja existe uma empresa com slug "{slug}".')
+
+    # Mesma checagem que invitation_service.aceitar_convite faz antes de criar
+    # o User -- sem isso, um email ja usado em outra empresa cairia no
+    # IntegrityError do slug mais abaixo e devolveria uma mensagem errada,
+    # deixando o cliente que pagou travado pra sempre (toda tentativa de novo
+    # falha igual).
+    if User.query.filter(db.func.lower(User.email) == pedido.email.lower()).first():
+        raise ValueError('Ja existe um usuario com esse email.')
 
     # Guarded conditional update (nao um simples pedido.status = 'usado'): duas
     # chamadas concorrentes com o mesmo token pago so podem ter uma vencendo essa

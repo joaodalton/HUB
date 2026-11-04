@@ -72,7 +72,7 @@ class PlatformAsaasBoundaryTest(AsaasWebhookTest):
 
     def _criar_pedido_pendente(self, external_reference='hub-platform-pedido-abc123'):
         with self.app.app_context():
-            pedido = PedidoPlano(email='cliente@test.local', plano_chave='basico',
+            pedido = PedidoPlano(email='cliente@test.local', plano_chave='starter',
                 external_reference=external_reference)
             db.session.add(pedido)
             db.session.commit()
@@ -99,6 +99,51 @@ class PlatformAsaasBoundaryTest(AsaasWebhookTest):
                 with self.app.app_context():
                     self.assertEqual(db.session.get(PedidoPlano, pedido_id).token_hash, primeiro_hash)
                 mock_send.assert_called_once()
+
+    def test_webhook_payment_received_tambem_gera_token(self):
+        # PIX/boleto tipicamente disparam PAYMENT_RECEIVED, nao PAYMENT_CONFIRMED
+        # (majoritariamente de cartao) -- o checkout promete boleto/pix/cartao,
+        # entao os dois eventos tem que confirmar o pagamento.
+        with patch.object(Config, 'PLATFORM_ASAAS_WEBHOOK_TOKEN', 'platform-token'):
+            pedido_id = self._criar_pedido_pendente(external_reference='hub-platform-pedido-pix1')
+            payload = {'id': 'evt_pix_1', 'event': 'PAYMENT_RECEIVED',
+                'payment': {'id': 'pay_pix_1', 'externalReference': 'hub-platform-pedido-pix1'}}
+
+            with patch('services.pedido_plano_service.send_email', return_value=True):
+                self.assertEqual(self.platform_post(payload).status_code, 200)
+                with self.app.app_context():
+                    pedido = db.session.get(PedidoPlano, pedido_id)
+                    self.assertEqual(pedido.status, 'pago')
+                    self.assertIsNotNone(pedido.token_hash)
+
+    def test_webhook_redelivery_do_mesmo_evento_reprocessa_email_que_falhou(self):
+        # ARCH-1 (finding critico #1): send_email falha na primeira entrega --
+        # o pedido fica 'pendente' e a resposta tem que ser nao-2xx pra Asaas
+        # redeliverar. A redelivery chega com o MESMO event_id (replay real,
+        # nao um evento novo) -- isso bate no branch de dedupe (mesmo
+        # payload_hash), que sem o fix retornaria 200 sem nunca chamar
+        # confirmar_pagamento de novo, travando o cliente pra sempre.
+        with patch.object(Config, 'PLATFORM_ASAAS_WEBHOOK_TOKEN', 'platform-token'):
+            pedido_id = self._criar_pedido_pendente(external_reference='hub-platform-pedido-retry1')
+            payload = {'id': 'evt_retry_1', 'event': 'PAYMENT_CONFIRMED',
+                'payment': {'id': 'pay_retry_1', 'externalReference': 'hub-platform-pedido-retry1'}}
+
+            with patch('services.pedido_plano_service.send_email', return_value=False):
+                response = self.platform_post(dict(payload))
+            self.assertEqual(response.status_code, 503)
+            with self.app.app_context():
+                pedido = db.session.get(PedidoPlano, pedido_id)
+                self.assertEqual(pedido.status, 'pendente')
+                self.assertIsNone(pedido.token_hash)
+
+            # Redelivery da Asaas: mesmo event_id, mesmo payload exato.
+            with patch('services.pedido_plano_service.send_email', return_value=True):
+                response = self.platform_post(dict(payload))
+            self.assertEqual(response.status_code, 200)
+            with self.app.app_context():
+                pedido = db.session.get(PedidoPlano, pedido_id)
+                self.assertEqual(pedido.status, 'pago')
+                self.assertIsNotNone(pedido.token_hash)
 
     def test_webhook_payment_confirmed_sem_pedido_correspondente_e_noop(self):
         with patch.object(Config, 'PLATFORM_ASAAS_WEBHOOK_TOKEN', 'platform-token'):

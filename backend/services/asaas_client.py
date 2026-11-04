@@ -49,6 +49,9 @@ class AsaasTransport:
     def criar_cobranca(self, data: dict) -> dict:
         return self._request('POST', '/payments', data)
 
+    def criar_assinatura(self, data: dict) -> dict:
+        return self._request('POST', '/subscriptions', data)
+
     def consultar_cobranca(self, asaas_id: str) -> dict:
         return self._request('GET', f'/payments/{asaas_id}')
 

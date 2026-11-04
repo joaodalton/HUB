@@ -139,6 +139,51 @@ class ConcluirCadastroTest(IsolatedTestRuntime, unittest.TestCase):
         with self.assertRaises(ValueError):
             concluir_cadastro(token_cru, 'Nova', 'ja-existe', 'senha123')
 
+    def test_email_do_pedido_ja_usado_por_outro_usuario_da_mensagem_correta(self):
+        # User.email e unico globalmente -- se o email do pedido ja pertence a
+        # um User de OUTRA empresa, a mensagem tem que dizer isso claramente
+        # (nao a mensagem de slug duplicado, que seria incorreta e deixaria o
+        # cliente achando que o problema e o slug escolhido).
+        outra_empresa = Empresa(nome='Outra', slug='outra-empresa-preexistente', status='ativa')
+        db.session.add(outra_empresa)
+        db.session.flush()
+        db.session.add(User(
+            empresa_id=outra_empresa.id, nome='Jah existe', email='jaexiste@teste.com',
+            password_hash='x', role='owner', status='ativo',
+        ))
+        db.session.commit()
+
+        pedido, token_cru = self._criar_pedido_pago(email='jaexiste@teste.com')
+
+        with self.assertRaises(ValueError) as ctx:
+            concluir_cadastro(token_cru, 'Minha Nova Empresa', 'minha-nova-empresa', 'senha123')
+
+        self.assertEqual(str(ctx.exception), 'Ja existe um usuario com esse email.')
+        self.assertIsNone(Empresa.query.filter_by(slug='minha-nova-empresa').first())
+
+    def test_slug_formato_invalido_levanta_value_error(self):
+        pedido, token_cru = self._criar_pedido_pago(email='slugformato@teste.com')
+        with self.assertRaises(ValueError):
+            concluir_cadastro(token_cru, 'Empresa', 'Slug Com Espaco e MAIUSCULA/barra', 'senha123')
+        self.assertEqual(PedidoPlano.query.get(pedido.id).status, 'pago')
+
+    def test_slug_muito_longo_levanta_value_error_em_vez_de_500(self):
+        pedido, token_cru = self._criar_pedido_pago(email='slugenorme@teste.com')
+        with self.assertRaises(ValueError):
+            concluir_cadastro(token_cru, 'Empresa', 'a' * 61, 'senha123')
+
+    def test_nome_empresa_muito_longo_levanta_value_error(self):
+        pedido, token_cru = self._criar_pedido_pago(email='nomeenorme@teste.com')
+        with self.assertRaises(ValueError):
+            concluir_cadastro(token_cru, 'a' * 151, 'empresa-nome-enorme', 'senha123')
+
+    def test_campos_nao_string_levantam_value_error_em_vez_de_500(self):
+        pedido, token_cru = self._criar_pedido_pago(email='naostring@teste.com')
+        with self.assertRaises(ValueError):
+            concluir_cadastro(token_cru, 'Empresa', 123, 'senha123')
+        with self.assertRaises(ValueError):
+            concluir_cadastro(None, 'Empresa', 'slug-valido', 'senha123')
+
 
 if __name__ == '__main__':
     unittest.main()

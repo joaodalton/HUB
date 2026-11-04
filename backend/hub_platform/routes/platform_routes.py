@@ -12,7 +12,7 @@ cookie e volta pra empresa "de casa" (User.empresa_id).
 from flask import Blueprint, g, jsonify, request
 from sqlalchemy import func
 
-from extensions import db
+from extensions import db, limiter
 from models.client import Client
 from models.consumer_unit import ConsumerUnit
 from models.empresa import Empresa
@@ -187,8 +187,11 @@ def atualizar_configuracao():
 # POST /api/v1/platform/pedidos-plano -- PUBLICA, sem autenticacao: landing
 # publica de checkout abre o pedido e a assinatura recorrente na Asaas.
 @platform_routes.route('/pedidos-plano', methods=['POST'])
+@limiter.limit('5 per minute')
 def criar_pedido_route():
     data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        return error_response('Corpo da requisicao precisa ser um objeto JSON.', 400)
     email = data.get('email', '')
     plano_chave = data.get('planoChave', '')
     dados_pagamento = data.get('dadosPagamento', {})
@@ -214,8 +217,11 @@ def criar_pedido_route():
 # (mesmo modelo de confianca de /aceitar-convite): quem recebeu o link do
 # e-mail de pagamento confirmado usa o token pra criar a empresa.
 @platform_routes.route('/pedidos-plano/concluir', methods=['POST'])
+@limiter.limit('10 per minute')
 def concluir_cadastro_route():
     data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        return error_response('Corpo da requisicao precisa ser um objeto JSON.', 400)
     token = data.get('token', '')
     nome_empresa = data.get('nomeEmpresa', '')
     slug = data.get('slug', '')

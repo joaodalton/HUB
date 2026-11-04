@@ -54,7 +54,7 @@ class CriarPedidoRouteTest(IsolatedTestRuntime, unittest.TestCase):
             response = self._post({
                 'email': 'cliente@teste.com',
                 'planoChave': 'starter',
-                'dadosPagamento': {'cpfCnpj': '12345678900', 'nome': 'Fulano'},
+                'dadosPagamento': {'cpfCnpj': '12345678900', 'nome': 'Fulano', 'billingType': 'PIX'},
             })
 
         self.assertEqual(response.status_code, 201)
@@ -88,10 +88,28 @@ class CriarPedidoRouteTest(IsolatedTestRuntime, unittest.TestCase):
             response = self._post({
                 'email': 'falhaasaas@teste.com',
                 'planoChave': 'starter',
-                'dadosPagamento': {'cpfCnpj': '12345678900'},
+                'dadosPagamento': {'cpfCnpj': '12345678900', 'billingType': 'BOLETO'},
             })
         self.assertEqual(response.status_code, 502)
         self.assertIsNone(PedidoPlano.query.filter_by(email='falhaasaas@teste.com').first())
+
+    def test_billing_type_ausente_retorna_400(self):
+        response = self._post({
+            'email': 'semtipo@teste.com', 'planoChave': 'starter', 'dadosPagamento': {'cpfCnpj': '12345678900'},
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertIsNone(PedidoPlano.query.filter_by(email='semtipo@teste.com').first())
+
+    def test_corpo_nao_dict_retorna_400_em_vez_de_500(self):
+        response = self.client.post('/api/v1/platform/pedidos-plano', json=[1, 2, 3])
+        self.assertEqual(response.status_code, 400)
+
+    def test_email_muito_longo_retorna_400(self):
+        response = self._post({
+            'email': ('a' * 145) + '@b.com', 'planoChave': 'starter',
+            'dadosPagamento': {'cpfCnpj': '12345678900', 'billingType': 'PIX'},
+        })
+        self.assertEqual(response.status_code, 400)
 
 
 class ConcluirCadastroRouteAuthTest(IsolatedTestRuntime, unittest.TestCase):
@@ -147,6 +165,10 @@ class ConcluirCadastroRouteAuthTest(IsolatedTestRuntime, unittest.TestCase):
         response = self.client.post('/api/v1/platform/pedidos-plano/concluir', json={
             'token': token_cru, 'nomeEmpresa': 'Empresa', 'slug': 'Slug Invalido!', 'senha': 'senha123',
         })
+        self.assertEqual(response.status_code, 400)
+
+    def test_rota_concluir_corpo_nao_dict_retorna_400_em_vez_de_500(self):
+        response = self.client.post('/api/v1/platform/pedidos-plano/concluir', json='nao-e-objeto')
         self.assertEqual(response.status_code, 400)
 
 

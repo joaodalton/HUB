@@ -203,6 +203,13 @@ def _cpf_cnpj_key():
 @limiter.limit('5 per minute')
 # 3/hora por CPF/CNPJ: cobre retentativa legitima apos erro de pagamento
 # sem abrir brecha pra abuso do mesmo documento via IP/email trocados.
+# Risco aceito: CPF vem sem verificacao de posse, entao um atacante que
+# conheca o CPF de terceiro pode esgotar essa cota em nome dele e bloquear
+# a tentativa de compra legitima da vitima por ate 1 hora (DoS
+# direcionado, sem fraude financeira -- a Asaas ainda exige meio de
+# pagamento valido pra cobrar). Aceito porque fecha um buraco mais serio
+# (N assinaturas reais cobraveis via troca de IP/email) ao custo desse
+# incomodo mais estreito.
 @limiter.limit('3 per hour', key_func=_cpf_cnpj_key)
 def criar_pedido_route():
     data = request.get_json(silent=True) or {}

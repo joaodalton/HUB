@@ -30,7 +30,7 @@ PLANOS = {
         'comprável': True,
         'franquia': {'usuarios': 12, 'ucs': 1125, 'usinas': 19},
         'flags': {
-            'robo_ava': True,
+            'robo_ava': False,
             'robo_envio_rateio': False,
             'robo_protocolo': False,
         },

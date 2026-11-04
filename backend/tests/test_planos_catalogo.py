@@ -29,6 +29,9 @@ def test_avancado_libera_robo_ava_starter_nao():
     assert get_plano('starter')['flags']['robo_ava'] is False
     assert get_plano('avancado')['flags']['robo_ava'] is True
 
+def test_enterprise_nao_tem_robo_ava():
+    assert get_plano('enterprise')['flags']['robo_ava'] is False
+
 def test_preco_excedente_fixo():
     assert PRECO_EXCEDENTE == {'usina': Decimal('5'), 'uc': Decimal('2'), 'usuario': Decimal('3.5')}
 

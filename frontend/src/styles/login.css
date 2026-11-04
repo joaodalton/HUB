@@ -371,6 +371,76 @@
   font-size: 11px;
 }
 
+.login-plan-options {
+  display: grid;
+  gap: 10px;
+}
+
+.login-plan-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-input, 10px);
+  background: var(--panel-soft);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.login-plan-option.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-bg);
+}
+
+.login-plan-option input {
+  margin-top: 3px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.login-plan-option-info {
+  display: grid;
+  gap: 2px;
+}
+
+.login-plan-option-name {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.login-plan-option-price {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.login-plan-option-features {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.login-billing-options {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.login-billing-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.login-billing-option input {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
 .login-error {
   margin: 0;
   font-size: 12px;

@@ -74,6 +74,34 @@ class MigrarAssinaturasLegadasTest(IsolatedTestRuntime, unittest.TestCase):
                 LimiteContratado.query.filter_by(empresa_id=self.empresa_id, recurso='usinas').count(), 1
             )
 
+    def test_nao_toca_starter_pago_com_asaas_subscription_id(self):
+        # Starter novo pago (concluir_cadastro sempre grava asaas_subscription_id)
+        # nao deve ser confundido com legado -- re-rodar o script depois desta
+        # feature nao pode isentar cobranca nem travar franquia antiga nele.
+        with self.app.app_context():
+            empresa = Empresa(nome='Starter pago novo', slug='starter-pago-novo')
+            db.session.add(empresa)
+            db.session.flush()
+            db.session.add(Assinatura(
+                empresa_id=empresa.id, plano_chave='starter', tipo='pago', status='ativa',
+                asaas_subscription_id='sub_real_123',
+            ))
+            db.session.commit()
+            empresa_id = empresa.id
+
+            migrar_assinaturas_legadas.main()
+
+            assinatura = Assinatura.query.filter_by(empresa_id=empresa_id).first()
+            self.assertFalse(assinatura.isento_cobranca)
+            self.assertIsNone(
+                LimiteContratado.query.filter_by(empresa_id=empresa_id, recurso='usinas').first()
+            )
+
+            LimiteContratado.query.filter_by(empresa_id=empresa_id).delete()
+            Assinatura.query.filter_by(empresa_id=empresa_id).delete()
+            Empresa.query.filter_by(id=empresa_id).delete()
+            db.session.commit()
+
 
 if __name__ == '__main__':
     unittest.main()

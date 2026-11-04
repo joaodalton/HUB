@@ -25,7 +25,13 @@ FRANQUIA_ANTIGA_STARTER = {'usuarios': 10, 'ucs': 1000, 'usinas': 10}
 def main() -> None:
     app = create_app()
     with app.app_context():
-        assinaturas = Assinatura.query.filter_by(plano_chave='starter', isento_cobranca=False).all()
+        # asaas_subscription_id IS NULL distingue legado de um starter pago novo
+        # (concluir_cadastro sempre grava asaas_subscription_id) -- sem essa
+        # condicao, re-rodar o script depois desta feature marcaria clientes
+        # pagantes como isentos e travaria a franquia antiga (errada) neles.
+        assinaturas = Assinatura.query.filter_by(
+            plano_chave='starter', isento_cobranca=False, asaas_subscription_id=None,
+        ).all()
         for assinatura in assinaturas:
             assinatura.isento_cobranca = True
             for recurso, quantidade in FRANQUIA_ANTIGA_STARTER.items():

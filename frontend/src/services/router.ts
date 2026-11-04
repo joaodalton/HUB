@@ -5,6 +5,8 @@ import { createDocumentsPage } from '../pages/DocumentsPage';
 import { createForgotPasswordPage } from '../pages/ForgotPasswordPage';
 import { createLoginPage } from '../pages/LoginPage';
 import { createResetPasswordPage } from '../pages/ResetPasswordPage';
+import { createCheckoutPage } from '../pages/CheckoutPage';
+import { createCadastroEmpresaPage } from '../pages/CadastroEmpresaPage';
 import { createPendenciasPage } from '../pages/PendenciasPage';
 import { createPlantsPage } from '../pages/PlantsPage';
 import { createRateioPage } from '../pages/RateioPage';
@@ -24,6 +26,7 @@ import { createPlatformOverviewPage } from '../platform/pages/PlatformOverviewPa
 import { createPlatformCompaniesPage } from '../platform/pages/PlatformCompaniesPage';
 import { createPlatformFuncionariosPage } from '../platform/pages/PlatformFuncionariosPage';
 import { createPlatformStoragePage } from '../platform/pages/PlatformStoragePage';
+import { createPlatformConfiguracaoPage } from '../platform/pages/PlatformConfiguracaoPage';
 import { ensureSession, getCurrentUser, isAuthenticated } from './authService';
 import { loadSettings } from './settingsService';
 
@@ -58,7 +61,8 @@ export function createRouter(root: HTMLElement) {
     { path: '/platform', render: createPlatformOverviewPage },
     { path: '/platform/companies', render: createPlatformCompaniesPage },
     { path: '/platform/funcionarios', render: createPlatformFuncionariosPage },
-    { path: '/platform/armazenamento', render: createPlatformStoragePage }
+    { path: '/platform/armazenamento', render: createPlatformStoragePage },
+    { path: '/platform/configuracao', render: createPlatformConfiguracaoPage }
   ];
 
   let appearanceLoaded = false;
@@ -92,7 +96,7 @@ export function createRouter(root: HTMLElement) {
   // Rotas publicas alem de /login -- acessiveis sem sessao, e um usuario
   // ja logado que cair nelas e redirecionado pra home (mesmo comportamento
   // que /login ja tinha).
-  const PUBLIC_AUTH_PATHS = new Set(['/login', '/esqueci-senha', '/redefinir-senha']);
+  const PUBLIC_AUTH_PATHS = new Set(['/login', '/esqueci-senha', '/redefinir-senha', '/checkout', '/cadastro-empresa']);
 
   window.addEventListener('hub:password-change-required', () => {
     if (isAuthenticated() && window.location.pathname !== '/trocar-senha') redirect('/trocar-senha');
@@ -137,7 +141,7 @@ export function createRouter(root: HTMLElement) {
 
     if (isAuthenticated() && platformUser && path.startsWith('/platform')
       && path !== '/platform' && path !== '/platform/companies'
-      && !(platformAdmin && (path === '/platform/funcionarios' || path === '/platform/armazenamento'))) {
+      && !(platformAdmin && (path === '/platform/funcionarios' || path === '/platform/armazenamento' || path === '/platform/configuracao'))) {
       redirect('/platform');
       return;
     }
@@ -172,6 +176,16 @@ export function createRouter(root: HTMLElement) {
 
     if (path === '/redefinir-senha') {
       root.replaceChildren(createResetPasswordPage());
+      return;
+    }
+
+    if (path === '/checkout') {
+      root.replaceChildren(createCheckoutPage());
+      return;
+    }
+
+    if (path === '/cadastro-empresa') {
+      root.replaceChildren(createCadastroEmpresaPage());
       return;
     }
 

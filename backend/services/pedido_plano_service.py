@@ -5,6 +5,7 @@ from extensions import db
 from models.pedido_plano import PedidoPlano
 from planos.catalogo import PLANOS, get_plano
 from services.asaas_client import PlatformAsaasService
+from services.log_service import LogService
 
 
 def _asaas_transport():
@@ -21,8 +22,9 @@ def criar_pedido(email: str, plano_chave: str, dados_pagamento: dict) -> dict:
     db.session.add(pedido)
     db.session.flush()
 
-    transport = _asaas_transport()
+    cliente = None
     try:
+        transport = _asaas_transport()
         cliente = transport.criar_cliente(dados_pagamento)
         assinatura = transport.criar_assinatura({
             'customer': cliente['id'],
@@ -30,8 +32,17 @@ def criar_pedido(email: str, plano_chave: str, dados_pagamento: dict) -> dict:
             'cycle': 'MONTHLY',
             'externalReference': external_reference,
         })
-    except Exception:
+    except Exception as exc:
         db.session.rollback()
+        if cliente is not None:
+            # Cliente ja foi criado na Asaas mas a assinatura falhou: fica orfao la,
+            # sem PedidoPlano aqui para linkar -- precisa reconciliacao manual.
+            LogService.error(
+                acao='asaas_cliente_orfao',
+                mensagem=f'Assinatura Asaas falhou apos criar cliente {cliente["id"]}; cliente ficou orfao na Asaas.',
+                entidade='PedidoPlano',
+                metadados={'asaasCustomerId': cliente['id'], 'externalReference': external_reference, 'erro': str(exc)},
+            )
         raise
 
     pedido.asaas_customer_id = cliente['id']

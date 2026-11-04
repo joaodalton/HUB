@@ -65,6 +65,13 @@ class PedidoPlanoServiceTest(IsolatedTestRuntime, unittest.TestCase):
                 criar_pedido('c@d.com', 'starter', {})
         self.assertIsNone(PedidoPlano.query.filter_by(email='c@d.com').first())
 
+    def test_falha_construcao_transporte_nao_deixa_pedido_orfao(self):
+        with mock.patch('services.pedido_plano_service._asaas_transport') as mocked:
+            mocked.side_effect = RuntimeError('credenciais Asaas invalidas')
+            with self.assertRaises(RuntimeError):
+                criar_pedido('e@f.com', 'starter', {})
+        self.assertIsNone(PedidoPlano.query.filter_by(email='e@f.com').first())
+
 
 if __name__ == '__main__':
     unittest.main()

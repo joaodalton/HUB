@@ -1,10 +1,14 @@
 """criar_pedido: abre checkout de assinatura de plano (pedido pendente + ASAAS)."""
+import hashlib
 import secrets
+from datetime import datetime, timedelta
 
+from config import Config
 from extensions import db
 from models.pedido_plano import PedidoPlano
 from planos.catalogo import PLANOS, get_plano
 from services.asaas_client import PlatformAsaasService
+from services.email_service import send_email
 from services.log_service import LogService
 
 
@@ -58,3 +62,45 @@ def criar_pedido(email: str, plano_chave: str, dados_pagamento: dict) -> dict:
         'asaasSubscriptionId': pedido.asaas_subscription_id,
         'status': pedido.status,
     }
+
+
+def _gerar_token() -> tuple[str, str]:
+    token_cru = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(token_cru.encode()).hexdigest()
+    return token_cru, token_hash
+
+
+def confirmar_pagamento(external_reference: str) -> None:
+    """Chamado pelo webhook da Asaas quando PAYMENT_CONFIRMED. Idempotente:
+    replay do mesmo evento (ou qualquer chamada apos o pedido ja ter saido
+    de 'pendente') e no-op -- nao gera segundo token nem reenvia e-mail."""
+    pedido = PedidoPlano.query.filter_by(external_reference=external_reference).first()
+    if not pedido or pedido.status != 'pendente':
+        return
+
+    token_cru, token_hash = _gerar_token()
+    pedido.token_hash = token_hash
+    pedido.status = 'pago'
+    pedido.expires_at = datetime.utcnow() + timedelta(days=7)
+    db.session.commit()
+
+    _enviar_email_pagamento_confirmado(pedido, token_cru)
+
+
+def _enviar_email_pagamento_confirmado(pedido: PedidoPlano, token_cru: str) -> None:
+    """Sem Empresa criada ainda nesse ponto do fluxo (e o proprio objetivo do
+    cadastro), entao nao ha empresa_id pra usar email_template_service --
+    e-mail direto com assunto/corpo fixos, igual send_email() ja suporta."""
+    link = f'{Config.FRONTEND_URL}/cadastro-empresa?token={token_cru}'
+    html = (
+        f'<p>Seu pagamento foi confirmado!</p>'
+        f'<p>Finalize o cadastro da sua empresa clicando no link abaixo:</p>'
+        f'<p><a href="{link}">{link}</a></p>'
+        f'<p>Este link expira em 7 dias.</p>'
+    )
+    text = (
+        'Seu pagamento foi confirmado!\n\n'
+        f'Finalize o cadastro da sua empresa acessando: {link}\n\n'
+        'Este link expira em 7 dias.'
+    )
+    send_email(to=pedido.email, subject='Pagamento confirmado -- finalize seu cadastro', html=html, text=text)

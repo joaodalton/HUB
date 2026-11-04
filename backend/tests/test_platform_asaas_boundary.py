@@ -13,6 +13,7 @@ from models.fatura import Fatura
 from models.payment_webhook_event import PaymentWebhookEvent
 from hub_platform.models.platform_asaas_webhook_event import PlatformAsaasWebhookEvent
 from models.api_credential import ApiCredential
+from models.pedido_plano import PedidoPlano
 from sqlalchemy.exc import OperationalError
 from services.asaas_client import AsaasClient, PlatformAsaasService, AsaasError
 try:
@@ -68,6 +69,45 @@ class PlatformAsaasBoundaryTest(AsaasWebhookTest):
             self.assertEqual(results, [200, 200])
             with self.app.app_context():
                 self.assertEqual(PlatformAsaasWebhookEvent.query.count(), 1)
+
+    def _criar_pedido_pendente(self, external_reference='hub-platform-pedido-abc123'):
+        with self.app.app_context():
+            pedido = PedidoPlano(email='cliente@test.local', plano_chave='basico',
+                external_reference=external_reference)
+            db.session.add(pedido)
+            db.session.commit()
+            return pedido.id
+
+    def test_webhook_payment_confirmed_gera_token_uma_vez(self):
+        with patch.object(Config, 'PLATFORM_ASAAS_WEBHOOK_TOKEN', 'platform-token'):
+            pedido_id = self._criar_pedido_pendente()
+            payload = {'id': 'evt_pedido_1', 'event': 'PAYMENT_CONFIRMED',
+                'payment': {'id': 'pay_pedido_1', 'externalReference': 'hub-platform-pedido-abc123'}}
+
+            with patch('services.pedido_plano_service.send_email') as mock_send:
+                self.assertEqual(self.platform_post(payload).status_code, 200)
+                with self.app.app_context():
+                    pedido = db.session.get(PedidoPlano, pedido_id)
+                    self.assertEqual(pedido.status, 'pago')
+                    self.assertIsNotNone(pedido.token_hash)
+                    primeiro_hash = pedido.token_hash
+                mock_send.assert_called_once()
+
+                # Replay do mesmo evento (Asaas reenvia): nao gera segundo token nem e-mail.
+                payload['id'] = 'evt_pedido_2'
+                self.assertEqual(self.platform_post(payload).status_code, 200)
+                with self.app.app_context():
+                    self.assertEqual(db.session.get(PedidoPlano, pedido_id).token_hash, primeiro_hash)
+                mock_send.assert_called_once()
+
+    def test_webhook_payment_confirmed_sem_pedido_correspondente_e_noop(self):
+        with patch.object(Config, 'PLATFORM_ASAAS_WEBHOOK_TOKEN', 'platform-token'):
+            payload = {'id': 'evt_pedido_sem_match', 'event': 'PAYMENT_CONFIRMED',
+                'payment': {'id': 'pay_sem_match', 'externalReference': 'hub-platform-pedido-inexistente'}}
+            self.assertEqual(self.platform_post(payload).status_code, 200)
+            with self.app.app_context():
+                self.assertIsNone(PedidoPlano.query.filter_by(
+                    external_reference='hub-platform-pedido-inexistente').first())
 
     def test_platform_transport_uses_only_global_key_and_base_url(self):
         with self.app.app_context(), patch.object(Config, 'PLATFORM_ASAAS_API_KEY', 'platform-key'), \

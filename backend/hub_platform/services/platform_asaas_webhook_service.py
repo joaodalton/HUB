@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from extensions import db
 from hub_platform.models.platform_asaas_webhook_event import PlatformAsaasWebhookEvent
 from services.asaas_webhook_service import WebhookError, _text
+from services.pedido_plano_service import confirmar_pagamento
 from services.platform_config_service import get_platform_asaas_credentials
 
 
@@ -42,3 +43,6 @@ def receive_platform_webhook(payload, token):
     except SQLAlchemyError:
         db.session.rollback()
         raise WebhookError(503) from None
+
+    if payload.get('event') == 'PAYMENT_CONFIRMED' and reference and reference.startswith('hub-platform-pedido-'):
+        confirmar_pagamento(reference)

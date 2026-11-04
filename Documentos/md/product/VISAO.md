@@ -238,7 +238,8 @@ Este desenho é ponto de partida pra validar com o João — os nomes de tier e 
 Modelo inspirado no que o próprio GDASH já faz (o João confirmou que acha prático) — separar **o que a empresa pode fazer** de **quanto ela usa**, pra não forçar upgrade de tier só porque a empresa cresceu em quantidade de UC:
 
 - **Tier (`Plano`)** — desbloqueia **funcionalidade**, não quantidade. A empresa escolhe o tier pelo que precisa operar, não pelo tamanho da base de clientes.
-- **Volume (`LimiteContratado`)** — à la carte, por tipo de recurso (usuários, clientes, UCs, usinas). Independente do tier: uma empresa no Starter pode ter 5 usuários e 10.000 UCs se for esse o perfil dela; outra pode ter 40 usuários e 300 UCs. Cada recurso tem preço unitário próprio, e a empresa ajusta pra cima ou pra baixo quando quiser, self-service, sem depender de suporte.
+- **Volume (`LimiteContratado`)** — à la carte, por tipo de recurso (usuários, UCs, usinas). Independente do tier: uma empresa no Starter pode ter 5 usuários e 10.000 UCs se for esse o perfil dela; outra pode ter 40 usuários e 300 UCs. Cada recurso tem preço unitário próprio, e a empresa ajusta pra cima ou pra baixo quando quiser, self-service, sem depender de suporte.
+- **Clientes não entram nessa dimensão** — `cliente` é um **teto fixo de segurança** (1.000), aplicado a toda empresa independente do plano ou da existência de `Assinatura`. Não é vendido, não tem franquia nem preço unitário.
 
 ### 6.2 Tiers propostos (funcionalidade, não quantidade)
 
@@ -254,15 +255,15 @@ Cada tier também pode ter preço-base diferente independente do volume contrata
 
 ### 6.3 Estrutura de dados
 
-- **`Plano`** — catálogo de tiers: nome, preço-base, ciclo (mensal/anual), flags de funcionalidade (`robo_ava: bool`, `robo_envio_rateio: bool`, `robo_protocolo: bool`, `acesso_api_publica: bool`, `acesso_connectors: bool` — reaproveitando os flags já previstos na V5.5), e a **franquia incluída** por recurso (`franquia_usuarios`, `franquia_clientes`, `franquia_ucs`, `franquia_usinas`) — quantidade coberta pelo preço-base, sem custo extra. Não é `TenantMixin` — catálogo global, igual `Category` hoje.
-- **`PrecoRecurso`** — catálogo de preço unitário por tipo de recurso (`usuario`, `cliente`, `uc`, `usina`), cobrado só sobre o que exceder a franquia do tier — podendo ter faixa degressiva no futuro (ex.: 1–100 UCs excedentes a um preço, 101–500 a outro); no desenho inicial, preço fixo por unidade é suficiente pra validar o modelo.
+- **`Plano`** — catálogo de tiers: nome, preço-base, ciclo (mensal/anual), flags de funcionalidade (`robo_ava: bool`, `robo_envio_rateio: bool`, `robo_protocolo: bool`, `acesso_api_publica: bool`, `acesso_connectors: bool` — reaproveitando os flags já previstos na V5.5), e a **franquia incluída** por recurso (`franquia_usuarios`, `franquia_ucs`, `franquia_usinas`) — quantidade coberta pelo preço-base, sem custo extra. Cliente não tem franquia: é o teto fixo de segurança (ver 6.1). Não é `TenantMixin` — catálogo global, igual `Category` hoje.
+- **`PrecoRecurso`** — catálogo de preço unitário por tipo de recurso (`usuario`, `uc`, `usina`), cobrado só sobre o que exceder a franquia do tier — podendo ter faixa degressiva no futuro (ex.: 1–100 UCs excedentes a um preço, 101–500 a outro); no desenho inicial, preço fixo por unidade é suficiente pra validar o modelo.
 - **`Assinatura`** — liga uma `Empresa` a um `Plano` (tier): `status` (`trial`, `ativa`, `atrasada`, `suspensa`, `cancelada`), `inicio_periodo_atual`, `fim_periodo_atual`, `proxima_cobranca`, `asaas_subscription_id`.
 - **`LimiteContratado`** — por `Empresa`, por tipo de recurso: quantidade contratada **total** (franquia do tier + excedente pago), preço unitário vigente **no momento da contratação** do excedente (snapshot — não muda retroativamente se o preço de tabela for reajustado depois), histórico de alteração (quando aumentou/diminuiu e por quem).
 - **`FaturaHub`** (nome pra não colidir com `Boleto`/`Fatura` do cliente final na V2.0) — cobrança consolidada do ciclo: preço-base do tier + soma do excedente de cada `LimiteContratado` acima da franquia, com status espelhando o webhook do ASAAS.
 
 ### 6.4 Ajuste de volume — tela própria, self-service
 
-Tela dedicada (Configurações → Assinatura, ou seção própria na sidebar) com um controle por recurso — usuários, clientes, UCs, usinas — mostrando lado a lado: franquia incluída no tier, quantidade contratada acima da franquia, quantidade em uso agora, preço unitário do excedente, e o novo total estimado ao alterar, antes de confirmar.
+Tela dedicada (Configurações → Assinatura, ou seção própria na sidebar) com um controle por recurso — usuários, UCs, usinas — mostrando lado a lado: franquia incluída no tier, quantidade contratada acima da franquia, quantidade em uso agora, preço unitário do excedente, e o novo total estimado ao alterar, antes de confirmar.
 
 - **Aumentar** — efeito **imediato** no acesso (o recurso é liberado na hora, sem esperar o próximo ciclo) e **imediato também no valor**: o total da assinatura é recalculado na hora (sem cálculo de prorata por dia — mais simples de implementar e é como a maioria dos sistemas parecidos já faz). Se já existir uma `FaturaHub` em aberto pro ciclo atual, ela é atualizada pro novo valor; se não, o valor novo já nasce correto na próxima fatura gerada. Ou seja: o aumento "gira" com o próprio ciclo de cobrança — assim que virar o mês, a fatura que o owner vai pagar já vem com o valor reajustado, sem surpresa nem cobrança avulsa separada.
 - **Diminuir** — só permitido até o uso atual (não dá pra contratar menos UC do que já existe cadastrada). Redução só entra em vigor a partir do **próximo ciclo** (não é justo devolver valor já cobrado do mês corrente) — a `FaturaHub` do ciclo atual permanece no valor cheio, a próxima já nasce menor.
@@ -270,7 +271,7 @@ Tela dedicada (Configurações → Assinatura, ou seção própria na sidebar) c
 
 ### 6.5 Ciclo de vida da assinatura (tier)
 
-1. **Trial** — empresa nova criada (via `criar_empresa.py` ou self-signup, se a V1.5-B decidir abrir isso) começa em `trial`, tier Starter, com volume inicial modesto pré-definido, sem cobrança, por prazo definido (ex.: 14 dias).
+1. **Trial** — empresa nova começa no plano dedicado `teste` (não aparece para compra): 2 usinas, 50 UCs e 1 usuário, franquia fixa, sem cobrança, por 14 dias. Ao vencer, script agendado (`backend/scripts/expirar_planos_teste.py`) põe a `Assinatura` em `suspensa`, com o mesmo efeito somente-leitura do item 5. Conversão para plano pago segue o item 2.
 2. **Conversão** — ao fim do trial (ou antes, se o owner escolher upgrade), define-se o `Plano` e os `LimiteContratado` de cada recurso; `Assinatura` vira `ativa`, disparando a primeira cobrança recorrente no ASAAS (base do tier + soma dos recursos contratados).
 3. **Cobrança recorrente** — ASAAS gera a fatura no ciclo; webhook de pagamento confirmado atualiza `FaturaHub.status` e mantém `Assinatura.status = ativa`.
 4. **Atraso** — pagamento não confirmado até o vencimento → `Assinatura.status = atrasada`. Início de **período de carência** (ex.: 5 dias corridos) — acesso continua normal, mas gera pendência/notificação pro owner (mesmo motor de automação que já existe, reaproveitado, não uma trilha nova).

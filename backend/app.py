@@ -86,6 +86,7 @@ def create_app() -> Flask:
     from hub_platform.models.platform_asaas_webhook_event import PlatformAsaasWebhookEvent  # type: ignore
     from models.assinatura import Assinatura  # type: ignore
     from models.limite_contratado import LimiteContratado  # type: ignore
+    from models.pedido_plano import PedidoPlano  # type: ignore
     from models.whatsapp import WhatsappIntegration, WhatsappConversation, WhatsappMessage  # type: ignore
     from models.agenda_event import AgendaEvent  # type: ignore
     from models.regulatory_tariff import RegulatoryTariff, RegulatoryTariffImport, RegulatoryTariffPreview  # type: ignore

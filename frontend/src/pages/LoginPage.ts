@@ -86,7 +86,12 @@ function createLoginIllustration(): HTMLElement {
   const panel = createElement('aside', { className: 'login-illustration' });
 
   const background = createElement('img', { className: 'login-illustration-video' }) as HTMLImageElement;
-  background.src = '/media/login-background.gif';
+  const LOGIN_BACKGROUNDS = [
+    '/media/login-background.gif',
+    '/media/login-background-2.gif',
+    '/media/login-background-4.gif'
+  ];
+  background.src = LOGIN_BACKGROUNDS[Math.floor(Math.random() * LOGIN_BACKGROUNDS.length)];
   background.alt = '';
   background.setAttribute('aria-hidden', 'true');
   background.addEventListener('error', () => background.classList.add('is-hidden'));

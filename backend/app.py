@@ -180,7 +180,8 @@ def create_app() -> Flask:
         '/api/v1/webhooks/asaas',
         '/api/v1/webhooks/asaas/platform',
         '/api/v1/webhooks/whatsapp',
-        '/api/v1/auth/esqueci-senha', '/api/v1/auth/redefinir-senha'
+        '/api/v1/auth/esqueci-senha', '/api/v1/auth/redefinir-senha',
+        '/api/v1/platform/pedidos-plano', '/api/v1/platform/pedidos-plano/concluir',
     }, public_path_prefixes={
         # request.path e' o path LITERAL da requisicao (ex.: /api/v1/empresas/select),
         # nunca a string do padrao de rota com <string:slug> -- por isso essa rota

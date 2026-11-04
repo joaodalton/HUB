@@ -23,7 +23,7 @@ from services.asaas_client import AsaasError, ambiente_asaas
 from services.empresa_service import _sem_filtro_de_tenant_ambiente, excluir_empresa
 from services.log_service import LogService
 from services.neon_service import NeonError, get_storage_summary
-from services.pedido_plano_service import concluir_cadastro
+from services.pedido_plano_service import concluir_cadastro, criar_pedido
 from services.permission_service import require_platform_access, require_platform_admin
 from utils.api_response import error_response, success_response
 from utils.auth import clear_platform_view_cookie, set_platform_view_cookie
@@ -182,6 +182,32 @@ def atualizar_configuracao():
 
     db.session.commit()
     return success_response(config.to_dict(), 'Configuracao da plataforma atualizada.')
+
+
+# POST /api/v1/platform/pedidos-plano -- PUBLICA, sem autenticacao: landing
+# publica de checkout abre o pedido e a assinatura recorrente na Asaas.
+@platform_routes.route('/pedidos-plano', methods=['POST'])
+def criar_pedido_route():
+    data = request.get_json(silent=True) or {}
+    email = data.get('email', '')
+    plano_chave = data.get('planoChave', '')
+    dados_pagamento = data.get('dadosPagamento', {})
+
+    if not isinstance(email, str) or not email.strip():
+        return error_response('Email e obrigatorio.', 400)
+    if not isinstance(plano_chave, str) or not plano_chave.strip():
+        return error_response('planoChave e obrigatorio.', 400)
+    if not isinstance(dados_pagamento, dict):
+        return error_response('dadosPagamento precisa ser um objeto.', 400)
+
+    try:
+        resultado = criar_pedido(email, plano_chave, dados_pagamento)
+    except ValueError as exc:
+        return error_response(str(exc), 400)
+    except AsaasError as exc:
+        return error_response(str(exc), 502, code='ASAAS_ERROR')
+
+    return success_response(resultado, 'Pedido criado.', 201)
 
 
 # POST /api/v1/platform/pedidos-plano/concluir -- PUBLICA, sem autenticacao

@@ -83,10 +83,31 @@ class ConcluirCadastroTest(IsolatedTestRuntime, unittest.TestCase):
         pedido, token_cru = self._criar_pedido_pago(plano_chave='starter', email='reuso@teste.com')
         concluir_cadastro(token_cru, 'Primeira', 'primeira-empresa', 'senha123')
 
+        # Chamada sequencial com o mesmo token: a segunda passa pelo guarded
+        # update (pago->usado) e nao mais so pela checagem de status, ja que o
+        # primeiro commit deixou o pedido como 'usado' no banco.
         with self.assertRaises(ValueError):
             concluir_cadastro(token_cru, 'Outra', 'outra-empresa', 'senha123')
 
         self.assertIsNone(Empresa.query.filter_by(slug='outra-empresa').first())
+
+    def test_senha_curta_levanta_value_error_sem_criar_nada(self):
+        pedido, token_cru = self._criar_pedido_pago(email='senhacurta@teste.com')
+
+        with self.assertRaises(ValueError):
+            concluir_cadastro(token_cru, 'Empresa Senha Curta', 'empresa-senha-curta', '123')
+
+        self.assertIsNone(Empresa.query.filter_by(slug='empresa-senha-curta').first())
+        self.assertEqual(PedidoPlano.query.get(pedido.id).status, 'pago')
+
+    def test_nome_empresa_em_branco_levanta_value_error_sem_criar_nada(self):
+        pedido, token_cru = self._criar_pedido_pago(email='nomevazio@teste.com')
+
+        with self.assertRaises(ValueError):
+            concluir_cadastro(token_cru, '   ', 'empresa-nome-vazio', 'senha123')
+
+        self.assertIsNone(Empresa.query.filter_by(slug='empresa-nome-vazio').first())
+        self.assertEqual(PedidoPlano.query.get(pedido.id).status, 'pago')
 
     def test_token_invalido_levanta_value_error(self):
         with self.assertRaises(ValueError):

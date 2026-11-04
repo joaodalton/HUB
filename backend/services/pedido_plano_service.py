@@ -3,6 +3,8 @@ import hashlib
 import secrets
 from datetime import datetime, timedelta
 
+from sqlalchemy.exc import IntegrityError
+
 from config import Config
 from extensions import db
 from models.assinatura import Assinatura
@@ -135,37 +137,59 @@ def _buscar_pedido_valido(token_cru: str) -> PedidoPlano:
 
 
 def concluir_cadastro(token_cru: str, nome_empresa: str, slug: str, senha: str) -> dict:
+    nome_empresa = nome_empresa.strip()
+    if not nome_empresa:
+        raise ValueError('Nome da empresa e obrigatorio.')
+    if len(senha) < 6:
+        raise ValueError('Senha precisa ter pelo menos 6 caracteres.')
+
     pedido = _buscar_pedido_valido(token_cru)
 
     if Empresa.query.filter_by(slug=slug).first():
         raise ValueError(f'Ja existe uma empresa com slug "{slug}".')
 
-    empresa = Empresa(nome=nome_empresa, slug=slug, status='ativa')
-    db.session.add(empresa)
-    db.session.flush()
+    # Guarded conditional update (nao um simples pedido.status = 'usado'): duas
+    # chamadas concorrentes com o mesmo token pago so podem ter uma vencendo essa
+    # troca pago->usado -- a outra ve rowcount 0 e cai no ValueError, sem nunca
+    # criar Empresa/Assinatura/User duplicadas pro mesmo pagamento.
+    resultado = db.session.execute(
+        db.update(PedidoPlano)
+        .where(PedidoPlano.id == pedido.id, PedidoPlano.status == 'pago')
+        .values(status='usado')
+    )
+    if resultado.rowcount != 1:
+        db.session.rollback()
+        raise ValueError('Esse link ja foi usado.')
 
-    db.session.add(Assinatura(
-        empresa_id=empresa.id,
-        plano_chave=pedido.plano_chave,
-        tipo='pago',
-        status='ativa',
-        asaas_subscription_id=pedido.asaas_subscription_id,
-        inicio_periodo_atual=datetime.utcnow(),
-    ))
+    try:
+        empresa = Empresa(nome=nome_empresa, slug=slug, status='ativa')
+        db.session.add(empresa)
+        db.session.flush()
 
-    db.session.add(User(
-        empresa_id=empresa.id,
-        nome=nome_empresa,
-        email=pedido.email,
-        password_hash=hash_password(senha),
-        role='owner',
-        status='ativo',
-        email_verified=True,
-        must_change_password=False,
-    ))
+        db.session.add(Assinatura(
+            empresa_id=empresa.id,
+            plano_chave=pedido.plano_chave,
+            tipo='pago',
+            status='ativa',
+            asaas_subscription_id=pedido.asaas_subscription_id,
+            inicio_periodo_atual=datetime.utcnow(),
+        ))
 
-    pedido.status = 'usado'
-    db.session.commit()
+        db.session.add(User(
+            empresa_id=empresa.id,
+            nome=nome_empresa,
+            email=pedido.email,
+            password_hash=hash_password(senha),
+            role='owner',
+            status='ativo',
+            email_verified=True,
+            must_change_password=False,
+        ))
+
+        db.session.commit()
+    except IntegrityError as exc:
+        db.session.rollback()
+        raise ValueError(f'Ja existe uma empresa com slug "{slug}".') from exc
 
     LogService.info(
         acao='pedido_plano_concluido',

@@ -1,6 +1,7 @@
 """criar_pedido: valida plano comprável, abre assinatura ASAAS e grava PedidoPlano."""
 import sys
 import unittest
+from datetime import datetime, timedelta
 from pathlib import Path
 from unittest import mock
 
@@ -136,6 +137,30 @@ class PedidoPlanoServiceTest(IsolatedTestRuntime, unittest.TestCase):
         db.session.refresh(pedido)
         self.assertEqual(pedido.status, 'processando')
         self.assertIsNone(pedido.token_hash)
+
+    def test_confirmar_pagamento_retoma_processando_travado_por_timeout(self):
+        # Pedido ficou presa em 'processando' porque o processo caiu entre o
+        # UPDATE pendente->processando e o commit seguinte (deploy/OOM/etc).
+        # Uma nova chamada (redelivery da Asaas) precisa destravar em vez de
+        # virar no-op silencioso pra sempre.
+        pedido = PedidoPlano(
+            email='m@n.com',
+            plano_chave='starter',
+            external_reference='hub-platform-ref-4',
+            status='processando',
+            processando_desde=datetime.utcnow() - timedelta(minutes=5),
+        )
+        db.session.add(pedido)
+        db.session.commit()
+
+        with mock.patch('services.pedido_plano_service.send_email', return_value=True) as mocked_send:
+            resultado = confirmar_pagamento('hub-platform-ref-4')
+
+        mocked_send.assert_called_once()
+        self.assertTrue(resultado)
+        db.session.refresh(pedido)
+        self.assertEqual(pedido.status, 'pago')
+        self.assertIsNotNone(pedido.token_hash)
 
 
 if __name__ == '__main__':

@@ -21,5 +21,6 @@ class PedidoPlano(db.Model):
     token_hash = db.Column(db.String(64), nullable=True, unique=True)
     expires_at = db.Column(db.DateTime, nullable=True)
     status = db.Column(db.String(20), nullable=False, default='pendente')
+    processando_desde = db.Column(db.DateTime, nullable=True)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

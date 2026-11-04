@@ -24,6 +24,11 @@ from utils.auth import hash_password
 
 _SLUG_RE = re.compile(r'^[a-z0-9-]{1,60}$')
 _BILLING_TYPES = {'BOLETO', 'PIX', 'CREDIT_CARD'}
+# Timeout pra destravar um pedido que ficou presa em 'processando' porque o
+# processo caiu entre o UPDATE pendente->processando e o commit seguinte
+# (pago ou de volta pra pendente). Sem isso o pedido fica travado pra sempre
+# e nenhum webhook futuro (nem redelivery genuina da Asaas) tenta de novo.
+_PROCESSANDO_TIMEOUT = timedelta(minutes=2)
 
 
 def _asaas_transport():
@@ -108,16 +113,36 @@ def confirmar_pagamento(external_reference: str) -> bool:
     funcao ser chamada de novo; True em qualquer outro caso (nada a fazer, ou
     concluido com sucesso agora)."""
     pedido = PedidoPlano.query.filter_by(external_reference=external_reference).first()
-    if not pedido or pedido.status != 'pendente':
+    if not pedido:
+        return True
+    processando_travado = (
+        pedido.status == 'processando'
+        and pedido.processando_desde is not None
+        and pedido.processando_desde < datetime.utcnow() - _PROCESSANDO_TIMEOUT
+    )
+    if pedido.status != 'pendente' and not processando_travado:
         return True
 
     # Guarded conditional update (mesmo padrao de concluir_cadastro): so uma
     # chamada concorrente pode ganhar a troca pendente->processando. A outra
     # ve rowcount 0 e e no-op, sem mandar e-mail duplicado com token orfao.
+    # Tambem aceita retomar um 'processando' travado ha mais de
+    # _PROCESSANDO_TIMEOUT (processo caiu entre as duas fases) -- caso
+    # contrario esse pedido fica preso pra sempre e nenhum webhook futuro
+    # tenta de novo.
     resultado = db.session.execute(
         db.update(PedidoPlano)
-        .where(PedidoPlano.id == pedido.id, PedidoPlano.status == 'pendente')
-        .values(status='processando')
+        .where(
+            PedidoPlano.id == pedido.id,
+            db.or_(
+                PedidoPlano.status == 'pendente',
+                db.and_(
+                    PedidoPlano.status == 'processando',
+                    PedidoPlano.processando_desde < datetime.utcnow() - _PROCESSANDO_TIMEOUT,
+                ),
+            ),
+        )
+        .values(status='processando', processando_desde=datetime.utcnow())
     )
     if resultado.rowcount != 1:
         db.session.rollback()

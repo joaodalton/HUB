@@ -91,10 +91,10 @@ class PlatformAsaasBoundaryTest(AsaasWebhookTest):
                 ['tenant-1-key', 'tenant-2-key', 'platform-key'])
             self.assertEqual([call.args[1] for call in request.call_args_list],
                 ['https://api-sandbox.asaas.com/v3/payments'] * 3)
-        with patch.object(Config, 'PLATFORM_ASAAS_API_KEY', ''):
+        with self.app.app_context(), patch.object(Config, 'PLATFORM_ASAAS_API_KEY', ''):
             with self.assertRaises(AsaasError):
                 PlatformAsaasService()
-        with patch.object(Config, 'PLATFORM_ASAAS_API_KEY', 'platform-key'), \
+        with self.app.app_context(), patch.object(Config, 'PLATFORM_ASAAS_API_KEY', 'platform-key'), \
                 patch.object(Config, 'PLATFORM_ASAAS_API_BASE_URL', ''):
             with self.assertRaises(AsaasError):
                 PlatformAsaasService()

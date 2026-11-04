@@ -9,7 +9,7 @@ empresa_id escolhido; o middleware de auth (utils/auth.py) usa esse cookie
 pra sobrescrever g.current_empresa_id só pra esse usuário. "Sair" remove o
 cookie e volta pra empresa "de casa" (User.empresa_id).
 """
-from flask import Blueprint, g, jsonify
+from flask import Blueprint, g, jsonify, request
 from sqlalchemy import func
 
 from extensions import db
@@ -17,7 +17,9 @@ from models.client import Client
 from models.consumer_unit import ConsumerUnit
 from models.empresa import Empresa
 from models.plant import Plant
+from models.platform_configuracao import PlatformConfiguracao
 from models.user import User
+from services.asaas_client import AsaasError, ambiente_asaas
 from services.empresa_service import _sem_filtro_de_tenant_ambiente, excluir_empresa
 from services.log_service import LogService
 from services.neon_service import NeonError, get_storage_summary
@@ -133,6 +135,52 @@ def neon_storage():
         'ambienteAtual': ambiente_atual,
         'ambientes': ambientes,
     })
+
+
+@platform_routes.route('/configuracao', methods=['GET'])
+@require_platform_admin()
+def obter_configuracao():
+    return success_response(PlatformConfiguracao.get_or_create().to_dict())
+
+
+@platform_routes.route('/configuracao', methods=['PUT'])
+@require_platform_admin()
+def atualizar_configuracao():
+    data = request.get_json(silent=True) or {}
+    config = PlatformConfiguracao.get_or_create()
+
+    if 'asaasApiBaseUrl' in data:
+        base_url = data['asaasApiBaseUrl'] or ''
+        if base_url:
+            try:
+                ambiente_asaas(base_url)
+            except AsaasError as exc:
+                return error_response(str(exc), 400)
+            config.asaas_api_base_url = base_url
+        else:
+            config.asaas_api_base_url = None
+
+    if 'asaasApiKey' in data:
+        config.set_asaas_api_key(data['asaasApiKey'] or None)
+
+    if 'asaasWebhookToken' in data:
+        config.set_asaas_webhook_token(data['asaasWebhookToken'] or None)
+
+    if 'signupCode' in data:
+        config.set_signup_code(data['signupCode'] or None)
+
+    if 'signupEmpresaId' in data:
+        signup_empresa_id = data['signupEmpresaId']
+        if signup_empresa_id in (None, ''):
+            config.signup_empresa_id = None
+        else:
+            try:
+                config.signup_empresa_id = int(signup_empresa_id)
+            except (TypeError, ValueError):
+                return error_response('signupEmpresaId deve ser um numero inteiro.', 400)
+
+    db.session.commit()
+    return success_response(config.to_dict(), 'Configuracao da plataforma atualizada.')
 
 
 @platform_routes.route('/sair', methods=['POST'])

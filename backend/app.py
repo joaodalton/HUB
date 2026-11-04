@@ -89,6 +89,7 @@ def create_app() -> Flask:
     from models.whatsapp import WhatsappIntegration, WhatsappConversation, WhatsappMessage  # type: ignore
     from models.agenda_event import AgendaEvent  # type: ignore
     from models.regulatory_tariff import RegulatoryTariff, RegulatoryTariffImport, RegulatoryTariffPreview  # type: ignore
+    from models.platform_configuracao import PlatformConfiguracao  # type: ignore
 
     cors_origins = [Config.FRONTEND_URL]
     if Config.DEBUG:

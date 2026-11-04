@@ -1,6 +1,7 @@
 import { createElement } from '../dom';
 import { getCurrentUser, logout } from '../services/authService';
 import { createIcon, type IconName } from './Icon';
+import { createLogoMark } from './LogoMark';
 import { getSettings } from '../services/settingsService';
 import { t } from '../services/i18nService';
 
@@ -69,7 +70,7 @@ export function refreshSidebarBrand(): void { if (brandTextElement) {
 export function createSidebar(): HTMLElement {
   const sidebar = createElement('aside', { className: 'sidebar' });
   const brand = createElement('div', { className: 'sidebar-brand' });
-  const brandMark = createElement('span', { className: 'sidebar-mark', textContent: 'H' });
+  const brandMark = createLogoMark('sidebar-mark');
   brandTextElement = createElement('span', { textContent: getSettings().companyName || 'HUB' });
   brandTextElement.title = brandTextElement.textContent ?? '';
   const nav = createElement('nav', { className: 'sidebar-nav' });

@@ -60,6 +60,28 @@ somente recebimento, sem emissão, conciliação ou ativação SaaS. Token e pay
 completo não são armazenados. O endpoint tenant `/webhooks/asaas` e seus códigos,
 lookup de referências legadas e ledger `payment_webhook_events` permanecem iguais.
 
+### `GET|PUT /platform/configuracao`
+
+Exclusivo de Platform Admin (`require_platform_admin`). Lê/grava o singleton
+`PlatformConfiguracao` (id=1), que sobrepõe os env vars `PLATFORM_ASAAS_*` e
+`SIGNUP_*` quando preenchido — tabela vazia cai no `.env` atual, preservando
+deploys existentes (ver `services/platform_config_service.py`).
+
+`GET` retorna:
+```json
+{ "asaasApiBaseUrl": "https://api-sandbox.asaas.com/v3", "asaasApiKeyConfigurada": true,
+  "asaasWebhookTokenConfigurada": false, "signupCodeConfigurada": false, "signupEmpresaId": null }
+```
+Nenhum segredo em texto puro é retornado.
+
+`PUT` aceita qualquer subconjunto de `asaasApiBaseUrl`, `asaasApiKey`,
+`asaasWebhookToken`, `signupCode`, `signupEmpresaId`. Campo ausente no body não
+altera o valor salvo; campo presente com string vazia (`''`) limpa o campo
+(volta a usar o env var). `asaasApiBaseUrl` é validado com a mesma
+`ambiente_asaas()` do gateway ASAAS; ambiente não reconhecido retorna `400`.
+`signupEmpresaId` não inteiro retorna `400`. Resposta de sucesso é o mesmo
+formato do `GET`, já atualizado.
+
 ## Limite de plano
 
 Os `POST /clients`, `POST /ucs`, `POST /plants` e `POST /users` retornam `403` com `code: "QUOTA_EXCEEDED"` quando a empresa autenticada atingiu a cota. `details` contém `recurso`, `uso` e `limite`.

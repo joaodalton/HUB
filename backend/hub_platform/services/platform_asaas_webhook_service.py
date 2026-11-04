@@ -5,14 +5,14 @@ import secrets
 
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
-from config import Config
 from extensions import db
 from hub_platform.models.platform_asaas_webhook_event import PlatformAsaasWebhookEvent
 from services.asaas_webhook_service import WebhookError, _text
+from services.platform_config_service import get_platform_asaas_credentials
 
 
 def receive_platform_webhook(payload, token):
-    expected = Config.PLATFORM_ASAAS_WEBHOOK_TOKEN
+    expected = get_platform_asaas_credentials()['webhook_token']
     if (not expected or not isinstance(token, str) or len(token) > 10000
             or not secrets.compare_digest(token.encode('utf-8'), expected.encode('utf-8'))):
         raise WebhookError()

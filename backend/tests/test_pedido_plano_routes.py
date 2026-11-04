@@ -172,5 +172,81 @@ class ConcluirCadastroRouteAuthTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertEqual(response.status_code, 400)
 
 
+class CriarPedidoRouteCpfCnpjRateLimitTest(IsolatedTestRuntime, unittest.TestCase):
+    """CPF/CNPJ do pagador e' chave de rate limit alem do IP -- senao um
+    atacante troca IP/email a cada tentativa e gera N assinaturas reais
+    (cobraveis) na Asaas pro mesmo documento de terceiro."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.prepare_test_runtime('sqlite://', 'pedido-plano-cpf-rate-limit-test', limiter_enabled=True)
+        Config.FRONTEND_URL = 'https://hub.test'
+        cls.app = create_app()
+        cls.app.config['TESTING'] = True
+
+    @classmethod
+    def tearDownClass(cls):
+        with cls.app.app_context():
+            db.session.remove()
+            db.drop_all()
+            db.engine.dispose()
+        cls.restore_test_runtime()
+
+    def setUp(self):
+        self.context = self.app.app_context()
+        self.context.push()
+        self.addCleanup(self.context.pop)
+        db.create_all()
+        self.addCleanup(db.drop_all)
+        self.client = self.app.test_client()
+        from extensions import limiter
+        limiter.reset()
+
+    def _post(self, body, ip):
+        return self.client.post(
+            '/api/v1/platform/pedidos-plano', json=body,
+            headers={'X-Forwarded-For': ip},
+            environ_base={'REMOTE_ADDR': ip},
+        )
+
+    def test_quarta_tentativa_com_mesmo_cpf_cnpj_e_bloqueada(self):
+        with mock.patch('services.pedido_plano_service._asaas_transport') as mocked:
+            mocked.return_value.criar_cliente.return_value = {'id': 'cus_1'}
+            mocked.return_value.criar_assinatura.return_value = {'id': 'sub_1'}
+            for tentativa in range(3):
+                response = self._post({
+                    'email': f'pagador{tentativa}@teste.com',
+                    'planoChave': 'starter',
+                    'dadosPagamento': {'cpfCnpj': '123.456.789-00', 'nome': 'Fulano', 'billingType': 'PIX'},
+                }, ip=f'10.1.0.{tentativa}')
+                self.assertEqual(response.status_code, 201)
+
+            quarta = self._post({
+                'email': 'pagador3@teste.com',
+                'planoChave': 'starter',
+                'dadosPagamento': {'cpfCnpj': '12345678900', 'nome': 'Fulano', 'billingType': 'PIX'},
+            }, ip='10.1.0.99')
+        self.assertEqual(quarta.status_code, 429)
+
+    def test_cpf_cnpj_diferente_nao_e_bloqueado_pelo_limite_do_outro(self):
+        with mock.patch('services.pedido_plano_service._asaas_transport') as mocked:
+            mocked.return_value.criar_cliente.return_value = {'id': 'cus_1'}
+            mocked.return_value.criar_assinatura.return_value = {'id': 'sub_1'}
+            for tentativa in range(3):
+                response = self._post({
+                    'email': f'outro{tentativa}@teste.com',
+                    'planoChave': 'starter',
+                    'dadosPagamento': {'cpfCnpj': '11111111111', 'nome': 'Ciclano', 'billingType': 'PIX'},
+                }, ip=f'10.2.0.{tentativa}')
+                self.assertEqual(response.status_code, 201)
+
+            response = self._post({
+                'email': 'novo@teste.com',
+                'planoChave': 'starter',
+                'dadosPagamento': {'cpfCnpj': '22222222222', 'nome': 'Beltrano', 'billingType': 'PIX'},
+            }, ip='10.2.0.99')
+        self.assertEqual(response.status_code, 201)
+
+
 if __name__ == '__main__':
     unittest.main()

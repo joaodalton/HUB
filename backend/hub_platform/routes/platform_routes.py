@@ -9,10 +9,12 @@ empresa_id escolhido; o middleware de auth (utils/auth.py) usa esse cookie
 pra sobrescrever g.current_empresa_id só pra esse usuário. "Sair" remove o
 cookie e volta pra empresa "de casa" (User.empresa_id).
 """
+import re
+
 from flask import Blueprint, g, jsonify, request
 from sqlalchemy import func
 
-from extensions import db, limiter
+from extensions import client_ip, db, limiter
 from models.client import Client
 from models.consumer_unit import ConsumerUnit
 from models.empresa import Empresa
@@ -184,10 +186,24 @@ def atualizar_configuracao():
     return success_response(config.to_dict(), 'Configuracao da plataforma atualizada.')
 
 
+def _cpf_cnpj_key():
+    """Agrupa o limite pelo documento de pagamento, nao por IP/email --
+    senao um atacante troca IP/email a cada tentativa e gera N assinaturas
+    reais (cobraveis) na Asaas pro mesmo CPF/CNPJ de terceiro."""
+    data = request.get_json(silent=True)
+    dados_pagamento = data.get('dadosPagamento') if isinstance(data, dict) else None
+    cpf = dados_pagamento.get('cpfCnpj') if isinstance(dados_pagamento, dict) else None
+    normalizado = re.sub(r'\D', '', cpf) if isinstance(cpf, str) else ''
+    return normalizado or client_ip()
+
+
 # POST /api/v1/platform/pedidos-plano -- PUBLICA, sem autenticacao: landing
 # publica de checkout abre o pedido e a assinatura recorrente na Asaas.
 @platform_routes.route('/pedidos-plano', methods=['POST'])
 @limiter.limit('5 per minute')
+# 3/hora por CPF/CNPJ: cobre retentativa legitima apos erro de pagamento
+# sem abrir brecha pra abuso do mesmo documento via IP/email trocados.
+@limiter.limit('3 per hour', key_func=_cpf_cnpj_key)
 def criar_pedido_route():
     data = request.get_json(silent=True) or {}
     if not isinstance(data, dict):

@@ -15,10 +15,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app import create_app
 from extensions import db
 from models.assinatura import Assinatura
-from services.log_service import LogService
+from services.log_service import LogService, NO_EMPRESA
 
 
-def main() -> None:
+def main() -> int:
     app = create_app()
     with app.app_context():
         expiradas = Assinatura.query.filter(
@@ -28,10 +28,11 @@ def main() -> None:
         ).update({'status': 'suspensa'}, synchronize_session=False)
         db.session.commit()
         if expiradas:
-            LogService.info(acao='plano_teste_expirado', mensagem=f'{expiradas} assinatura(s) do plano teste suspensa(s) por trial vencido', entidade='Assinatura')
+            LogService.info(acao='plano_teste_expirado', mensagem=f'{expiradas} assinatura(s) do plano teste suspensa(s) por trial vencido', entidade='Assinatura', empresa_id=NO_EMPRESA)
         print(f'{expiradas} assinatura(s) do plano teste suspensa(s).')
         db.session.remove()
         db.engine.dispose()
+        return expiradas
 
 
 if __name__ == '__main__':

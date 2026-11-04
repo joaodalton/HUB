@@ -17,6 +17,7 @@ from app import create_app  # noqa: E402
 from extensions import db  # noqa: E402
 from models.assinatura import Assinatura  # noqa: E402
 from models.empresa import Empresa  # noqa: E402
+from models.log_entry import LogEntry  # noqa: E402
 import expirar_planos_teste  # noqa: E402
 try:
     from .support import IsolatedTestRuntime  # noqa: E402
@@ -49,17 +50,21 @@ class ExpirarPlanosTesteTest(IsolatedTestRuntime, unittest.TestCase):
             agora = datetime.utcnow()
             vencida = Empresa(nome='Vencida', slug='teste-vencida', status='ativa')
             no_prazo = Empresa(nome='No prazo', slug='teste-no-prazo', status='ativa')
-            db.session.add_all([vencida, no_prazo])
+            outro_plano_vencido = Empresa(nome='Starter vencido', slug='starter-vencido', status='ativa')
+            db.session.add_all([vencida, no_prazo, outro_plano_vencido])
             db.session.flush()
             db.session.add_all([
                 Assinatura(empresa_id=vencida.id, plano_chave='teste', tipo='trial', status='trial',
                            trial_expira_em=agora - timedelta(days=1)),
                 Assinatura(empresa_id=no_prazo.id, plano_chave='teste', tipo='trial', status='trial',
                            trial_expira_em=agora + timedelta(days=5)),
+                Assinatura(empresa_id=outro_plano_vencido.id, plano_chave='starter', tipo='paga', status='ativa',
+                           trial_expira_em=agora - timedelta(days=1)),
             ])
             db.session.commit()
             self.vencida_id = Assinatura.query.filter_by(empresa_id=vencida.id).one().id
             self.no_prazo_id = Assinatura.query.filter_by(empresa_id=no_prazo.id).one().id
+            self.outro_plano_id = Assinatura.query.filter_by(empresa_id=outro_plano_vencido.id).one().id
 
     def tearDown(self):
         with self.app.app_context():
@@ -72,7 +77,7 @@ class ExpirarPlanosTesteTest(IsolatedTestRuntime, unittest.TestCase):
 
     def _rodar(self):
         with self.app.app_context():
-            expirar_planos_teste.main()
+            return expirar_planos_teste.main()
 
     def test_suspende_assinatura_teste_vencida(self):
         self._rodar()
@@ -82,11 +87,23 @@ class ExpirarPlanosTesteTest(IsolatedTestRuntime, unittest.TestCase):
         self._rodar()
         self.assertEqual(self._status(self.no_prazo_id), 'trial')
 
+    def test_nao_toca_outro_plano_com_trial_vencido(self):
+        self._rodar()
+        self.assertEqual(self._status(self.outro_plano_id), 'ativa')
+
     def test_idempotente(self):
-        self._rodar()
-        self._rodar()
+        primeira = self._rodar()
+        segunda = self._rodar()
+        self.assertEqual(primeira, 1)
+        self.assertEqual(segunda, 0)
         self.assertEqual(self._status(self.vencida_id), 'suspensa')
         self.assertEqual(self._status(self.no_prazo_id), 'trial')
+
+    def test_grava_log_entry_com_empresa_id_nulo(self):
+        self._rodar()
+        with self.app.app_context():
+            entry = LogEntry.query.filter_by(acao='plano_teste_expirado').one()
+            self.assertIsNone(entry.empresa_id)
 
 
 if __name__ == '__main__':

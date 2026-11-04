@@ -271,7 +271,7 @@ Tela dedicada (Configurações → Assinatura, ou seção própria na sidebar) c
 
 ### 6.5 Ciclo de vida da assinatura (tier)
 
-1. **Trial** — empresa nova começa no plano dedicado `teste` (não aparece para compra): 2 usinas, 50 UCs e 1 usuário, franquia fixa, sem cobrança, por 14 dias. Ao vencer, script agendado (`backend/scripts/expirar_planos_teste.py`) põe a `Assinatura` em `suspensa`, com o mesmo efeito somente-leitura do item 5. Conversão para plano pago segue o item 2.
+1. **Trial** — alvo: empresa nova começa no plano dedicado `teste` (não é comprável): 2 usinas, 50 UCs e 1 usuário, franquia fixa, sem cobrança, por 14 dias. Ao vencer, script agendado (`backend/scripts/expirar_planos_teste.py`) põe a `Assinatura` em `suspensa`, com o mesmo efeito somente-leitura do item 5 — o script só atua sobre `Assinatura.plano_chave == 'teste'`, não toca linhas `starter`/`trial`. Conversão para plano pago segue o item 2. **Gap hoje:** `backend/scripts/criar_empresa.py` (único caminho manual de criação de empresa, fora do escopo deste plano de 10 tasks) ainda cria `Assinatura(plano_chave='starter', tipo='trial', status='trial', trial_expira_em=None)` — sem prazo de expiração e nunca alcançada pelo script acima. Migrar esse script pro plano `teste` é trabalho pendente, fora desta entrega.
 2. **Conversão** — ao fim do trial (ou antes, se o owner escolher upgrade), define-se o `Plano` e os `LimiteContratado` de cada recurso; `Assinatura` vira `ativa`, disparando a primeira cobrança recorrente no ASAAS (base do tier + soma dos recursos contratados).
 3. **Cobrança recorrente** — ASAAS gera a fatura no ciclo; webhook de pagamento confirmado atualiza `FaturaHub.status` e mantém `Assinatura.status = ativa`.
 4. **Atraso** — pagamento não confirmado até o vencimento → `Assinatura.status = atrasada`. Início de **período de carência** (ex.: 5 dias corridos) — acesso continua normal, mas gera pendência/notificação pro owner (mesmo motor de automação que já existe, reaproveitado, não uma trilha nova).
@@ -280,7 +280,7 @@ Tela dedicada (Configurações → Assinatura, ou seção própria na sidebar) c
 
 ### 6.6 Enforcement de limite — por recurso, não por plano inteiro
 
-- Checagem acontece **na ação que cria o recurso** (criar usuário, criar cliente, criar UC, criar usina), sempre contra a quantidade **total contratada** daquele recurso (franquia do tier + excedente pago via `LimiteContratado`) — resposta imediata pro usuário, não job periódico.
+- Checagem acontece **na ação que cria o recurso** (criar usuário, criar UC, criar usina — todos contra a quantidade **total contratada** via `LimiteContratado`; criar cliente contra o teto fixo de 1.000, ver 6.1) — resposta imediata pro usuário, não job periódico.
 - Ao se aproximar do limite de um recurso (ex.: 90% do total contratado de UCs, franquia + excedente somados) → pendência de aviso automática sugerindo aumentar o volume daquele recurso especificamente, sem bloquear nada ainda.
 - Ao estourar → bloqueia só a criação daquele recurso (ex.: botão "Nova UC" desabilitado com link direto pra tela de ajuste de volume da seção 6.4), nunca trava o sistema inteiro nem esconde dado já existente acima do limite.
 - Funcionalidade de tier (robôs, API pública) segue lógica separada: não é "quase no limite", é ligado/desligado — ação bloqueada mostra qual tier desbloqueia aquilo, com link pra upgrade de tier (diferente do link de ajuste de volume).

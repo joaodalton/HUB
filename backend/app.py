@@ -59,6 +59,22 @@ def create_app() -> Flask:
         result = purge_expired_previews()
         click.echo(f"Previews regulatórias removidas: {result['previews']}; arquivos órfãos: {result['files']}")
 
+    @app.cli.command('expirar-planos-teste')
+    def expirar_planos_teste_command() -> None:
+        """Suspende assinaturas do plano teste cujo trial de 14 dias venceu."""
+        from datetime import datetime
+        from models.assinatura import Assinatura
+        from services.log_service import LogService, NO_EMPRESA
+        expiradas = Assinatura.query.filter(
+            Assinatura.plano_chave == 'teste',
+            Assinatura.status != 'suspensa',
+            Assinatura.trial_expira_em < datetime.utcnow(),
+        ).update({'status': 'suspensa'}, synchronize_session=False)
+        db.session.commit()
+        if expiradas:
+            LogService.info(acao='plano_teste_expirado', mensagem=f'{expiradas} assinatura(s) do plano teste suspensa(s) por trial vencido', entidade='Assinatura', empresa_id=NO_EMPRESA)
+        click.echo(f'Assinaturas do plano teste suspensas: {expiradas}')
+
     from models.empresa import Empresa  # type: ignore
     from models.client import Client  # type: ignore
     from models.plant import Plant  # type: ignore

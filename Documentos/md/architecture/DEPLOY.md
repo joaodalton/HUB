@@ -30,7 +30,7 @@ Existem **dois ambientes completamente separados**, cada um com seu próprio ban
 | Banco | Neon "dev" | Neon "produção" (projeto separado) |
 | `.env` | `backend\.env` local | Variáveis de ambiente no painel do Render |
 
-**Nunca misturar os dois.** Rodar migration ou script contra o banco errado por engano já aconteceu nessa história (ver seção 5) — sempre confirma qual `DATABASE_URL` você tá usando antes de rodar qualquer coisa.
+**Nunca misturar os dois.** Rodar migration ou script contra o banco errado por engano já aconteceu nessa história (ver seção 6) — sempre confirma qual `DATABASE_URL` você tá usando antes de rodar qualquer coisa.
 
 ---
 
@@ -134,7 +134,18 @@ cd backend
 
 O comando remove somente registros com `expires_at` já vencido, de todas as empresas, e mostra a quantidade removida. Agende-o diariamente no mecanismo operacional escolhido (por exemplo, um cron do provedor) depois de configurar o ambiente; esta alteração não configura nem executa deploy.
 
-## 5. Como migrar dados do zero (SQLite antigo → Postgres)
+## 5. Expiração do plano teste
+
+Assinaturas do plano `teste` têm trial de 14 dias (`Assinatura.trial_expira_em`). A aplicação expõe um comando que suspende as que já venceram, sem chamar serviços externos:
+
+```powershell
+cd backend
+..\.venv\Scripts\flask expirar-planos-teste
+```
+
+O comando suspende somente assinaturas `plano_chave == 'teste'` com `trial_expira_em` já vencido e ainda não `suspensa`, e mostra a quantidade suspensa. Agende-o diariamente no mecanismo operacional escolhido (por exemplo, um cron do provedor) depois de configurar o ambiente; esta alteração não configura nem executa deploy.
+
+## 6. Como migrar dados do zero (SQLite antigo → Postgres)
 
 Script em `backend/scripts/migrate_sqlite_to_postgres.py` — pontual, só pra quando existir um `hub.db` novo pra trazer (não é rotina, diferente da seção 3).
 
@@ -148,7 +159,7 @@ Detalhes de cada flag no docstring do próprio arquivo.
 
 ---
 
-## 6. Se algo quebrar: rollback
+## 7. Se algo quebrar: rollback
 
 **Backend ou frontend no Render:** dashboard do serviço → aba **Events** → escolhe um deploy anterior que funcionava → **Rollback**. O Render mantém builds anteriores prontos, é praticamente instantâneo.
 
@@ -158,7 +169,7 @@ Detalhes de cada flag no docstring do próprio arquivo.
 
 ---
 
-## 7. Reconectar Google Drive — quando e por quê
+## 8. Reconectar Google Drive — quando e por quê
 
 Precisa reconectar a conta Google (Configurações → desconectar → conectar de novo) sempre que:
 - `SECRET_ENCRYPTION_KEY` mudar (o refresh token salvo fica ilegível com a chave nova)
@@ -168,13 +179,13 @@ Sintoma de token quebrado: erro 503 "Google Drive não configurado ou indisponí
 
 ---
 
-## 8. Domínio e SSL
+## 9. Domínio e SSL
 
 Render provisiona SSL automático (Let's Encrypt) tanto pro domínio `.onrender.com` padrão quanto pra domínio próprio, se um dia configurarmos um (`hub.selectenergiasolar.com.br`, por exemplo). Não precisa fazer nada manual pra isso funcionar — só confirmar o cadeado no navegador depois de qualquer mudança de domínio.
 
 ---
 
-## 9. Coisas aprendidas no caminho (não repetir)
+## 10. Coisas aprendidas no caminho (não repetir)
 
 - **Render não lê arquivo `_redirects` (isso é do Netlify).** Rewrite de SPA é configurado direto no dashboard: Settings → Redirects/Rewrites → `/*` → `/index.html` → Rewrite (não Redirect).
 - **Neon free "dorme" com inatividade** — tanto ele quanto o backend do Render (também free) podem demorar uns 30-50s na primeira requisição depois de um tempo parado. Normal do plano grátis, não é bug.

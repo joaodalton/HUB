@@ -39,21 +39,26 @@ class QuotaEnforcementTest(IsolatedTestRuntime, unittest.TestCase):
             vitalicia = Empresa(nome='Vitalicia', slug='quota-vitalicia')
             trial = Empresa(nome='Trial', slug='quota-trial')
             sem_assinatura = Empresa(nome='Sem assinatura', slug='quota-sem-assinatura')
-            db.session.add_all([vitalicia, trial, sem_assinatura])
+            suspensa = Empresa(nome='Suspensa', slug='quota-suspensa')
+            db.session.add_all([vitalicia, trial, sem_assinatura, suspensa])
             db.session.flush()
             db.session.add_all([
                 Assinatura(empresa_id=vitalicia.id, plano_chave='starter', tipo='vitalicio', status='ativa'),
                 Assinatura(empresa_id=trial.id, plano_chave='starter', tipo='trial', status='trial'),
+                Assinatura(empresa_id=suspensa.id, plano_chave='teste', tipo='trial', status='suspensa'),
                 LimiteContratado(empresa_id=trial.id, recurso='clientes', quantidade_contratada=5000),
                 User(empresa_id=vitalicia.id, nome='Owner vitalicio', email='vitalicio@quota.test', password_hash='x', role='owner'),
                 User(empresa_id=trial.id, nome='Owner trial', email='trial@quota.test', password_hash='x', role='owner'),
+                User(empresa_id=suspensa.id, nome='Owner suspenso', email='suspenso@quota.test', password_hash='x', role='owner'),
             ])
             db.session.commit()
             cls.vitalicia_id = vitalicia.id
             cls.trial_id = trial.id
             cls.sem_assinatura_id = sem_assinatura.id
+            cls.suspensa_id = suspensa.id
             cls.vitalicia_owner_id = User.query.filter_by(empresa_id=vitalicia.id).one().id
             cls.trial_owner_id = User.query.filter_by(empresa_id=trial.id).one().id
+            cls.suspensa_owner_id = User.query.filter_by(empresa_id=suspensa.id).one().id
 
     @classmethod
     def tearDownClass(cls):
@@ -120,6 +125,34 @@ class QuotaEnforcementTest(IsolatedTestRuntime, unittest.TestCase):
         with self.app.app_context():
             permitido, uso, limite = verificar_cota(self.trial_id, 'clientes')
         self.assertEqual(limite, 1000)
+
+    def test_assinatura_suspensa_bloqueia_criacao_de_recurso(self):
+        with self.app.app_context():
+            permitido, _uso, _limite = verificar_cota(self.suspensa_id, 'usinas')
+        self.assertFalse(permitido)
+
+        response = self.app.test_client().post(
+            '/api/v1/plants',
+            headers={'Authorization': f'Bearer {self._token(self.suspensa_owner_id)}'},
+            json={'nome': 'Usina bloqueada'},
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.get_json()['code'], 'QUOTA_EXCEEDED')
+
+    def test_assinatura_suspensa_bloqueia_ate_recurso_com_teto_fixo(self):
+        # 'clientes' usa teto fixo (1000), mas suspensa bloqueia criacao de
+        # QUALQUER recurso, independente da conta de uso/limite.
+        with self.app.app_context():
+            permitido, _uso, limite = verificar_cota(self.suspensa_id, 'clientes')
+        self.assertFalse(permitido)
+        self.assertEqual(limite, 1000)
+
+    def test_assinatura_suspensa_nao_bloqueia_leitura(self):
+        response = self.app.test_client().get(
+            '/api/v1/plants',
+            headers={'Authorization': f'Bearer {self._token(self.suspensa_owner_id)}'},
+        )
+        self.assertEqual(response.status_code, 200)
 
     def test_all_creation_routes_enforce_their_resource_quota(self):
         PLANOS['starter']['franquia'].update({'ucs': 0, 'usinas': 0, 'usuarios': 0})

@@ -58,10 +58,18 @@ def get_limite(empresa_id: int, recurso: str) -> int | None:
 
 
 def verificar_cota(empresa_id: int, recurso: str) -> tuple[bool, int, int | None]:
-    """Retorna permitido, uso atual e limite; limite None representa ilimitado."""
+    """Retorna permitido, uso atual e limite; limite None representa ilimitado.
+
+    Assinatura 'suspensa' (plano teste vencido, ver expirar_planos_teste.py)
+    bloqueia criacao de QUALQUER recurso, independente da conta de uso/limite
+    -- vira somente-leitura, nunca bloqueia leitura/listagem (essa funcao so
+    e chamada pelo guard de criacao, require_quota)."""
     limite = get_limite(empresa_id, recurso)
     if limite is None:
         return True, 0, None
 
     uso_atual = _CONTADORES[recurso](empresa_id)
+    assinatura = get_assinatura(empresa_id)
+    if assinatura and assinatura.status == 'suspensa':
+        return False, uso_atual, limite
     return uso_atual < limite, uso_atual, limite

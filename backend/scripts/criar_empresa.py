@@ -9,10 +9,11 @@ mao por enquanto; envio automatico entra quando a integracao de
 email/WhatsApp for construida). O link expira em 7 dias.
 
 USO (de dentro de backend/, com o venv ativado):
-    python scripts/criar_empresa.py --nome "Nome da Empresa" --slug empresa --owner-email dono@empresa.com
+    python scripts/criar_empresa.py --nome "Nome da Empresa" --slug empresa --owner-email dono@empresa.com [--plano starter|avancado|enterprise|teste|sem-plano]
 """
 import argparse
 import sys
+from datetime import datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -32,6 +33,10 @@ def main() -> None:
     parser.add_argument('--nome', required=True, help='Nome de exibicao da empresa')
     parser.add_argument('--slug', required=True, help='Identificador curto, sem espaco (ex.: select)')
     parser.add_argument('--owner-email', required=True, help='Email de quem vai ser o owner (recebe o link)')
+    parser.add_argument(
+        '--plano', choices=['sem-plano', 'starter', 'avancado', 'enterprise', 'teste'], default='starter',
+        help='Plano/Assinatura inicial da empresa (default: starter, comportamento anterior)',
+    )
     args = parser.parse_args()
 
     app = create_app()
@@ -48,13 +53,22 @@ def main() -> None:
         db.session.add(empresa)
         db.session.flush()
         seed_for_empresa(empresa.id, commit=False)
-        db.session.add(Assinatura(
-            empresa_id=empresa.id,
-            plano_chave='starter',
-            tipo='trial',
-            status='trial',
-            trial_expira_em=None,
-        ))
+        if args.plano == 'sem-plano':
+            pass
+        elif args.plano == 'starter':
+            db.session.add(Assinatura(
+                empresa_id=empresa.id, plano_chave='starter', tipo='trial', status='trial', trial_expira_em=None,
+            ))
+        elif args.plano in ('avancado', 'enterprise'):
+            db.session.add(Assinatura(
+                empresa_id=empresa.id, plano_chave=args.plano, tipo='pago', status='ativa',
+                isento_cobranca=True, trial_expira_em=None,
+            ))
+        elif args.plano == 'teste':
+            db.session.add(Assinatura(
+                empresa_id=empresa.id, plano_chave='teste', tipo='trial', status='trial',
+                trial_expira_em=datetime.utcnow() + timedelta(days=14),
+            ))
 
         try:
             convite_data, token = criar_convite(empresa.id, args.owner_email, 'owner', invited_by_id=None, commit=False)

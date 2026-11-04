@@ -10,7 +10,7 @@ from app import create_app  # noqa: E402
 from config import Config  # noqa: E402
 from extensions import db  # noqa: E402
 from models.pedido_plano import PedidoPlano  # noqa: E402
-from services.pedido_plano_service import criar_pedido  # noqa: E402
+from services.pedido_plano_service import confirmar_pagamento, criar_pedido  # noqa: E402
 try:
     from .support import IsolatedTestRuntime  # noqa: E402
 except ImportError:
@@ -71,6 +71,38 @@ class PedidoPlanoServiceTest(IsolatedTestRuntime, unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 criar_pedido('e@f.com', 'starter', {})
         self.assertIsNone(PedidoPlano.query.filter_by(email='e@f.com').first())
+
+    def test_confirmar_pagamento_marca_pago_quando_email_enviado(self):
+        pedido = PedidoPlano(email='g@h.com', plano_chave='starter', external_reference='hub-platform-ref-1')
+        db.session.add(pedido)
+        db.session.commit()
+
+        with mock.patch('services.pedido_plano_service.send_email', return_value=True):
+            confirmar_pagamento('hub-platform-ref-1')
+
+        db.session.refresh(pedido)
+        self.assertEqual(pedido.status, 'pago')
+        self.assertIsNotNone(pedido.token_hash)
+
+    def test_confirmar_pagamento_mantem_pendente_quando_email_falha(self):
+        pedido = PedidoPlano(email='i@j.com', plano_chave='starter', external_reference='hub-platform-ref-2')
+        db.session.add(pedido)
+        db.session.commit()
+
+        with mock.patch('services.pedido_plano_service.send_email', return_value=False):
+            confirmar_pagamento('hub-platform-ref-2')
+
+        db.session.refresh(pedido)
+        self.assertEqual(pedido.status, 'pendente')
+        self.assertIsNone(pedido.token_hash)
+
+        # Idempotency guard nao bloqueia um proximo webhook retry: o pedido
+        # ainda esta 'pendente', entao uma segunda chamada processa normalmente.
+        with mock.patch('services.pedido_plano_service.send_email', return_value=True):
+            confirmar_pagamento('hub-platform-ref-2')
+        db.session.refresh(pedido)
+        self.assertEqual(pedido.status, 'pago')
+        self.assertIsNotNone(pedido.token_hash)
 
 
 if __name__ == '__main__':

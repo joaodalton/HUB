@@ -79,15 +79,21 @@ def confirmar_pagamento(external_reference: str) -> None:
         return
 
     token_cru, token_hash = _gerar_token()
+    enviado = _enviar_email_pagamento_confirmado(pedido, token_cru)
+    if not enviado:
+        # send_email ja logou o erro (email_failed); nao persiste pago/token_hash
+        # aqui -- pedido fica 'pendente' pra um proximo webhook (redelivery da Asaas)
+        # tentar de novo, em vez de ficar travado pelo guard de idempotencia pra sempre.
+        db.session.rollback()
+        return
+
     pedido.token_hash = token_hash
     pedido.status = 'pago'
     pedido.expires_at = datetime.utcnow() + timedelta(days=7)
     db.session.commit()
 
-    _enviar_email_pagamento_confirmado(pedido, token_cru)
 
-
-def _enviar_email_pagamento_confirmado(pedido: PedidoPlano, token_cru: str) -> None:
+def _enviar_email_pagamento_confirmado(pedido: PedidoPlano, token_cru: str) -> bool:
     """Sem Empresa criada ainda nesse ponto do fluxo (e o proprio objetivo do
     cadastro), entao nao ha empresa_id pra usar email_template_service --
     e-mail direto com assunto/corpo fixos, igual send_email() ja suporta."""
@@ -103,4 +109,4 @@ def _enviar_email_pagamento_confirmado(pedido: PedidoPlano, token_cru: str) -> N
         f'Finalize o cadastro da sua empresa acessando: {link}\n\n'
         'Este link expira em 7 dias.'
     )
-    send_email(to=pedido.email, subject='Pagamento confirmado -- finalize seu cadastro', html=html, text=text)
+    return send_email(to=pedido.email, subject='Pagamento confirmado -- finalize seu cadastro', html=html, text=text)

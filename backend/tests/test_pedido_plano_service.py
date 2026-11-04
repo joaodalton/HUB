@@ -41,17 +41,34 @@ class PedidoPlanoServiceTest(IsolatedTestRuntime, unittest.TestCase):
 
     def test_rejeita_plano_nao_compravel(self):
         with self.assertRaises(ValueError):
-            criar_pedido('a@b.com', 'teste', {})
+            criar_pedido('a@b.com', 'teste', {'billingType': 'PIX'})
 
     def test_rejeita_plano_inexistente(self):
         with self.assertRaises(ValueError):
-            criar_pedido('a@b.com', 'inexistente', {})
+            criar_pedido('a@b.com', 'inexistente', {'billingType': 'PIX'})
+
+    def test_rejeita_billing_type_ausente(self):
+        with self.assertRaises(ValueError):
+            criar_pedido('a@b.com', 'starter', {'cpfCnpj': '12345678900'})
+
+    def test_rejeita_billing_type_invalido(self):
+        with self.assertRaises(ValueError):
+            criar_pedido('a@b.com', 'starter', {'cpfCnpj': '12345678900', 'billingType': 'DINHEIRO'})
+
+    def test_rejeita_email_muito_longo(self):
+        email_longo = ('a' * 145) + '@b.com'
+        with self.assertRaises(ValueError):
+            criar_pedido(email_longo, 'starter', {'billingType': 'PIX'})
 
     def test_cria_pedido_com_external_reference_prefixo_hub_platform(self):
         with mock.patch('services.pedido_plano_service._asaas_transport') as mocked:
             mocked.return_value.criar_cliente.return_value = {'id': 'cus_1'}
             mocked.return_value.criar_assinatura.return_value = {'id': 'sub_1'}
-            criar_pedido('a@b.com', 'starter', {'cpfCnpj': '12345678900', 'nome': 'Fulano'})
+            criar_pedido('a@b.com', 'starter', {'cpfCnpj': '12345678900', 'nome': 'Fulano', 'billingType': 'PIX'})
+            cliente_payload = mocked.return_value.criar_cliente.call_args[0][0]
+            assinatura_payload = mocked.return_value.criar_assinatura.call_args[0][0]
+        self.assertNotIn('billingType', cliente_payload)
+        self.assertEqual(assinatura_payload['billingType'], 'PIX')
         pedido = PedidoPlano.query.filter_by(email='a@b.com').first()
         self.assertTrue(pedido.external_reference.startswith('hub-platform-'))
         self.assertEqual(pedido.asaas_subscription_id, 'sub_1')
@@ -62,14 +79,14 @@ class PedidoPlanoServiceTest(IsolatedTestRuntime, unittest.TestCase):
         with mock.patch('services.pedido_plano_service._asaas_transport') as mocked:
             mocked.return_value.criar_cliente.side_effect = RuntimeError('ASAAS indisponivel')
             with self.assertRaises(RuntimeError):
-                criar_pedido('c@d.com', 'starter', {})
+                criar_pedido('c@d.com', 'starter', {'billingType': 'BOLETO'})
         self.assertIsNone(PedidoPlano.query.filter_by(email='c@d.com').first())
 
     def test_falha_construcao_transporte_nao_deixa_pedido_orfao(self):
         with mock.patch('services.pedido_plano_service._asaas_transport') as mocked:
             mocked.side_effect = RuntimeError('credenciais Asaas invalidas')
             with self.assertRaises(RuntimeError):
-                criar_pedido('e@f.com', 'starter', {})
+                criar_pedido('e@f.com', 'starter', {'billingType': 'BOLETO'})
         self.assertIsNone(PedidoPlano.query.filter_by(email='e@f.com').first())
 
     def test_confirmar_pagamento_marca_pago_quando_email_enviado(self):
@@ -103,6 +120,22 @@ class PedidoPlanoServiceTest(IsolatedTestRuntime, unittest.TestCase):
         db.session.refresh(pedido)
         self.assertEqual(pedido.status, 'pago')
         self.assertIsNotNone(pedido.token_hash)
+
+    def test_confirmar_pagamento_e_no_op_se_outra_chamada_ja_esta_processando(self):
+        # Simula a janela de corrida: outra chamada concorrente ja trocou
+        # pendente->processando entre a leitura e o UPDATE condicional desta.
+        pedido = PedidoPlano(email='k@l.com', plano_chave='starter', external_reference='hub-platform-ref-3', status='processando')
+        db.session.add(pedido)
+        db.session.commit()
+
+        with mock.patch('services.pedido_plano_service.send_email') as mocked_send:
+            resultado = confirmar_pagamento('hub-platform-ref-3')
+
+        mocked_send.assert_not_called()
+        self.assertTrue(resultado)
+        db.session.refresh(pedido)
+        self.assertEqual(pedido.status, 'processando')
+        self.assertIsNone(pedido.token_hash)
 
 
 if __name__ == '__main__':

@@ -3,7 +3,7 @@ from datetime import datetime
 
 from extensions import db
 
-STATUSES = ('pendente', 'pago', 'usado', 'expirado')
+STATUSES = ('pendente', 'processando', 'pago', 'usado', 'expirado')
 
 
 class PedidoPlano(db.Model):

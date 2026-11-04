@@ -23,6 +23,7 @@ from services.log_service import LogService
 from utils.auth import hash_password
 
 _SLUG_RE = re.compile(r'^[a-z0-9-]{1,60}$')
+_BILLING_TYPES = {'BOLETO', 'PIX', 'CREDIT_CARD'}
 
 
 def _asaas_transport():
@@ -36,9 +37,16 @@ def criar_pedido(email: str, plano_chave: str, dados_pagamento: dict) -> dict:
         raise ValueError('Plano inexistente ou nao comercializavel.')
     if not isinstance(dados_pagamento, dict):
         raise ValueError('Dados de pagamento invalidos.')
+    if len(email) > 150:  # mesmo limite de PedidoPlano.email (db.String(150))
+        raise ValueError('Email muito longo (maximo 150 caracteres).')
+    billing_type = dados_pagamento.get('billingType')
+    if billing_type not in _BILLING_TYPES:
+        raise ValueError('billingType invalido -- use BOLETO, PIX ou CREDIT_CARD.')
     if plano_chave not in PLANOS or not PLANOS[plano_chave]['comprável']:
         raise ValueError('Plano inexistente ou nao comercializavel.')
     plano = get_plano(plano_chave)
+
+    dados_cliente = {k: v for k, v in dados_pagamento.items() if k != 'billingType'}
 
     external_reference = 'hub-platform-pedido-' + secrets.token_urlsafe(16)
     pedido = PedidoPlano(email=email, plano_chave=plano_chave, external_reference=external_reference)
@@ -48,9 +56,10 @@ def criar_pedido(email: str, plano_chave: str, dados_pagamento: dict) -> dict:
     cliente = None
     try:
         transport = _asaas_transport()
-        cliente = transport.criar_cliente(dados_pagamento)
+        cliente = transport.criar_cliente(dados_cliente)
         assinatura = transport.criar_assinatura({
             'customer': cliente['id'],
+            'billingType': billing_type,
             'value': float(plano['preco']),
             'cycle': 'MONTHLY',
             'externalReference': external_reference,
@@ -102,18 +111,36 @@ def confirmar_pagamento(external_reference: str) -> bool:
     if not pedido or pedido.status != 'pendente':
         return True
 
+    # Guarded conditional update (mesmo padrao de concluir_cadastro): so uma
+    # chamada concorrente pode ganhar a troca pendente->processando. A outra
+    # ve rowcount 0 e e no-op, sem mandar e-mail duplicado com token orfao.
+    resultado = db.session.execute(
+        db.update(PedidoPlano)
+        .where(PedidoPlano.id == pedido.id, PedidoPlano.status == 'pendente')
+        .values(status='processando')
+    )
+    if resultado.rowcount != 1:
+        db.session.rollback()
+        return True
+    db.session.commit()
+
     token_cru, token_hash = _gerar_token()
     enviado = _enviar_email_pagamento_confirmado(pedido, token_cru)
     if not enviado:
-        # send_email ja logou o erro (email_failed); nao persiste pago/token_hash
-        # aqui -- pedido fica 'pendente' pra um proximo webhook (redelivery da Asaas)
-        # tentar de novo, em vez de ficar travado pelo guard de idempotencia pra sempre.
-        db.session.rollback()
+        # send_email ja logou o erro (email_failed); volta pra 'pendente' pra um
+        # proximo webhook (redelivery da Asaas) tentar de novo, em vez de ficar
+        # travado em 'processando' pra sempre.
+        db.session.execute(
+            db.update(PedidoPlano).where(PedidoPlano.id == pedido.id).values(status='pendente')
+        )
+        db.session.commit()
         return False
 
-    pedido.token_hash = token_hash
-    pedido.status = 'pago'
-    pedido.expires_at = datetime.utcnow() + timedelta(days=7)
+    db.session.execute(
+        db.update(PedidoPlano)
+        .where(PedidoPlano.id == pedido.id)
+        .values(status='pago', token_hash=token_hash, expires_at=datetime.utcnow() + timedelta(days=7))
+    )
     db.session.commit()
     return True
 

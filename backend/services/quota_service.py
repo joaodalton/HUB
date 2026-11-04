@@ -32,12 +32,22 @@ _CONTADORES = {
 }
 
 
+LIMITE_CLIENTES_PADRAO = 1000
+
+
 def get_assinatura(empresa_id: int) -> Assinatura | None:
     return Assinatura.query.filter_by(empresa_id=empresa_id).first()
 
 
 def get_limite(empresa_id: int, recurso: str) -> int | None:
-    """None e ilimitado; assinatura ausente falha aberta por seguranca operacional."""
+    """None e ilimitado; assinatura ausente falha aberta por seguranca operacional.
+
+    'clientes' e exceção: teto fixo de seguranca, nunca lido de plano/excedente,
+    aplicado mesmo sem Assinatura.
+    """
+    if recurso == 'clientes':
+        return LIMITE_CLIENTES_PADRAO
+
     assinatura = get_assinatura(empresa_id)
     if not assinatura or assinatura.tipo == 'vitalicio':
         return None

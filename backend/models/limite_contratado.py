@@ -2,7 +2,7 @@ from datetime import datetime
 
 from extensions import db
 
-RECURSOS_VALIDOS = ('usuarios', 'clientes', 'ucs', 'usinas')
+RECURSOS_VALIDOS = ('usuarios', 'ucs', 'usinas')
 
 
 class LimiteContratado(db.Model):

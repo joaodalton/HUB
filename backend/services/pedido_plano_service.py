@@ -5,11 +5,15 @@ from datetime import datetime, timedelta
 
 from config import Config
 from extensions import db
+from models.assinatura import Assinatura
+from models.empresa import Empresa
 from models.pedido_plano import PedidoPlano
+from models.user import User
 from planos.catalogo import PLANOS, get_plano
 from services.asaas_client import PlatformAsaasService
 from services.email_service import send_email
 from services.log_service import LogService
+from utils.auth import hash_password
 
 
 def _asaas_transport():
@@ -110,3 +114,64 @@ def _enviar_email_pagamento_confirmado(pedido: PedidoPlano, token_cru: str) -> b
         'Este link expira em 7 dias.'
     )
     return send_email(to=pedido.email, subject='Pagamento confirmado -- finalize seu cadastro', html=html, text=text)
+
+
+def _buscar_pedido_valido(token_cru: str) -> PedidoPlano:
+    token_hash = hashlib.sha256(token_cru.encode()).hexdigest()
+    pedido = PedidoPlano.query.filter_by(token_hash=token_hash).first()
+
+    if not pedido:
+        raise ValueError('Token invalido.')
+    if pedido.status == 'usado':
+        raise ValueError('Esse link ja foi usado.')
+    if pedido.status != 'pago':
+        raise ValueError('Token invalido.')
+    if pedido.expires_at is None or pedido.expires_at < datetime.utcnow():
+        pedido.status = 'expirado'
+        db.session.commit()
+        raise ValueError('Link expirado. Peca um novo.')
+
+    return pedido
+
+
+def concluir_cadastro(token_cru: str, nome_empresa: str, slug: str, senha: str) -> dict:
+    pedido = _buscar_pedido_valido(token_cru)
+
+    if Empresa.query.filter_by(slug=slug).first():
+        raise ValueError(f'Ja existe uma empresa com slug "{slug}".')
+
+    empresa = Empresa(nome=nome_empresa, slug=slug, status='ativa')
+    db.session.add(empresa)
+    db.session.flush()
+
+    db.session.add(Assinatura(
+        empresa_id=empresa.id,
+        plano_chave=pedido.plano_chave,
+        tipo='pago',
+        status='ativa',
+        asaas_subscription_id=pedido.asaas_subscription_id,
+        inicio_periodo_atual=datetime.utcnow(),
+    ))
+
+    db.session.add(User(
+        empresa_id=empresa.id,
+        nome=nome_empresa,
+        email=pedido.email,
+        password_hash=hash_password(senha),
+        role='owner',
+        status='ativo',
+        email_verified=True,
+        must_change_password=False,
+    ))
+
+    pedido.status = 'usado'
+    db.session.commit()
+
+    LogService.info(
+        acao='pedido_plano_concluido',
+        mensagem=f'Cadastro concluido para {pedido.email} (empresa "{empresa.nome}")',
+        entidade='Empresa',
+        metadados={'empresaId': empresa.id, 'pedidoPlanoId': pedido.id}
+    )
+
+    return {'empresaId': empresa.id}

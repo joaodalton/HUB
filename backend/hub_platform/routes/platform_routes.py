@@ -23,6 +23,7 @@ from services.asaas_client import AsaasError, ambiente_asaas
 from services.empresa_service import _sem_filtro_de_tenant_ambiente, excluir_empresa
 from services.log_service import LogService
 from services.neon_service import NeonError, get_storage_summary
+from services.pedido_plano_service import concluir_cadastro
 from services.permission_service import require_platform_access, require_platform_admin
 from utils.api_response import error_response, success_response
 from utils.auth import clear_platform_view_cookie, set_platform_view_cookie
@@ -181,6 +182,28 @@ def atualizar_configuracao():
 
     db.session.commit()
     return success_response(config.to_dict(), 'Configuracao da plataforma atualizada.')
+
+
+# POST /api/v1/platform/pedidos-plano/concluir -- PUBLICA, sem autenticacao
+# (mesmo modelo de confianca de /aceitar-convite): quem recebeu o link do
+# e-mail de pagamento confirmado usa o token pra criar a empresa.
+@platform_routes.route('/pedidos-plano/concluir', methods=['POST'])
+def concluir_cadastro_route():
+    data = request.get_json(silent=True) or {}
+    token = data.get('token', '')
+    nome_empresa = data.get('nomeEmpresa', '')
+    slug = data.get('slug', '')
+    senha = data.get('senha', '')
+
+    if not token or not nome_empresa or not slug or not senha:
+        return error_response('Token, nomeEmpresa, slug e senha sao obrigatorios.', 400)
+
+    try:
+        resultado = concluir_cadastro(token, nome_empresa, slug, senha)
+    except ValueError as exc:
+        return error_response(str(exc), 400)
+
+    return success_response(resultado, 'Cadastro concluido.', 201)
 
 
 @platform_routes.route('/sair', methods=['POST'])

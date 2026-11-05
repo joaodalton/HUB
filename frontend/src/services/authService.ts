@@ -1,4 +1,5 @@
 import { apiRequest, type ApiResponse } from './apiClient';
+import { getCachedUser, setCachedUser, isSessionChecked, clearSession } from './sessionState';
 
 export type AuthUser = {
   id: number;
@@ -16,44 +17,35 @@ export type AuthUser = {
   homeEmpresaId?: number;
 };
 
-
-let cachedUser: AuthUser | null = null;
-let sessionChecked = false;
+export { clearSession };
 
 export function isAuthenticated(): boolean {
-  return cachedUser !== null;
+  return getCachedUser() !== null;
 }
 
 export function getCurrentUser(): AuthUser | null {
-  return cachedUser;
+  return getCachedUser();
 }
 
 export async function ensureSession(): Promise<AuthUser | null> {
-  if (sessionChecked) return cachedUser;
+  if (isSessionChecked()) return getCachedUser();
   try {
     const response = await apiRequest<ApiResponse<AuthUser>>('/auth/me');
-    cachedUser = response.data;
+    setCachedUser(response.data);
   } catch {
-    cachedUser = null;
+    setCachedUser(null);
   }
-  sessionChecked = true;
-  return cachedUser;
+  return getCachedUser();
 }
 
 export async function refreshCurrentUser(): Promise<AuthUser | null> {
   try {
     const response = await apiRequest<ApiResponse<AuthUser>>('/auth/me');
-    cachedUser = response.data;
+    setCachedUser(response.data);
   } catch {
-    cachedUser = null;
+    setCachedUser(null);
   }
-  sessionChecked = true;
-  return cachedUser;
-}
-
-export function clearSession(): void {
-  cachedUser = null;
-  sessionChecked = true;
+  return getCachedUser();
 }
 
 export async function login(email: string, senha: string, lembrar = false): Promise<AuthUser> {
@@ -61,8 +53,7 @@ export async function login(email: string, senha: string, lembrar = false): Prom
     method: 'POST',
     body: { email, senha, lembrar }
   });
-  cachedUser = response.data;
-  sessionChecked = true;
+  setCachedUser(response.data);
   return response.data;
 }
 

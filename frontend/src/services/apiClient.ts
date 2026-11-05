@@ -1,5 +1,5 @@
 import { config } from './config';
-import { clearSession } from './authService';
+import { clearSession } from './sessionState';
 
 type RequestOptions = Omit<RequestInit, 'body'> & {
   body?: unknown;

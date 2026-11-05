@@ -1,5 +1,6 @@
 import { createElement } from '../dom';
 import { createIcon } from '../components/Icon';
+import { createLogoMark } from '../components/LogoMark';
 import { criarPedidoPlano } from '../services/pedidoPlanoService';
 import { t } from '../services/i18nService';
 
@@ -26,8 +27,7 @@ const BILLING_TYPES: BillingTypeOption[] = [
 // Pagina publica de checkout -- sem sessao, chegada direta pela URL
 // (/checkout). Mesma casca visual do ResetPasswordPage/ForgotPasswordPage.
 export function createCheckoutPage(): HTMLElement {
-  const page = createElement('section', { className: 'login-page' });
-  page.style.gridTemplateColumns = '1fr';
+  const page = createElement('section', { className: 'login-page checkout-page' });
 
   const formPanel = createElement('section', { className: 'login-form-panel' });
   const card = createElement('div', { className: 'login-form-card' });
@@ -164,7 +164,32 @@ export function createCheckoutPage(): HTMLElement {
 
   card.appendChild(wrapper);
   formPanel.appendChild(card);
-  page.appendChild(formPanel);
+  page.append(createCheckoutIllustration(), formPanel);
 
   return page;
+}
+
+function createCheckoutIllustration(): HTMLElement {
+  const panel = createElement('aside', { className: 'login-illustration' });
+
+  const background = createElement('img', { className: 'login-illustration-video' }) as HTMLImageElement;
+  background.src = '/media/login-background-3.gif';
+  background.alt = '';
+  background.setAttribute('aria-hidden', 'true');
+  background.addEventListener('error', () => background.classList.add('is-hidden'));
+
+  const brand = createElement('div', { className: 'login-illustration-brand' });
+  brand.append(
+    createLogoMark('login-illustration-mark'),
+    createElement('span', { className: 'login-illustration-title', textContent: 'HUB' })
+  );
+
+  const header = createElement('div', { className: 'login-illustration-header' });
+  header.append(
+    brand,
+    createElement('p', { className: 'login-illustration-subtitle', textContent: t('auth.login.subtitle') })
+  );
+
+  panel.append(background, header);
+  return panel;
 }

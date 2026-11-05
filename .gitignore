@@ -6,6 +6,7 @@ backend/.env
 frontend/.env
 frontend/node_modules/
 frontend/dist/
+frontend/dist-marketing/
 backend/database/*.db
 backend/database/*.db-journal
 backend/database/teste.txt

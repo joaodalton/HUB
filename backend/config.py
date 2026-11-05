@@ -65,6 +65,10 @@ class Config:
     # Pra onde redirecionar de volta depois do callback do Google (a SPA do frontend, nao o backend).
     FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
 
+    # Checkout/cadastro-empresa hospedados em dominio proprio (Cloudflare Pages),
+    # separado do app principal. Vazio = CORS nao libera dominio extra nenhum.
+    MARKETING_URL = os.getenv('MARKETING_URL', '')
+
     # B1 conserva ambiente por instalacao; API keys/tokens cifrados por empresa.
     ASAAS_API_BASE_URL = os.getenv('ASAAS_API_BASE_URL', 'https://api-sandbox.asaas.com/v3')
     # Compatibilidade de configuracao apenas: B2 NAO usa este token global.

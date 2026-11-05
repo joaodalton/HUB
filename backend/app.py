@@ -99,6 +99,8 @@ def create_app() -> Flask:
     from models.platform_configuracao import PlatformConfiguracao  # type: ignore
 
     cors_origins = [Config.FRONTEND_URL]
+    if Config.MARKETING_URL and Config.MARKETING_URL not in cors_origins:
+        cors_origins.append(Config.MARKETING_URL)
     if Config.DEBUG:
         cors_origins.append('http://localhost:5173')
         cors_origins.append('http://127.0.0.1:5173')

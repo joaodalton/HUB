@@ -6,12 +6,20 @@ import { createElement } from '../../dom';
 import { useToast } from '../../hooks/useToast';
 import { createPlatformLayout } from '../layouts/PlatformLayout';
 import { createPlatformWorker, getPlatformWorkers, revokePlatformWorker, updatePlatformWorker, type PlatformWorker } from '../services/platformWorkerService';
+import { t } from '../../services/i18nService';
+
+function workerStatusLabel(status: string): string {
+  return ({
+    ativo: t('platform.funcionarios.statusAtivo'),
+    inativo: t('platform.funcionarios.statusInativo')
+  } as Record<string, string>)[status.toLowerCase()] ?? status;
+}
 
 export function createPlatformFuncionariosPage(): HTMLElement {
   const content = createElement('div', { className: 'content-stack' });
   const toolbar = createElement('div', { className: 'platform-toolbar' });
   const newButton = createElement('button', { className: 'primary-button button-with-icon', type: 'button' });
-  newButton.append(createIcon('plus'), document.createTextNode('Novo fiscal'));
+  newButton.append(createIcon('plus'), document.createTextNode(t('platform.funcionarios.newButton')));
   toolbar.appendChild(newButton);
 
   const formHost = createElement('div');
@@ -23,16 +31,16 @@ export function createPlatformFuncionariosPage(): HTMLElement {
 
   const render = (loading = false): void => {
     const panel = createDataTable<PlatformWorker>({
-      title: 'Funcionarios', eyebrow: 'Platform workers', rows: workers,
+      title: t('platform.funcionarios.tableTitle'), eyebrow: t('platform.funcionarios.tableEyebrow'), rows: workers,
       state: loading ? 'loading' : failed ? 'error' : 'ready',
-      stateTitle: failed ? 'Não foi possível carregar os funcionários.' : undefined,
-      emptyMessage: 'Nenhum funcionário cadastrado.',
-      errorAction: { label: 'Tentar novamente', onClick: load },
+      stateTitle: failed ? t('platform.funcionarios.loadError') : undefined,
+      emptyMessage: t('platform.funcionarios.emptyMessage'),
+      errorAction: { label: t('platform.funcionarios.retry'), onClick: load },
       columns: [
-        { key: 'id', label: 'ID', render: (worker) => `#${worker.id}` },
-        { key: 'nome', label: 'Nome' },
-        { key: 'email', label: 'Email' },
-        { key: 'status', label: 'Status', render: (row) => createStatusBadge(row.status, row.status.toLowerCase().startsWith('ativ') ? 'success' : 'warning') }
+        { key: 'id', label: t('platform.funcionarios.colId'), render: (worker) => `#${worker.id}` },
+        { key: 'nome', label: t('platform.funcionarios.colNome') },
+        { key: 'email', label: t('platform.funcionarios.colEmail') },
+        { key: 'status', label: t('platform.funcionarios.colStatus'), render: (row) => createStatusBadge(workerStatusLabel(row.status), row.status.toLowerCase().startsWith('ativ') ? 'success' : 'warning') }
       ]
     });
     attachActionsRail(panel, workers, createActionButtons);
@@ -46,19 +54,19 @@ export function createPlatformFuncionariosPage(): HTMLElement {
 
   const createRevokeButton = (worker: PlatformWorker): HTMLElement => {
     const button = createElement('button', { className: 'secondary-button button-with-icon', type: 'button' });
-    button.append(createIcon('trash'), document.createTextNode('Excluir'));
+    button.append(createIcon('trash'), document.createTextNode(t('platform.funcionarios.deleteButton')));
     button.addEventListener('click', () => {
       button.disabled = true;
       void revokePlatformWorker(worker.id)
-        .then(() => { useToast().success('Funcionário excluído.'); load(); })
-        .catch((error) => { button.disabled = false; useToast().error(error instanceof Error ? error.message : 'Não foi possível excluir o funcionário.'); });
+        .then(() => { useToast().success(t('platform.funcionarios.deletedSuccess')); load(); })
+        .catch((error) => { button.disabled = false; useToast().error(error instanceof Error ? error.message : t('platform.funcionarios.deleteError')); });
     });
     return button;
   };
 
   const createEditButton = (worker: PlatformWorker): HTMLElement => {
     const button = createElement('button', { className: 'secondary-button button-with-icon', type: 'button' });
-    button.append(createIcon('edit'), document.createTextNode('Editar'));
+    button.append(createIcon('edit'), document.createTextNode(t('platform.funcionarios.editButton')));
     button.addEventListener('click', () => document.body.appendChild(createEditModal(worker)));
     return button;
   };
@@ -72,19 +80,19 @@ export function createPlatformFuncionariosPage(): HTMLElement {
   const createEditModal = (worker: PlatformWorker): HTMLElement => {
     const overlay = createElement('section', { className: 'modal-overlay' });
     const form = createElement('form', { className: 'client-card client-form' });
-    const nome = createInput('Nome', 'text', worker.nome, true);
-    const email = createInput('Email', 'email', worker.email, true);
-    const senha = createInput('Nova senha (opcional)', 'password', '');
+    const nome = createInput(t('platform.funcionarios.fieldNome'), 'text', worker.nome, true);
+    const email = createInput(t('platform.funcionarios.fieldEmail'), 'email', worker.email, true);
+    const senha = createInput(t('platform.funcionarios.fieldSenhaOpcional'), 'password', '');
     senha.input.minLength = 6;
 
-    const save = createElement('button', { type: 'submit', textContent: 'Salvar' });
-    const cancel = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Cancelar' });
+    const save = createElement('button', { type: 'submit', textContent: t('platform.funcionarios.saveButton') });
+    const cancel = createElement('button', { className: 'secondary-button', type: 'button', textContent: t('platform.funcionarios.cancelButton') });
     const close = (): void => overlay.remove();
     cancel.addEventListener('click', close);
 
     const formActions = createElement('div', { className: 'form-actions' });
     formActions.append(cancel, save);
-    form.append(createElement('h2', { textContent: 'Editar funcionário' }), nome.field, email.field, senha.field, formActions);
+    form.append(createElement('h2', { textContent: t('platform.funcionarios.editModalTitle') }), nome.field, email.field, senha.field, formActions);
 
     form.addEventListener('submit', (event) => {
       event.preventDefault();
@@ -93,8 +101,8 @@ export function createPlatformFuncionariosPage(): HTMLElement {
       const data: { nome?: string; email?: string; senha?: string } = { nome: nome.input.value.trim(), email: email.input.value.trim() };
       if (senha.input.value) data.senha = senha.input.value;
       void updatePlatformWorker(worker.id, data)
-        .then(() => { useToast().success('Funcionário atualizado.'); close(); load(); })
-        .catch((error) => { save.disabled = false; useToast().error(error instanceof Error ? error.message : 'Não foi possível atualizar o funcionário.'); });
+        .then(() => { useToast().success(t('platform.funcionarios.updatedSuccess')); close(); load(); })
+        .catch((error) => { save.disabled = false; useToast().error(error instanceof Error ? error.message : t('platform.funcionarios.updateError')); });
     });
 
     overlay.addEventListener('click', (event) => { if (event.target === overlay) close(); });
@@ -105,15 +113,15 @@ export function createPlatformFuncionariosPage(): HTMLElement {
   const openForm = (): void => {
     newButton.disabled = true;
     const form = createElement('form', { className: 'client-form' });
-    const nome = createInput('Nome', 'text', '', true);
+    const nome = createInput(t('platform.funcionarios.fieldNome'), 'text', '', true);
     nome.input.name = 'nome';
-    const email = createInput('Email', 'email', '', true);
+    const email = createInput(t('platform.funcionarios.fieldEmail'), 'email', '', true);
     email.input.name = 'email';
-    const senha = createInput('Senha', 'password', '', true);
+    const senha = createInput(t('platform.funcionarios.fieldSenha'), 'password', '', true);
     senha.input.name = 'senha'; senha.input.minLength = 6;
 
-    const submitButton = createElement('button', { type: 'submit', textContent: 'Criar' });
-    const cancelButton = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Cancelar' });
+    const submitButton = createElement('button', { type: 'submit', textContent: t('platform.funcionarios.createButton') });
+    const cancelButton = createElement('button', { className: 'secondary-button', type: 'button', textContent: t('platform.funcionarios.cancelButton') });
     cancelButton.addEventListener('click', closeForm);
 
     const actions = createElement('div', { className: 'form-actions' });
@@ -125,8 +133,8 @@ export function createPlatformFuncionariosPage(): HTMLElement {
       if (!form.reportValidity()) return;
       submitButton.disabled = true;
       void createPlatformWorker({ nome: nome.input.value, email: email.input.value, senha: senha.input.value })
-        .then(() => { useToast().success('Funcionário criado.'); closeForm(); load(); })
-        .catch((error) => { submitButton.disabled = false; useToast().error(error instanceof Error ? error.message : 'Não foi possível criar o funcionário.'); });
+        .then(() => { useToast().success(t('platform.funcionarios.createdSuccess')); closeForm(); load(); })
+        .catch((error) => { submitButton.disabled = false; useToast().error(error instanceof Error ? error.message : t('platform.funcionarios.createError')); });
     });
 
     formHost.replaceChildren(form);
@@ -137,5 +145,5 @@ export function createPlatformFuncionariosPage(): HTMLElement {
   newButton.addEventListener('click', openForm);
   load();
 
-  return createPlatformLayout({ content, title: 'Funcionarios', description: 'Gerencie as contas de fiscais com acesso somente leitura à plataforma.' });
+  return createPlatformLayout({ content, title: t('platform.funcionarios.title'), description: t('platform.funcionarios.description') });
 }

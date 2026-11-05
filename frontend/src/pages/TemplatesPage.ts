@@ -15,10 +15,13 @@ import {
   type TemplateCanal
 } from '../services/messageTemplatesService';
 import { submitWhatsappTemplate, syncWhatsappTemplates } from '../services/whatsappService';
+import { t } from '../services/i18nService';
 
 type CanalFiltro = 'todos' | TemplateCanal;
 
-const CANAL_LABEL: Record<TemplateCanal, string> = { email: 'E-mail', whatsapp: 'WhatsApp' };
+function canalLabel(canal: TemplateCanal): string {
+  return canal === 'email' ? t('templates.page.canalEmail') : t('templates.page.canalWhatsapp');
+}
 
 export function createTemplatesPage(): HTMLElement {
   const content = createElement('section', { className: 'content-stack' });
@@ -33,8 +36,8 @@ export function createTemplatesPage(): HTMLElement {
 
   const layout = createBaseLayout({
     content,
-    eyebrow: 'Automações',
-    title: 'Templates'
+    eyebrow: t('templates.page.eyebrow'),
+    title: t('templates.page.title')
   });
   render();
   if (canManageTemplates()) void loadTemplates();
@@ -55,8 +58,8 @@ export function createTemplatesPage(): HTMLElement {
   function createDenied(): HTMLElement {
     const panel = createElement('section', { className: 'templates-panel empty-state' });
     panel.append(
-      createElement('strong', { textContent: 'Acesso não permitido' }),
-      createElement('span', { textContent: 'Apenas proprietários e administradores podem administrar templates.' })
+      createElement('strong', { textContent: t('templates.page.deniedTitle') }),
+      createElement('span', { textContent: t('templates.page.deniedBody') })
     );
     return panel;
   }
@@ -66,47 +69,47 @@ export function createTemplatesPage(): HTMLElement {
     const header = createElement('div', { className: 'templates-header' });
     const headerText = createElement('div');
     headerText.append(
-      createElement('p', { className: 'templates-description', textContent: 'Textos reutilizáveis por empresa. Editar um template não envia mensagens nem altera conversas.' }),
-      createElement('p', { className: 'settings-hint', textContent: 'E-mail usa assunto e corpo. WhatsApp usa somente corpo; o envio e a inbox ficam fora desta tela.' })
+      createElement('p', { className: 'templates-description', textContent: t('templates.page.description') }),
+      createElement('p', { className: 'settings-hint', textContent: t('templates.page.hint') })
     );
     const actions = createElement('div', { className: 'templates-actions' });
     const filter = createElement('select');
-    ([['todos', 'Todos os canais'], ['email', 'E-mail'], ['whatsapp', 'WhatsApp']] as const).forEach(([value, label]) => {
+    ([['todos', t('templates.page.filterAll')], ['email', t('templates.page.canalEmail')], ['whatsapp', t('templates.page.canalWhatsapp')]] as const).forEach(([value, label]) => {
       const option = createElement('option', { textContent: label }); option.value = value; filter.appendChild(option);
     });
     filter.value = filtro;
     filter.addEventListener('change', () => { filtro = filter.value as CanalFiltro; void loadTemplates(); });
-    const create = createElement('button', { type: 'button', textContent: 'Novo template' });
+    const create = createElement('button', { type: 'button', textContent: t('templates.page.newButton') });
     create.addEventListener('click', () => { editing = null; render(); });
-    const sync = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Atualizar aprovações Meta' });
+    const sync = createElement('button', { className: 'secondary-button', type: 'button', textContent: t('templates.page.syncButton') });
     sync.addEventListener('click', () => void syncMetaTemplates());
     actions.append(filter, sync, create);
     header.append(headerText, actions);
     panel.appendChild(header);
 
     if (!loaded) {
-      panel.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Carregando templates...' }));
+      panel.appendChild(createElement('p', { className: 'settings-hint', textContent: t('templates.page.loading') }));
       return panel;
     }
     if (loadError) {
       const error = createElement('div', { className: 'templates-error' });
-      const retry = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Tentar novamente' });
+      const retry = createElement('button', { className: 'secondary-button', type: 'button', textContent: t('common.retry') });
       retry.addEventListener('click', () => void loadTemplates());
       error.append(createElement('span', { textContent: loadError }), retry);
       panel.appendChild(error);
       return panel;
     }
     panel.appendChild(createDataTable<MessageTemplateRow>({
-      title: 'Templates da empresa',
-      eyebrow: filtro === 'todos' ? 'Todos' : CANAL_LABEL[filtro],
+      title: t('templates.page.tableTitle'),
+      eyebrow: filtro === 'todos' ? t('templates.page.filterAllShort') : canalLabel(filtro),
       rows: templates,
-      emptyMessage: 'Nenhum template neste canal. Crie o primeiro para reutilizar em futuras automações.',
+      emptyMessage: t('templates.page.emptyMessage'),
       columns: [
-        { key: 'nome', label: 'Nome' },
-        { key: 'canal', label: 'Canal', render: (item) => CANAL_LABEL[item.canal] },
-        { key: 'meta', label: 'Meta', render: (item) => item.canal === 'whatsapp' ? metaLabel(item.metaStatus) : '—' },
-        { key: 'variaveis', label: 'Variáveis', render: (item) => item.variaveisPermitidas.map((name) => `{{${name}}}`).join(', ') || 'Nenhuma' },
-        { key: 'acoes', label: 'Ações', align: 'right', render: createRowActions }
+        { key: 'nome', label: t('templates.page.colNome') },
+        { key: 'canal', label: t('templates.page.colCanal'), render: (item) => canalLabel(item.canal) },
+        { key: 'meta', label: t('templates.page.colMeta'), render: (item) => item.canal === 'whatsapp' ? metaLabel(item.metaStatus) : '—' },
+        { key: 'variaveis', label: t('templates.page.colVariaveis'), render: (item) => item.variaveisPermitidas.map((name) => `{{${name}}}`).join(', ') || t('templates.page.noneVariables') },
+        { key: 'acoes', label: t('templates.page.colAcoes'), align: 'right', render: createRowActions }
       ]
     }));
     return panel;
@@ -114,20 +117,20 @@ export function createTemplatesPage(): HTMLElement {
 
   function createRowActions(item: MessageTemplateRow): HTMLElement {
     const actions = createElement('div', { className: 'templates-row-actions' });
-    const edit = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Editar' });
+    const edit = createElement('button', { className: 'secondary-button', type: 'button', textContent: t('templates.page.editButton') });
     edit.addEventListener('click', (event) => { event.stopPropagation(); editing = item; render(); });
     actions.appendChild(edit);
     if (item.canal === 'whatsapp' && item.metaStatus !== 'approved' && item.metaStatus !== 'pending') {
-      const submit = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Enviar à Meta' });
+      const submit = createElement('button', { className: 'secondary-button', type: 'button', textContent: t('templates.page.submitMetaButton') });
       submit.addEventListener('click', (event) => { event.stopPropagation(); void submitMetaTemplate(item); });
       actions.appendChild(submit);
     }
     if (item.padrao) {
-      const restoreButton = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Restaurar' });
+      const restoreButton = createElement('button', { className: 'secondary-button', type: 'button', textContent: t('templates.page.restoreButton') });
       restoreButton.addEventListener('click', (event) => { event.stopPropagation(); void restore(item); });
       actions.appendChild(restoreButton);
     } else {
-      const remove = createElement('button', { className: 'danger-button', type: 'button', textContent: 'Remover' });
+      const remove = createElement('button', { className: 'danger-button', type: 'button', textContent: t('common.remove') });
       remove.addEventListener('click', (event) => { event.stopPropagation(); void removeTemplate(item); });
       actions.appendChild(remove);
     }
@@ -139,35 +142,35 @@ export function createTemplatesPage(): HTMLElement {
     const canalInicial = template?.canal ?? 'email';
     const panel = createElement('section', { className: 'templates-panel templates-editor' });
     panel.append(
-      createElement('h2', { textContent: isNew ? 'Novo template' : `Editar: ${template.nome}` }),
-      createElement('p', { className: 'settings-hint', textContent: 'Use somente as variáveis permitidas. A prévia abaixo é textual e não realiza nenhum envio.' })
+      createElement('h2', { textContent: isNew ? t('templates.page.newTitle') : t('templates.page.editTitleTemplate').replace('{name}', template.nome) }),
+      createElement('p', { className: 'settings-hint', textContent: t('templates.page.editorHint') })
     );
     const form = createElement('form', { className: 'settings-form templates-form' });
-    const nameField = createField('Nome', 'text', template?.nome ?? '', true);
-    const keyField = createField('Chave', 'text', template?.chave ?? '', true);
-    keyField.input.placeholder = 'ex.: aviso-rateio';
+    const nameField = createField(t('templates.page.fieldNome'), 'text', template?.nome ?? '', true);
+    const keyField = createField(t('templates.page.fieldChave'), 'text', template?.chave ?? '', true);
+    keyField.input.placeholder = t('templates.page.fieldChavePlaceholder');
     keyField.field.hidden = !isNew;
     const canalField = createElement('label', { className: 'form-field' });
     const canalSelect = createElement('select');
-    (Object.entries(CANAL_LABEL) as Array<[TemplateCanal, string]>).forEach(([value, label]) => { const option = createElement('option', { textContent: label }); option.value = value; canalSelect.appendChild(option); });
+    (['email', 'whatsapp'] as TemplateCanal[]).forEach((value) => { const option = createElement('option', { textContent: canalLabel(value) }); option.value = value; canalSelect.appendChild(option); });
     canalSelect.value = canalInicial;
     canalSelect.disabled = !isNew;
-    canalField.append(createElement('span', { textContent: 'Canal' }), canalSelect);
-    const subjectField = createField('Assunto', 'text', template?.assunto ?? '', false);
+    canalField.append(createElement('span', { textContent: t('templates.page.fieldCanal') }), canalSelect);
+    const subjectField = createField(t('templates.page.fieldAssunto'), 'text', template?.assunto ?? '', false);
     const metaCategoryField = createElement('label', { className: 'form-field' });
     const metaCategory = createElement('select');
-    ([['UTILITY', 'Utilidade'], ['MARKETING', 'Marketing'], ['AUTHENTICATION', 'Autenticação']] as const).forEach(([value, label]) => {
+    ([['UTILITY', t('templates.page.categoryUtility')], ['MARKETING', t('templates.page.categoryMarketing')], ['AUTHENTICATION', t('templates.page.categoryAuthentication')]] as const).forEach(([value, label]) => {
       const option = createElement('option', { textContent: label }); option.value = value; metaCategory.appendChild(option);
     });
     metaCategory.value = template?.metaCategory ?? 'UTILITY';
-    metaCategoryField.append(createElement('span', { textContent: 'Categoria de aprovação Meta' }), metaCategory);
+    metaCategoryField.append(createElement('span', { textContent: t('templates.page.fieldMetaCategory') }), metaCategory);
     const bodyField = createElement('label', { className: 'form-field' });
     const body = createElement('textarea'); body.rows = 10; body.required = true; body.value = template?.corpo ?? '';
-    bodyField.append(createElement('span', { textContent: 'Corpo' }), body);
+    bodyField.append(createElement('span', { textContent: t('templates.page.fieldCorpo') }), body);
     const variableHint = createElement('p', { className: 'templates-variables' });
     const preview = createElement('section', { className: 'templates-preview' });
     const variablesField = createElement('fieldset', { className: 'templates-variable-picker' });
-    variablesField.appendChild(createElement('legend', { textContent: 'Variáveis permitidas' }));
+    variablesField.appendChild(createElement('legend', { textContent: t('templates.page.fieldVariaveisPermitidas') }));
     const variableCheckboxes = createVariableCheckboxes(template?.variaveisPermitidas ?? defaultVariables(canalInicial));
     variableCheckboxes.forEach(({ label }) => variablesField.appendChild(label));
 
@@ -177,8 +180,8 @@ export function createTemplatesPage(): HTMLElement {
       metaCategoryField.hidden = canal !== 'whatsapp';
       subjectField.input.required = canal === 'email';
       const allowed = variableCheckboxes.filter(({ input }) => input.checked).map(({ name }) => name);
-      variableHint.replaceChildren(createElement('strong', { textContent: 'Variáveis permitidas: ' }));
-      if (allowed.length === 0) variableHint.appendChild(document.createTextNode('nenhuma.'));
+      variableHint.replaceChildren(createElement('strong', { textContent: t('templates.page.allowedVariablesPrefix') }));
+      if (allowed.length === 0) variableHint.appendChild(document.createTextNode(t('templates.page.noneAllowed')));
       allowed.forEach((variable, index) => {
         const insert = createElement('button', { className: 'template-variable', type: 'button', textContent: `{{${variable}}}` });
         insert.addEventListener('click', () => insertVariable(body, `{{${variable}}}`));
@@ -192,9 +195,9 @@ export function createTemplatesPage(): HTMLElement {
     refreshCanal();
 
     const buttons = createElement('div', { className: 'form-actions' });
-    const cancel = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Cancelar' });
+    const cancel = createElement('button', { className: 'secondary-button', type: 'button', textContent: t('templates.page.cancel') });
     cancel.addEventListener('click', () => { editing = undefined; render(); });
-    const save = createElement('button', { type: 'submit', textContent: isNew ? 'Criar template' : 'Salvar alterações' });
+    const save = createElement('button', { type: 'submit', textContent: isNew ? t('templates.page.createButton') : t('templates.page.saveChangesButton') });
     save.disabled = busy;
     form.addEventListener('submit', (event) => {
       event.preventDefault();
@@ -222,7 +225,7 @@ export function createTemplatesPage(): HTMLElement {
       templates = await getMessageTemplates(filtro === 'todos' ? undefined : filtro);
     } catch (error) {
       templates = [];
-      loadError = error instanceof Error ? error.message : 'Não foi possível carregar os templates.';
+      loadError = error instanceof Error ? error.message : t('templates.page.loadError');
     } finally { loaded = true; render(); }
   }
 
@@ -232,25 +235,25 @@ export function createTemplatesPage(): HTMLElement {
       const saved = existing ? await updateMessageTemplate(existing.id, input) : await createMessageTemplate(input);
       templates = existing ? templates.map((item) => item.id === saved.id ? saved : item) : [saved, ...templates];
       editing = undefined;
-      toast.success(existing ? 'Template atualizado.' : 'Template criado.');
+      toast.success(existing ? t('templates.page.updatedSuccess') : t('templates.page.createdSuccess'));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível salvar o template.');
+      toast.error(error instanceof Error ? error.message : t('templates.page.saveError'));
     } finally { busy = false; loading.hide(); render(); }
   }
 
   async function removeTemplate(template: MessageTemplateRow): Promise<void> {
-    if (!window.confirm(`Remover o template “${template.nome}”? Esta ação não envia mensagens.`)) return;
+    if (!window.confirm(t('templates.page.confirmRemoveTemplate').replace('{name}', template.nome))) return;
     loading.show();
-    try { await deleteMessageTemplate(template.id); templates = templates.filter((item) => item.id !== template.id); toast.success('Template removido.'); }
-    catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível remover o template.'); }
+    try { await deleteMessageTemplate(template.id); templates = templates.filter((item) => item.id !== template.id); toast.success(t('templates.page.removedSuccess')); }
+    catch (error) { toast.error(error instanceof Error ? error.message : t('templates.page.removeError')); }
     finally { loading.hide(); render(); }
   }
 
   async function restore(template: MessageTemplateRow): Promise<void> {
-    if (!window.confirm(`Restaurar “${template.nome}” ao texto padrão?`)) return;
+    if (!window.confirm(t('templates.page.confirmRestoreTemplate').replace('{name}', template.nome))) return;
     loading.show();
-    try { const restored = await restoreMessageTemplate(template.id); templates = templates.map((item) => item.id === restored.id ? restored : item); toast.success('Template restaurado ao padrão.'); }
-    catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível restaurar o template.'); }
+    try { const restored = await restoreMessageTemplate(template.id); templates = templates.map((item) => item.id === restored.id ? restored : item); toast.success(t('templates.page.restoredSuccess')); }
+    catch (error) { toast.error(error instanceof Error ? error.message : t('templates.page.restoreError')); }
     finally { loading.hide(); render(); }
   }
 
@@ -259,15 +262,15 @@ export function createTemplatesPage(): HTMLElement {
     try {
       const saved = await submitWhatsappTemplate(template.id) as MessageTemplateRow;
       templates = templates.map((item) => item.id === saved.id ? saved : item);
-      toast.success('Template enviado para aprovação da Meta.');
-    } catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível enviar o template para a Meta.'); }
+      toast.success(t('templates.page.submittedToMetaSuccess'));
+    } catch (error) { toast.error(error instanceof Error ? error.message : t('templates.page.submitMetaError')); }
     finally { loading.hide(); render(); }
   }
 
   async function syncMetaTemplates(): Promise<void> {
     loading.show();
-    try { await syncWhatsappTemplates(); await loadTemplates(); toast.success('Status dos templates atualizado.'); }
-    catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar aprovações.'); }
+    try { await syncWhatsappTemplates(); await loadTemplates(); toast.success(t('templates.page.syncedSuccess')); }
+    catch (error) { toast.error(error instanceof Error ? error.message : t('templates.page.syncError')); }
     finally { loading.hide(); }
   }
 }
@@ -301,11 +304,11 @@ function insertVariable(input: HTMLTextAreaElement, variable: string): void {
 
 function renderPreview(target: HTMLElement, canal: TemplateCanal, subject: string, body: string): void {
   target.replaceChildren();
-  target.appendChild(createElement('h3', { textContent: 'Prévia textual' }));
-  if (canal === 'email') target.appendChild(createElement('p', { className: 'templates-preview-subject', textContent: subject || '(sem assunto)' }));
-  target.appendChild(createElement('p', { className: 'templates-preview-body', textContent: body || '(sem conteúdo)' }));
+  target.appendChild(createElement('h3', { textContent: t('templates.page.previewTitle') }));
+  if (canal === 'email') target.appendChild(createElement('p', { className: 'templates-preview-subject', textContent: subject || t('templates.page.noSubjectPlaceholder') }));
+  target.appendChild(createElement('p', { className: 'templates-preview-body', textContent: body || t('templates.page.noBodyPlaceholder') }));
 }
 
 function metaLabel(status: MessageTemplateRow['metaStatus']): string {
-  return ({ draft: 'Rascunho', pending: 'Em aprovação', approved: 'Aprovado', rejected: 'Rejeitado' } as Record<string, string>)[status ?? 'draft'];
+  return ({ draft: t('templates.page.metaDraft'), pending: t('templates.page.metaPending'), approved: t('templates.page.metaApproved'), rejected: t('templates.page.metaRejected') } as Record<string, string>)[status ?? 'draft'];
 }

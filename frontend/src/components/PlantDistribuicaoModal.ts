@@ -8,6 +8,7 @@
 import { createElement } from '../dom';
 import { atualizarDistribuicao, previewRateio } from '../services/rateioService';
 import type { PlantRow } from '../services/plantService';
+import { t } from '../services/i18nService';
 
 export type PlantDistribuicaoModalUc = {
   ucId: number;
@@ -34,16 +35,16 @@ export function createPlantDistribuicaoModal({ plant, ucs, onSaved, onError }: P
   const titleText = createElement('div');
   titleText.append(
     createElement('span', { className: 'eyebrow', textContent: plant.nome }),
-    createElement('h2', { textContent: 'Editar distribuição' })
+    createElement('h2', { textContent: t('plants.distribuicao.heading') })
   );
-  const closeButton = createElement('button', { className: 'secondary-button', textContent: 'Fechar', type: 'button' });
+  const closeButton = createElement('button', { className: 'secondary-button', textContent: t('plants.distribuicao.closeButton'), type: 'button' });
   header.append(titleText, closeButton);
 
   const body = createElement('div', { className: 'rateio-distribuicao' });
-  body.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Calculando sugestões...' }));
+  body.appendChild(createElement('p', { className: 'settings-hint', textContent: t('plants.distribuicao.calculating') }));
 
   const actions = createElement('div', { className: 'form-actions' });
-  const saveButton = createElement('button', { textContent: 'Salvar distribuição', type: 'submit' });
+  const saveButton = createElement('button', { textContent: t('plants.distribuicao.saveButton'), type: 'submit' });
   saveButton.disabled = true;
   actions.appendChild(saveButton);
 
@@ -61,7 +62,7 @@ export function createPlantDistribuicaoModal({ plant, ucs, onSaved, onError }: P
 
     saving = true;
     saveButton.disabled = true;
-    saveButton.textContent = 'Salvando...';
+    saveButton.textContent = t('plants.distribuicao.savingButton');
 
     try {
       await atualizarDistribuicao(plant.id, inputs.map(({ connectionId, input }) => ({
@@ -71,11 +72,11 @@ export function createPlantDistribuicaoModal({ plant, ucs, onSaved, onError }: P
       overlay.remove();
       onSaved();
     } catch (error) {
-      onError(error instanceof Error ? error.message : 'Não foi possível salvar a distribuição.');
+      onError(error instanceof Error ? error.message : t('plants.distribuicao.saveError'));
     } finally {
       saving = false;
       saveButton.disabled = false;
-      saveButton.textContent = 'Salvar distribuição';
+      saveButton.textContent = t('plants.distribuicao.saveButton');
     }
   });
 
@@ -93,7 +94,7 @@ export function createPlantDistribuicaoModal({ plant, ucs, onSaved, onError }: P
       const preview = await previewRateio(plant.id);
       sugeridoPorUc = new Map(preview.ucs.map((uc) => [uc.ucId, uc.percentualCalculado]));
     } catch {
-      avisoCarregamento = 'Não foi possível calcular as sugestões agora. Você ainda pode editar o percentual manualmente.';
+      avisoCarregamento = t('plants.distribuicao.loadWarning');
     }
 
     renderBody(sugeridoPorUc, avisoCarregamento);
@@ -107,17 +108,17 @@ export function createPlantDistribuicaoModal({ plant, ucs, onSaved, onError }: P
     }
 
     if (ucs.length === 0) {
-      body.appendChild(createElement('p', { className: 'empty-state small', textContent: 'Nenhuma UC conectada a esta usina.' }));
+      body.appendChild(createElement('p', { className: 'empty-state small', textContent: t('plants.distribuicao.empty') }));
       return;
     }
 
     const list = createElement('div', { className: 'rateio-distribuicao-list' });
     const headerRow = createElement('div', { className: 'rateio-distribuicao-row rateio-distribuicao-header' });
     headerRow.append(
-      createElement('span', { textContent: 'Cliente' }),
-      createElement('span', { textContent: 'Consumo' }),
-      createElement('span', { textContent: '% sugerida' }),
-      createElement('span', { textContent: '% atual' })
+      createElement('span', { textContent: t('plants.distribuicao.columnCliente') }),
+      createElement('span', { textContent: t('plants.distribuicao.columnConsumo') }),
+      createElement('span', { textContent: t('plants.distribuicao.columnSugerida') }),
+      createElement('span', { textContent: t('plants.distribuicao.columnAtual') })
     );
     list.appendChild(headerRow);
 
@@ -162,7 +163,7 @@ export function createPlantDistribuicaoModal({ plant, ucs, onSaved, onError }: P
 
     function recalcTotal(): void {
       const total = inputs.reduce((sum, { input }) => sum + (Number(input.value) || 0), 0);
-      totalRow.textContent = `Total desta usina: ${formatNumber(total)}%`;
+      totalRow.textContent = `${t('plants.distribuicao.totalPrefix')} ${formatNumber(total)}%`;
       totalRow.classList.toggle('rateio-total-excede', total > 100);
     }
   }

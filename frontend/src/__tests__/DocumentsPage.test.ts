@@ -52,7 +52,7 @@ describe('DocumentsPage', () => {
 
     expect(listDriveRoot).toHaveBeenCalledTimes(2);
     expect(content.textContent).toContain('Clientes');
-    expect(content.textContent).toContain('Conteudo: Pasta raiz do Drive');
+    expect(content.textContent).toContain('Conteúdo: Pasta raiz do Drive');
   });
 
   it('returns to the root listing when going back from a root subfolder', async () => {
@@ -65,7 +65,7 @@ describe('DocumentsPage', () => {
     rootLabel?.click();
     await flush();
 
-    const openButton = Array.from(content.querySelectorAll('button')).find((item) => item.textContent === 'Ver conteudo');
+    const openButton = Array.from(content.querySelectorAll('button')).find((item) => item.textContent === 'Ver conteúdo');
     openButton?.click();
     await flush();
     expect(listDriveFolder).toHaveBeenCalledWith('folder-1');
@@ -76,6 +76,6 @@ describe('DocumentsPage', () => {
     await flush();
 
     expect(listDriveRoot).toHaveBeenCalledTimes(3);
-    expect(content.textContent).toContain('Conteudo: Pasta raiz do Drive');
+    expect(content.textContent).toContain('Conteúdo: Pasta raiz do Drive');
   });
 });

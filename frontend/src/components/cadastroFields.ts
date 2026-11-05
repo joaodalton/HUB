@@ -1,4 +1,5 @@
 import { createElement } from '../dom';
+import { t } from '../services/i18nService';
 
 export const digits = (value: string): string => value.replace(/\D/g, '');
 
@@ -46,36 +47,36 @@ export function validateField(input: HTMLInputElement, message: string): boolean
 }
 
 export function phoneError(value: string): string {
-  if (!/^\+?[\d\s().-]+$/.test(value.trim())) return 'Informe um telefone válido.';
+  if (!/^\+?[\d\s().-]+$/.test(value.trim())) return t('shared.validation.phoneInvalid');
   const number = phoneDigits(value);
   return (/^\d{2}9\d{8}$/.test(number) || /^\d{10}$/.test(number)) && Number(number.slice(0, 2)) >= 11
-    ? '' : 'Informe DDD e celular de 9 dígitos ou telefone fixo de 8 dígitos.';
+    ? '' : t('shared.validation.phoneFormat');
 }
 
 export function cpfError(value: string): string {
-  if (!/^[\d.\s-]+$/.test(value.trim())) return 'Informe um CPF válido com 11 dígitos.';
+  if (!/^[\d.\s-]+$/.test(value.trim())) return t('shared.validation.cpfInvalid');
   const number = digits(value);
-  if (number.length !== 11 || /^(\d)\1+$/.test(number)) return 'Informe um CPF válido com 11 dígitos.';
+  if (number.length !== 11 || /^(\d)\1+$/.test(number)) return t('shared.validation.cpfInvalid');
   for (let size = 9; size <= 10; size++) {
     const sum = [...number.slice(0, size)].reduce((total, digit, index) => total + Number(digit) * (size + 1 - index), 0);
-    if (Number(number[size]) !== ((sum * 10) % 11) % 10) return 'Informe um CPF válido com 11 dígitos.';
+    if (Number(number[size]) !== ((sum * 10) % 11) % 10) return t('shared.validation.cpfInvalid');
   }
   return '';
 }
 
 export function cnpjError(value: string): string {
-  if (!/^[\d.\s/-]+$/.test(value.trim())) return 'Informe um CNPJ válido com 14 dígitos.';
+  if (!/^[\d.\s/-]+$/.test(value.trim())) return t('shared.validation.cnpjInvalid');
   const number = digits(value);
-  if (number.length !== 14 || /^(\d)\1+$/.test(number)) return 'Informe um CNPJ válido com 14 dígitos.';
+  if (number.length !== 14 || /^(\d)\1+$/.test(number)) return t('shared.validation.cnpjInvalid');
   for (let size = 12; size <= 13; size++) {
     const weights = size === 12 ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2] : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
     const sum = weights.reduce((total, weight, index) => total + Number(number[index]) * weight, 0);
-    if (Number(number[size]) !== (sum % 11 < 2 ? 0 : 11 - sum % 11)) return 'Informe um CNPJ válido com 14 dígitos.';
+    if (Number(number[size]) !== (sum % 11 < 2 ? 0 : 11 - sum % 11)) return t('shared.validation.cnpjInvalid');
   }
   return '';
 }
 
 export function ucError(value: string, concessionaria: string): string {
   if (concessionaria.trim().toLowerCase() !== 'copel') return '';
-  return /^(?:\d{12}|\d{15})$/.test(value) ? '' : 'UC Copel deve ter 12 ou 15 dígitos.';
+  return /^(?:\d{12}|\d{15})$/.test(value) ? '' : t('shared.validation.ucCopelInvalid');
 }

@@ -128,6 +128,13 @@ export async function gerarBoletoConcessionaria(invoiceId: number, empresaId?: n
   return (await apiRequest<ApiResponse<FaturaRow>>(path, { method: 'POST' })).data;
 }
 
+export async function deleteBillingInvoice(invoiceId: number, empresaId?: number): Promise<void> {
+  const path = empresaId
+    ? `${base(empresaId)}/invoices/${invoiceId}`
+    : `/billing-calculations/invoices/${invoiceId}`;
+  await apiRequest<ApiResponse<null>>(path, { method: 'DELETE' });
+}
+
 export async function uploadTenantBillingInvoice(file: File): Promise<BillingUpload> {
   const body = new FormData();
   body.append('arquivo', file);

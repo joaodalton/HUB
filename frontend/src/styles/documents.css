@@ -4,6 +4,42 @@
    painel de documentos dentro do cliente (upload minimalista).
    ============================================================ */
 
+.documents-window {
+  display: flex;
+  gap: 20px;
+  padding: var(--space-3) var(--space-4);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-sm);
+  min-width: 0;
+}
+
+.documents-window .main-column {
+  flex: 2 1 0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.documents-window .side-column {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.search-panel,
+.results-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+@media (max-width: 720px) {
+  .documents-window { flex-direction: column; }
+}
+
 .search-label {
   display: block;
   font-size: 11px;
@@ -17,12 +53,15 @@
 
 .search-row input {
   flex: 1;
+  min-width: 0;
   height: var(--control-height);
   background: var(--panel-soft);
   border: 1px solid var(--border);
   border-radius: var(--radius-input);
   padding: 0 12px;
 }
+
+.search-row button { flex-shrink: 0; }
 
 .filter-row {
   display: flex;
@@ -48,15 +87,6 @@
   color: var(--accent);
 }
 
-.refine-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 14px;
-}
-
-.refine-row .form-field { min-width: 160px; flex: 1; }
-
 .search-hint {
   margin: 12px 0 0;
   font-size: 12px;
@@ -65,22 +95,16 @@
 
 .workspace {
   display: grid;
-  grid-template-columns: 260px minmax(0, 1fr) 320px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 3fr);
   gap: 20px;
   align-items: stretch;
 }
 
-@media (max-width: 1280px) {
-  .workspace { grid-template-columns: 220px minmax(0, 1fr) 320px; }
-}
-
-@media (max-width: 1000px) {
+@media (max-width: 720px) {
   .workspace { grid-template-columns: 1fr; }
 }
 
 .tree-column { display: grid; align-self: stretch; }
-.main-column { display: grid; gap: 20px; }
-.side-column { display: grid; gap: 20px; }
 
 /* ---------- Arvore de pastas do Drive ---------- */
 
@@ -174,6 +198,13 @@
   display: grid;
   gap: 8px;
   margin-top: 14px;
+  min-width: 0;
+}
+
+.reserved-actions button {
+  width: 100%;
+  min-width: 0;
+  white-space: normal;
 }
 
 /* ---------- Documentos do cliente (upload minimalista) ---------- */

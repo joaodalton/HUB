@@ -3,6 +3,7 @@ import { createIcon } from './Icon';
 import { createModalShell } from './Modal';
 import { createStatusBadge } from './StatusBadge';
 import { createTableSkeleton, createUiState, type UiStateKind } from './UiState';
+import { t } from '../services/i18nService';
 
 export type TableColumn<T> = {
   key: string;
@@ -211,8 +212,8 @@ export function createDataTable<T extends Record<string, unknown>>({
   titleText.append(eyebrowElement, heading);
   panelTitle.appendChild(titleText);
   if (reorderableColumns.length > 0) {
-    const columnsButton = createElement('button', { className: 'icon-button neutral', type: 'button', title: 'Escolher colunas da tabela' });
-    columnsButton.setAttribute('aria-label', 'Escolher colunas da tabela');
+    const columnsButton = createElement('button', { className: 'icon-button neutral', type: 'button', title: t('shared.dataTable.chooseColumns') });
+    columnsButton.setAttribute('aria-label', t('shared.dataTable.chooseColumns'));
     columnsButton.appendChild(createIcon('settings'));
     columnsButton.addEventListener('click', () => openColumnsModal());
     panelTitle.appendChild(columnsButton);
@@ -221,7 +222,7 @@ export function createDataTable<T extends Record<string, unknown>>({
   paintTable();
 
   function openColumnsModal(): void {
-    const modal = createModalShell('Colunas da tabela');
+    const modal = createModalShell(t('shared.dataTable.columnsModalTitle'));
     const list = createElement('ul', { className: 'column-toggle-list' });
     modal.body.appendChild(list);
     document.body.appendChild(modal.overlay);
@@ -256,7 +257,7 @@ export function createDataTable<T extends Record<string, unknown>>({
     // So colunas reordenaveis (fora a primeira e a de status) ganham alca de
     // arrastar -- sem lib nova, so Drag and Drop API nativa.
     if (orderedKeys.includes(column.key)) {
-      const handle = createElement('span', { className: 'column-drag-handle', textContent: '⋮⋮', title: 'Arrastar para reordenar' });
+      const handle = createElement('span', { className: 'column-drag-handle', textContent: '⋮⋮', title: t('shared.dataTable.dragToReorder') });
       handle.setAttribute('aria-hidden', 'true');
       item.appendChild(handle);
       item.draggable = true;

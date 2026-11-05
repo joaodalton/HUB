@@ -6,6 +6,7 @@ import { useGlobalLoading } from '../hooks/useGlobalLoading';
 import { createBaseLayout } from '../layouts/BaseLayout';
 import { getDashboardResumo, type DashboardContagem, type DashboardPendencia, type DashboardResumo } from '../services/dashboardService';
 import { prioridadeLabel, prioridadeTone, tipoLabel } from '../services/pendenciasService';
+import { t } from '../services/i18nService';
 import { formatDate, formatDateTime } from '../utils/date';
 
 export function createDashboardPage(): HTMLElement {
@@ -16,8 +17,8 @@ export function createDashboardPage(): HTMLElement {
 
   const layout = createBaseLayout({
     content,
-    eyebrow: 'Dashboard',
-    title: 'Visão operacional da sua empresa'
+    eyebrow: t('dashboard.eyebrow'),
+    title: t('dashboard.title')
   });
 
   render();
@@ -47,10 +48,10 @@ export function createDashboardPage(): HTMLElement {
       const state = createElement('section', { className: 'dashboard-state empty-state' });
       state.append(
         createIcon('dashboard', 'empty-state-icon'),
-        createElement('strong', { textContent: 'Não foi possível carregar o dashboard.' }),
-        createElement('span', { textContent: 'Verifique sua conexão e tente novamente.' })
+        createElement('strong', { textContent: t('dashboard.loadError.title') }),
+        createElement('span', { textContent: t('dashboard.loadError.description') })
       );
-      const retry = createElement('button', { className: 'secondary-button', textContent: 'Tentar novamente', type: 'button' });
+      const retry = createElement('button', { className: 'secondary-button', textContent: t('common.retry'), type: 'button' });
       retry.addEventListener('click', () => void loadResumo());
       state.appendChild(retry);
       content.replaceChildren(state);
@@ -58,27 +59,27 @@ export function createDashboardPage(): HTMLElement {
     }
 
     const operationalMetrics: IconStatCardProps[] = [
-      { label: 'Pendências abertas', value: String(resumo.pendencias.abertas), chipColor: 'amber', icon: 'pending', onClick: () => navigate('/pendencias') },
-      { label: 'Pendências vencidas', value: String(resumo.pendencias.vencidas), chipColor: resumo.pendencias.vencidas > 0 ? 'red' : 'green', icon: 'pending', onClick: () => navigate('/pendencias') },
-      { label: 'Vencem em 7 dias', value: String(resumo.pendencias.vencendoEm7Dias), chipColor: resumo.pendencias.vencendoEm7Dias > 0 ? 'amber' : 'green', icon: 'agenda', onClick: () => navigate('/agenda') },
-      { label: 'Concluídas no mês', value: String(resumo.pendencias.resolvidasNoMes), chipColor: 'green', icon: 'check', onClick: () => navigate('/pendencias') }
+      { label: t('dashboard.metric.pendingOpen'), value: String(resumo.pendencias.abertas), chipColor: 'amber', icon: 'pending', onClick: () => navigate('/pendencias') },
+      { label: t('dashboard.metric.pendingOverdue'), value: String(resumo.pendencias.vencidas), chipColor: resumo.pendencias.vencidas > 0 ? 'red' : 'green', icon: 'pending', onClick: () => navigate('/pendencias') },
+      { label: t('dashboard.metric.dueIn7Days'), value: String(resumo.pendencias.vencendoEm7Dias), chipColor: resumo.pendencias.vencendoEm7Dias > 0 ? 'amber' : 'green', icon: 'agenda', onClick: () => navigate('/agenda') },
+      { label: t('dashboard.metric.resolvedThisMonth'), value: String(resumo.pendencias.resolvidasNoMes), chipColor: 'green', icon: 'check', onClick: () => navigate('/pendencias') }
     ];
 
     const entityMetrics: Array<IconStatCardProps | null> = [
-      metricForEntity('Clientes', resumo.clientes, 'clients', '/clientes'),
-      metricForEntity('UCs', resumo.ucs, 'ucs', '/ucs'),
-      metricForEntity('Usinas', resumo.usinas, 'plants', '/usinas'),
-      metricForEntity('Documentos', resumo.documentos, 'documents', '/documentos')
+      metricForEntity(t('dashboard.entity.clients'), resumo.clientes, 'clients', '/clientes'),
+      metricForEntity(t('dashboard.entity.ucs'), resumo.ucs, 'ucs', '/ucs'),
+      metricForEntity(t('dashboard.entity.plants'), resumo.usinas, 'plants', '/usinas'),
+      metricForEntity(t('dashboard.entity.documents'), resumo.documentos, 'documents', '/documentos')
     ];
     const availableEntityMetrics = entityMetrics.filter((metric): metric is IconStatCardProps => metric !== null);
 
     const summary = createElement('section', { className: 'dashboard-summary' });
     summary.append(
-      createElement('span', { className: 'dashboard-updated', textContent: `Atualizado ${formatDateTime(resumo.geradoEm)}` }),
-      createElement('h2', { textContent: 'Operação' }),
+      createElement('span', { className: 'dashboard-updated', textContent: `${t('dashboard.updatedAt')} ${formatDateTime(resumo.geradoEm)}` }),
+      createElement('h2', { textContent: t('dashboard.operation') }),
       createStatGrid(operationalMetrics)
     );
-    if (availableEntityMetrics.length) summary.append(createElement('h2', { textContent: 'Cadastros' }), createStatGrid(availableEntityMetrics));
+    if (availableEntityMetrics.length) summary.append(createElement('h2', { textContent: t('dashboard.registrations') }), createStatGrid(availableEntityMetrics));
 
     content.replaceChildren(summary, createQueue(resumo.pendencias.fila));
   }
@@ -100,10 +101,10 @@ function createQueue(items: DashboardPendencia[]): HTMLElement {
   const header = createElement('div', { className: 'dashboard-queue-header' });
   header.append(
     createElement('div', { className: 'dashboard-queue-title' }),
-    createElement('a', { className: 'dashboard-queue-link', textContent: 'Ver todas' })
+    createElement('a', { className: 'dashboard-queue-link', textContent: t('dashboard.viewAll') })
   );
   const title = header.querySelector('.dashboard-queue-title') as HTMLElement;
-  title.append(createElement('span', { className: 'eyebrow', textContent: 'Prioridade' }), createElement('h2', { textContent: 'Fila operacional' }));
+  title.append(createElement('span', { className: 'eyebrow', textContent: t('dashboard.priority') }), createElement('h2', { textContent: t('dashboard.queueTitle') }));
   const link = header.querySelector('.dashboard-queue-link') as HTMLAnchorElement;
   link.href = '/pendencias';
   link.addEventListener('click', (event) => { event.preventDefault(); navigate('/pendencias'); });
@@ -112,7 +113,7 @@ function createQueue(items: DashboardPendencia[]): HTMLElement {
   if (items.length === 0) {
     panel.appendChild(createElement('p', {
       className: 'empty-state small',
-      textContent: 'Nenhuma pendência aberta no momento.'
+      textContent: t('dashboard.queueEmpty')
     }));
     return panel;
   }
@@ -131,7 +132,7 @@ function createQueue(items: DashboardPendencia[]): HTMLElement {
     meta.append(
       createElement('span', { className: 'status-badge', textContent: tipoLabel(item.tipo) }),
       createElement('span', { className: prioridadeTone(item.prioridade) === 'neutral' ? 'status-badge' : `status-badge tone-${prioridadeTone(item.prioridade)}`, textContent: prioridadeLabel(item.prioridade) }),
-      createElement('time', { textContent: item.prazo ? `Prazo: ${formatDate(item.prazo)}` : 'Sem prazo' })
+      createElement('time', { textContent: item.prazo ? `${t('dashboard.deadline')}: ${formatDate(item.prazo)}` : t('dashboard.noDeadline') })
     );
     row.append(info, meta);
     list.appendChild(row);
@@ -142,11 +143,11 @@ function createQueue(items: DashboardPendencia[]): HTMLElement {
 
 function itemContext(item: DashboardPendencia): string {
   const values = [
-    item.clienteNome ? `Cliente: ${item.clienteNome}` : null,
-    item.ucCodigo ? `UC: ${item.ucCodigo}` : null,
-    item.usinaNome ? `Usina: ${item.usinaNome}` : null
+    item.clienteNome ? `${t('dashboard.context.client')}: ${item.clienteNome}` : null,
+    item.ucCodigo ? `${t('dashboard.context.uc')}: ${item.ucCodigo}` : null,
+    item.usinaNome ? `${t('dashboard.context.plant')}: ${item.usinaNome}` : null
   ].filter((value): value is string => value !== null);
-  return values.join(' · ') || 'Sem vínculo cadastrado';
+  return values.join(' · ') || t('dashboard.context.none');
 }
 
 function navigate(path: string): void {

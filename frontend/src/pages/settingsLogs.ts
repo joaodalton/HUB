@@ -4,6 +4,7 @@ import { createDetailDrawer } from '../components/DetailDrawer';
 import { createIconStatCard, type IconStatCardProps } from '../components/IconStatCard';
 import { formattedLogDate, type LogRow } from '../services/logsService';
 import { createPanelHeader } from './settingsShared';
+import { t } from '../services/i18nService';
 
 // ---------- Home ----------
 
@@ -13,14 +14,14 @@ export function createHomePanel(
   onSeeAllLogs: () => void
 ): HTMLElement {
   const logsCard = createElement('section', { className: 'settings-panel' });
-  const seeAllButton = createElement('button', { className: 'secondary-link', textContent: 'Ver todos', type: 'button' });
+  const seeAllButton = createElement('button', { className: 'secondary-link', textContent: t('settings.logs.seeAll'), type: 'button' });
   seeAllButton.addEventListener('click', onSeeAllLogs);
-  logsCard.appendChild(createPanelHeader('Logs recentes', 'Últimos eventos do sistema', seeAllButton));
+  logsCard.appendChild(createPanelHeader(t('settings.logs.recentHeading'), t('settings.logs.recentDescription'), seeAllButton));
 
   if (!logsLoaded) {
-    logsCard.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Carregando logs...' }));
+    logsCard.appendChild(createElement('p', { className: 'settings-hint', textContent: t('settings.logs.loading') }));
   } else if (logs.length === 0) {
-    logsCard.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Nenhum log registrado ainda.' }));
+    logsCard.appendChild(createElement('p', { className: 'settings-hint', textContent: t('settings.logs.none') }));
   } else {
     const list = createElement('div', { className: 'log-list' });
     logs.slice(0, 5).forEach((log) => list.appendChild(createLogRow(log)));
@@ -45,22 +46,22 @@ function createLogRow(log: LogRow): HTMLElement {
 export function createLogsPanel(logs: LogRow[], loaded: boolean): HTMLElement {
   const stack = createElement('section', { className: 'content-stack' });
   const metrics: IconStatCardProps[] = [
-    { label: 'Informações', value: String(logs.filter((log) => log.nivel === 'info').length), chipColor: 'blue', icon: 'dashboard' },
-    { label: 'Alertas', value: String(logs.filter((log) => log.nivel === 'warning').length), chipColor: 'amber', icon: 'pending' },
-    { label: 'Erros', value: String(logs.filter((log) => log.nivel === 'error').length), chipColor: 'red', icon: 'x' }
+    { label: t('settings.logs.infoLabel'), value: String(logs.filter((log) => log.nivel === 'info').length), chipColor: 'blue', icon: 'dashboard' },
+    { label: t('settings.logs.alertsLabel'), value: String(logs.filter((log) => log.nivel === 'warning').length), chipColor: 'amber', icon: 'pending' },
+    { label: t('settings.logs.errorsLabel'), value: String(logs.filter((log) => log.nivel === 'error').length), chipColor: 'red', icon: 'x' }
   ];
   const cards = createElement('section', { className: 'metric-grid' });
   metrics.forEach((metric) => cards.appendChild(createIconStatCard(metric)));
   const table = createDataTable<LogRow & { dataFormatada: string }>({
-    title: 'Logs do sistema',
-    eyebrow: 'Histórico',
+    title: t('settings.logs.systemLogsTitle'),
+    eyebrow: t('settings.logs.historyEyebrow'),
     rows: logs.map((log) => ({ ...log, dataFormatada: formattedLogDate(log) })),
-    emptyMessage: loaded ? 'Nenhum log registrado ainda.' : 'Carregando logs...',
+    emptyMessage: loaded ? t('settings.logs.none') : t('settings.logs.loading'),
     onRowClick: (log) => openLogDrawer(log),
     columns: [
-      { key: 'dataFormatada', label: 'Data/Hora' },
-      { key: 'nivel', label: 'Nível' },
-      { key: 'mensagem', label: 'Mensagem' }
+      { key: 'dataFormatada', label: t('settings.logs.dateColumn') },
+      { key: 'nivel', label: t('settings.logs.levelColumn') },
+      { key: 'mensagem', label: t('settings.logs.messageColumn') }
     ]
   });
   stack.append(cards, createLogEntityChart(logs), table);
@@ -69,16 +70,16 @@ export function createLogsPanel(logs: LogRow[], loaded: boolean): HTMLElement {
 
 function createLogEntityChart(logs: LogRow[]): HTMLElement {
   const counts = logs.reduce<Record<string, number>>((result, log) => {
-    const entity = log.entidade || 'Sem entidade';
+    const entity = log.entidade || t('settings.logs.noEntity');
     result[entity] = (result[entity] ?? 0) + 1;
     return result;
   }, {});
   const entries = Object.entries(counts);
   const max = Math.max(...entries.map(([, count]) => count), 1);
   const panel = createElement('section', { className: 'log-entity-chart' });
-  panel.appendChild(createPanelHeader('Logs por módulo', 'Distribuição por entidade nos registros carregados'));
+  panel.appendChild(createPanelHeader(t('settings.logs.byModuleHeading'), t('settings.logs.byModuleDescription')));
   if (entries.length === 0) {
-    panel.appendChild(createElement('p', { className: 'settings-hint', textContent: 'Nenhum registro para agrupar.' }));
+    panel.appendChild(createElement('p', { className: 'settings-hint', textContent: t('settings.logs.noneToGroup') }));
     return panel;
   }
   entries.forEach(([entity, count]) => {
@@ -94,20 +95,23 @@ function createLogEntityChart(logs: LogRow[]): HTMLElement {
 // Rotulos amigaveis so pra acoes mais comuns -- nao e um sistema de
 // traducao pra todo slug do backend, so cobre os mais frequentes. O resto
 // cai no fallback humanizeAction().
-const ACTION_LABELS: Record<string, string> = {
-  login: 'Login realizado',
-  login_failed: 'Falha no login',
-  email_sent: 'E-mail enviado',
-  email_failed: 'Falha no envio de e-mail',
-  email_not_configured: 'E-mail não configurado',
-  create: 'Criação de registro',
-  update: 'Atualização de registro',
-  delete: 'Exclusão de registro',
-  download: 'Download de documento'
-};
+function actionLabels(): Record<string, string> {
+  return {
+    login: t('settings.logs.actionLogin'),
+    login_failed: t('settings.logs.actionLoginFailed'),
+    email_sent: t('settings.logs.actionEmailSent'),
+    email_failed: t('settings.logs.actionEmailFailed'),
+    email_not_configured: t('settings.logs.actionEmailNotConfigured'),
+    create: t('settings.logs.actionCreate'),
+    update: t('settings.logs.actionUpdate'),
+    delete: t('settings.logs.actionDelete'),
+    download: t('settings.logs.actionDownload')
+  };
+}
 
 function humanizeAction(acao: string): string {
-  if (ACTION_LABELS[acao]) return ACTION_LABELS[acao];
+  const labels = actionLabels();
+  if (labels[acao]) return labels[acao];
   const text = acao.replace(/_/g, ' ');
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
@@ -127,7 +131,7 @@ function openLogDrawer(log: LogRow): void {
   const drawer = createDetailDrawer({
     title: humanizeAction(log.acao),
     badge,
-    tabs: [{ label: 'Detalhes', content }],
+    tabs: [{ label: t('settings.logs.detailsTab'), content }],
     onClose: () => drawer.remove()
   });
   document.body.appendChild(drawer);

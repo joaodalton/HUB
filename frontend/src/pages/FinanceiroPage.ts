@@ -17,6 +17,7 @@ import {
   type PendenciaRow,
   type PendenciaStatus
 } from '../services/pendenciasService';
+import { t } from '../services/i18nService';
 
 type FinanceiroTab = 'clientes' | 'usinas';
 
@@ -35,9 +36,9 @@ export function createFinanceiroPage(): HTMLElement {
 
   const layout = createBaseLayout({
     content,
-    eyebrow: 'Financeiro',
-    title: 'Financeiro',
-    description: 'Visão consolidada de recebimentos de clientes e repasses de usinas.'
+    eyebrow: t('financeiro.page.eyebrow'),
+    title: t('financeiro.page.title'),
+    description: t('financeiro.page.description')
   });
 
   renderContent();
@@ -62,7 +63,7 @@ export function createFinanceiroPage(): HTMLElement {
       loadError = false;
     } catch (cause) {
       loadError = true;
-      toast.error(cause instanceof Error ? cause.message : 'Não foi possível carregar o financeiro.');
+      toast.error(cause instanceof Error ? cause.message : t('financeiro.page.loadError'));
     } finally {
       isLoading = false;
       loading.hide();
@@ -78,8 +79,8 @@ export function createFinanceiroPage(): HTMLElement {
   function renderContent(): void {
     const tabs = createElement('div', { className: 'page-actions' });
     tabs.append(
-      createTabButton('clientes', 'Clientes/UCs'),
-      createTabButton('usinas', 'Usinas')
+      createTabButton('clientes', t('financeiro.page.tabClientes')),
+      createTabButton('usinas', t('financeiro.page.tabUsinas'))
     );
     const panel = activeTab === 'clientes' ? renderClientesTab() : renderUsinasTab();
     content.replaceChildren(tabs, panel);
@@ -103,11 +104,11 @@ export function createFinanceiroPage(): HTMLElement {
 
     const grid = createElement('section', { className: 'metric-grid' });
     grid.append(
-      createIconStatCard({ icon: 'cobrancas', chipColor: 'green', value: formatCurrency(totalRecebido), label: 'Total recebido' }),
-      createIconStatCard({ icon: 'pending', chipColor: 'amber', value: formatCurrency(totalPendente), label: 'Total pendente' })
+      createIconStatCard({ icon: 'cobrancas', chipColor: 'green', value: formatCurrency(totalRecebido), label: t('financeiro.page.totalRecebido') }),
+      createIconStatCard({ icon: 'pending', chipColor: 'amber', value: formatCurrency(totalPendente), label: t('financeiro.page.totalPendente') })
     );
 
-    const cobrarLink = createElement('a', { className: 'button-with-icon', textContent: 'Faturas prontas para cobrar' });
+    const cobrarLink = createElement('a', { className: 'button-with-icon', textContent: t('financeiro.page.readyToCharge') });
     cobrarLink.href = '/faturas?cobranca=sem_cobranca';
     cobrarLink.addEventListener('click', (event) => {
       event.preventDefault();
@@ -117,7 +118,7 @@ export function createFinanceiroPage(): HTMLElement {
     cobrarAction.appendChild(cobrarLink);
 
     fragment.append(grid, cobrarAction, createPendenciasTable(
-      'Pagamentos à concessionária pendentes',
+      t('financeiro.page.pendenciasConcessionaria'),
       pendenciasCobrarConcessionaria
     ));
     return fragment;
@@ -131,12 +132,12 @@ export function createFinanceiroPage(): HTMLElement {
       const semClientes = 'semClientesConectados' in usina && usina.semClientesConectados === true;
       const aguardandoPagamentos = 'aguardandoPagamentos' in usina && usina.aguardandoPagamentos === true;
       const trend = semClientes
-        ? 'Sem clientes conectados'
+        ? t('financeiro.page.semClientesConectados')
         : usina.contratoPendente
-          ? 'Contrato de repasse pendente de configurar'
+          ? t('financeiro.page.contratoPendente')
           : aguardandoPagamentos
-            ? 'Aguardando confirmação de pagamento de todos os clientes'
-            : `Repasse: ${formatCurrency(usina.repasseCalculado)}`;
+            ? t('financeiro.page.aguardandoPagamentos')
+            : `${t('financeiro.page.repasse')}: ${formatCurrency(usina.repasseCalculado)}`;
       grid.appendChild(createIconStatCard({
         icon: 'plants',
         chipColor: usina.contratoPendente || semClientes || aguardandoPagamentos ? 'amber' : 'green',
@@ -148,8 +149,8 @@ export function createFinanceiroPage(): HTMLElement {
 
     fragment.append(
       grid,
-      createPendenciasTable('Faturas de geração pendentes', pendenciasFaturaGeracao),
-      createPendenciasTable('Repasses ao usineiro pendentes', pendenciasRepasseUsineiro)
+      createPendenciasTable(t('financeiro.page.pendenciasFaturaGeracao'), pendenciasFaturaGeracao),
+      createPendenciasTable(t('financeiro.page.pendenciasRepasseUsineiro'), pendenciasRepasseUsineiro)
     );
     return fragment;
   }
@@ -157,18 +158,18 @@ export function createFinanceiroPage(): HTMLElement {
   function createPendenciasTable(title: string, rows: PendenciaRow[]): HTMLElement {
     return createDataTable<PendenciaRow>({
       title,
-      eyebrow: isLoading ? 'Carregando…' : `${rows.length} registro${rows.length === 1 ? '' : 's'}`,
+      eyebrow: isLoading ? t('financeiro.page.loadingShort') : `${rows.length} ${rows.length === 1 ? t('financeiro.page.recordSingular') : t('financeiro.page.recordPlural')}`,
       rows: loadError || isLoading ? [] : rows,
-      emptyMessage: loadError ? 'Não foi possível carregar pendências.' : 'Nenhuma pendência encontrada.',
+      emptyMessage: loadError ? t('financeiro.page.pendenciasLoadError') : t('financeiro.page.pendenciasEmpty'),
       state: isLoading ? 'loading' : loadError ? 'error' : 'ready',
-      stateTitle: loadError ? 'Não foi possível carregar pendências' : 'Nenhuma pendência encontrada',
-      errorAction: { label: 'Tentar novamente', onClick: () => void loadAll() },
+      stateTitle: loadError ? t('financeiro.page.pendenciasLoadError') : t('financeiro.page.pendenciasEmpty'),
+      errorAction: { label: t('common.retry'), onClick: () => void loadAll() },
       onRowClick: (item) => navigateTo(`/pendencias?selecionada=${item.id}`),
       columns: [
-        { key: 'titulo', label: 'Pendência' },
-        { key: 'vinculacao', label: 'Vinculação', render: (item) => vinculacaoLabel(item) },
-        { key: 'prioridade', label: 'Prioridade', render: (item) => createStatusBadge(prioridadeLabel(item.prioridade), prioridadeTone(item.prioridade) as StatusTone) },
-        { key: 'status', label: 'Status', render: (item) => createStatusBadge(statusLabel(item.status), statusTone(item.status)) }
+        { key: 'titulo', label: t('financeiro.page.colPendencia') },
+        { key: 'vinculacao', label: t('financeiro.page.colVinculacao'), render: (item) => vinculacaoLabel(item) },
+        { key: 'prioridade', label: t('financeiro.page.colPrioridade'), render: (item) => createStatusBadge(prioridadeLabel(item.prioridade), prioridadeTone(item.prioridade) as StatusTone) },
+        { key: 'status', label: t('financeiro.page.colStatus'), render: (item) => createStatusBadge(statusLabel(item.status), statusTone(item.status)) }
       ]
     });
   }

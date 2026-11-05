@@ -23,6 +23,8 @@ import {
   updateUc
 } from '../services/ucsService';
 import { createDebouncedInput, matchesListSearch, pageSlice, readListParam, readPositiveListParam, writeListState } from '../services/listState';
+import { createListPagination, formatUcDate, isContractExpiring } from './ucsShared';
+import { t } from '../services/i18nService';
 
 type UcTableRow = UcRow & { cliente: string; usina: string };
 const PAGE_SIZE = 25;
@@ -47,12 +49,12 @@ export function createUcsPage(): HTMLElement {
 
   const layout = createBaseLayout({
     content,
-    eyebrow: 'Gestão',
-    title: 'UCs',
-    description: 'Unidades consumidoras vinculadas a clientes e usinas.'
+    eyebrow: t('ucs.page.eyebrow'),
+    title: t('ucs.page.title'),
+    description: t('ucs.page.description')
   });
 
-  const search = createElement('input'); search.type = 'search'; search.placeholder = 'Buscar UCs...'; search.setAttribute('aria-label', 'Buscar UCs');
+  const search = createElement('input'); search.type = 'search'; search.placeholder = t('ucs.search.placeholder'); search.setAttribute('aria-label', t('ucs.search.ariaLabel'));
   const applySearch = createDebouncedInput((value) => { if (value !== searchTerm) { searchTerm = value; page = 1; selectedUcId = null; writeListState({ busca: value || null, pagina: null, ucId: null }); renderContent(); } });
   search.addEventListener('input', () => applySearch(search.value));
   const filters = createElement('div', { className: 'page-actions' }); filters.appendChild(search);
@@ -76,7 +78,7 @@ export function createUcsPage(): HTMLElement {
       }
     } catch {
       loadError = true;
-      toast.error('Nao foi possivel carregar UCs. Verifique se o backend esta rodando.');
+      toast.error(t('ucs.toast.loadError'));
     } finally {
       isLoading = false;
       loading.hide();
@@ -92,12 +94,12 @@ export function createUcsPage(): HTMLElement {
     spacer.style.flex = '1 0 auto';
     spacer.style.minWidth = '0';
     const newUcButton = createElement('button', { className: 'button-with-icon', type: 'button' });
-    const importButton = createElement('button', { className: 'secondary-button', textContent: 'Importação/exportação', type: 'button' });
-    newUcButton.append(createIcon('plus'), document.createTextNode('Nova UC'));
+    const importButton = createElement('button', { className: 'secondary-button', textContent: t('ucs.actions.import'), type: 'button' });
+    newUcButton.append(createIcon('plus'), document.createTextNode(t('ucs.actions.new')));
 
     newUcButton.addEventListener('click', () => {
       if (clients.length === 0) {
-        toast.error('Cadastre um cliente antes de criar uma UC avulsa.');
+        toast.error(t('ucs.toast.noClientForUc'));
         return;
       }
       openUcEditor(null);
@@ -109,44 +111,44 @@ export function createUcsPage(): HTMLElement {
     const rows: UcTableRow[] = ucs.filter(matchesQuickFilter).filter((uc) => matchesListSearch(searchTerm, `${uc.codigo} ${uc.apelido} ${uc.clienteNome ?? ''} ${uc.concessionaria ?? ''} ${uc.conexoes.map((link) => link.usina).join(' ')}`)).map((uc) => ({
       ...uc,
       cliente: uc.clienteNome ?? '-',
-      usina: uc.conexoes.length > 0 ? uc.conexoes.map((conexao) => conexao.usina).join(', ') : 'Nenhuma'
+      usina: uc.conexoes.length > 0 ? uc.conexoes.map((conexao) => conexao.usina).join(', ') : t('ucs.columns.usinaNone')
     }));
 
     const paged = pageSlice(rows, page, PAGE_SIZE); page = paged.page;
     const table = createDataTable<UcTableRow>({
-      title: 'UCs cadastradas',
-      eyebrow: 'Listagem',
+      title: t('ucs.table.title'),
+      eyebrow: t('ucs.table.eyebrow'),
       rows: paged.rows,
       emptyMessage: loadError
-        ? 'Nao foi possivel carregar UCs.'
-        : 'Nenhuma UC cadastrada ainda. Cadastre clientes com UC pela tela de Clientes ou use "Nova UC" aqui.',
+        ? t('ucs.table.loadError')
+        : t('ucs.table.empty'),
       state: isLoading ? 'loading' : loadError ? 'error' : quickFilter !== 'all' || searchTerm ? 'filtered' : 'ready',
-      stateTitle: loadError ? 'Nao foi possivel carregar UCs' : quickFilter !== 'all' || searchTerm ? 'Nenhuma UC corresponde ao filtro' : 'Nenhuma UC cadastrada',
-      emptyAction: { label: 'Limpar filtros', onClick: () => { quickFilter = 'all'; searchTerm = ''; page = 1; writeListState({ busca: null, filtro: null, pagina: null }); renderContent(); } },
-      errorAction: { label: 'Tentar novamente', onClick: () => void loadAll() },
+      stateTitle: loadError ? t('ucs.table.stateTitleError') : quickFilter !== 'all' || searchTerm ? t('ucs.table.stateTitleFiltered') : t('ucs.table.stateTitleEmpty'),
+      emptyAction: { label: t('ucs.emptyAction.clearFilters'), onClick: () => { quickFilter = 'all'; searchTerm = ''; page = 1; writeListState({ busca: null, filtro: null, pagina: null }); renderContent(); } },
+      errorAction: { label: t('ucs.errorAction.retry'), onClick: () => void loadAll() },
       onRowClick: (row) => {
         selectedUcId = row.id;
         writeListState({ ucId: row.id });
         renderContent();
       },
       columns: [
-        { key: 'cliente', label: 'Cliente' },
-        { key: 'codigo', label: 'UC' },
-        { key: 'usina', label: 'Usina' },
-        { key: 'consumo', label: 'Consumo', align: 'right' },
-        { key: 'tipoLigacao', label: 'Ligacao' },
-        { key: 'apelido', label: 'Apelido', defaultVisible: false, render: (uc) => uc.apelido || 'Não informado' },
-        { key: 'documento', label: 'CPF/CNPJ da UC', defaultVisible: false, render: (uc) => uc.documento || 'Não informado' },
-        { key: 'endereco', label: 'Endereço', defaultVisible: false, render: (uc) => uc.endereco || 'Não informado' },
-        { key: 'cep', label: 'CEP', defaultVisible: false, render: (uc) => uc.cep || 'Não informado' },
-        { key: 'concessionaria', label: 'Concessionária', defaultVisible: false, render: (uc) => uc.concessionaria || 'Não informado' },
-        { key: 'baseTarifaria', label: 'Base tarifária', defaultVisible: false },
-        { key: 'desconto', label: 'Desconto', defaultVisible: false, render: (uc) => uc.desconto || '-' },
-        { key: 'geracaoPropria', label: 'Geração própria', defaultVisible: false, render: (uc) => uc.geracaoPropria ? 'Sim' : 'Não' },
-        { key: 'diaEmissaoFatura', label: 'Dia de emissão da fatura', defaultVisible: false, render: (uc) => uc.diaEmissaoFatura != null ? String(uc.diaEmissaoFatura) : 'Não informado' },
-        { key: 'inicioContrato', label: 'Início do contrato', defaultVisible: false, render: (uc) => formatUcDate(uc.inicioContrato) },
-        { key: 'terminoContrato', label: 'Término do contrato', defaultVisible: false, render: (uc) => formatUcDate(uc.terminoContrato) },
-        { key: 'carenciaMeses', label: 'Carência (meses)', defaultVisible: false, render: (uc) => uc.carenciaMeses != null ? String(uc.carenciaMeses) : 'Não informado' }
+        { key: 'cliente', label: t('ucs.columns.cliente') },
+        { key: 'codigo', label: t('ucs.columns.uc') },
+        { key: 'usina', label: t('ucs.columns.usina') },
+        { key: 'consumo', label: t('ucs.columns.consumo'), align: 'right' },
+        { key: 'tipoLigacao', label: t('ucs.columns.ligacao') },
+        { key: 'apelido', label: t('ucs.columns.apelido'), defaultVisible: false, render: (uc) => uc.apelido || t('ucs.notInformed') },
+        { key: 'documento', label: t('ucs.columns.documento'), defaultVisible: false, render: (uc) => uc.documento || t('ucs.notInformed') },
+        { key: 'endereco', label: t('ucs.columns.endereco'), defaultVisible: false, render: (uc) => uc.endereco || t('ucs.notInformed') },
+        { key: 'cep', label: t('ucs.columns.cep'), defaultVisible: false, render: (uc) => uc.cep || t('ucs.notInformed') },
+        { key: 'concessionaria', label: t('ucs.columns.concessionaria'), defaultVisible: false, render: (uc) => uc.concessionaria || t('ucs.notInformed') },
+        { key: 'baseTarifaria', label: t('ucs.columns.baseTarifaria'), defaultVisible: false },
+        { key: 'desconto', label: t('ucs.columns.desconto'), defaultVisible: false, render: (uc) => uc.desconto || '-' },
+        { key: 'geracaoPropria', label: t('ucs.columns.geracaoPropria'), defaultVisible: false, render: (uc) => uc.geracaoPropria ? t('ucs.yes') : t('ucs.no') },
+        { key: 'diaEmissaoFatura', label: t('ucs.columns.diaEmissaoFatura'), defaultVisible: false, render: (uc) => uc.diaEmissaoFatura != null ? String(uc.diaEmissaoFatura) : t('ucs.notInformed') },
+        { key: 'inicioContrato', label: t('ucs.columns.inicioContrato'), defaultVisible: false, render: (uc) => formatUcDate(uc.inicioContrato) },
+        { key: 'terminoContrato', label: t('ucs.columns.terminoContrato'), defaultVisible: false, render: (uc) => formatUcDate(uc.terminoContrato) },
+        { key: 'carenciaMeses', label: t('ucs.columns.carenciaMeses'), defaultVisible: false, render: (uc) => uc.carenciaMeses != null ? String(uc.carenciaMeses) : t('ucs.notInformed') }
       ]
     });
 
@@ -172,9 +174,9 @@ export function createUcsPage(): HTMLElement {
 
   function createStatCards(): HTMLElement {
     const metrics: IconStatCardProps[] = [
-      { label: 'Total de UCs', value: String(ucs.length), chipColor: 'blue', icon: 'ucs' },
-      { label: 'Com usina', value: String(ucs.filter((uc) => uc.conexoes.length > 0).length), chipColor: 'green', icon: 'plants' },
-      { label: 'Sem usina', value: String(ucs.filter((uc) => uc.conexoes.length === 0).length), chipColor: 'amber', icon: 'pending' }
+      { label: t('ucs.stats.total'), value: String(ucs.length), chipColor: 'blue', icon: 'ucs' },
+      { label: t('ucs.stats.withPlant'), value: String(ucs.filter((uc) => uc.conexoes.length > 0).length), chipColor: 'green', icon: 'plants' },
+      { label: t('ucs.stats.withoutPlant'), value: String(ucs.filter((uc) => uc.conexoes.length === 0).length), chipColor: 'amber', icon: 'pending' }
     ];
     const grid = createElement('section', { className: 'metric-grid' });
     metrics.forEach((metric) => grid.appendChild(createIconStatCard(metric)));
@@ -184,9 +186,9 @@ export function createUcsPage(): HTMLElement {
   function createQuickFilters(): HTMLElement {
     const filters = createElement('div', { className: 'filter-row uc-quick-filters' });
     [
-      ['Todas', 'all'],
-      ['Sem usina', 'without-plant'],
-      ['Contrato vencendo', 'contract-expiring']
+      [t('ucs.filters.all'), 'all'],
+      [t('ucs.filters.withoutPlant'), 'without-plant'],
+      [t('ucs.filters.contractExpiring'), 'contract-expiring']
     ].forEach(([label, value]) => {
       const button = createElement('button', { className: quickFilter === value ? 'filter-chip active' : 'filter-chip', textContent: label, type: 'button' });
       button.addEventListener('click', () => {
@@ -215,11 +217,11 @@ export function createUcsPage(): HTMLElement {
 
     const title = createElement('div', { className: 'panel-title' });
     const titleText = createElement('div');
-    const eyebrow = createElement('span', { className: 'eyebrow', textContent: 'UC' });
-    const heading = createElement('h2', { textContent: uc.codigo || 'UC' });
+    const eyebrow = createElement('span', { className: 'eyebrow', textContent: t('ucs.detail.eyebrow') });
+    const heading = createElement('h2', { textContent: uc.codigo || t('ucs.detail.headingFallback') });
     const closeButton = createElement('button', { className: 'icon-button neutral', type: 'button' });
     closeButton.appendChild(createIcon('x'));
-    closeButton.title = 'Fechar';
+    closeButton.title = t('ucs.detail.closeTitle');
     closeButton.addEventListener('click', () => {
       selectedUcId = null; writeListState({ ucId: null }, 'replace');
       renderContent();
@@ -230,35 +232,35 @@ export function createUcsPage(): HTMLElement {
 
     const grid = createElement('div', { className: 'detail-info-grid' });
     grid.append(
-      createInfoField('Cliente', uc.clienteNome ?? '-'),
-      createInfoField('Apelido', uc.apelido || 'Não informado'),
-      createInfoField('CPF/CNPJ da UC', uc.documento || 'Não informado'),
-      createInfoField('Endereço', uc.endereco || 'Não informado'),
-      createInfoField('CEP', uc.cep || 'Não informado'),
-      createInfoField('Concessionária', uc.concessionaria || 'Não informado'),
-      createInfoField('Consumo', uc.consumo != null ? String(uc.consumo) : '-'),
-      createInfoField('Base tarifária', uc.baseTarifaria),
-      createInfoField('Desconto', uc.desconto || '-'),
-      createInfoField('Ligação', uc.tipoLigacao),
-      createInfoField('Geração própria', uc.geracaoPropria ? 'Sim' : 'Não'),
-      createInfoField('Dia de emissão da fatura', uc.diaEmissaoFatura != null ? String(uc.diaEmissaoFatura) : 'Não informado'),
-      createInfoField('Início do contrato', formatUcDate(uc.inicioContrato)),
-      createInfoField('Término do contrato', formatUcDate(uc.terminoContrato)),
-      createInfoField('Carência (meses)', uc.carenciaMeses != null ? String(uc.carenciaMeses) : 'Não informado'),
-      createInfoField('Desconto na carência', uc.percentualDescontoCarencia || 'Não informado'),
+      createInfoField(t('ucs.detail.labelCliente'), uc.clienteNome ?? '-'),
+      createInfoField(t('ucs.detail.labelApelido'), uc.apelido || t('ucs.notInformed')),
+      createInfoField(t('ucs.detail.labelDocumento'), uc.documento || t('ucs.notInformed')),
+      createInfoField(t('ucs.detail.labelEndereco'), uc.endereco || t('ucs.notInformed')),
+      createInfoField(t('ucs.detail.labelCep'), uc.cep || t('ucs.notInformed')),
+      createInfoField(t('ucs.detail.labelConcessionaria'), uc.concessionaria || t('ucs.notInformed')),
+      createInfoField(t('ucs.detail.labelConsumo'), uc.consumo != null ? String(uc.consumo) : '-'),
+      createInfoField(t('ucs.detail.labelBaseTarifaria'), uc.baseTarifaria),
+      createInfoField(t('ucs.detail.labelDesconto'), uc.desconto || '-'),
+      createInfoField(t('ucs.detail.labelLigacao'), uc.tipoLigacao),
+      createInfoField(t('ucs.detail.labelGeracaoPropria'), uc.geracaoPropria ? t('ucs.yes') : t('ucs.no')),
+      createInfoField(t('ucs.detail.labelDiaEmissaoFatura'), uc.diaEmissaoFatura != null ? String(uc.diaEmissaoFatura) : t('ucs.notInformed')),
+      createInfoField(t('ucs.detail.labelInicioContrato'), formatUcDate(uc.inicioContrato)),
+      createInfoField(t('ucs.detail.labelTerminoContrato'), formatUcDate(uc.terminoContrato)),
+      createInfoField(t('ucs.detail.labelCarenciaMeses'), uc.carenciaMeses != null ? String(uc.carenciaMeses) : t('ucs.notInformed')),
+      createInfoField(t('ucs.detail.labelDescontoCarencia'), uc.percentualDescontoCarencia || t('ucs.notInformed')),
       createInfoField(
-        'Usinas conectadas',
-        uc.conexoes.length > 0 ? uc.conexoes.map((conexao) => `${conexao.usina} (${conexao.percentual}%)`).join(', ') : 'Nenhuma'
+        t('ucs.detail.labelUsinasConectadas'),
+        uc.conexoes.length > 0 ? uc.conexoes.map((conexao) => `${conexao.usina} (${conexao.percentual}%)`).join(', ') : t('ucs.detail.usinasNone')
       )
     );
 
     const actions = createElement('div', { className: 'form-actions' });
     const editButton = createElement('button', { className: 'secondary-button button-with-icon', type: 'button' });
-    editButton.append(createIcon('edit'), document.createTextNode('Editar'));
+    editButton.append(createIcon('edit'), document.createTextNode(t('ucs.actions.edit')));
     editButton.addEventListener('click', () => openUcEditor(uc));
 
     const deleteButton = createElement('button', { className: 'danger-button button-with-icon', type: 'button' });
-    deleteButton.append(createIcon('trash'), document.createTextNode('Excluir'));
+    deleteButton.append(createIcon('trash'), document.createTextNode(t('ucs.actions.delete')));
     deleteButton.addEventListener('click', () => confirmDeleteUc(uc));
 
     actions.append(editButton, deleteButton);
@@ -297,63 +299,32 @@ export function createUcsPage(): HTMLElement {
     try {
       if (existing) {
         await updateUc(existing.id, data);
-        toast.success('UC atualizada.');
+        toast.success(t('ucs.toast.updated'));
       } else {
         await createUc(data);
-        toast.success('UC cadastrada.');
+        toast.success(t('ucs.toast.created'));
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Nao foi possivel salvar a UC.');
+      toast.error(error instanceof Error ? error.message : t('ucs.toast.saveError'));
     } finally {
       loading.hide();
     }
   }
 
   async function confirmDeleteUc(uc: UcRow): Promise<void> {
-    const confirmed = window.confirm(`Excluir a UC ${uc.codigo}? Essa acao nao pode ser desfeita.`);
+    const confirmed = window.confirm(`${t('ucs.confirmDelete.prefix')} ${uc.codigo}${t('ucs.confirmDelete.suffix')}`);
     if (!confirmed) return;
 
     loading.show();
     try {
       await deleteUc(uc.id);
-      toast.success('UC excluida.');
+      toast.success(t('ucs.toast.deleted'));
       if (selectedUcId === uc.id) selectedUcId = null;
       await loadAll();
     } catch {
-      toast.error('Nao foi possivel excluir a UC.');
+      toast.error(t('ucs.toast.deleteError'));
     } finally {
       loading.hide();
     }
   }
-}
-
-function createListPagination(page: number, pages: number, total: number, onPage: (page: number) => void): HTMLElement {
-  const nav = createElement('nav', { className: 'faturas-pagination pagination-left' });
-  const previous = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Anterior' });
-  previous.disabled = page <= 1;
-  previous.addEventListener('click', () => onPage(page - 1));
-  const next = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Próxima' });
-  next.disabled = page >= pages || total === 0;
-  next.addEventListener('click', () => onPage(page + 1));
-  nav.append(previous, createElement('span', { textContent: `${total ? page : 0} de ${total ? pages : 0}` }), next);
-  return nav;
-}
-
-// Split-based, sem Date() -- mesmo motivo documentado em ClientDetailView.ts
-// (evita o bug de "um dia antes" por causa de fuso horario).
-function formatUcDate(value: string | null): string {
-  if (!value) return 'Não informado';
-  const [year, month, day] = value.split('-');
-  return `${day}/${month}/${year}`;
-}
-
-function isContractExpiring(value: string | null): boolean {
-  if (!value) return false;
-  const [year, month, day] = value.split('-').map(Number);
-  const end = new Date(year, month - 1, day);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const deadline = new Date(today);
-  deadline.setDate(deadline.getDate() + 30);
-  return end >= today && end <= deadline;
 }

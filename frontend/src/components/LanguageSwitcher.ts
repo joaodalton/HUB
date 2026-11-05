@@ -36,8 +36,10 @@ export function createLanguageSwitcher(): HTMLElement {
         button.setAttribute('aria-pressed', String(isActive));
         button.classList.toggle('is-active', isActive);
         button.addEventListener('click', () => {
+          const scrollY = window.scrollY;
           setLanguage(value);
           window.dispatchEvent(new PopStateEvent('popstate'));
+          window.scrollTo(0, scrollY);
         });
         return button;
       })

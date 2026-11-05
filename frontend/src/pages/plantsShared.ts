@@ -6,6 +6,7 @@ import { createElement } from '../dom';
 import { createStatusBadge } from '../components/StatusBadge';
 import type { PlantRow, PlantStatusTone } from '../services/plantService';
 import type { UcRow } from '../services/ucsService';
+import { t } from '../services/i18nService';
 
 export type ConnectedUcRow = {
   id: number;
@@ -19,8 +20,16 @@ export type ConnectedUcRow = {
 
 // Abas sem backend ainda (Documentos de usina, Financeiro = V3.0, Historico e
 // Logs nem tem model hoje) -- visiveis mas desabilitadas, mesmo padrao do
-// ClientDetailView.ts.
-export const upcomingPlantTabs = ['Documentos', 'Financeiro', 'Histórico', 'Logs'];
+// ClientDetailView.ts. Funcao (nao const) pra ler o idioma atual a cada
+// chamada, em vez de congelar a traducao no momento do import do modulo.
+export function getUpcomingPlantTabs(): string[] {
+  return [
+    t('plants.upcomingTabs.documents'),
+    t('plants.upcomingTabs.financial'),
+    t('plants.upcomingTabs.history'),
+    t('plants.upcomingTabs.logs')
+  ];
+}
 
 export function connectedUcs(allUcs: UcRow[], plantId: number): ConnectedUcRow[] {
   const rows: ConnectedUcRow[] = [];
@@ -32,11 +41,11 @@ export function connectedUcs(allUcs: UcRow[], plantId: number): ConnectedUcRow[]
         rows.push({
           id: uc.id,
           connectionId: conexao.id,
-          codigo: uc.codigo || 'Sem codigo',
-          apelido: uc.apelido || uc.clienteNome || 'Sem apelido',
+          codigo: uc.codigo || t('plants.connectedUcs.codeFallback'),
+          apelido: uc.apelido || uc.clienteNome || t('plants.connectedUcs.nicknameFallback'),
           cliente: uc.clienteNome ?? '-',
           percentual: `${conexao.percentual}%`,
-          status: 'Ativa'
+          status: t('plants.connectedUcs.statusActive')
         });
       });
   });
@@ -79,7 +88,7 @@ export function createMonthlyProductionChart(plant: PlantRow): HTMLElement {
     column.append(bar, createElement('small', { textContent: month.slice(0, 3).toUpperCase() }));
     bars.appendChild(column);
   });
-  chart.append(createElement('span', { className: 'eyebrow', textContent: 'Geração mensal' }), bars);
+  chart.append(createElement('span', { className: 'eyebrow', textContent: t('plants.chart.monthlyGenerationEyebrow') }), bars);
   return chart;
 }
 

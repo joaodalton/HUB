@@ -1,5 +1,6 @@
 import { createElement } from '../dom';
 import type { FaturaRow } from '../services/faturasService';
+import { t } from '../services/i18nService';
 import { createModalShell } from './Modal';
 import { createStatusBadge, type StatusTone } from './StatusBadge';
 export { formatDate } from '../utils/date';
@@ -47,12 +48,46 @@ export function createBadge(label: string, tone: StatusTone = 'neutral'): HTMLEl
   return createStatusBadge(label, tone);
 }
 export function createChargeCell(charges: Array<{ asaasId: string | null; asaasStatus: FaturaRow['asaasStatus']; statusInterno: string | null }>): HTMLElement {
-  if (!charges.length) return createBadge('Sem cobrança');
+  if (!charges.length) return createBadge(t('faturas.status.semCobranca'));
   const wrap = createElement('div', { className: 'fatura-charge-cell' });
-  charges.forEach((charge) => wrap.appendChild(createBadge(charge.asaasId ? statusLabel(charge.asaasStatus) : charge.statusInterno ?? 'Aguardando emissão', charge.asaasStatus === 'received' && charge.asaasId ? 'success' : charge.asaasStatus === 'overdue' && charge.asaasId ? 'danger' : 'warning')));
+  charges.forEach((charge) => wrap.appendChild(createBadge(charge.asaasId ? statusLabel(charge.asaasStatus) : charge.statusInterno ?? t('faturas.page.awaitingIssuance'), charge.asaasStatus === 'received' && charge.asaasId ? 'success' : charge.asaasStatus === 'overdue' && charge.asaasId ? 'danger' : 'warning')));
   return wrap;
 }
-export function statusLabel(status: FaturaRow['asaasStatus']): string { return ({ pending: 'Pendente', received: 'Recebida', overdue: 'Vencida', canceled: 'Cancelada', refunded: 'Estornada' })[status]; }
+export function statusLabel(status: FaturaRow['asaasStatus']): string {
+  return ({
+    pending: t('faturas.page.cobPending'),
+    received: t('faturas.page.cobReceived'),
+    overdue: t('faturas.page.cobOverdue'),
+    canceled: t('faturas.page.cobCanceled'),
+    refunded: t('faturas.page.cobRefunded')
+  })[status];
+}
+export function extracaoLabel(status: string): string {
+  return ({
+    recebida: t('faturas.status.extracaoRecebida'),
+    processando: t('faturas.status.extracaoProcessando'),
+    extraida: t('faturas.status.extracaoExtraida'),
+    layout_nao_reconhecido: t('faturas.status.extracaoLayoutNaoReconhecido'),
+    erro: t('faturas.status.extracaoErro')
+  } as Record<string, string>)[status] ?? status;
+}
+export function internoLabel(status: string): string {
+  return ({
+    aguardando_emissao: t('faturas.status.internoAguardandoEmissao'),
+    emitida: t('faturas.status.internoEmitida'),
+    erro_emissao: t('faturas.status.internoErroEmissao'),
+    cancelada: t('faturas.status.internoCancelada')
+  } as Record<string, string>)[status] ?? status;
+}
+export function validacaoLabel(status: string): string {
+  return ({
+    pendente: t('faturas.status.validacaoPendente'),
+    valida: t('faturas.status.validacaoValida'),
+    revisao_necessaria: t('faturas.status.validacaoRevisaoNecessaria'),
+    uc_nao_encontrada: t('faturas.status.validacaoUcNaoEncontrada'),
+    uc_pertence_outro_cliente: t('faturas.status.validacaoUcPertenceOutroCliente')
+  } as Record<string, string>)[status] ?? status;
+}
 export function formatCurrency(value: string | number | null | undefined): string { return value == null ? '—' : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value)); }
 export function formatReference(value: string | null): string { if (!value) return '—'; if (!/^\d{4}-\d{2}$/.test(value)) return value; const [year, month] = value.split('-'); return `${month}/${year}`; }
 export function currentMonth(): string { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`; }

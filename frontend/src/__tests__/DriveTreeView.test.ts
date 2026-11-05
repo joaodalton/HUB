@@ -87,7 +87,7 @@ describe('DriveTreeView', () => {
     await flush();
 
     expect(onError).toHaveBeenCalledTimes(1);
-    expect(element.textContent).toContain('Nao foi possivel abrir a pasta');
+    expect(element.textContent).toContain('Não foi possível abrir a pasta');
   });
 
   it('clicking a folder name triggers onSelectFolder', async () => {

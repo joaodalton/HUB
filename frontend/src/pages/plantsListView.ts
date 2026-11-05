@@ -9,6 +9,7 @@ import { createElement } from '../dom';
 import { getPlantStatusSummary, plantStatusLabel, plantStatusTone, type PlantRow } from '../services/plantService';
 import type { UcRow } from '../services/ucsService';
 import { createDebouncedInput, pageSlice, writeListState } from '../services/listState';
+import { t } from '../services/i18nService';
 import { connectedUcs, createStatusDotLabel, formatValue, normalize, plantLocationLabel } from './plantsShared';
 
 export type PlantsListContext = {
@@ -57,7 +58,7 @@ export function renderPlantsListView(ctx: PlantsListContext): HTMLElement {
 
   const searchInput = createElement('input');
   searchInput.type = 'text';
-  searchInput.placeholder = 'Pesquisar usinas...';
+  searchInput.placeholder = t('plants.search.placeholder');
   searchInput.value = ctx.getSearchTerm();
   const applySearch = createDebouncedInput((value) => {
     if (value !== ctx.getSearchTerm()) {
@@ -75,14 +76,14 @@ export function renderPlantsListView(ctx: PlantsListContext): HTMLElement {
   spacer.style.minWidth = '0';
 
   const newPlantButton = createElement('button', { className: 'button-with-icon', type: 'button' });
-  newPlantButton.append(createIcon('plus'), document.createTextNode('Nova Usina'));
+  newPlantButton.append(createIcon('plus'), document.createTextNode(t('plants.actions.new')));
   newPlantButton.addEventListener('click', () => ctx.onNewPlant());
-  const importButton = createElement('button', { className: 'secondary-button', textContent: 'Importação/exportação', type: 'button' });
+  const importButton = createElement('button', { className: 'secondary-button', textContent: t('plants.actions.import'), type: 'button' });
   importButton.addEventListener('click', () => ctx.onImport());
 
-  const archiveButton = createElement('button', { className: 'secondary-button', textContent: 'Arquivo ▾', type: 'button' });
+  const archiveButton = createElement('button', { className: 'secondary-button', textContent: t('plants.actions.archive'), type: 'button' });
   archiveButton.disabled = true;
-  archiveButton.title = 'Importacao/exportacao em planilha -- em breve';
+  archiveButton.title = t('plants.actions.archiveTitle');
 
   toolbar.append(importButton, newPlantButton, archiveButton);
 
@@ -111,10 +112,10 @@ export function renderPlantsListView(ctx: PlantsListContext): HTMLElement {
       : 0;
     const geracaoEstimada = plants.reduce((sum, plant) => sum + (plant.producaoMedia ?? 0), 0);
     const metrics: IconStatCardProps[] = [
-      { label: 'Potência total', value: `${formatValue(totalPotencia)} kWp`, chipColor: 'blue', icon: 'plants' },
-      { label: 'Ocupação média', value: `${formatValue(ocupacaoMedia)}%`, chipColor: 'amber', icon: 'rateio' },
-      { label: 'UCs vinculadas', value: String(totalUcs), chipColor: 'green', icon: 'ucs' },
-      { label: 'Geração estimada', value: `${formatValue(geracaoEstimada)} kWh`, chipColor: 'purple', icon: 'agenda' }
+      { label: t('plants.stats.totalPower'), value: `${formatValue(totalPotencia)} kWp`, chipColor: 'blue', icon: 'plants' },
+      { label: t('plants.stats.avgOccupancy'), value: `${formatValue(ocupacaoMedia)}%`, chipColor: 'amber', icon: 'rateio' },
+      { label: t('plants.stats.connectedUcs'), value: String(totalUcs), chipColor: 'green', icon: 'ucs' },
+      { label: t('plants.stats.estimatedGeneration'), value: `${formatValue(geracaoEstimada)} kWh`, chipColor: 'purple', icon: 'agenda' }
     ];
     const grid = createElement('section', { className: 'metric-grid' });
     metrics.forEach((metric) => grid.appendChild(createIconStatCard(metric)));
@@ -126,10 +127,10 @@ export function renderPlantsListView(ctx: PlantsListContext): HTMLElement {
     const statusFilter = ctx.getStatusFilter();
     const filters = createElement('div', { className: 'plant-status-filters' });
     [
-      ['Todas', null, summary.total],
-      ['Ativas', 'Online', summary.ativas],
-      ['Em implantação', 'Implantacao', summary.emImplantacao],
-      ['Manutenção', 'Manutencao', summary.manutencao]
+      [t('plants.filters.all'), null, summary.total],
+      [t('plants.filters.active'), 'Online', summary.ativas],
+      [t('plants.filters.implementing'), 'Implantacao', summary.emImplantacao],
+      [t('plants.filters.maintenance'), 'Manutencao', summary.manutencao]
     ].forEach(([label, status, count]) => {
       const button = createElement('button', { className: statusFilter === status ? 'filter-chip active' : 'filter-chip', textContent: `${label} ${count}`, type: 'button' });
       button.addEventListener('click', () => {
@@ -152,37 +153,37 @@ export function renderPlantsListView(ctx: PlantsListContext): HTMLElement {
     const isFiltered = Boolean(ctx.getSearchTerm() || ctx.getStatusFilter());
 
     const panel = createDataTable<PlantRow>({
-      title: 'Usinas cadastradas',
-      eyebrow: 'Listagem',
+      title: t('plants.table.title'),
+      eyebrow: t('plants.table.eyebrow'),
       rows: paged.rows,
       emptyMessage: loadError
-        ? 'Nao foi possivel carregar usinas.'
+        ? t('plants.table.loadError')
         : isFiltered
-          ? 'Nenhuma usina encontrada para esse filtro.'
-          : 'Nenhuma usina cadastrada ainda.',
+          ? t('plants.table.emptyFiltered')
+          : t('plants.table.emptyDefault'),
       state: isLoading ? 'loading' : loadError ? 'error' : isFiltered ? 'filtered' : 'ready',
-      stateTitle: loadError ? 'Nao foi possivel carregar usinas' : isFiltered ? 'Nenhuma usina corresponde aos filtros' : 'Nenhuma usina cadastrada',
-      emptyAction: { label: 'Limpar filtros', onClick: () => { ctx.setSearchTerm(''); ctx.setStatusFilter(null); ctx.setPage(1); writeListState({ busca: null, status: null, pagina: null }); refresh(); } },
-      errorAction: { label: 'Tentar novamente', onClick: () => ctx.onRetry() },
+      stateTitle: loadError ? t('plants.table.stateTitleError') : isFiltered ? t('plants.table.stateTitleFiltered') : t('plants.table.stateTitleEmpty'),
+      emptyAction: { label: t('plants.emptyAction.clearFilters'), onClick: () => { ctx.setSearchTerm(''); ctx.setStatusFilter(null); ctx.setPage(1); writeListState({ busca: null, status: null, pagina: null }); refresh(); } },
+      errorAction: { label: t('plants.errorAction.retry'), onClick: () => ctx.onRetry() },
       onRowClick: (plant) => ctx.onSelectPlant(plant),
       columns: [
-        { key: 'id', label: 'ID', render: (plant) => `#${plant.id}` },
-        { key: 'nome', label: 'Nome da usina', render: (plant) => plant.nome },
-        { key: 'kwPico', label: 'Potência (kWp)', align: 'right' },
-        { key: 'ucsConectadas', label: 'UCs conectadas', align: 'right', render: (plant) => String(connectedUcs(allUcs, plant.id).length) },
+        { key: 'id', label: t('plants.columns.id'), render: (plant) => `#${plant.id}` },
+        { key: 'nome', label: t('plants.columns.nome'), render: (plant) => plant.nome },
+        { key: 'kwPico', label: t('plants.columns.kwPico'), align: 'right' },
+        { key: 'ucsConectadas', label: t('plants.columns.ucsConectadas'), align: 'right', render: (plant) => String(connectedUcs(allUcs, plant.id).length) },
         {
           key: 'status',
-          label: 'Status',
+          label: t('plants.columns.status'),
           render: (plant) => createStatusDotLabel(plantStatusLabel(plant.status), plantStatusTone(plant.status))
         },
-        { key: 'cidadeUf', label: 'Cidade/UF', render: (plant) => plantLocationLabel(plant) },
-        { key: 'endereco', label: 'Endereço', defaultVisible: false, render: (plant) => plant.endereco || 'Não informado' },
-        { key: 'dataAtivacao', label: 'Data de ativação', defaultVisible: false, render: (plant) => plant.dataAtivacao || 'Não informado' },
-        { key: 'responsavel', label: 'Responsável', defaultVisible: false, render: (plant) => plant.responsavel || 'Não informado' },
-        { key: 'marcaInversor', label: 'Marca do inversor', defaultVisible: false, render: (plant) => plant.marcaInversor || 'Não informado' },
-        { key: 'telefoneProprietario', label: 'Telefone do proprietário', defaultVisible: false, render: (plant) => plant.telefoneProprietario || 'Não informado' },
-        { key: 'emailProprietario', label: 'Email do proprietário', defaultVisible: false, render: (plant) => plant.emailProprietario || 'Não informado' },
-        { key: 'percentualConsumo', label: '% Consumo da geração', defaultVisible: false, align: 'right', render: (plant) => `${(100 - plant.percentualDisponivel).toFixed(1)}%` }
+        { key: 'cidadeUf', label: t('plants.columns.cidadeUf'), render: (plant) => plantLocationLabel(plant) },
+        { key: 'endereco', label: t('plants.columns.endereco'), defaultVisible: false, render: (plant) => plant.endereco || t('plants.notInformed') },
+        { key: 'dataAtivacao', label: t('plants.columns.dataAtivacao'), defaultVisible: false, render: (plant) => plant.dataAtivacao || t('plants.notInformed') },
+        { key: 'responsavel', label: t('plants.columns.responsavel'), defaultVisible: false, render: (plant) => plant.responsavel || t('plants.notInformed') },
+        { key: 'marcaInversor', label: t('plants.columns.marcaInversor'), defaultVisible: false, render: (plant) => plant.marcaInversor || t('plants.notInformed') },
+        { key: 'telefoneProprietario', label: t('plants.columns.telefoneProprietario'), defaultVisible: false, render: (plant) => plant.telefoneProprietario || t('plants.notInformed') },
+        { key: 'emailProprietario', label: t('plants.columns.emailProprietario'), defaultVisible: false, render: (plant) => plant.emailProprietario || t('plants.notInformed') },
+        { key: 'percentualConsumo', label: t('plants.columns.percentualConsumo'), defaultVisible: false, align: 'right', render: (plant) => `${(100 - plant.percentualDisponivel).toFixed(1)}%` }
       ]
     });
 
@@ -195,9 +196,9 @@ export function renderPlantsListView(ctx: PlantsListContext): HTMLElement {
 
     const viewButton = createElement('button', { className: 'icon-button neutral', type: 'button' });
     viewButton.appendChild(createIcon('eye'));
-    viewButton.title = 'Ver detalhes';
-    attachTooltip(viewButton, `Ver detalhes de ${plant.nome}`);
-    viewButton.setAttribute('aria-label', `Ver detalhes de ${plant.nome}`);
+    viewButton.title = t('plants.rowActions.viewTitle');
+    attachTooltip(viewButton, `${t('plants.rowActions.viewAriaPrefix')} ${plant.nome}`);
+    viewButton.setAttribute('aria-label', `${t('plants.rowActions.viewAriaPrefix')} ${plant.nome}`);
     viewButton.addEventListener('click', (event) => {
       event.stopPropagation();
       ctx.onSelectPlant(plant);
@@ -205,9 +206,9 @@ export function renderPlantsListView(ctx: PlantsListContext): HTMLElement {
 
     const editButton = createElement('button', { className: 'icon-button neutral', type: 'button' });
     editButton.appendChild(createIcon('edit'));
-    editButton.title = 'Editar';
-    attachTooltip(editButton, `Editar ${plant.nome}`);
-    editButton.setAttribute('aria-label', `Editar ${plant.nome}`);
+    editButton.title = t('plants.rowActions.editTitle');
+    attachTooltip(editButton, `${t('plants.rowActions.editAriaPrefix')} ${plant.nome}`);
+    editButton.setAttribute('aria-label', `${t('plants.rowActions.editAriaPrefix')} ${plant.nome}`);
     editButton.addEventListener('click', (event) => {
       event.stopPropagation();
       ctx.onEditPlant(plant);
@@ -215,9 +216,9 @@ export function renderPlantsListView(ctx: PlantsListContext): HTMLElement {
 
     const deleteButton = createElement('button', { className: 'icon-button', type: 'button' });
     deleteButton.appendChild(createIcon('trash'));
-    deleteButton.title = 'Excluir';
-    attachTooltip(deleteButton, `Excluir ${plant.nome}`);
-    deleteButton.setAttribute('aria-label', `Excluir ${plant.nome}`);
+    deleteButton.title = t('plants.rowActions.deleteTitle');
+    attachTooltip(deleteButton, `${t('plants.rowActions.deleteAriaPrefix')} ${plant.nome}`);
+    deleteButton.setAttribute('aria-label', `${t('plants.rowActions.deleteAriaPrefix')} ${plant.nome}`);
     deleteButton.addEventListener('click', (event) => {
       event.stopPropagation();
       ctx.onDeletePlant(plant);
@@ -231,11 +232,11 @@ export function renderPlantsListView(ctx: PlantsListContext): HTMLElement {
     const rows = getFilteredPlants(ctx); const pages = Math.max(1, Math.ceil(rows.length / 25));
     const page = ctx.getPage();
     const nav = createElement('nav', { className: 'faturas-pagination pagination-left' });
-    const previous = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Anterior' });
+    const previous = createElement('button', { className: 'secondary-button', type: 'button', textContent: t('plants.pagination.previous') });
     previous.disabled = page <= 1; previous.addEventListener('click', () => { ctx.setPage(page - 1); writeListState({ pagina: page - 1 }); refresh(); });
-    const next = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Próxima' });
+    const next = createElement('button', { className: 'secondary-button', type: 'button', textContent: t('plants.pagination.next') });
     next.disabled = page >= pages || rows.length === 0; next.addEventListener('click', () => { ctx.setPage(page + 1); writeListState({ pagina: page + 1 }); refresh(); });
-    nav.append(previous, createElement('span', { textContent: `${rows.length ? page : 0} de ${rows.length ? pages : 0}` }), next);
+    nav.append(previous, createElement('span', { textContent: `${rows.length ? page : 0} ${t('plants.pagination.of')} ${rows.length ? pages : 0}` }), next);
     return nav;
   }
 

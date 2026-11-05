@@ -3,6 +3,7 @@ import { maskCnpjInput } from './cadastroFields';
 import { createElement } from '../dom';
 import { updateEmpresaPlatform } from '../services/empresaService';
 import type { PlatformEmpresa } from '../platform/services/platformService';
+import { t } from '../services/i18nService';
 
 type EditCompanyModalOptions = {
   empresa: PlatformEmpresa;
@@ -17,10 +18,10 @@ export function createEditCompanyModal({ empresa, onSaved, onError }: EditCompan
   const header = createElement('div', { className: 'form-header' });
   const titleText = createElement('div');
   titleText.append(
-    createElement('span', { className: 'eyebrow', textContent: 'Plataforma' }),
-    createElement('h2', { textContent: 'Editar empresa' })
+    createElement('span', { className: 'eyebrow', textContent: t('platform.companies.editModal.eyebrow') }),
+    createElement('h2', { textContent: t('platform.companies.editModal.heading') })
   );
-  const closeButton = createElement('button', { className: 'secondary-button', textContent: 'Fechar', type: 'button' });
+  const closeButton = createElement('button', { className: 'secondary-button', textContent: t('shared.modal.close'), type: 'button' });
 
   const field = (labelText: string, type: string, value: string, required: boolean): { wrap: HTMLElement; input: HTMLInputElement } => {
     const wrap = createElement('label', { className: 'form-field' });
@@ -32,22 +33,22 @@ export function createEditCompanyModal({ empresa, onSaved, onError }: EditCompan
     return { wrap, input };
   };
 
-  const nome = field('Nome da empresa', 'text', empresa.nome, true);
-  const cnpj = field('CNPJ', 'text', empresa.cnpj ?? '', false);
+  const nome = field(t('platform.companies.editModal.fieldName'), 'text', empresa.nome, true);
+  const cnpj = field(t('platform.companies.editModal.fieldCnpj'), 'text', empresa.cnpj ?? '', false);
   maskCnpjInput(cnpj.input);
 
   const statusField = createElement('label', { className: 'form-field' });
   const statusSelect = createElement('select') as HTMLSelectElement;
   statusSelect.innerHTML = `
-    <option value="ativa">Ativa</option>
-    <option value="inativa">Inativa</option>
-    <option value="suspensa">Suspensa</option>
+    <option value="ativa">${t('platform.companies.editModal.statusAtiva')}</option>
+    <option value="inativa">${t('platform.companies.editModal.statusInativa')}</option>
+    <option value="suspensa">${t('platform.companies.editModal.statusSuspensa')}</option>
   `;
   statusSelect.value = empresa.status ?? 'ativa';
-  statusField.append(createElement('span', { textContent: 'Status' }), statusSelect);
+  statusField.append(createElement('span', { textContent: t('platform.companies.editModal.fieldStatus') }), statusSelect);
 
   const actions = createElement('div', { className: 'form-actions' });
-  const saveButton = createElement('button', { textContent: 'Salvar empresa', type: 'submit' });
+  const saveButton = createElement('button', { textContent: t('platform.companies.editModal.saveButton'), type: 'submit' });
 
   closeButton.addEventListener('click', () => overlay.remove());
   overlay.addEventListener('click', (event) => { if (event.target === overlay) overlay.remove(); });
@@ -62,7 +63,7 @@ export function createEditCompanyModal({ empresa, onSaved, onError }: EditCompan
     if (!form.checkValidity()) { form.reportValidity(); return; }
 
     saveButton.disabled = true;
-    saveButton.textContent = 'Salvando...';
+    saveButton.textContent = t('platform.companies.editModal.saving');
     try {
       await updateEmpresaPlatform(empresa.id, {
         nome: nome.input.value.trim(),
@@ -73,8 +74,8 @@ export function createEditCompanyModal({ empresa, onSaved, onError }: EditCompan
       onSaved();
     } catch (error) {
       saveButton.disabled = false;
-      saveButton.textContent = 'Salvar empresa';
-      onError(error instanceof Error ? error.message : 'Não foi possível salvar a empresa.');
+      saveButton.textContent = t('platform.companies.editModal.saveButton');
+      onError(error instanceof Error ? error.message : t('platform.companies.editModal.error'));
     }
   });
 

@@ -1,4 +1,5 @@
 import { apiRequest, fetchAllPages, type ApiResponse, type Pagination } from './apiClient';
+import { t } from './i18nService';
 import type { UserRole } from './userService';
 
 export type PendenciaTipo = 'pendencia' | 'alerta' | 'erro';
@@ -11,14 +12,7 @@ export const ROLES: UserRole[] = ['owner', 'admin', 'operator', 'financial', 'vi
 // Mesmo mapa de UsersPage.ts (roleLabel) -- duplicado de proposito pra nao
 // criar dependencia cruzada entre paginas nao relacionadas.
 export function roleLabel(role: UserRole): string {
-  const labels: Record<UserRole, string> = {
-    owner: 'Proprietário',
-    admin: 'Administrador',
-    operator: 'Operacional',
-    financial: 'Financeiro',
-    viewer: 'Visualizador'
-  };
-  return labels[role];
+  return t(`nav.role.${role}`);
 }
 
 export const PRIORIDADES: PendenciaPrioridade[] = ['baixa', 'media', 'alta', 'critica'];
@@ -200,17 +194,17 @@ export async function verificarPendencias(): Promise<VerificacaoResponse> {
 }
 
 export function tipoLabel(tipo: PendenciaTipo): string {
-  if (tipo === 'alerta') return 'Alerta';
-  if (tipo === 'erro') return 'Erro';
-  return 'Pendência';
+  if (tipo === 'alerta') return t('pendencias.service.tipoAlerta');
+  if (tipo === 'erro') return t('pendencias.service.tipoErro');
+  return t('pendencias.service.tipoPendencia');
 }
 
 export function prioridadeLabel(prioridade: PendenciaPrioridade): string {
   const labels: Record<PendenciaPrioridade, string> = {
-    baixa: 'Baixa',
-    media: 'Média',
-    alta: 'Alta',
-    critica: 'Crítica'
+    baixa: t('pendencias.service.prioridadeBaixa'),
+    media: t('pendencias.service.prioridadeMedia'),
+    alta: t('pendencias.service.prioridadeAlta'),
+    critica: t('pendencias.service.prioridadeCritica')
   };
   return labels[prioridade];
 }
@@ -222,22 +216,22 @@ export function prioridadeTone(prioridade: PendenciaPrioridade): 'neutral' | 'wa
 }
 
 export function statusLabel(status: PendenciaStatus): string {
-  if (status === 'resolvida') return 'Resolvida';
-  if (status === 'cancelada') return 'Cancelada';
-  return 'Aberta';
+  if (status === 'resolvida') return t('pendencias.service.statusResolvida');
+  if (status === 'cancelada') return t('pendencias.service.statusCancelada');
+  return t('pendencias.service.statusAberta');
 }
 
 export function vinculacaoLabel(pendencia: PendenciaRow): string {
   const partes: string[] = [];
-  if (pendencia.clienteNome) partes.push(`Cliente: ${pendencia.clienteNome}`);
-  if (pendencia.ucCodigo) partes.push(`UC: ${pendencia.ucCodigo}`);
-  if (pendencia.usinaNome) partes.push(`Usina: ${pendencia.usinaNome}`);
-  if (pendencia.documentoNome) partes.push(`Documento: ${pendencia.documentoNome}`);
+  if (pendencia.clienteNome) partes.push(`${t('pendencias.service.vinculoCliente')}: ${pendencia.clienteNome}`);
+  if (pendencia.ucCodigo) partes.push(`${t('pendencias.service.vinculoUc')}: ${pendencia.ucCodigo}`);
+  if (pendencia.usinaNome) partes.push(`${t('pendencias.service.vinculoUsina')}: ${pendencia.usinaNome}`);
+  if (pendencia.documentoNome) partes.push(`${t('pendencias.service.vinculoDocumento')}: ${pendencia.documentoNome}`);
   return partes.length > 0 ? partes.join(' · ') : '-';
 }
 
 export function responsavelLabel(pendencia: PendenciaRow): string {
-  if (pendencia.responsavelTipo === 'cargo' && pendencia.responsavelCargo) return `Cargo: ${roleLabel(pendencia.responsavelCargo)}`;
+  if (pendencia.responsavelTipo === 'cargo' && pendencia.responsavelCargo) return `${t('pendencias.service.cargoPrefix')}: ${roleLabel(pendencia.responsavelCargo)}`;
   if (pendencia.responsavelNome) return pendencia.responsavelNome;
   return '-';
 }

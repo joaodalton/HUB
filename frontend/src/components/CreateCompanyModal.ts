@@ -2,6 +2,7 @@
 import { maskCnpjInput } from './cadastroFields';
 import { createElement } from '../dom';
 import { createEmpresa } from '../services/empresaService';
+import { t } from '../services/i18nService';
 
 type CreateCompanyModalOptions = {
   onCreated: () => void;
@@ -15,10 +16,10 @@ export function createCompanyModal({ onCreated, onError }: CreateCompanyModalOpt
   const header = createElement('div', { className: 'form-header' });
   const titleText = createElement('div');
   titleText.append(
-    createElement('span', { className: 'eyebrow', textContent: 'Plataforma' }),
-    createElement('h2', { textContent: 'Nova empresa' })
+    createElement('span', { className: 'eyebrow', textContent: t('clients.company.eyebrow') }),
+    createElement('h2', { textContent: t('clients.company.heading') })
   );
-  const closeButton = createElement('button', { className: 'secondary-button', textContent: 'Fechar', type: 'button' });
+  const closeButton = createElement('button', { className: 'secondary-button', textContent: t('shared.modal.close'), type: 'button' });
 
   const field = (labelText: string, type: string, required: boolean): { wrap: HTMLElement; input: HTMLInputElement } => {
     const wrap = createElement('label', { className: 'form-field' });
@@ -29,20 +30,20 @@ export function createCompanyModal({ onCreated, onError }: CreateCompanyModalOpt
     return { wrap, input };
   };
 
-  const nome = field('Nome da empresa', 'text', true);
-  const razaoSocial = field('Razão social', 'text', false);
-  const cnpj = field('CNPJ', 'text', false);
+  const nome = field(t('clients.company.fieldName'), 'text', true);
+  const razaoSocial = field(t('clients.company.fieldLegalName'), 'text', false);
+  const cnpj = field(t('clients.company.fieldCnpj'), 'text', false);
   maskCnpjInput(cnpj.input);
-  const email = field('E-mail da empresa', 'email', false);
-  const telefone = field('Telefone', 'text', false);
+  const email = field(t('clients.company.fieldEmail'), 'email', false);
+  const telefone = field(t('clients.company.fieldPhone'), 'text', false);
 
-  const ownerNome = field('Nome do responsável', 'text', true);
-  const ownerEmail = field('E-mail do responsável', 'email', true);
-  const ownerSenha = field('Senha provisória', 'password', true);
+  const ownerNome = field(t('clients.company.fieldOwnerName'), 'text', true);
+  const ownerEmail = field(t('clients.company.fieldOwnerEmail'), 'email', true);
+  const ownerSenha = field(t('clients.company.fieldOwnerPassword'), 'password', true);
   ownerSenha.input.minLength = 8;
 
   const actions = createElement('div', { className: 'form-actions' });
-  const saveButton = createElement('button', { textContent: 'Criar empresa', type: 'submit' });
+  const saveButton = createElement('button', { textContent: t('clients.company.saveButton'), type: 'submit' });
 
   closeButton.addEventListener('click', () => overlay.remove());
   overlay.addEventListener('click', (event) => { if (event.target === overlay) overlay.remove(); });
@@ -57,7 +58,7 @@ export function createCompanyModal({ onCreated, onError }: CreateCompanyModalOpt
     if (!form.checkValidity()) { form.reportValidity(); return; }
 
     saveButton.disabled = true;
-    saveButton.textContent = 'Criando...';
+    saveButton.textContent = t('clients.company.saving');
     try {
       await createEmpresa({
         empresa: {
@@ -77,8 +78,8 @@ export function createCompanyModal({ onCreated, onError }: CreateCompanyModalOpt
       onCreated();
     } catch (error) {
       saveButton.disabled = false;
-      saveButton.textContent = 'Criar empresa';
-      onError(error instanceof Error ? error.message : 'Não foi possível criar a empresa.');
+      saveButton.textContent = t('clients.company.saveButton');
+      onError(error instanceof Error ? error.message : t('clients.company.error'));
     }
   });
 

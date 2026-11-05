@@ -16,6 +16,7 @@ import {
 } from '../services/plantService';
 import { getUcs, type UcRow } from '../services/ucsService';
 import { readListParam, readPositiveListParam, writeListState } from '../services/listState';
+import { t } from '../services/i18nService';
 import { renderPlantsListView, type PlantsListContext } from './plantsListView';
 import { renderPlantDetailView } from './plantsDetailView';
 import type { ConnectedUcRow } from './plantsShared';
@@ -60,9 +61,9 @@ export function createPlantsPage(): HTMLElement {
 
   const layout = createBaseLayout({
     content,
-    eyebrow: 'Gestão',
-    title: 'Usinas',
-    description: 'Visualize geração, uso e status das usinas.'
+    eyebrow: t('plants.page.eyebrow'),
+    title: t('plants.page.title'),
+    description: t('plants.page.description')
   });
 
   renderContent();
@@ -78,7 +79,7 @@ export function createPlantsPage(): HTMLElement {
       loadError = false;
     } catch {
       loadError = true;
-      toast.error('Nao foi possivel carregar usinas. Verifique se o backend esta rodando.');
+      toast.error(t('plants.toast.loadError'));
     } finally {
       isLoading = false;
       loading.hide();
@@ -117,8 +118,8 @@ export function createPlantsPage(): HTMLElement {
           ucsForModal.push({
             ucId: uc.id,
             connectionId: conexao.id,
-            codigo: uc.codigo || 'Sem codigo',
-            clienteNome: uc.clienteNome ?? uc.apelido ?? 'Sem nome',
+            codigo: uc.codigo || t('plants.connectedUcs.codeFallback'),
+            clienteNome: uc.clienteNome ?? uc.apelido ?? t('plants.distribuicao.clientNameFallback'),
             consumo: uc.consumo,
             percentualAtual: Number(conexao.percentual) || 0
           });
@@ -129,7 +130,7 @@ export function createPlantsPage(): HTMLElement {
       plant,
       ucs: ucsForModal,
       onSaved: async () => {
-        toast.success('Distribuição atualizada.');
+        toast.success(t('plants.toast.distribuicaoUpdated'));
         await loadPlants();
       },
       onError: (message) => toast.error(message)
@@ -137,16 +138,16 @@ export function createPlantsPage(): HTMLElement {
   }
 
   async function confirmRemoveConnection(plant: PlantRow, row: ConnectedUcRow): Promise<void> {
-    const confirmed = window.confirm(`Desconectar a UC ${row.codigo} desta usina? O percentual de rateio dela sera perdido.`);
+    const confirmed = window.confirm(`${t('plants.confirmRemoveConnection.prefix')} ${row.codigo}${t('plants.confirmRemoveConnection.suffix')}`);
     if (!confirmed) return;
 
     loading.show();
     try {
       await removePlantConnection(plant.id, row.connectionId);
-      toast.success('UC desconectada.');
+      toast.success(t('plants.toast.connectionRemoved'));
       await loadPlants();
     } catch {
-      toast.error('Nao foi possivel desconectar a UC.');
+      toast.error(t('plants.toast.connectionRemoveError'));
     } finally {
       loading.hide();
     }
@@ -175,31 +176,31 @@ export function createPlantsPage(): HTMLElement {
     try {
       if (existing) {
         await updatePlant(existing.id, data);
-        toast.success('Usina atualizada.');
+        toast.success(t('plants.toast.updated'));
       } else {
         const created = await createPlant(data);
         selectedPlantId = created.id;
-        toast.success('Usina cadastrada.');
+        toast.success(t('plants.toast.created'));
       }
     } catch {
-      toast.error('Nao foi possivel salvar a usina.');
+      toast.error(t('plants.toast.saveError'));
     } finally {
       loading.hide();
     }
   }
 
   async function confirmDeletePlant(plant: PlantRow): Promise<void> {
-    const confirmed = window.confirm(`Excluir a usina ${plant.nome}? Essa acao nao pode ser desfeita.`);
+    const confirmed = window.confirm(`${t('plants.confirmDelete.prefix')} ${plant.nome}${t('plants.confirmDelete.suffix')}`);
     if (!confirmed) return;
 
     loading.show();
     try {
       await deletePlant(plant.id);
-      toast.success('Usina excluida.');
+      toast.success(t('plants.toast.deleted'));
       if (selectedPlantId === plant.id) selectedPlantId = null;
       await loadPlants();
     } catch {
-      toast.error('Nao foi possivel excluir a usina.');
+      toast.error(t('plants.toast.deleteError'));
     } finally {
       loading.hide();
     }

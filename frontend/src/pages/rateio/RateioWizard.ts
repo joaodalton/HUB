@@ -9,6 +9,7 @@ import { renderRateioPlantPicker } from './RateioPlantPicker';
 import { renderRateioProductionStage } from './RateioProductionStage';
 import { renderRateioQualificationStage } from './RateioQualificationStage';
 import { createStepHeader, defaultCompetencia } from './shared';
+import { t } from '../../services/i18nService';
 
 type Stage = 'selecionar' | 'producao' | 'qualificacao' | 'distribuicao' | 'concluido';
 type Props = { plants: PlantRow[]; ucs: UcRow[]; loadError: boolean; onOpenFormulario: (plantId: number | null) => void };
@@ -39,19 +40,19 @@ export function createRateioWizard(props: Props): HTMLElement {
     const plant = plants.find((item) => item.id === selectedPlantId);
     if (stage !== 'selecionar' && !plant) stage = 'selecionar';
     if (stage === 'producao' && plant) {
-      root.replaceChildren(createStepHeader(2, 'Produção'), renderRateioProductionStage({ plant, preview, previewLoading, reservaCustomMode, onBack: () => { stage = 'selecionar'; render(); }, onContinue: () => { stage = 'qualificacao'; render(); void loadQualificacao(plant.id); }, onCustomMode: () => { reservaCustomMode = true; render(); }, onSaveReserva: (value) => void saveReserva(plant.id, value) }));
+      root.replaceChildren(createStepHeader(2, t('rateio.wizard.stepProducao')), renderRateioProductionStage({ plant, preview, previewLoading, reservaCustomMode, onBack: () => { stage = 'selecionar'; render(); }, onContinue: () => { stage = 'qualificacao'; render(); void loadQualificacao(plant.id); }, onCustomMode: () => { reservaCustomMode = true; render(); }, onSaveReserva: (value) => void saveReserva(plant.id, value) }));
       return;
     }
     if (stage === 'qualificacao' && plant) {
-      root.replaceChildren(createStepHeader(3, 'Qualificação'), renderRateioQualificationStage({ plant, qualificacao, loading: qualificacaoLoading, showingQualified, selectedUcIds, onBack: () => { stage = 'producao'; render(); }, onContinue: continueToDistribution, onToggleList: () => { showingQualified = !showingQualified; render(); }, onToggleUc: (ucId, selected) => { if (selected) selectedUcIds.add(ucId); else selectedUcIds.delete(ucId); render(); } }));
+      root.replaceChildren(createStepHeader(3, t('rateio.wizard.stepQualificacao')), renderRateioQualificationStage({ plant, qualificacao, loading: qualificacaoLoading, showingQualified, selectedUcIds, onBack: () => { stage = 'producao'; render(); }, onContinue: continueToDistribution, onToggleList: () => { showingQualified = !showingQualified; render(); }, onToggleUc: (ucId, selected) => { if (selected) selectedUcIds.add(ucId); else selectedUcIds.delete(ucId); render(); } }));
       return;
     }
     if (stage === 'distribuicao' && plant && qualificacao) {
       const distribuicaoUcs = buildDistribuicaoUcs(plant, qualificacao, ucs);
-      root.replaceChildren(createStepHeader(4, 'Distribuição'), renderRateioDistributionStage({ plant, ucs: distribuicaoUcs, preview, selectedUcIds, overrides, competencia, confirming, onBack: () => { stage = 'qualificacao'; render(); }, onCompetenciaChange: (value) => { competencia = value; }, onApprove: (selecoes) => void confirmRateio(plant.id, selecoes), onRemove: (ucId) => { selectedUcIds.delete(ucId); overrides.delete(ucId); render(); } }));
+      root.replaceChildren(createStepHeader(4, t('rateio.wizard.stepDistribuicao')), renderRateioDistributionStage({ plant, ucs: distribuicaoUcs, preview, selectedUcIds, overrides, competencia, confirming, onBack: () => { stage = 'qualificacao'; render(); }, onCompetenciaChange: (value) => { competencia = value; }, onApprove: (selecoes) => void confirmRateio(plant.id, selecoes), onRemove: (ucId) => { selectedUcIds.delete(ucId); overrides.delete(ucId); render(); } }));
       return;
     }
-    root.replaceChildren(createStepHeader(1, 'Selecionar usina'), renderRateioPlantPicker({ plants, loadError: props.loadError, selectedPlantId, connectedUcsCount, onSelect: selectPlant }));
+    root.replaceChildren(createStepHeader(1, t('rateio.wizard.stepSelecionarUsina')), renderRateioPlantPicker({ plants, loadError: props.loadError, selectedPlantId, connectedUcsCount, onSelect: selectPlant }));
   }
 
   function selectPlant(plant: PlantRow): void {
@@ -65,7 +66,7 @@ export function createRateioWizard(props: Props): HTMLElement {
   async function loadPreview(plantId: number): Promise<void> {
     previewLoading = true; render();
     try { preview = await previewRateio(plantId); }
-    catch { preview = null; toast.error('Não foi possível calcular a produção. Verifique se o backend está rodando.'); }
+    catch { preview = null; toast.error(t('rateio.wizard.previewError')); }
     finally { previewLoading = false; render(); }
   }
 
@@ -77,7 +78,7 @@ export function createRateioWizard(props: Props): HTMLElement {
       qualificacao.ucs.filter((uc) => uc.qualificado).forEach((uc) => selectedUcIds.add(uc.ucId));
       ucs.filter((uc) => uc.conexoes.some((conexao) => conexao.plantId === plantId)).forEach((uc) => selectedUcIds.add(uc.id));
     }
-    catch { qualificacao = null; toast.error('Não foi possível calcular a qualificação. Verifique se o backend está rodando.'); }
+    catch { qualificacao = null; toast.error(t('rateio.wizard.qualificacaoError')); }
     finally { qualificacaoLoading = false; render(); }
   }
 
@@ -97,34 +98,34 @@ export function createRateioWizard(props: Props): HTMLElement {
     try {
       const updated = await updatePlantRateioConfig(plantId, { reservaPercentual: Math.min(100, Math.max(0, value)) });
       plants = plants.map((item) => item.id === plantId ? updated : item);
-      toast.success('Reserva atualizada.'); await loadPreview(plantId);
-    } catch { toast.error('Não foi possível salvar a reserva.'); }
+      toast.success(t('rateio.wizard.reservaUpdated')); await loadPreview(plantId);
+    } catch { toast.error(t('rateio.wizard.reservaSaveError')); }
     finally { loading.hide(); }
   }
 
   function continueToDistribution(): void {
-    if (!selectedUcIds.size) { toast.error('Não há clientes qualificados nem conectados para esta usina.'); return; }
+    if (!selectedUcIds.size) { toast.error(t('rateio.wizard.noQualifiedClients')); return; }
     stage = 'distribuicao'; render();
   }
 
   async function confirmRateio(plantId: number, selecoes: Array<{ ucId: number; percentual: number }>): Promise<void> {
-    if (!competencia) { toast.error('Escolha a competência (mês) antes de aprovar.'); return; }
+    if (!competencia) { toast.error(t('rateio.wizard.chooseCompetencia')); return; }
     if (confirming) return;
     confirming = true; loading.show(); render();
     try {
       const result = await confirmarSelecaoRateio(plantId, competencia, selecoes);
       confirmation = { conexoesCriadas: result.conexoesCriadas, conexoesAtualizadas: result.conexoesAtualizadas };
-      ucs = await getUcs(); selectedUcIds.clear(); overrides.clear(); toast.success('Rateio confirmado com sucesso.'); stage = 'concluido';
-    } catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível confirmar o rateio.'); }
+      ucs = await getUcs(); selectedUcIds.clear(); overrides.clear(); toast.success(t('rateio.wizard.confirmed')); stage = 'concluido';
+    } catch (error) { toast.error(error instanceof Error ? error.message : t('rateio.wizard.confirmError')); }
     finally { confirming = false; loading.hide(); render(); }
   }
 
   function renderConcluido(): HTMLElement {
     const panel = createElement('section', { className: 'data-panel rateio-summary-card' });
-    panel.append(createElement('span', { className: 'eyebrow', textContent: 'Rateio aprovado' }), createElement('h2', { textContent: 'As conexões e o histórico foram atualizados' }), createElement('p', { className: 'settings-hint', textContent: `${confirmation?.conexoesCriadas ?? 0} conexão(ões) criada(s) e ${confirmation?.conexoesAtualizadas ?? 0} atualizada(s).` }));
+    panel.append(createElement('span', { className: 'eyebrow', textContent: t('rateio.wizard.doneEyebrow') }), createElement('h2', { textContent: t('rateio.wizard.doneTitle') }), createElement('p', { className: 'settings-hint', textContent: `${confirmation?.conexoesCriadas ?? 0} ${t('rateio.wizard.doneHint')} ${confirmation?.conexoesAtualizadas ?? 0} ${t('rateio.wizard.doneHintSuffix')}` }));
     const actions = createElement('div', { className: 'form-actions' });
-    const again = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Montar outro rateio' });
-    const form = createElement('button', { type: 'button', textContent: 'Gerar Formulário Copel' });
+    const again = createElement('button', { className: 'secondary-button', type: 'button', textContent: t('rateio.wizard.again') });
+    const form = createElement('button', { type: 'button', textContent: t('rateio.wizard.generateForm') });
     again.addEventListener('click', () => { stage = 'selecionar'; selectedPlantId = null; confirmation = null; render(); });
     form.addEventListener('click', () => props.onOpenFormulario(selectedPlantId)); actions.append(again, form); panel.appendChild(actions); return panel;
   }

@@ -10,26 +10,37 @@ import {
   listBillingRuleAssignments, updateBillingRule, updateBillingRuleAssignment,
   type BillingRule, type BillingRuleAssignment, type BillingRuleInput
 } from '../services/billingRulesService';
+import { t } from '../services/i18nService';
 
-const METHODS = [
-  ['energia_compensada', 'Energia compensada'], ['energia_recebida', 'Energia recebida'],
-  ['valor_total_fatura', 'Valor total da fatura'], ['tarifa_fixa', 'Tarifa fixa'],
-  ['tarifa_fixa_com_desconto', 'Tarifa fixa com desconto'], ['tarifa_especifica', 'Tarifa específica'],
-  ['economia_gerada', 'Economia gerada']
-];
-const TARIFF_SOURCES = [['invoice', 'Documental'], ['manual', 'Tarifa configurada']];
-const BASES = [
-  ['compensated', 'Energia compensada'], ['consumed', 'Energia consumida'],
-  ['gd1', 'GD I'], ['gd2', 'GD II'], ['documented_component', 'Componente documental']
-];
-const MODES = [['auto', 'Automático'], ['unified', 'Unificada'], ['separate', 'Separada']];
-const DUE_BASES = [
-  ['invoice_due_date', 'Vencimento da fatura'], ['invoice_issue_date', 'Emissão da fatura'],
-  ['reading_date', 'Leitura'], ['calculation_date', 'Data do cálculo']
-];
+function METHODS(): string[][] {
+  return [
+    ['energia_compensada', t('billing.ruleEditor.methodEnergiaCompensada')], ['energia_recebida', t('billing.ruleEditor.methodEnergiaRecebida')],
+    ['valor_total_fatura', t('billing.ruleEditor.methodValorTotalFatura')], ['tarifa_fixa', t('billing.ruleEditor.methodTarifaFixa')],
+    ['tarifa_fixa_com_desconto', t('billing.ruleEditor.methodTarifaFixaComDesconto')], ['tarifa_especifica', t('billing.ruleEditor.methodTarifaEspecifica')],
+    ['economia_gerada', t('billing.ruleEditor.methodEconomiaGerada')]
+  ];
+}
+function TARIFF_SOURCES(): string[][] {
+  return [['invoice', t('billing.ruleEditor.sourceInvoice')], ['manual', t('billing.ruleEditor.sourceManual')]];
+}
+function BASES(): string[][] {
+  return [
+    ['compensated', t('billing.ruleEditor.basisCompensated')], ['consumed', t('billing.ruleEditor.basisConsumed')],
+    ['gd1', t('billing.ruleEditor.basisGd1')], ['gd2', t('billing.ruleEditor.basisGd2')], ['documented_component', t('billing.ruleEditor.basisDocumentedComponent')]
+  ];
+}
+function MODES(): string[][] {
+  return [['auto', t('billing.ruleEditor.modeAuto')], ['unified', t('billing.ruleEditor.modeUnified')], ['separate', t('billing.ruleEditor.modeSeparate')]];
+}
+function DUE_BASES(): string[][] {
+  return [
+    ['invoice_due_date', t('billing.ruleEditor.dueInvoiceDueDate')], ['invoice_issue_date', t('billing.ruleEditor.dueInvoiceIssueDate')],
+    ['reading_date', t('billing.ruleEditor.dueReadingDate')], ['calculation_date', t('billing.ruleEditor.dueCalculationDate')]
+  ];
+}
 
 function options(values: string[][]): Array<{ value: string; label: string }> {
-  return [{ value: '', label: 'Selecione' }, ...values.map(([value, label]) => ({ value, label }))];
+  return [{ value: '', label: t('billing.ruleEditor.select') }, ...values.map(([value, label]) => ({ value, label }))];
 }
 
 function help(field: HTMLElement, label: string, explanation: string): void {
@@ -40,7 +51,7 @@ function decimalField(label: string, value: string | null) {
   const control = createInput(label, 'text', value ?? '');
   control.input.inputMode = 'decimal';
   control.input.pattern = '-?[0-9]{1,12}(\\.[0-9]{1,6})?';
-  control.input.title = 'Use ponto decimal e até seis casas, por exemplo 0.654321.';
+  control.input.title = t('billing.ruleEditor.decimalTooltip');
   return control;
 }
 
@@ -70,7 +81,7 @@ export function createBillingRuleEditorPage(id?: number): HTMLElement {
   let rule: BillingRule | undefined;
   let savedId = id;
   let assignments: BillingRuleAssignment[] = [];
-  const layout = createBaseLayout({ content, eyebrow: 'Financeiro / Regras de cobrança', title: id ? 'Editar regra' : 'Nova regra' });
+  const layout = createBaseLayout({ content, eyebrow: t('billing.ruleEditor.eyebrow'), title: id ? t('billing.ruleEditor.titleEdit') : t('billing.ruleEditor.titleNew') });
   if (id) void load();
   else render();
   return layout;
@@ -85,7 +96,7 @@ export function createBillingRuleEditorPage(id?: number): HTMLElement {
       render();
     } catch (error) {
       content.replaceChildren(createElement('p', {
-        textContent: error instanceof Error ? error.message : 'Não foi possível carregar esta regra.'
+        textContent: error instanceof Error ? error.message : t('billing.ruleEditor.loadError')
       }));
     } finally {
       loading.hide();
@@ -96,80 +107,80 @@ export function createBillingRuleEditorPage(id?: number): HTMLElement {
     const readOnly = !canWrite;
     const form = createElement('form', { className: 'billing-rule-form' });
     const heading = createElement('div', { className: 'billing-rule-editor-heading' });
-    const breadcrumb = createElement('a', { textContent: 'Regras de cobrança' });
+    const breadcrumb = createElement('a', { textContent: t('billing.ruleEditor.breadcrumb') });
     breadcrumb.href = '/regras-cobranca';
     breadcrumb.addEventListener('click', (event) => { event.preventDefault(); navigate('/regras-cobranca'); });
-    heading.append(breadcrumb, document.createTextNode(` / ${id ? 'Editar regra' : 'Nova regra'}`));
+    heading.append(breadcrumb, document.createTextNode(` / ${id ? t('billing.ruleEditor.titleEdit') : t('billing.ruleEditor.titleNew')}`));
     const status = createElement('span', {
       className: 'status-badge tone-info',
-      textContent: rule ? rule.ativo ? 'ATIVA' : 'INATIVA' : 'NOVA'
+      textContent: rule ? rule.ativo ? t('billing.ruleEditor.statusActive') : t('billing.ruleEditor.statusInactive') : t('billing.ruleEditor.statusNew')
     });
     heading.appendChild(status);
     if (defaultFlow) heading.appendChild(createElement('span', {
-      textContent: 'Ao salvar, esta regra será vinculada como padrão da empresa.'
+      textContent: t('billing.ruleEditor.defaultFlowNote')
     }));
 
-    const name = createInput('Nome', 'text', rule?.nome ?? '', true);
+    const name = createInput(t('billing.ruleEditor.fieldNome'), 'text', rule?.nome ?? '', true);
     name.input.maxLength = 150;
     const description = createElement('label', { className: 'form-field form-field-wide' });
     const descriptionInput = createElement('textarea');
     descriptionInput.value = rule?.descricao ?? '';
-    description.append(createElement('span', { textContent: 'Descrição' }), descriptionInput);
+    description.append(createElement('span', { textContent: t('billing.ruleEditor.fieldDescricao') }), descriptionInput);
 
-    const method = createSelectField('Método tarifário', rule?.calculationMethod ?? '', options(METHODS));
+    const method = createSelectField(t('billing.ruleEditor.fieldMetodoTarifario'), rule?.calculationMethod ?? '', options(METHODS()));
     method.select.required = true;
-    help(method.field, 'Método tarifário', 'Define qual base comercial a regra usará. Exemplo: energia compensada usa os kWh de compensação comprovados; métodos sem dados suficientes podem bloquear a execução.');
-    const tariffSource = createSelectField('Origem da tarifa', rule?.tariffSource ?? '', options(TARIFF_SOURCES));
+    help(method.field, t('billing.ruleEditor.fieldMetodoTarifario'), t('billing.ruleEditor.helpMetodoTarifario'));
+    const tariffSource = createSelectField(t('billing.ruleEditor.fieldOrigemTarifa'), rule?.tariffSource ?? '', options(TARIFF_SOURCES()));
     tariffSource.select.required = true;
-    const companyTariff = decimalField('Tarifa da empresa (R$/kWh)', rule?.tariffConfiguration.companyTariff ?? null);
-    help(companyTariff.field, 'Tarifa da empresa', 'Tarifa configurada para o método comercial. Exemplo: 0.654321 R$/kWh; não é a tarifa cheia encontrada na fatura.');
-    const tariffHfp = decimalField('Tarifa HFP (R$/kWh)', rule?.tariffConfiguration.tariffHfp ?? null);
-    const tariffHp = decimalField('Tarifa HP (R$/kWh)', rule?.tariffConfiguration.tariffHp ?? null);
-    const basis = createSelectField('Base energética', rule?.tariffBasis ?? '', options(BASES));
+    const companyTariff = decimalField(t('billing.ruleEditor.fieldTarifaEmpresa'), rule?.tariffConfiguration.companyTariff ?? null);
+    help(companyTariff.field, t('billing.ruleEditor.fieldTarifaEmpresa'), t('billing.ruleEditor.helpTarifaEmpresa'));
+    const tariffHfp = decimalField(t('billing.ruleEditor.fieldTarifaHfp'), rule?.tariffConfiguration.tariffHfp ?? null);
+    const tariffHp = decimalField(t('billing.ruleEditor.fieldTarifaHp'), rule?.tariffConfiguration.tariffHp ?? null);
+    const basis = createSelectField(t('billing.ruleEditor.fieldBaseEnergetica'), rule?.tariffBasis ?? '', options(BASES()));
     basis.select.required = true;
-    const componentIndex = createInput('Índice do componente documental', 'number', rule?.energyComponentIndex?.toString() ?? '');
+    const componentIndex = createInput(t('billing.ruleEditor.fieldIndiceComponente'), 'number', rule?.energyComponentIndex?.toString() ?? '');
     componentIndex.input.min = '0';
     componentIndex.input.step = '1';
     const documentaryNote = createElement('p', {
       className: 'billing-rule-note',
-      textContent: 'Tarifa cheia documental e tarifa de compensação vêm da fatura. Esta página não edita esses valores. ICMS e bandeira são configurações comerciais; algumas combinações ainda bloqueiam a execução.'
+      textContent: t('billing.ruleEditor.documentaryNote')
     });
 
-    const icms = createSelectField('ICMS', rule?.billingModifiers.icmsPolicy ?? '', [
-      { value: '', label: 'Não configurado' }, { value: 'exclude', label: 'Sem ICMS' }
+    const icms = createSelectField(t('billing.ruleEditor.fieldIcms'), rule?.billingModifiers.icmsPolicy ?? '', [
+      { value: '', label: t('billing.ruleEditor.icmsNotConfigured') }, { value: 'exclude', label: t('billing.ruleEditor.icmsExclude') }
     ]);
-    help(icms.field, 'ICMS', '“Sem ICMS” pede a variante documental sem ICMS. Exemplo: tarifa de compensação identificada na fatura. Sem evidência, o cálculo pode bloquear; não recalcula imposto.');
-    const flag = createSelectField('Bandeira tarifária', String(rule?.billingModifiers.excludeTariffFlag ?? ''), [
-      { value: '', label: 'Não configurado' }, { value: 'true', label: 'Sem bandeira' },
-      { value: 'false', label: 'Com bandeira' }
+    help(icms.field, t('billing.ruleEditor.fieldIcms'), t('billing.ruleEditor.helpIcms'));
+    const flag = createSelectField(t('billing.ruleEditor.fieldBandeira'), String(rule?.billingModifiers.excludeTariffFlag ?? ''), [
+      { value: '', label: t('billing.ruleEditor.icmsNotConfigured') }, { value: 'true', label: t('billing.ruleEditor.flagSemBandeira') },
+      { value: 'false', label: t('billing.ruleEditor.flagComBandeira') }
     ]);
-    help(flag.field, 'Bandeira tarifária', 'Exige uma tarifa documental com ou sem bandeira, conforme a escolha. Exemplo: “Sem bandeira” só serve quando o documento comprova essa composição.');
-    const pis = createSelectField('PIS/COFINS', String(rule?.billingModifiers.excludePisCofins ?? ''), [
-      { value: '', label: 'Não configurado' }, { value: 'true', label: 'Excluir com comprovação' },
-      { value: 'false', label: 'Não excluir' }
+    help(flag.field, t('billing.ruleEditor.fieldBandeira'), t('billing.ruleEditor.helpBandeira'));
+    const pis = createSelectField(t('billing.ruleEditor.fieldPisCofins'), String(rule?.billingModifiers.excludePisCofins ?? ''), [
+      { value: '', label: t('billing.ruleEditor.icmsNotConfigured') }, { value: 'true', label: t('billing.ruleEditor.pisExcludeWithProof') },
+      { value: 'false', label: t('billing.ruleEditor.pisNotExclude') }
     ]);
-    help(pis.field, 'PIS/COFINS', 'A exclusão só ocorre com valores documentais ligados a cada compensação. Exemplo: sem esse vínculo, a execução fica pendente.');
-    const graceEnabled = createSelectField('Carência', String(rule?.billingModifiers.gracePeriod.enabled ?? ''), [
-      { value: '', label: 'Não configurada' }, { value: 'true', label: 'Ativa' }, { value: 'false', label: 'Desativada' }
+    help(pis.field, t('billing.ruleEditor.fieldPisCofins'), t('billing.ruleEditor.helpPisCofins'));
+    const graceEnabled = createSelectField(t('billing.ruleEditor.fieldCarencia'), String(rule?.billingModifiers.gracePeriod.enabled ?? ''), [
+      { value: '', label: t('billing.ruleEditor.carenciaNotConfigured') }, { value: 'true', label: t('billing.ruleEditor.carenciaActive') }, { value: 'false', label: t('billing.ruleEditor.carenciaInactive') }
     ]);
-    const graceDuration = createInput('Duração da carência (meses)', 'number', rule?.billingModifiers.gracePeriod.durationMonths?.toString() ?? '');
+    const graceDuration = createInput(t('billing.ruleEditor.fieldCarenciaDuracao'), 'number', rule?.billingModifiers.gracePeriod.durationMonths?.toString() ?? '');
     graceDuration.input.min = '1';
     graceDuration.input.step = '1';
-    const graceDiscount = createSelectField('Sem desconto na carência', String(rule?.billingModifiers.gracePeriod.withoutDiscount ?? ''), [
-      { value: '', label: 'Não configurado' }, { value: 'true', label: 'Sim' }, { value: 'false', label: 'Não' }
+    const graceDiscount = createSelectField(t('billing.ruleEditor.fieldCarenciaSemDesconto'), String(rule?.billingModifiers.gracePeriod.withoutDiscount ?? ''), [
+      { value: '', label: t('billing.ruleEditor.icmsNotConfigured') }, { value: 'true', label: t('billing.ruleEditor.yes') }, { value: 'false', label: t('billing.ruleEditor.no') }
     ]);
-    const additional = decimalField('Adicional recorrente (R$)', rule?.billingModifiers.recurringAdditionalCost ?? null);
-    help(additional.field, 'Adicional recorrente', 'Valor fixo configurado em separado da tarifa, juros e multa. Exemplo: 12.50; aplicação depende do método executável.');
+    const additional = decimalField(t('billing.ruleEditor.fieldAdicionalRecorrente'), rule?.billingModifiers.recurringAdditionalCost ?? null);
+    help(additional.field, t('billing.ruleEditor.fieldAdicionalRecorrente'), t('billing.ruleEditor.helpAdicionalRecorrente'));
 
-    const mode = createSelectField('Modo de cobrança', rule?.billingMode ?? '', options(MODES));
+    const mode = createSelectField(t('billing.ruleEditor.fieldModoCobranca'), rule?.billingMode ?? '', options(MODES()));
     mode.select.required = true;
-    const dueBasis = createSelectField('Base do vencimento', rule?.dueDateBasis ?? '', options(DUE_BASES));
+    const dueBasis = createSelectField(t('billing.ruleEditor.fieldBaseVencimento'), rule?.dueDateBasis ?? '', options(DUE_BASES()));
     dueBasis.select.required = true;
-    const dueOffset = createInput('Deslocamento do vencimento (dias)', 'number', rule?.dueDateOffsetDays?.toString() ?? '');
+    const dueOffset = createInput(t('billing.ruleEditor.fieldDeslocamentoVencimento'), 'number', rule?.dueDateOffsetDays?.toString() ?? '');
     dueOffset.input.required = true;
     dueOffset.input.step = '1';
-    const interest = decimalField('Juros mensais (%)', rule?.monthlyInterest ?? null);
-    const fine = decimalField('Multa (%)', rule?.finePercentage ?? null);
+    const interest = decimalField(t('billing.ruleEditor.fieldJurosMensais'), rule?.monthlyInterest ?? null);
+    const fine = decimalField(t('billing.ruleEditor.fieldMulta'), rule?.finePercentage ?? null);
 
     const methodWarning = createElement('p', { className: 'billing-rule-warning' });
     function updateConditional(): void {
@@ -188,11 +199,11 @@ export function createBillingRuleEditorPage(id?: number): HTMLElement {
         icms.select.value || flag.select.value === 'true' || graceEnabled.select.value === 'true' ||
         additional.input.value);
       methodWarning.textContent = unsupportedMethod
-        ? 'Este método pode ser configurado, mas ainda não é executável pelo motor atual.'
+        ? t('billing.ruleEditor.warningUnsupportedMethod')
         : unsupportedModifiers
-          ? 'Esta combinação de modificadores pode ser salva, mas bloqueia a execução no motor atual.'
+          ? t('billing.ruleEditor.warningUnsupportedModifiers')
           : method.select.value === 'energia_compensada' && tariffSource.select.value === 'manual'
-            ? 'Energia compensada exige origem documental na execução atual.' : '';
+            ? t('billing.ruleEditor.warningCompensadaManual') : '';
       methodWarning.hidden = !methodWarning.textContent;
     }
     [method.select, tariffSource.select, basis.select, graceEnabled.select].forEach((select) =>
@@ -201,19 +212,19 @@ export function createBillingRuleEditorPage(id?: number): HTMLElement {
     [tariffHfp.input, tariffHp.input, additional.input].forEach((input) =>
       input.addEventListener('input', updateConditional));
 
-    const identification = createFormSection('Identificação', name.field, description);
-    const tariff = createFormSection('Método e tarifa', method.field, tariffSource.field,
+    const identification = createFormSection(t('billing.ruleEditor.sectionIdentificacao'), name.field, description);
+    const tariff = createFormSection(t('billing.ruleEditor.sectionMetodoTarifa'), method.field, tariffSource.field,
       companyTariff.field, tariffHfp.field, tariffHp.field, basis.field, componentIndex.field);
     tariff.append(documentaryNote, methodWarning);
-    const modifiers = createFormSection('ICMS, bandeira e condições comerciais',
+    const modifiers = createFormSection(t('billing.ruleEditor.sectionIcmsBandeira'),
       icms.field, flag.field, pis.field, graceEnabled.field, graceDuration.field,
       graceDiscount.field, additional.field);
     const advanced = createElement('details', { className: 'billing-rule-advanced' });
     advanced.open = Boolean(rule && (rule.billingModifiers.icmsPolicy ||
       rule.billingModifiers.excludeTariffFlag !== null || rule.billingModifiers.excludePisCofins !== null ||
       rule.billingModifiers.gracePeriod.enabled || rule.billingModifiers.recurringAdditionalCost));
-    advanced.append(createElement('summary', { textContent: 'ICMS, bandeira e condições comerciais' }), modifiers);
-    const collection = createFormSection('Cobrança e vencimento', mode.field, dueBasis.field,
+    advanced.append(createElement('summary', { textContent: t('billing.ruleEditor.sectionIcmsBandeira') }), modifiers);
+    const collection = createFormSection(t('billing.ruleEditor.sectionCobrancaVencimento'), mode.field, dueBasis.field,
       dueOffset.field, interest.field, fine.field);
 
     const impacts = createElement('section', { className: 'billing-rule-impact' });
@@ -221,17 +232,18 @@ export function createBillingRuleEditorPage(id?: number): HTMLElement {
       const company = assignments.filter((item) => item.scopeType === 'company').length;
       const clients = assignments.filter((item) => item.scopeType === 'client').length;
       const ucs = assignments.filter((item) => item.scopeType === 'consumer_unit').length;
-      impacts.append(createElement('h3', { textContent: 'Vínculos e impacto' }), createElement('p', {
-        textContent: `Vínculos ativos: empresa ${company}, clientes ${clients}, UCs diretas ${ucs}. Alterar esta regra afeta novas execuções desses vínculos; snapshots anteriores permanecem.`
+      impacts.append(createElement('h3', { textContent: t('billing.ruleEditor.impactTitle') }), createElement('p', {
+        textContent: t('billing.ruleEditor.impactTextTemplate')
+          .replace('{company}', String(company)).replace('{clients}', String(clients)).replace('{ucs}', String(ucs))
       }));
     }
 
     const actions = createElement('div', { className: 'billing-rule-editor-actions' });
-    const cancel = createElement('button', { type: 'button', className: 'secondary-button', textContent: ucId ? 'Voltar para UC' : 'Cancelar' });
+    const cancel = createElement('button', { type: 'button', className: 'secondary-button', textContent: ucId ? t('billing.ruleEditor.backToUc') : t('billing.ruleEditor.cancel') });
     cancel.addEventListener('click', () => navigate(returnPath));
     actions.appendChild(cancel);
     if (canWrite) {
-      const save = createElement('button', { type: 'submit', textContent: 'Salvar regra' });
+      const save = createElement('button', { type: 'submit', textContent: t('billing.ruleEditor.saveRule') });
       actions.appendChild(save);
     }
 
@@ -246,7 +258,7 @@ export function createBillingRuleEditorPage(id?: number): HTMLElement {
       event.preventDefault();
       if (!canWrite || !form.reportValidity()) return;
       if (rule?.billingModifiers.gracePeriod.start || rule?.billingModifiers.gracePeriod.end) {
-        toast.error('Esta regra tem datas de carência legadas. Revise a política antes de editar.');
+        toast.error(t('billing.ruleEditor.legacyGraceError'));
         return;
       }
       const input: BillingRuleInput = {
@@ -276,9 +288,9 @@ export function createBillingRuleEditorPage(id?: number): HTMLElement {
       };
       const affected = assignments.length;
       if (savedId && affected && !window.confirm(
-        `Esta regra tem ${affected} vínculo(s) ativo(s). Salvar altera novas execuções para os alvos vinculados. Continuar?`
+        t('billing.ruleEditor.confirmAssignmentsTemplate').replace('{count}', String(affected))
       )) return;
-      if (defaultFlow && !window.confirm('Definir esta regra como padrão da empresa para novas execuções?')) return;
+      if (defaultFlow && !window.confirm(t('billing.ruleEditor.confirmDefault'))) return;
       loading.show();
       let ruleSaved = false;
       try {
@@ -293,7 +305,7 @@ export function createBillingRuleEditorPage(id?: number): HTMLElement {
         }
         ruleSaved = true;
         if (ucId && !id) {
-          if (savedId === undefined) throw new Error('A regra ainda não foi salva.');
+          if (savedId === undefined) throw new Error(t('billing.ruleEditor.notSavedYetError'));
           const active = (await listBillingRuleAssignments({ scopeType: 'consumer_unit', consumerUnitId: String(ucId), ativo: 'true' }))[0];
           if (active?.grupoRegraCobrancaId !== savedId) {
             if (active) await updateBillingRuleAssignment(active.id, { grupoRegraCobrancaId: savedId });
@@ -301,20 +313,20 @@ export function createBillingRuleEditorPage(id?: number): HTMLElement {
           }
         }
         if (defaultFlow) {
-          if (savedId === undefined) throw new Error('A regra ainda não foi salva.');
+          if (savedId === undefined) throw new Error(t('billing.ruleEditor.notSavedYetError'));
           const active = (await listBillingRuleAssignments({ scopeType: 'company', ativo: 'true' }))[0];
           if (active?.grupoRegraCobrancaId !== savedId) {
             if (active) await updateBillingRuleAssignment(active.id, { grupoRegraCobrancaId: savedId });
             else await createBillingRuleAssignment({ grupoRegraCobrancaId: savedId, scopeType: 'company' });
           }
         }
-        toast.success('Regra salva.');
+        toast.success(t('billing.ruleEditor.ruleSaved'));
         navigate(returnPath);
       } catch (error) {
-        const detail = error instanceof Error ? error.message : 'Tente novamente.';
+        const detail = error instanceof Error ? error.message : t('billing.ruleEditor.tryAgain');
         toast.error(ruleSaved && (ucId || defaultFlow)
-          ? `Regra salva, mas o vínculo ${defaultFlow ? 'padrão' : 'com a UC'} falhou: ${detail}`
-          : `Não foi possível salvar a regra: ${detail}`);
+          ? t('billing.ruleEditor.savedButLinkFailedTemplate').replace('{type}', defaultFlow ? t('billing.ruleEditor.defaultLinkLabel') : t('billing.ruleEditor.ucLinkLabel')).replace('{detail}', detail)
+          : t('billing.ruleEditor.saveErrorTemplate').replace('{detail}', detail));
       } finally {
         loading.hide();
       }

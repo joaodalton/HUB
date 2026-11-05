@@ -90,7 +90,7 @@ describe('PendenciasPage', () => {
     vi.mocked(getPendenciaResumo).mockResolvedValue({ pendencias: 0, alertas: 0, erros: 0 });
     const content = createPendenciasPage();
     await flush();
-    expect(content.textContent).toContain('Nenhuma pendencia aberta');
+    expect(content.textContent).toContain('Nenhuma pendência aberta');
   });
 
   it('shows an error state when loading fails', async () => {
@@ -98,7 +98,7 @@ describe('PendenciasPage', () => {
     vi.mocked(getPendenciaResumo).mockRejectedValue(new Error('offline'));
     const content = createPendenciasPage();
     await flush();
-    expect(content.textContent).toContain('Nao foi possivel carregar pendencias');
+    expect(content.textContent).toContain('Não foi possível carregar pendências');
   });
 
   it('filters by search term (PendenciasListView interaction)', async () => {

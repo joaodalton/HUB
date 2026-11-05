@@ -60,7 +60,7 @@ describe('ClientsPage', () => {
     vi.mocked(getClients).mockRejectedValue(new Error('offline'));
     const content = createClientsPage();
     await flush();
-    expect(content.textContent).toContain('Nao foi possivel carregar clientes');
+    expect(content.textContent).toContain('Não foi possível carregar clientes');
   });
 
   it('filters the table by search term', async () => {

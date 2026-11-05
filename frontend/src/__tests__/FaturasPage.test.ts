@@ -97,7 +97,7 @@ describe('FaturasPage', () => {
     vi.mocked(getBillingInvoicePage).mockRejectedValue(new Error('network down'));
     const content = createFaturasPage();
     await flush();
-    expect(content.textContent).toContain('Nao foi possivel carregar as faturas');
+    expect(content.textContent).toContain('Não foi possível carregar as faturas');
   });
 
   it('opens the invoice detail when a row is clicked', async () => {

@@ -14,6 +14,7 @@ import {
   type ResponsavelTipo
 } from '../../services/pendenciasService';
 import { addExtraCategoria } from '../../services/pendenciaCategoriasService';
+import { t } from '../../services/i18nService';
 import type { UserRole } from '../../services/userService';
 import { createVinculacaoSelect, type PendenciasContext } from './shared';
 
@@ -22,17 +23,17 @@ import { createVinculacaoSelect, type PendenciasContext } from './shared';
 // backend, aqui e so UX pra deixar claro que e "ou um ou outro").
 function createResponsavelField(ctx: PendenciasContext, pendencia: PendenciaRow | null) {
   const tipoInicial: ResponsavelTipo = pendencia?.responsavelTipo ?? 'usuario';
-  const tipo = createSelectField('Tipo de responsável', tipoInicial, [
-    { value: 'usuario', label: 'Usuário' },
-    { value: 'cargo', label: 'Cargo' }
+  const tipo = createSelectField(t('pendencias.editor.tipoResponsavel'), tipoInicial, [
+    { value: 'usuario', label: t('pendencias.editor.tipoUsuario') },
+    { value: 'cargo', label: t('pendencias.editor.tipoCargo') }
   ]);
   const usuario = createVinculacaoSelect(
-    'Responsável (usuário)',
+    t('pendencias.editor.responsavelUsuario'),
     ctx.state.users.map((item) => ({ id: item.id, label: item.nome })),
     pendencia?.responsavelTipo === 'usuario' ? pendencia.responsavelId : null
   );
   const cargo = createSelectField(
-    'Responsável (cargo)',
+    t('pendencias.editor.responsavelCargo'),
     pendencia?.responsavelTipo === 'cargo' && pendencia.responsavelCargo ? pendencia.responsavelCargo : ROLES[0],
     ROLES.map((role) => ({ value: role, label: roleLabel(role) }))
   );
@@ -66,10 +67,10 @@ function createResponsavelField(ctx: PendenciasContext, pendencia: PendenciaRow 
 // na hora -- a categoria recem-criada ja fica selecionada.
 function createCategoriaField(ctx: PendenciasContext, selected: string): { field: HTMLElement; select: HTMLSelectElement } {
   const field = createElement('label', { className: 'form-field' });
-  const text = createElement('span', { textContent: 'Categoria' });
+  const text = createElement('span', { textContent: t('pendencias.editor.categoria') });
   const row = createElement('div', { className: 'select-with-button' });
   const select = createElement('select');
-  const addButton = createElement('button', { className: 'secondary-button', textContent: '+ categoria', type: 'button' });
+  const addButton = createElement('button', { className: 'secondary-button', textContent: t('pendencias.editor.addCategoria'), type: 'button' });
 
   function renderOptions(value: string): void {
     const todas = [...CATEGORIAS_POR_TIPO.pendencia, ...ctx.state.categoriaExtras.filter((item) => !CATEGORIAS_POR_TIPO.pendencia.includes(item))];
@@ -83,7 +84,7 @@ function createCategoriaField(ctx: PendenciasContext, selected: string): { field
   }
 
   addButton.addEventListener('click', async () => {
-    const nome = window.prompt('Nome da nova categoria de pendência (ex: Idade, Contrato...):');
+    const nome = window.prompt(t('pendencias.editor.newCategoriaPrompt'));
     if (!nome || !nome.trim()) return;
 
     addButton.disabled = true;
@@ -91,7 +92,7 @@ function createCategoriaField(ctx: PendenciasContext, selected: string): { field
       ctx.state.categoriaExtras = await addExtraCategoria(nome.trim(), ctx.state.categoriaExtras);
       renderOptions(nome.trim());
     } catch {
-      ctx.toast.error('Não foi possível salvar a nova categoria.');
+      ctx.toast.error(t('pendencias.editor.categoriaSaveError'));
     } finally {
       addButton.disabled = false;
     }
@@ -109,29 +110,29 @@ export function openPendenciaEditor(ctx: PendenciasContext, pendencia: Pendencia
   const form = createElement('form', { className: 'client-form' });
   const header = createElement('div', { className: 'form-header' });
   const titleText = createElement('div');
-  const eyebrow = createElement('span', { className: 'eyebrow', textContent: pendencia ? 'Pendência' : 'Nova pendência' });
-  const heading = createElement('h2', { textContent: pendencia ? pendencia.titulo : 'Cadastrar pendência' });
-  const closeButton = createElement('button', { className: 'secondary-button', textContent: 'Fechar', type: 'button' });
+  const eyebrow = createElement('span', { className: 'eyebrow', textContent: pendencia ? t('pendencias.editor.eyebrowEdit') : t('pendencias.editor.eyebrowNew') });
+  const heading = createElement('h2', { textContent: pendencia ? pendencia.titulo : t('pendencias.editor.headingNew') });
+  const closeButton = createElement('button', { className: 'secondary-button', textContent: t('pendencias.editor.closeButton'), type: 'button' });
 
-  const titulo = createInput('Título', 'text', pendencia?.titulo ?? '', true);
+  const titulo = createInput(t('pendencias.editor.fieldTitulo'), 'text', pendencia?.titulo ?? '', true);
   const categoria = createCategoriaField(ctx, pendencia?.categoria ?? CATEGORIAS_POR_TIPO.pendencia[0]);
-  const prioridade = createSelect('Prioridade', pendencia?.prioridade ?? 'media', PRIORIDADES);
-  const prazo = createInput('Prazo', 'datetime-local', pendencia?.prazo ? pendencia.prazo.slice(0, 16) : '', false);
+  const prioridade = createSelect(t('pendencias.editor.fieldPrioridade'), pendencia?.prioridade ?? 'media', PRIORIDADES);
+  const prazo = createInput(t('pendencias.editor.fieldPrazo'), 'datetime-local', pendencia?.prazo ? pendencia.prazo.slice(0, 16) : '', false);
 
   const descricao = createElement('label', { className: 'form-field form-field-wide' });
-  const descricaoLabel = createElement('span', { textContent: 'Descrição' });
+  const descricaoLabel = createElement('span', { textContent: t('pendencias.editor.fieldDescricao') });
   const descricaoInput = createElement('textarea');
   descricaoInput.rows = 3;
   descricaoInput.value = pendencia?.descricao ?? '';
   descricao.append(descricaoLabel, descricaoInput);
 
-  const clienteField = createVinculacaoSelect('Cliente (opcional)', ctx.state.clients.map((item) => ({ id: item.id, label: item.nome })), pendencia?.clienteId ?? null);
-  const ucField = createVinculacaoSelect('UC (opcional)', ctx.state.ucs.map((item) => ({ id: item.id, label: item.codigo })), pendencia?.ucId ?? null);
-  const usinaField = createVinculacaoSelect('Usina (opcional)', ctx.state.plants.map((item) => ({ id: item.id, label: item.nome })), pendencia?.usinaId ?? null);
+  const clienteField = createVinculacaoSelect(t('pendencias.editor.fieldCliente'), ctx.state.clients.map((item) => ({ id: item.id, label: item.nome })), pendencia?.clienteId ?? null);
+  const ucField = createVinculacaoSelect(t('pendencias.editor.fieldUc'), ctx.state.ucs.map((item) => ({ id: item.id, label: item.codigo })), pendencia?.ucId ?? null);
+  const usinaField = createVinculacaoSelect(t('pendencias.editor.fieldUsina'), ctx.state.plants.map((item) => ({ id: item.id, label: item.nome })), pendencia?.usinaId ?? null);
   const responsavel = createResponsavelField(ctx, pendencia);
 
   const actions = createElement('div', { className: 'form-actions' });
-  const saveButton = createElement('button', { textContent: 'Salvar pendência', type: 'submit' });
+  const saveButton = createElement('button', { textContent: t('pendencias.editor.saveButton'), type: 'submit' });
 
   titleText.append(eyebrow, heading);
   header.append(titleText, closeButton);
@@ -151,7 +152,7 @@ export function openPendenciaEditor(ctx: PendenciasContext, pendencia: Pendencia
     }
 
     saveButton.disabled = true;
-    saveButton.textContent = 'Salvando...';
+    saveButton.textContent = t('common.saving');
 
     const payload: PendenciaPayload = {
       titulo: titulo.input.value.trim(),
@@ -169,27 +170,27 @@ export function openPendenciaEditor(ctx: PendenciasContext, pendencia: Pendencia
     try {
       if (pendencia) {
         await updatePendencia(pendencia.id, payload);
-        ctx.toast.success('Pendência atualizada.');
+        ctx.toast.success(t('pendencias.editor.updateSuccess'));
       } else {
         await createPendencia(payload);
-        ctx.toast.success('Pendência criada.');
+        ctx.toast.success(t('pendencias.editor.createSuccess'));
       }
       overlay.remove();
       await ctx.loadAll();
     } catch (error) {
-      ctx.toast.error(error instanceof Error ? error.message : 'Não foi possível salvar a pendência.');
+      ctx.toast.error(error instanceof Error ? error.message : t('pendencias.editor.saveError'));
     } finally {
       ctx.loading.hide();
       saveButton.disabled = false;
-      saveButton.textContent = 'Salvar pendência';
+      saveButton.textContent = t('pendencias.editor.saveButton');
     }
   });
 
   form.append(
     header,
-    createFormSection('Informações principais', titulo.field, categoria.field, prioridade.field, prazo.field, descricao),
-    createFormSection('Relacionamento', clienteField.field, ucField.field, usinaField.field),
-    createFormSection('Responsável', responsavel.tipoField, responsavel.usuarioField, responsavel.cargoField),
+    createFormSection(t('pendencias.editor.sectionInfo'), titulo.field, categoria.field, prioridade.field, prazo.field, descricao),
+    createFormSection(t('pendencias.editor.sectionRelacionamento'), clienteField.field, ucField.field, usinaField.field),
+    createFormSection(t('pendencias.editor.sectionResponsavel'), responsavel.tipoField, responsavel.usuarioField, responsavel.cargoField),
     actions
   );
   panel.appendChild(form);

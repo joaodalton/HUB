@@ -7,6 +7,7 @@ import { createIcon } from '../components/Icon';
 import { getCurrentUser, refreshCurrentUser } from '../services/authService';
 import { sairDaVisualizacao } from '../platform/services/platformService';
 import { invalidateSettingsCache } from '../services/settingsService';
+import { t } from '../services/i18nService';
 
 type BaseLayoutOptions = {
   content: HTMLElement;
@@ -127,11 +128,11 @@ function createPlatformContextBanner(): HTMLElement | null {
   banner.setAttribute('role', 'status');
   const text = createElement('div');
   text.append(
-    createElement('strong', { textContent: user.isPlatformAdmin ? 'PLATFORM ADMIN' : 'FUNCIONARIO DA PLATAFORMA' }),
-    createElement('span', { textContent: `Empresa atual: ${user.platformViewEmpresaNome || `#${user.platformViewEmpresaId}`}` })
+    createElement('strong', { textContent: user.isPlatformAdmin ? t('platform.banner.platformAdmin') : t('platform.banner.platformWorker') }),
+    createElement('span', { textContent: t('platform.banner.empresaAtualTemplate').replace('{name}', user.platformViewEmpresaNome || `#${user.platformViewEmpresaId}`) })
   );
   const exit = createElement('button', { className: 'secondary-button button-with-icon', type: 'button' });
-  exit.append(createIcon('login'), document.createTextNode('Sair da empresa'));
+  exit.append(createIcon('login'), document.createTextNode(t('platform.banner.exitButton')));
   exit.addEventListener('click', () => {
     exit.disabled = true;
     void sairDaVisualizacao()

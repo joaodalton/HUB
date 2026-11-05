@@ -9,6 +9,7 @@ import {
   type WhatsappConversation, type WhatsappMessage,
 } from '../services/whatsappService';
 import { formatDateTime } from '../utils/date';
+import { t } from '../services/i18nService';
 
 export function createMessagesPage(): HTMLElement {
   const content = createElement('section', { className: 'content-stack' });
@@ -21,7 +22,7 @@ export function createMessagesPage(): HTMLElement {
   let loaded = false;
   let creating = false;
 
-  const layout = createBaseLayout({ content, eyebrow: 'Automações', title: 'Mensagens' });
+  const layout = createBaseLayout({ content, eyebrow: t('messages.page.eyebrow'), title: t('nav.item.mensagens') });
   render();
   void load();
   return layout;
@@ -31,7 +32,7 @@ export function createMessagesPage(): HTMLElement {
       [conversations, clients] = await Promise.all([getWhatsappConversations(), getClients()]);
       if (selected) selected = conversations.find((item) => item.id === selected?.id) ?? null;
       if (selected) messages = await getWhatsappMessages(selected.id);
-    } catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível carregar as mensagens.'); }
+    } catch (error) { toast.error(error instanceof Error ? error.message : t('messages.page.loadError')); }
     finally { loaded = true; render(); }
   }
 
@@ -44,16 +45,16 @@ export function createMessagesPage(): HTMLElement {
   function createConversationList(): HTMLElement {
     const list = createElement('aside', { className: 'whatsapp-list' });
     const header = createElement('div', { className: 'whatsapp-list-header' });
-    header.append(createElement('h2', { textContent: 'Conversas' }));
+    header.append(createElement('h2', { textContent: t('messages.page.conversationsTitle') }));
     if (canSend()) {
-      const create = createElement('button', { type: 'button', textContent: creating ? 'Cancelar' : 'Nova conversa' });
+      const create = createElement('button', { type: 'button', textContent: creating ? t('messages.page.cancelButton') : t('messages.page.newConversationButton') });
       create.addEventListener('click', () => { creating = !creating; render(); });
       header.appendChild(create);
     }
     list.appendChild(header);
     if (creating) list.appendChild(createNewConversationForm());
-    if (!loaded) { list.appendChild(createElement('p', { className: 'whatsapp-empty', textContent: 'Carregando...' })); return list; }
-    if (!conversations.length) list.appendChild(createElement('p', { className: 'whatsapp-empty', textContent: 'Nenhuma conversa ainda.' }));
+    if (!loaded) { list.appendChild(createElement('p', { className: 'whatsapp-empty', textContent: t('common.loading') })); return list; }
+    if (!conversations.length) list.appendChild(createElement('p', { className: 'whatsapp-empty', textContent: t('messages.page.noConversations') }));
     conversations.forEach((conversation) => {
       const button = createElement('button', { className: selected?.id === conversation.id ? 'whatsapp-conversation active' : 'whatsapp-conversation', type: 'button' });
       const head = createElement('span', { className: 'whatsapp-conversation-head' });
@@ -68,11 +69,11 @@ export function createMessagesPage(): HTMLElement {
   function createNewConversationForm(): HTMLElement {
     const form = createElement('form', { className: 'whatsapp-new-form' });
     const client = createElement('select');
-    const emptyClient = createElement('option', { textContent: 'Selecionar cliente (opcional)' }); emptyClient.value = ''; client.appendChild(emptyClient);
+    const emptyClient = createElement('option', { textContent: t('messages.page.selectClientOption') }); emptyClient.value = ''; client.appendChild(emptyClient);
     clients.filter((item) => item.telefone).forEach((item) => { const option = createElement('option', { textContent: `${item.nome} — ${item.telefone}` }); option.value = String(item.id); client.appendChild(option); });
-    const phone = createElement('input'); phone.placeholder = 'Telefone com DDI e DDD';
-    const name = createElement('input'); name.placeholder = 'Nome do contato';
-    const save = createElement('button', { type: 'submit', textContent: 'Abrir conversa' });
+    const phone = createElement('input'); phone.placeholder = t('messages.page.phonePlaceholder');
+    const name = createElement('input'); name.placeholder = t('messages.page.contactNamePlaceholder');
+    const save = createElement('button', { type: 'submit', textContent: t('messages.page.openConversationButton') });
     form.append(client, phone, name, save);
     form.addEventListener('submit', (event) => {
       event.preventDefault();
@@ -81,7 +82,7 @@ export function createMessagesPage(): HTMLElement {
         try {
           const conversation = await createWhatsappConversation({ clientId: client.value ? Number(client.value) : undefined, phoneNumber: phone.value, contactName: name.value });
           creating = false; selected = conversation; await load();
-        } catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível abrir a conversa.'); }
+        } catch (error) { toast.error(error instanceof Error ? error.message : t('messages.page.openConversationError')); }
         finally { loading.hide(); }
       })();
     });
@@ -91,7 +92,7 @@ export function createMessagesPage(): HTMLElement {
   function createThread(): HTMLElement {
     const thread = createElement('section', { className: 'whatsapp-thread' });
     if (!selected) {
-      thread.appendChild(createElement('p', { className: 'whatsapp-empty', textContent: 'Selecione ou crie uma conversa para ver o histórico.' }));
+      thread.appendChild(createElement('p', { className: 'whatsapp-empty', textContent: t('messages.page.selectConversationPrompt') }));
       return thread;
     }
     const title = createElement('header', { className: 'whatsapp-thread-header' });
@@ -99,7 +100,7 @@ export function createMessagesPage(): HTMLElement {
     const stream = createElement('div', { className: 'whatsapp-messages' });
     messages.forEach((message) => {
       const bubble = createElement('article', { className: message.direction === 'outbound' ? 'whatsapp-bubble outbound' : 'whatsapp-bubble' });
-      bubble.append(createElement('span', { textContent: message.body || '(mensagem sem texto)' }), createElement('small', { className: 'whatsapp-message-meta', textContent: `${message.status} · ${formatDate(message.createdAt)}` }));
+      bubble.append(createElement('span', { textContent: message.body || t('messages.page.emptyMessageBody') }), createElement('small', { className: 'whatsapp-message-meta', textContent: `${message.status} · ${formatDate(message.createdAt)}` }));
       stream.appendChild(bubble);
     });
     thread.append(title, stream);
@@ -109,8 +110,8 @@ export function createMessagesPage(): HTMLElement {
 
   function createComposer(): HTMLElement {
     const form = createElement('form', { className: 'whatsapp-composer' });
-    const input = createElement('textarea'); input.placeholder = 'Digite uma mensagem'; input.required = true;
-    const send = createElement('button', { type: 'submit', textContent: 'Enviar' });
+    const input = createElement('textarea'); input.placeholder = t('messages.page.messagePlaceholder'); input.required = true;
+    const send = createElement('button', { type: 'submit', textContent: t('messages.page.sendButton') });
     form.append(input, send);
     form.addEventListener('submit', (event) => {
       event.preventDefault();
@@ -118,7 +119,7 @@ export function createMessagesPage(): HTMLElement {
       void (async () => {
         loading.show(); send.disabled = true;
         try { await sendWhatsappText(selected!.id, input.value); input.value = ''; await load(); }
-        catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível enviar a mensagem.'); }
+        catch (error) { toast.error(error instanceof Error ? error.message : t('messages.page.sendError')); }
         finally { loading.hide(); send.disabled = false; }
       })();
     });
@@ -128,10 +129,10 @@ export function createMessagesPage(): HTMLElement {
   async function selectConversation(conversation: WhatsappConversation): Promise<void> {
     selected = conversation; render();
     try { messages = await getWhatsappMessages(conversation.id); selected = { ...conversation, unreadCount: 0 }; }
-    catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível carregar o histórico.'); }
+    catch (error) { toast.error(error instanceof Error ? error.message : t('messages.page.loadHistoryError')); }
     finally { render(); }
   }
 }
 
 function canSend(): boolean { return ['owner', 'admin', 'operator'].includes(getCurrentUser()?.role ?? ''); }
-function formatDate(value: string | null): string { return formatDateTime(value, 'agora'); }
+function formatDate(value: string | null): string { return formatDateTime(value, t('messages.page.now')); }

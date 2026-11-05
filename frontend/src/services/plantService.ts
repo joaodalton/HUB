@@ -1,5 +1,6 @@
 // frontend/src/services/plantService.ts
 import { apiRequest, fetchAllPages, type ApiResponse, type Pagination } from './apiClient';
+import { t } from './i18nService';
 
 export type PlantRow = {
   id: number;
@@ -121,13 +122,6 @@ export async function updatePlantRateioConfig(id: number, data: PlantRateioConfi
 // nem dado ja salvo.
 export type PlantStatusTone = 'success' | 'warning' | 'danger' | 'neutral';
 
-const STATUS_LABELS: Record<string, string> = {
-  Online: 'Ativa',
-  Implantacao: 'Em Implantação',
-  Manutencao: 'Manutenção',
-  Inativa: 'Inativa'
-};
-
 const STATUS_TONES: Record<string, PlantStatusTone> = {
   Online: 'success',
   Implantacao: 'warning',
@@ -136,7 +130,13 @@ const STATUS_TONES: Record<string, PlantStatusTone> = {
 };
 
 export function plantStatusLabel(status: string): string {
-  return STATUS_LABELS[status] ?? status;
+  const labels: Record<string, string> = {
+    Online: t('plants.status.online'),
+    Implantacao: t('plants.status.implantacao'),
+    Manutencao: t('plants.status.manutencao'),
+    Inativa: t('plants.status.inativa')
+  };
+  return labels[status] ?? status;
 }
 
 export function plantStatusTone(status: string): PlantStatusTone {

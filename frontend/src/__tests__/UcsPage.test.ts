@@ -77,7 +77,7 @@ describe('UcsPage', () => {
     vi.mocked(getUcs).mockRejectedValue(new Error('offline'));
     const content = createUcsPage();
     await flush();
-    expect(content.textContent).toContain('Nao foi possivel carregar UCs');
+    expect(content.textContent).toContain('Não foi possível carregar UCs');
   });
 
   it('filters by the "without plant" quick filter', async () => {

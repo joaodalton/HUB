@@ -4,6 +4,7 @@ import { createElement } from '../../dom';
 import { createStatusBadge as createSharedStatusBadge, type StatusTone } from '../../components/StatusBadge';
 import { useGlobalLoading } from '../../hooks/useGlobalLoading';
 import { useToast } from '../../hooks/useToast';
+import { t } from '../../services/i18nService';
 import type { ClientRow } from '../../services/clientsService';
 import {
   prioridadeLabel,
@@ -94,10 +95,10 @@ export function compareOperationalPriority(a: PendenciaRow, b: PendenciaRow): nu
 function deadline(item: PendenciaRow): number { return item.prazo ? new Date(item.prazo).getTime() : Number.MAX_SAFE_INTEGER; }
 
 export function attentionKind(item: PendenciaRow): { label: string; tone: StatusTone } {
-  if (item.tipo === 'erro' || item.prioridade === 'critica' || item.prioridade === 'alta') return { label: 'Precisa de ação', tone: 'danger' };
+  if (item.tipo === 'erro' || item.prioridade === 'critica' || item.prioridade === 'alta') return { label: t('pendencias.shared.attentionAction'), tone: 'danger' };
   const text = normalize(`${item.titulo} ${item.descricao ?? ''} ${item.origem}`);
-  if (text.includes('falt') || text.includes('aguard') || text.includes('sem ')) return { label: 'Aguardando informação', tone: 'warning' };
-  return { label: 'Informativa', tone: 'info' };
+  if (text.includes('falt') || text.includes('aguard') || text.includes('sem ')) return { label: t('pendencias.shared.attentionWaiting'), tone: 'warning' };
+  return { label: t('pendencias.shared.attentionInfo'), tone: 'info' };
 }
 
 export function createAttentionBadge(item: PendenciaRow): HTMLElement {
@@ -106,11 +107,11 @@ export function createAttentionBadge(item: PendenciaRow): HTMLElement {
 }
 
 export function contextualDestination(item: PendenciaRow): { label: string; path: string } | null {
-  if (item.faturaId) return { label: 'Abrir faturas', path: `/faturas?selecionada=${item.faturaId}` };
-  if (item.ucId) return { label: 'Abrir UC', path: `/ucs?selecionada=${item.ucId}` };
-  if (item.usinaId) return { label: 'Abrir usina', path: `/usinas?selecionada=${item.usinaId}` };
-  if (item.clienteId) return { label: 'Abrir cliente', path: `/clientes?selecionada=${item.clienteId}` };
-  if (item.documentoId) return { label: 'Abrir documentos', path: '/documentos' };
+  if (item.faturaId) return { label: t('pendencias.shared.destFaturas'), path: `/faturas?selecionada=${item.faturaId}` };
+  if (item.ucId) return { label: t('pendencias.shared.destUc'), path: `/ucs?selecionada=${item.ucId}` };
+  if (item.usinaId) return { label: t('pendencias.shared.destUsina'), path: `/usinas?selecionada=${item.usinaId}` };
+  if (item.clienteId) return { label: t('pendencias.shared.destCliente'), path: `/clientes?selecionada=${item.clienteId}` };
+  if (item.documentoId) return { label: t('pendencias.shared.destDocumentos'), path: '/documentos' };
   return null;
 }
 
@@ -134,7 +135,7 @@ export function createVinculacaoSelect(label: string, options: Array<{ id: numbe
   const field = createElement('label', { className: 'form-field' });
   const text = createElement('span', { textContent: label });
   const select = createElement('select');
-  const placeholder = createElement('option', { textContent: 'Nenhum' });
+  const placeholder = createElement('option', { textContent: t('pendencias.shared.vinculoNenhum') });
 
   placeholder.value = '';
   select.appendChild(placeholder);

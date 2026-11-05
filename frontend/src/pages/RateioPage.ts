@@ -7,6 +7,7 @@ import { getUcs, type UcRow } from '../services/ucsService';
 import { createRateioFormularioView } from './rateio/RateioFormularioView';
 import { createRateioHistoricoView } from './rateio/RateioHistoricoView';
 import { createRateioWizard } from './rateio/RateioWizard';
+import { t } from '../services/i18nService';
 
 type RateioTab = 'montar' | 'formulario' | 'historico';
 
@@ -24,8 +25,8 @@ export function createRateioPage(): HTMLElement {
 
   const layout = createBaseLayout({
     content,
-    eyebrow: 'Rateio',
-    title: 'Monte o rateio de energia passo a passo'
+    eyebrow: t('rateio.page.eyebrow'),
+    title: t('rateio.page.title')
   });
   void loadAll();
   return layout;
@@ -37,7 +38,7 @@ export function createRateioPage(): HTMLElement {
       loadError = false;
     } catch {
       loadError = true;
-      toast.error('Nao foi possivel carregar as usinas. Verifique se o backend esta rodando.');
+      toast.error(t('rateio.page.loadError'));
     } finally {
       loading.hide();
       wizard = createRateioWizard({ plants, ucs, loadError, onOpenFormulario });
@@ -62,15 +63,15 @@ export function createRateioPage(): HTMLElement {
       content.replaceChildren(tabs, historico.element);
       return;
     }
-    content.replaceChildren(tabs, wizard ?? createElement('p', { className: 'loading-state', textContent: 'Carregando...' }));
+    content.replaceChildren(tabs, wizard ?? createElement('p', { className: 'loading-state', textContent: t('rateio.page.loading') }));
   }
 
   function renderTabs(): HTMLElement {
     const tabs = createElement('div', { className: 'rateio-tabs' });
     tabs.setAttribute('role', 'tablist');
-    const montar = createElement('button', { className: activeTab === 'montar' ? 'active' : '', type: 'button', textContent: 'Montar Rateio' });
-    const formularioTab = createElement('button', { className: activeTab === 'formulario' ? 'active' : '', type: 'button', textContent: 'Gerar Formulário Copel' });
-    const historicoTab = createElement('button', { className: activeTab === 'historico' ? 'active' : '', type: 'button', textContent: 'Historico' });
+    const montar = createElement('button', { className: activeTab === 'montar' ? 'active' : '', type: 'button', textContent: t('rateio.page.tabMontar') });
+    const formularioTab = createElement('button', { className: activeTab === 'formulario' ? 'active' : '', type: 'button', textContent: t('rateio.page.tabFormulario') });
+    const historicoTab = createElement('button', { className: activeTab === 'historico' ? 'active' : '', type: 'button', textContent: t('rateio.page.tabHistorico') });
     montar.addEventListener('click', () => { activeTab = 'montar'; renderContent(); });
     formularioTab.addEventListener('click', () => { activeTab = 'formulario'; renderContent(); });
     historicoTab.addEventListener('click', () => { activeTab = 'historico'; historico.refresh(); renderContent(); });

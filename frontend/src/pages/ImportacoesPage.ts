@@ -7,6 +7,7 @@ import { useToast } from '../hooks/useToast';
 import { createBaseLayout } from '../layouts/BaseLayout';
 import { getCurrentUser } from '../services/authService';
 import { config } from '../services/config';
+import { t } from '../services/i18nService';
 import {
   confirmarImportacao,
   criarPreviaImportacao,
@@ -42,8 +43,8 @@ export function createImportacoesContent(onImported?: () => void): HTMLElement {
       const denied = createElement('section', { className: 'importacao-panel empty-state' });
       denied.append(
         createIcon('lock', 'empty-state-icon'),
-        createElement('strong', { textContent: 'Acesso não permitido' }),
-        createElement('span', { textContent: 'Seu perfil não tem permissão para importar cadastros.' })
+        createElement('strong', { textContent: t('importacoes.access.title') }),
+        createElement('span', { textContent: t('importacoes.access.description') })
       );
       content.replaceChildren(createTemplateGuide(), denied);
       return;
@@ -63,14 +64,14 @@ export function createImportacoesContent(onImported?: () => void): HTMLElement {
   function createUploadPanel(): HTMLElement {
     const panel = createElement('section', { className: 'importacao-panel' });
     panel.append(
-      createImportacaoHeader('Enviar planilha', 'Envie um arquivo Excel com as três abas esperadas. O HUB valida tudo antes de criar os cadastros.'),
+      createImportacaoHeader(t('importacoes.upload.headerEyebrow'), t('importacoes.upload.headerTitle')),
       createTemplateGuide()
     );
     const exportPanel = createElement('section', { className: 'importacao-export' });
-    exportPanel.append(createElement('h2', { textContent: 'Exportar cadastros atuais' }), createElement('p', { textContent: 'Escolha os tipos que deseja incluir no arquivo.' }));
+    exportPanel.append(createElement('h2', { textContent: t('importacoes.export.title') }), createElement('p', { textContent: t('importacoes.export.description') }));
     const exportFilters = createElement('div', { className: 'importacao-export-filters' });
     const exportButton = createElement('button', { className: 'secondary-button', type: 'button' });
-    ([['clientes', 'Clientes'], ['ucs', 'UCs'], ['usinas', 'Usinas']] as Array<[TipoCsv, string]>).forEach(([tipo, label]) => {
+    ([['clientes', t('importacoes.export.tipoClientes')], ['ucs', t('importacoes.export.tipoUcs')], ['usinas', t('importacoes.export.tipoUsinas')]] as Array<[TipoCsv, string]>).forEach(([tipo, label]) => {
       const field = createCheckboxField(label, tiposExportacao.has(tipo));
       field.input.addEventListener('change', () => {
         if (field.input.checked) tiposExportacao.add(tipo);
@@ -81,7 +82,7 @@ export function createImportacoesContent(onImported?: () => void): HTMLElement {
     });
     function updateExportButton(): void {
       exportButton.disabled = tiposExportacao.size === 0;
-      exportButton.textContent = tiposExportacao.size === 1 ? 'Exportar cadastro selecionado' : 'Exportar cadastros selecionados';
+      exportButton.textContent = tiposExportacao.size === 1 ? t('importacoes.export.buttonOne') : t('importacoes.export.buttonMany');
     }
     updateExportButton();
     exportButton.addEventListener('click', () => void downloadExport(Array.from(tiposExportacao)));
@@ -93,13 +94,13 @@ export function createImportacoesContent(onImported?: () => void): HTMLElement {
     fileInput.type = 'file';
     fileInput.accept = '.xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv';
     fileInput.required = true;
-    const selectedLabel = createElement('span', { className: 'importacao-file-name', textContent: arquivo?.name ?? 'Escolher planilha Excel (.xlsx) ou CSV' });
+    const selectedLabel = createElement('span', { className: 'importacao-file-name', textContent: arquivo?.name ?? t('importacoes.upload.chooseFile') });
     fileField.append(createIcon('upload'), selectedLabel, fileInput);
 
     function selectFile(file: File | null): void {
       arquivo = file;
       uploadError = '';
-      selectedLabel.textContent = arquivo?.name ?? 'Escolher planilha Excel (.xlsx) ou CSV';
+      selectedLabel.textContent = arquivo?.name ?? t('importacoes.upload.chooseFile');
     }
 
     fileInput.addEventListener('change', () => {
@@ -113,16 +114,16 @@ export function createImportacoesContent(onImported?: () => void): HTMLElement {
       selectFile(event.dataTransfer?.files[0] ?? null);
     });
     const csvTypeField = createElement('label', { className: 'form-field' });
-    csvTypeField.appendChild(createElement('span', { textContent: 'Tipo do CSV (obrigatório apenas para CSV)' }));
+    csvTypeField.appendChild(createElement('span', { textContent: t('importacoes.upload.csvTypeLabel') }));
     const csvType = createElement('select');
-    [['clientes', 'Clientes'], ['ucs', 'UCs'], ['usinas', 'Usinas']].forEach(([value, label]) => { const option = createElement('option', { textContent: label }); option.value = value; csvType.appendChild(option); });
+    [['clientes', t('importacoes.export.tipoClientes')], ['ucs', t('importacoes.export.tipoUcs')], ['usinas', t('importacoes.export.tipoUsinas')]].forEach(([value, label]) => { const option = createElement('option', { textContent: label }); option.value = value; csvType.appendChild(option); });
     csvType.value = tipoCsv;
     csvType.addEventListener('change', () => { tipoCsv = csvType.value as TipoCsv; });
     csvTypeField.appendChild(csvType);
-    const hint = createElement('p', { className: 'settings-hint', textContent: 'A prévia não grava dados. Corrija os erros apontados e envie uma nova planilha se necessário.' });
+    const hint = createElement('p', { className: 'settings-hint', textContent: t('importacoes.upload.hint') });
     const actions = createElement('div', { className: 'form-actions' });
     const submit = createElement('button', { className: 'button-with-icon', type: 'submit' });
-    submit.append(createIcon('eye'), document.createTextNode('Gerar prévia'));
+    submit.append(createIcon('eye'), document.createTextNode(t('importacoes.upload.submit')));
     if (uploadError) form.appendChild(createElement('p', { className: 'importacao-error', textContent: uploadError }));
     form.addEventListener('submit', (event) => { event.preventDefault(); if (arquivo) void upload(arquivo, arquivo.name.toLowerCase().endsWith('.csv') ? tipoCsv : undefined); else fileInput.reportValidity(); });
     actions.appendChild(submit);
@@ -134,12 +135,12 @@ export function createImportacoesContent(onImported?: () => void): HTMLElement {
   function createPreviewPanel(data: ImportacaoPrevia): HTMLElement {
     const panel = createElement('section', { className: 'content-stack' });
     const header = createElement('section', { className: 'importacao-panel' });
-    header.append(createImportacaoHeader('Prévia da importação', 'Revise o resultado. A confirmação só fica disponível quando não houver erros.'));
+    header.append(createImportacaoHeader(t('importacoes.preview.headerEyebrow'), t('importacoes.preview.headerTitle')));
     header.appendChild(createResumo(data.contagens, data.erros.length));
     if (data.erros.length) {
-      header.append(createProblemasPanel('Erros que impedem a confirmação', data.erros, 'importacao-erros'), createPreviewActions(false));
+      header.append(createProblemasPanel(t('importacoes.preview.errorsTitle'), data.erros, 'importacao-erros'), createPreviewActions(false));
     } else {
-      header.append(createElement('p', { className: 'importacao-ready', textContent: `Prévia válida. Nenhum dado foi gravado ainda; confirme antes de ${formatExpiration(data.expiraEm)}.` }), createPreviewActions(true));
+      header.append(createElement('p', { className: 'importacao-ready', textContent: `${t('importacoes.preview.validPrefix')} ${formatExpiration(data.expiraEm)}.` }), createPreviewActions(true));
     }
     panel.appendChild(header);
     return panel;
@@ -147,11 +148,11 @@ export function createImportacoesContent(onImported?: () => void): HTMLElement {
 
   function createPreviewActions(canConfirm: boolean): HTMLElement {
     const actions = createElement('div', { className: 'form-actions' });
-    const replace = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Enviar outra planilha' });
+    const replace = createElement('button', { className: 'secondary-button', type: 'button', textContent: t('importacoes.preview.replace') });
     replace.addEventListener('click', reset);
     actions.appendChild(replace);
     if (canConfirm) {
-      const confirm = createElement('button', { type: 'button', textContent: busy ? 'Confirmando...' : 'Confirmar importação' });
+      const confirm = createElement('button', { type: 'button', textContent: busy ? t('importacoes.preview.confirming') : t('importacoes.preview.confirm') });
       confirm.disabled = busy;
       confirm.addEventListener('click', () => { if (previa) void confirmImport(previa.previewId); });
       actions.appendChild(confirm);
@@ -164,25 +165,25 @@ export function createImportacoesContent(onImported?: () => void): HTMLElement {
     const panel = createElement('section', { className: 'importacao-panel importacao-result' });
     panel.append(
       createIcon('check', 'importacao-success-icon'),
-      createImportacaoHeader('Importação concluída', 'Os cadastros válidos foram processados no escopo da sua empresa.'),
+      createImportacaoHeader(t('importacoes.result.headerEyebrow'), t('importacoes.result.headerTitle')),
       createResumo(data)
     );
     const actions = createElement('div', { className: 'form-actions' });
-    const again = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Nova importação' });
+    const again = createElement('button', { className: 'secondary-button', type: 'button', textContent: t('importacoes.result.again') });
     again.addEventListener('click', reset);
-    actions.append(again, createNavigateButton('Ver Clientes', '/clientes'), createNavigateButton('Ver UCs', '/ucs'), createNavigateButton('Ver Usinas', '/usinas'));
+    actions.append(again, createNavigateButton(t('importacoes.result.viewClients'), '/clientes'), createNavigateButton(t('importacoes.result.viewUcs'), '/ucs'), createNavigateButton(t('importacoes.result.viewUsinas'), '/usinas'));
     panel.appendChild(actions);
     return panel;
   }
 
   function createTemplateGuide(): HTMLElement {
     const guide = createElement('section', { className: 'importacao-template-guide' });
-    const download = createElement('a', { className: 'secondary-button', textContent: 'Baixar modelo padrão (.xlsx)' });
+    const download = createElement('a', { className: 'secondary-button', textContent: t('importacoes.guide.download') });
     download.href = `${config.apiBaseUrl}${config.apiPrefix}/importacoes/modelo`;
-    guide.append(download, createElement('p', { textContent: 'Modelo vazio com instruções. Preencha a partir da linha 2. Vincule cada UC ao CPF de um cliente na mesma planilha. A importação cria novos cadastros; não atualiza os existentes.' }));
-    guide.append(createElement('h2', { textContent: 'Formato esperado' }), createElement('p', { textContent: 'No XLSX, use as abas Clientes, UCs e Usinas. CSV UTF-8 aceita somente uma delas por arquivo; selecione o tipo acima.' }));
+    guide.append(download, createElement('p', { textContent: t('importacoes.guide.description') }));
+    guide.append(createElement('h2', { textContent: t('importacoes.guide.formatTitle') }), createElement('p', { textContent: t('importacoes.guide.formatDescription') }));
     const list = createElement('ol');
-    ['Clientes — obrigatórios: Cliente_Nome, Cliente_CPF e Cliente_Email.', 'UCs — obrigatórios: UC_ClienteCPF e UC_Codigo.', 'Usinas — obrigatórios: Usina_Nome, Usina_UC e Usina_KWPico. Os demais campos estão identificados como opcionais no modelo.'].forEach((item) => list.appendChild(createElement('li', { textContent: item })));
+    [t('importacoes.guide.clientesRule'), t('importacoes.guide.ucsRule'), t('importacoes.guide.usinasRule')].forEach((item) => list.appendChild(createElement('li', { textContent: item })));
     guide.appendChild(list);
     return guide;
   }
@@ -190,9 +191,15 @@ export function createImportacoesContent(onImported?: () => void): HTMLElement {
   function createResumo(contagens: ImportacaoResultado, erros = 0): HTMLElement {
     const grid = createElement('div', { className: 'importacao-summary-grid' });
     const validas = contagens.clientes + contagens.ucs + contagens.usinas;
-    const rows: Array<[string, number]> = [['Prontas para criar', validas], ['Com erro', erros], ['Clientes', contagens.clientes], ['UCs', contagens.ucs], ['Usinas', contagens.usinas]];
-    rows.forEach(([label, value]) => {
-      const card = createElement('div', { className: label === 'Com erro' && value ? 'importacao-summary-card danger' : 'importacao-summary-card' });
+    const rows: Array<[string, string, number]> = [
+      ['ready', t('importacoes.summary.ready'), validas],
+      ['erro', t('importacoes.summary.error'), erros],
+      ['clientes', t('importacoes.export.tipoClientes'), contagens.clientes],
+      ['ucs', t('importacoes.export.tipoUcs'), contagens.ucs],
+      ['usinas', t('importacoes.export.tipoUsinas'), contagens.usinas]
+    ];
+    rows.forEach(([key, label, value]) => {
+      const card = createElement('div', { className: key === 'erro' && value ? 'importacao-summary-card danger' : 'importacao-summary-card' });
       card.append(createElement('strong', { textContent: String(value) }), createElement('span', { textContent: label }));
       grid.appendChild(card);
     });
@@ -205,10 +212,10 @@ export function createImportacoesContent(onImported?: () => void): HTMLElement {
     const rows: ProblemaRow[] = problemas.map((item) => ({ ...item, local: `${item.tipo} · linha ${item.linha}` }));
     section.appendChild(createDataTable<ProblemaRow>({
       title,
-      eyebrow: 'Validação',
+      eyebrow: t('importacoes.problems.validationEyebrow'),
       rows,
-      emptyMessage: 'Nenhum item.',
-      columns: [{ key: 'local', label: 'Local' }, { key: 'erro', label: 'Mensagem' }]
+      emptyMessage: t('importacoes.problems.empty'),
+      columns: [{ key: 'local', label: t('importacoes.problems.colLocal') }, { key: 'erro', label: t('importacoes.problems.colMensagem') }]
     }));
     return section;
   }
@@ -223,7 +230,7 @@ export function createImportacoesContent(onImported?: () => void): HTMLElement {
       confirmError = '';
       stage = 'previa';
     } catch (error) {
-      uploadError = error instanceof Error ? error.message : 'Não foi possível gerar a prévia da importação.';
+      uploadError = error instanceof Error ? error.message : t('importacoes.errors.previewError');
     } finally {
       busy = false;
       loading.hide();
@@ -242,7 +249,7 @@ export function createImportacoesContent(onImported?: () => void): HTMLElement {
       link.click();
       URL.revokeObjectURL(url);
     } catch {
-      toast.error('Não foi possível exportar os cadastros.');
+      toast.error(t('importacoes.errors.exportError'));
     } finally {
       loading.hide();
     }
@@ -257,9 +264,9 @@ export function createImportacoesContent(onImported?: () => void): HTMLElement {
       resultado = await confirmarImportacao(id);
       stage = 'resultado';
       onImported?.();
-      toast.success('Importação concluída.');
+      toast.success(t('importacoes.success.confirmed'));
     } catch (error) {
-      confirmError = error instanceof Error ? error.message : 'Não foi possível confirmar a importação.';
+      confirmError = error instanceof Error ? error.message : t('importacoes.errors.confirmError');
     } finally {
       busy = false;
       loading.hide();
@@ -281,8 +288,8 @@ export function createImportacoesContent(onImported?: () => void): HTMLElement {
 export function createImportacoesPage(): HTMLElement {
   return createBaseLayout({
     content: createImportacoesContent(),
-    eyebrow: 'Gestão',
-    title: 'Importação em massa'
+    eyebrow: t('importacoes.page.eyebrow'),
+    title: t('importacoes.page.title')
   });
 }
 

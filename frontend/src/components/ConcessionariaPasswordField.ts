@@ -3,6 +3,7 @@ import { useToast } from '../hooks/useToast';
 import { getCurrentUser } from '../services/authService';
 import { getConcessionariaPassword } from '../services/ucsService';
 import { createInput } from './formFields';
+import { t } from '../services/i18nService';
 
 type PasswordSource = {
   id: number | string;
@@ -10,10 +11,10 @@ type PasswordSource = {
 };
 
 export function createConcessionariaPasswordField(source: PasswordSource) {
-  const field = createInput('Senha da concessionaria', 'password', '', false);
+  const field = createInput(t('faturas.concessionariaPassword.label'), 'password', '', false);
   const toast = useToast();
   field.input.autocomplete = 'new-password';
-  field.input.placeholder = 'Identificador automatico: CPF/CNPJ da UC';
+  field.input.placeholder = t('faturas.concessionariaPassword.placeholder');
 
   const user = getCurrentUser();
   const canReveal = user?.isPlatformAdmin || user?.role === 'owner' || user?.role === 'admin';
@@ -21,8 +22,8 @@ export function createConcessionariaPasswordField(source: PasswordSource) {
   if (!canReveal || !source.senhaConcessionariaConfigurada || typeof ucId !== 'number') return field;
 
   const actions = createElement('div', { className: 'form-actions' });
-  const revealButton = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Mostrar senha' });
-  const copyButton = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Copiar' });
+  const revealButton = createElement('button', { className: 'secondary-button', type: 'button', textContent: t('faturas.concessionariaPassword.show') });
+  const copyButton = createElement('button', { className: 'secondary-button', type: 'button', textContent: t('faturas.concessionariaPassword.copy') });
   copyButton.disabled = true;
 
   revealButton.addEventListener('click', async () => {
@@ -31,9 +32,9 @@ export function createConcessionariaPasswordField(source: PasswordSource) {
       field.input.value = await getConcessionariaPassword(ucId);
       field.input.type = 'text';
       copyButton.disabled = false;
-      revealButton.textContent = 'Senha exibida';
+      revealButton.textContent = t('faturas.concessionariaPassword.shown');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Nao foi possivel revelar a senha.');
+      toast.error(error instanceof Error ? error.message : t('faturas.concessionariaPassword.revealError'));
       revealButton.disabled = false;
     }
   });
@@ -45,9 +46,9 @@ export function createConcessionariaPasswordField(source: PasswordSource) {
         field.input.select();
         document.execCommand('copy');
       }
-      toast.success('Senha copiada.');
+      toast.success(t('faturas.concessionariaPassword.copied'));
     } catch {
-      toast.error('Nao foi possivel copiar a senha.');
+      toast.error(t('faturas.concessionariaPassword.copyError'));
     }
   });
 

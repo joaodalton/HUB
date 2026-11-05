@@ -1,6 +1,7 @@
 import { createElement, emptyState } from '../dom';
 import { isFolder } from '../services/documentRules';
 import { listDriveFolder, listDriveRoot } from '../services/driveService';
+import { t } from '../services/i18nService';
 import type { DriveItem } from '../types';
 
 type DriveTreeViewOptions = {
@@ -17,10 +18,10 @@ type NodeState = {
 
 export function createDriveTreeView(options: DriveTreeViewOptions): { element: HTMLElement } {
   const panel = createElement('nav', { className: 'drive-tree' });
-  panel.setAttribute('aria-label', 'Arvore de pastas do Drive');
+  panel.setAttribute('aria-label', t('documents.tree.ariaLabel'));
 
   const rootToggle = createElement('button', { className: 'drive-tree-toggle', type: 'button', textContent: '▼' });
-  const rootLabel = createElement('button', { className: 'drive-tree-root-label', type: 'button', textContent: 'Drive' });
+  const rootLabel = createElement('button', { className: 'drive-tree-root-label', type: 'button', textContent: t('documents.tree.rootLabel') });
   const rootRow = createElement('div', { className: 'drive-tree-row drive-tree-root-row' });
   const list = createElement('ul', { className: 'drive-tree-list' });
 
@@ -42,13 +43,13 @@ export function createDriveTreeView(options: DriveTreeViewOptions): { element: H
   void loadRoot();
 
   async function loadRoot(): Promise<void> {
-    list.replaceChildren(createElement('li', { className: 'loading-state', textContent: 'Carregando...' }));
+    list.replaceChildren(createElement('li', { className: 'loading-state', textContent: t('documents.tree.loading') }));
     try {
       rootItems = await listDriveRoot();
       rootLoaded = true;
       render();
     } catch {
-      const message = 'Nao foi possivel carregar a pasta raiz do Drive.';
+      const message = t('documents.tree.rootLoadError');
       list.replaceChildren(emptyState(message, true));
       options.onError?.(message);
     }
@@ -63,7 +64,7 @@ export function createDriveTreeView(options: DriveTreeViewOptions): { element: H
     if (!rootExpanded) return;
 
     if (rootItems.length === 0) {
-      list.appendChild(emptyState('Pasta raiz vazia.', true));
+      list.appendChild(emptyState(t('documents.tree.rootEmpty'), true));
       return;
     }
 
@@ -104,7 +105,7 @@ export function createDriveTreeView(options: DriveTreeViewOptions): { element: H
 
     if (state.expanded && state.children) {
       if (state.children.length === 0) {
-        childrenList.appendChild(emptyState('Pasta vazia.', true));
+        childrenList.appendChild(emptyState(t('documents.tree.folderEmpty'), true));
       } else {
         state.children.forEach((child) => childrenList.appendChild(renderNode(child, depth + 1)));
       }
@@ -130,13 +131,13 @@ export function createDriveTreeView(options: DriveTreeViewOptions): { element: H
     }
 
     state.loading = true;
-    childrenList.replaceChildren(createElement('li', { className: 'loading-state', textContent: 'Carregando...' }));
+    childrenList.replaceChildren(createElement('li', { className: 'loading-state', textContent: t('documents.tree.loading') }));
 
     try {
       state.children = await listDriveFolder(folderId);
       state.expanded = true;
     } catch {
-      const message = 'Nao foi possivel abrir a pasta. Tente novamente.';
+      const message = t('documents.tree.folderLoadError');
       childrenList.replaceChildren(emptyState(message, true));
       options.onError?.(message);
       state.loading = false;

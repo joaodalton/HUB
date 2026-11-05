@@ -15,10 +15,11 @@ import {
   createOccupancyBar,
   createStatusDotLabel,
   createSummaryRow,
+  getUpcomingPlantTabs,
   plantLocationLabel,
-  upcomingPlantTabs,
   type ConnectedUcRow
 } from './plantsShared';
+import { t } from '../services/i18nService';
 
 export type PlantDetailViewProps = {
   plant: PlantRow;
@@ -34,7 +35,7 @@ export function renderPlantDetailView(props: PlantDetailViewProps): HTMLElement 
   const { plant, allUcs, onBack, onEdit, onDelete, onOpenDistribuicao, onRemoveConnection } = props;
   const wrapper = createElement('section', { className: 'client-detail-view' });
 
-  const backLink = createElement('a', { className: 'detail-back-link', textContent: '← Usinas' });
+  const backLink = createElement('a', { className: 'detail-back-link', textContent: t('plants.detail.backLink') });
   backLink.href = '#';
   backLink.addEventListener('click', (event) => {
     event.preventDefault();
@@ -58,9 +59,9 @@ function createPlantDetailHeader(plant: PlantRow, onEdit: (plant: PlantRow) => v
 
   const actions = createElement('div', { className: 'detail-actions' });
   const editButton = createElement('button', { className: 'secondary-button button-with-icon', type: 'button' });
-  editButton.append(createIcon('edit'), document.createTextNode('Editar'));
+  editButton.append(createIcon('edit'), document.createTextNode(t('plants.detail.actionsEdit')));
   const deleteButton = createElement('button', { className: 'danger-button button-with-icon', type: 'button' });
-  deleteButton.append(createIcon('trash'), document.createTextNode('Excluir'));
+  deleteButton.append(createIcon('trash'), document.createTextNode(t('plants.detail.actionsDelete')));
 
   editButton.addEventListener('click', () => onEdit(plant));
   deleteButton.addEventListener('click', () => onDelete(plant));
@@ -74,19 +75,19 @@ function createPlantDetailHeader(plant: PlantRow, onEdit: (plant: PlantRow) => v
 
 function createPlantInfoPanel(plant: PlantRow, allUcs: UcRow[]): HTMLElement {
   const panel = createElement('aside', { className: 'detail-info-panel' });
-  const eyebrow = createElement('span', { className: 'eyebrow', textContent: 'Informações gerais' });
+  const eyebrow = createElement('span', { className: 'eyebrow', textContent: t('plants.detail.infoEyebrow') });
   const grid = createElement('div', { className: 'detail-info-grid' });
 
   grid.append(
-    createInfoField('Potência (kWp)', plant.kwPico),
-    createInfoField('Cidade/UF', plantLocationLabel(plant)),
-    createInfoField('Endereço', plant.endereco || 'Não informado'),
-    createInfoField('Data de ativação', plant.dataAtivacao || 'Não informado'),
-    createInfoField('Responsável', plant.responsavel || 'Não informado'),
-    createInfoField('UCs conectadas', String(connectedUcs(allUcs, plant.id).length)),
-    createInfoField('Marca do inversor', plant.marcaInversor || 'Não informado'),
-    createInfoField('Telefone do proprietário', plant.telefoneProprietario || 'Não informado'),
-    createInfoField('Email do proprietário', plant.emailProprietario || 'Não informado')
+    createInfoField(t('plants.detail.labelKwPico'), plant.kwPico),
+    createInfoField(t('plants.detail.labelCidadeUf'), plantLocationLabel(plant)),
+    createInfoField(t('plants.detail.labelEndereco'), plant.endereco || t('plants.notInformed')),
+    createInfoField(t('plants.detail.labelDataAtivacao'), plant.dataAtivacao || t('plants.notInformed')),
+    createInfoField(t('plants.detail.labelResponsavel'), plant.responsavel || t('plants.notInformed')),
+    createInfoField(t('plants.detail.labelUcsConectadas'), String(connectedUcs(allUcs, plant.id).length)),
+    createInfoField(t('plants.detail.labelMarcaInversor'), plant.marcaInversor || t('plants.notInformed')),
+    createInfoField(t('plants.detail.labelTelefoneProprietario'), plant.telefoneProprietario || t('plants.notInformed')),
+    createInfoField(t('plants.detail.labelEmailProprietario'), plant.emailProprietario || t('plants.notInformed'))
   );
 
   panel.append(eyebrow, grid);
@@ -95,7 +96,7 @@ function createPlantInfoPanel(plant: PlantRow, allUcs: UcRow[]): HTMLElement {
 
 function createPlantSummaryPanel(plant: PlantRow, allUcs: UcRow[]): HTMLElement {
   const panel = createElement('aside', { className: 'detail-info-panel plant-summary-panel' });
-  const eyebrow = createElement('span', { className: 'eyebrow', textContent: 'Resumo' });
+  const eyebrow = createElement('span', { className: 'eyebrow', textContent: t('plants.detail.summaryEyebrow') });
   const rows = createElement('div', { className: 'plant-summary-rows' });
   const activeCount = connectedUcs(allUcs, plant.id).length;
 
@@ -103,14 +104,14 @@ function createPlantSummaryPanel(plant: PlantRow, allUcs: UcRow[]): HTMLElement 
   // ainda (nao existe esse conceito no model hoje) -- mostrando "-" em vez
   // de inventar numero. "UCs ativas" e real (contagem de PlantConnection).
   rows.append(
-    createSummaryRow('UCs ativas', String(activeCount)),
-    createSummaryRow('UCs disponíveis', '-'),
-    createSummaryRow('UCs aguardando', '-')
+    createSummaryRow(t('plants.detail.summaryActiveUcs'), String(activeCount)),
+    createSummaryRow(t('plants.detail.summaryAvailableUcs'), '-'),
+    createSummaryRow(t('plants.detail.summaryPendingUcs'), '-')
   );
 
   const occupied = Math.max(0, Math.min(100, 100 - plant.percentualDisponivel));
   const occupancy = createElement('div', { className: 'plant-summary-occupancy' });
-  occupancy.append(createSummaryRow('% Ocupação', `${occupied}%`), createOccupancyBar(occupied));
+  occupancy.append(createSummaryRow(t('plants.detail.summaryOccupancy'), `${occupied}%`), createOccupancyBar(occupied));
 
   panel.append(eyebrow, rows, occupancy, createMonthlyProductionChart(plant));
   return panel;
@@ -124,14 +125,14 @@ function createPlantTabsPanel(
 ): HTMLElement {
   const panel = createElement('section', { className: 'detail-tabs-panel' });
   const tabs = createElement('div', { className: 'detail-tabs' });
-  const ucsTab = createElement('button', { className: 'detail-tab active', textContent: 'UCs conectadas', type: 'button' });
+  const ucsTab = createElement('button', { className: 'detail-tab active', textContent: t('plants.detail.tabConnectedUcs'), type: 'button' });
 
   tabs.appendChild(ucsTab);
 
-  upcomingPlantTabs.forEach((label) => {
+  getUpcomingPlantTabs().forEach((label) => {
     const tab = createElement('button', { className: 'detail-tab disabled', textContent: label, type: 'button' });
     tab.disabled = true;
-    tab.title = 'Em breve';
+    tab.title = t('plants.detail.tabDisabledTitle');
     tabs.appendChild(tab);
   });
 
@@ -146,9 +147,9 @@ function createConnectedUcsActions(plant: PlantRow, allUcs: UcRow[], onOpenDistr
   spacer.style.minWidth = '0';
 
   const editButton = createElement('button', { className: 'secondary-button button-with-icon', type: 'button' });
-  editButton.append(createIcon('edit'), document.createTextNode('Editar distribuição'));
+  editButton.append(createIcon('edit'), document.createTextNode(t('plants.detail.editDistribuicao')));
   editButton.disabled = connectedUcs(allUcs, plant.id).length === 0;
-  editButton.title = editButton.disabled ? 'Nenhuma UC conectada ainda' : 'Editar percentual das UCs conectadas';
+  editButton.title = editButton.disabled ? t('plants.detail.editDistribuicaoDisabledTitle') : t('plants.detail.editDistribuicaoTitle');
   editButton.addEventListener('click', () => onOpenDistribuicao(plant));
 
   bar.append(spacer, editButton);
@@ -159,15 +160,15 @@ function createConnectedUcsTable(plant: PlantRow, allUcs: UcRow[], onRemoveConne
   const rows = connectedUcs(allUcs, plant.id);
 
   return createDataTable<ConnectedUcRow>({
-    title: 'UCs conectadas',
-    eyebrow: 'Rateio',
+    title: t('plants.detail.connectedTableTitle'),
+    eyebrow: t('plants.detail.connectedTableEyebrow'),
     rows,
-    emptyMessage: 'Nenhuma UC conectada a esta usina ainda.',
+    emptyMessage: t('plants.detail.connectedTableEmpty'),
     columns: [
-      { key: 'uc', label: 'UC', render: (row) => createIdNameCell(row.codigo, row.apelido) },
-      { key: 'cliente', label: 'Cliente' },
-      { key: 'percentual', label: '% Rateio', align: 'right' },
-      { key: 'status', label: 'Status', render: (row) => createStatusDotLabel(row.status, 'success') },
+      { key: 'uc', label: t('plants.detail.columnUc'), render: (row) => createIdNameCell(row.codigo, row.apelido) },
+      { key: 'cliente', label: t('plants.detail.columnCliente') },
+      { key: 'percentual', label: t('plants.detail.columnPercentual'), align: 'right' },
+      { key: 'status', label: t('plants.detail.columnStatus'), render: (row) => createStatusDotLabel(row.status, 'success') },
       { key: 'acao', label: '', align: 'right', render: (row) => createRemoveConnectionButton(plant, row, onRemoveConnection) }
     ]
   });
@@ -176,8 +177,8 @@ function createConnectedUcsTable(plant: PlantRow, allUcs: UcRow[], onRemoveConne
 function createRemoveConnectionButton(plant: PlantRow, row: ConnectedUcRow, onRemoveConnection: (plant: PlantRow, row: ConnectedUcRow) => void): HTMLElement {
   const button = createElement('button', { className: 'icon-button', type: 'button' });
   button.appendChild(createIcon('x'));
-  button.title = 'Desconectar da usina';
-  button.setAttribute('aria-label', `Desconectar ${row.codigo} da usina`);
+  button.title = t('plants.detail.removeConnectionTitle');
+  button.setAttribute('aria-label', `${t('plants.detail.removeConnectionAriaPrefix')} ${row.codigo} ${t('plants.detail.removeConnectionAriaSuffix')}`);
   button.addEventListener('click', () => onRemoveConnection(plant, row));
   return button;
 }

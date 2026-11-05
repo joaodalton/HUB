@@ -10,6 +10,7 @@ import { getPlants } from '../services/plantService';
 import { getUcs } from '../services/ucsService';
 import { getUsers } from '../services/userService';
 import { readListParam, readPositiveListParam } from '../services/listState';
+import { t } from '../services/i18nService';
 import { renderListView } from './pendencias/PendenciasListView';
 import { renderDetailPanel } from './pendencias/PendenciasDetailPanel';
 import { openPendenciaEditor } from './pendencias/PendenciasEditorModal';
@@ -52,9 +53,9 @@ export function createPendenciasPage(): HTMLElement {
 
   const layout = createBaseLayout({
     content,
-    eyebrow: 'Operação',
-    title: 'Pendências',
-    description: 'Central de ações do HUB para pendências, alertas e erros.'
+    eyebrow: t('pendencias.page.eyebrow'),
+    title: t('pendencias.page.title'),
+    description: t('pendencias.page.description')
   });
 
   let verificacaoEmAndamento = false;
@@ -97,7 +98,7 @@ export function createPendenciasPage(): HTMLElement {
       state.loadError = false;
     } catch {
       state.loadError = true;
-      toast.error('Não foi possível carregar pendências. Verifique se o backend está rodando.');
+      toast.error(t('pendencias.page.loadError'));
     } finally {
       state.isLoading = false;
       loading.hide();
@@ -120,10 +121,10 @@ export function createPendenciasPage(): HTMLElement {
       const resultado = await verificarPendencias();
 
       if (resultado.total_criadas > 0) {
-        toast.success(`${resultado.total_criadas} nova(s) pendência(s) criada(s) automaticamente.`);
+        toast.success(`${resultado.total_criadas} ${t('pendencias.page.autoCreatedSuffix')}`);
         await refreshListaSemLoading();
       } else if (resultado.resolvidas > 0) {
-        toast.success(`${resultado.resolvidas} pendência(s) resolvida(s) automaticamente.`);
+        toast.success(`${resultado.resolvidas} ${t('pendencias.page.autoResolvedSuffix')}`);
         await refreshListaSemLoading();
       }
     } catch {

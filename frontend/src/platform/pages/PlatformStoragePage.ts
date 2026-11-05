@@ -3,11 +3,12 @@ import { createStatusBadge } from '../../components/StatusBadge';
 import { createUiState } from '../../components/UiState';
 import { createPlatformLayout } from '../layouts/PlatformLayout';
 import { getNeonStorage, type NeonEnvironmentStorage, type NeonStorageSummary } from '../services/platformService';
+import { t } from '../../services/i18nService';
 
 export function createPlatformStoragePage(): HTMLElement {
   const content = createElement('div', { className: 'content-stack' });
   content.setAttribute('aria-busy', 'true');
-  content.appendChild(createElement('p', { className: 'eyebrow', textContent: 'Carregando armazenamento do Neon...' }));
+  content.appendChild(createElement('p', { className: 'eyebrow', textContent: t('platform.storage.loading') }));
 
   void getNeonStorage()
     .then((summary) => {
@@ -18,16 +19,16 @@ export function createPlatformStoragePage(): HTMLElement {
       content.removeAttribute('aria-busy');
       content.replaceChildren(createUiState({
         kind: 'error',
-        title: 'Não foi possível carregar o armazenamento do Neon.',
+        title: t('platform.storage.loadError'),
         description: error instanceof Error ? error.message : undefined,
-        action: { label: 'Tentar novamente', onClick: () => window.dispatchEvent(new PopStateEvent('popstate')) }
+        action: { label: t('platform.storage.retry'), onClick: () => window.dispatchEvent(new PopStateEvent('popstate')) }
       }));
     });
 
   return createPlatformLayout({
     content,
-    title: 'Armazenamento',
-    description: 'Uso de armazenamento do banco Postgres (Neon) por ambiente. Somente leitura — trocar o ambiente ativo exige reconfigurar DATABASE_URL e reiniciar o backend.'
+    title: t('platform.storage.title'),
+    description: t('platform.storage.description')
   });
 }
 
@@ -35,8 +36,8 @@ function renderSummary(summary: NeonStorageSummary): HTMLElement[] {
   if (!summary.ambientes.length) {
     return [createUiState({
       kind: 'empty',
-      title: 'Nenhum projeto Neon configurado.',
-      description: 'Defina NEON_API_KEY e NEON_PROJECT_ID_DEV/NEON_PROJECT_ID_PROD no ambiente do backend.'
+      title: t('platform.storage.emptyTitle'),
+      description: t('platform.storage.emptyDescription')
     })];
   }
   return summary.ambientes.map((ambiente) => createEnvironmentCard(ambiente, ambiente.ambiente === summary.ambienteAtual));
@@ -47,30 +48,30 @@ function createEnvironmentCard(ambiente: NeonEnvironmentStorage, isAtivo: boolea
 
   const header = createElement('div', { className: 'detail-title-row' });
   header.append(
-    createElement('h2', { textContent: ambiente.ambiente === 'producao' ? 'Produção' : 'Desenvolvimento' }),
-    isAtivo ? createStatusBadge('Ambiente ativo', 'success') : createStatusBadge('Inativo', 'warning')
+    createElement('h2', { textContent: ambiente.ambiente === 'producao' ? t('platform.storage.envProducao') : t('platform.storage.envDesenvolvimento') }),
+    isAtivo ? createStatusBadge(t('platform.storage.ambienteAtivo'), 'success') : createStatusBadge(t('platform.storage.inativo'), 'warning')
   );
 
-  const projectInfo = createElement('p', { className: 'eyebrow', textContent: `Projeto Neon: ${ambiente.projectId}` });
+  const projectInfo = createElement('p', { className: 'eyebrow', textContent: t('platform.storage.projetoNeonTemplate').replace('{id}', ambiente.projectId) });
 
   const total = createElement('div', { className: 'plant-summary-row' });
   const totalLabel = ambiente.limiteBytes
-    ? `${formatBytes(ambiente.totalBytes)} de ${formatBytes(ambiente.limiteBytes)}`
+    ? t('platform.storage.totalUsadoDeTemplate').replace('{used}', formatBytes(ambiente.totalBytes)).replace('{limit}', formatBytes(ambiente.limiteBytes))
     : formatBytes(ambiente.totalBytes);
   total.append(
-    createElement('span', { textContent: 'Total usado' }),
+    createElement('span', { textContent: t('platform.storage.totalUsado') }),
     createElement('strong', { textContent: totalLabel })
   );
 
   const version = createElement('div', { className: 'plant-summary-row' });
   version.append(
-    createElement('span', { textContent: 'Versão do Postgres' }),
+    createElement('span', { textContent: t('platform.storage.versaoPostgres') }),
     createElement('strong', { textContent: ambiente.pgVersion ? String(ambiente.pgVersion) : '—' })
   );
 
   const compute = createElement('div', { className: 'plant-summary-row' });
   compute.append(
-    createElement('span', { textContent: 'Status do compute' }),
+    createElement('span', { textContent: t('platform.storage.statusCompute') }),
     createComputeStatusBadge(ambiente.computeStatus)
   );
 
@@ -89,9 +90,9 @@ function createEnvironmentCard(ambiente: NeonEnvironmentStorage, isAtivo: boolea
 }
 
 function createComputeStatusBadge(status: string | null): HTMLElement {
-  if (!status) return createStatusBadge('Desconhecido', 'neutral');
-  if (status === 'active') return createStatusBadge('Ativo', 'success');
-  if (status === 'idle') return createStatusBadge('Hibernado (inatividade)', 'info');
+  if (!status) return createStatusBadge(t('platform.storage.computeDesconhecido'), 'neutral');
+  if (status === 'active') return createStatusBadge(t('platform.storage.computeAtivo'), 'success');
+  if (status === 'idle') return createStatusBadge(t('platform.storage.computeHibernado'), 'info');
   return createStatusBadge(status, 'warning');
 }
 

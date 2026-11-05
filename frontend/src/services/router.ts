@@ -5,8 +5,6 @@ import { createDocumentsPage } from '../pages/DocumentsPage';
 import { createForgotPasswordPage } from '../pages/ForgotPasswordPage';
 import { createLoginPage } from '../pages/LoginPage';
 import { createResetPasswordPage } from '../pages/ResetPasswordPage';
-import { createCheckoutPage } from '../pages/CheckoutPage';
-import { createCadastroEmpresaPage } from '../pages/CadastroEmpresaPage';
 import { createPendenciasPage } from '../pages/PendenciasPage';
 import { createPlantsPage } from '../pages/PlantsPage';
 import { createRateioPage } from '../pages/RateioPage';
@@ -96,7 +94,7 @@ export function createRouter(root: HTMLElement) {
   // Rotas publicas alem de /login -- acessiveis sem sessao, e um usuario
   // ja logado que cair nelas e redirecionado pra home (mesmo comportamento
   // que /login ja tinha).
-  const PUBLIC_AUTH_PATHS = new Set(['/login', '/esqueci-senha', '/redefinir-senha', '/checkout', '/cadastro-empresa']);
+  const PUBLIC_AUTH_PATHS = new Set(['/login', '/esqueci-senha', '/redefinir-senha']);
 
   window.addEventListener('hub:password-change-required', () => {
     if (isAuthenticated() && window.location.pathname !== '/trocar-senha') redirect('/trocar-senha');
@@ -176,16 +174,6 @@ export function createRouter(root: HTMLElement) {
 
     if (path === '/redefinir-senha') {
       root.replaceChildren(createResetPasswordPage());
-      return;
-    }
-
-    if (path === '/checkout') {
-      root.replaceChildren(createCheckoutPage());
-      return;
-    }
-
-    if (path === '/cadastro-empresa') {
-      root.replaceChildren(createCadastroEmpresaPage());
       return;
     }
 

@@ -18,12 +18,6 @@ export function createCadastroEmpresaPage(): HTMLElement {
   const heading = createElement('h1', { textContent: t('auth.cadastroEmpresa.heading') });
   const subheading = createElement('p', { className: 'login-form-subtitle', textContent: t('auth.cadastroEmpresa.subheading') });
 
-  function goToLogin(event: Event): void {
-    event.preventDefault();
-    window.history.pushState({}, '', '/login');
-    window.dispatchEvent(new PopStateEvent('popstate'));
-  }
-
   if (!token) {
     const errorMsg = createElement('p', {
       className: 'login-error',
@@ -31,7 +25,6 @@ export function createCadastroEmpresaPage(): HTMLElement {
     });
     const backLink = createElement('a', { className: 'login-forgot-link', textContent: t('auth.cadastroEmpresa.goToLogin') });
     backLink.href = '/login';
-    backLink.addEventListener('click', goToLogin);
 
     const wrapper = createElement('div', { className: 'login-view' });
     wrapper.append(heading, subheading, errorMsg, backLink);
@@ -96,7 +89,6 @@ export function createCadastroEmpresaPage(): HTMLElement {
       });
       const loginLink = createElement('a', { className: 'login-forgot-link', textContent: t('auth.cadastroEmpresa.goToLogin') });
       loginLink.href = '/login';
-      loginLink.addEventListener('click', goToLogin);
       form.replaceChildren(successMsg, loginLink);
     } catch (error) {
       feedback.className = 'login-error';

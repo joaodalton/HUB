@@ -28,8 +28,10 @@ graph TD
     models_message_template["models.message_template"]
     models_password_reset_token["models.password_reset_token"]
     models_payment_webhook_event["models.payment_webhook_event"]
+    models_pedido_plano["models.pedido_plano"]
     models_pendencia["models.pendencia"]
     models_plant["models.plant"]
+    models_platform_configuracao["models.platform_configuracao"]
     models_rateio_historico["models.rateio_historico"]
     models_regra_cobranca_assignment["models.regra_cobranca_assignment"]
     models_regulatory_tariff["models.regulatory_tariff"]
@@ -130,9 +132,11 @@ graph TD
     services_object_storage["services.object_storage"]
     services_office_report_renderers["services.office_report_renderers"]
     services_password_reset_service["services.password_reset_service"]
+    services_pedido_plano_service["services.pedido_plano_service"]
     services_pendencia_service["services.pendencia_service"]
     services_permission_service["services.permission_service"]
     services_plant_service["services.plant_service"]
+    services_platform_config_service["services.platform_config_service"]
     services_quota_service["services.quota_service"]
     services_rateio_calculo["services.rateio_calculo"]
     services_rateio_excel_service["services.rateio_excel_service"]
@@ -187,8 +191,10 @@ graph TD
   app --> models_message_template
   app --> models_password_reset_token
   app --> models_payment_webhook_event
+  app --> models_pedido_plano
   app --> models_pendencia
   app --> models_plant
+  app --> models_platform_configuracao
   app --> models_rateio_historico
   app --> models_regra_cobranca_assignment
   app --> models_regulatory_tariff
@@ -256,8 +262,11 @@ graph TD
   models_message_template --> extensions
   models_password_reset_token --> extensions
   models_payment_webhook_event --> extensions
+  models_pedido_plano --> extensions
   models_pendencia --> extensions
   models_plant --> extensions
+  models_platform_configuracao --> extensions
+  models_platform_configuracao --> utils_crypto
   models_rateio_historico --> extensions
   models_regra_cobranca_assignment --> extensions
   models_regra_cobranca_assignment --> services_billing_calculation_contracts
@@ -435,6 +444,7 @@ graph TD
   services_api_credential_service --> utils_crypto
   services_asaas_client --> config
   services_asaas_client --> models_api_credential
+  services_asaas_client --> services_platform_config_service
   services_asaas_webhook_service --> extensions
   services_asaas_webhook_service --> models_api_credential
   services_asaas_webhook_service --> models_consumer_unit
@@ -666,9 +676,12 @@ graph TD
   services_invitation_service --> services_user_service
   services_invitation_service --> utils_auth
   services_invoice_compensation --> services_invoice_parsers_schemas
+  services_invoice_document_service --> extensions
+  services_invoice_document_service --> models_calculo_cobranca
   services_invoice_document_service --> models_client
   services_invoice_document_service --> models_document
   services_invoice_document_service --> models_fatura_concessionaria
+  services_invoice_document_service --> models_pendencia
   services_invoice_document_service --> services_document_service
   services_invoice_document_service --> services_object_storage
   services_invoice_normalization_service --> services_invoice_compensation
@@ -700,6 +713,16 @@ graph TD
   services_password_reset_service --> services_email_template_service
   services_password_reset_service --> services_log_service
   services_password_reset_service --> utils_auth
+  services_pedido_plano_service --> config
+  services_pedido_plano_service --> extensions
+  services_pedido_plano_service --> models_assinatura
+  services_pedido_plano_service --> models_empresa
+  services_pedido_plano_service --> models_pedido_plano
+  services_pedido_plano_service --> models_user
+  services_pedido_plano_service --> services_asaas_client
+  services_pedido_plano_service --> services_email_service
+  services_pedido_plano_service --> services_log_service
+  services_pedido_plano_service --> utils_auth
   services_pendencia_service --> extensions
   services_pendencia_service --> models_client
   services_pendencia_service --> models_consumer_unit
@@ -714,6 +737,8 @@ graph TD
   services_plant_service --> extensions
   services_plant_service --> models_plant
   services_plant_service --> utils_pagination
+  services_platform_config_service --> config
+  services_platform_config_service --> models_platform_configuracao
   services_quota_service --> models_assinatura
   services_quota_service --> models_client
   services_quota_service --> models_consumer_unit
@@ -795,10 +820,10 @@ graph TD
   services_uc_service --> services_uc_code
   services_uc_service --> services_uc_discount
   services_uc_service --> utils_pagination
-  services_user_service --> config
   services_user_service --> extensions
   services_user_service --> models_user
   services_user_service --> services_log_service
+  services_user_service --> services_platform_config_service
   services_user_service --> utils_auth
   services_user_service --> utils_pagination
   services_whatsapp_service --> config
@@ -829,9 +854,9 @@ graph TD
     components_BrandLogo["components/BrandLogo"]
     components_CategoryPicker["components/CategoryPicker"]
     components_ClientCard["components/ClientCard"]
+    components_ClientCardUcEditor["components/ClientCardUcEditor"]
     components_ClientDetailView["components/ClientDetailView"]
     components_ClientDocumentsPanel["components/ClientDocumentsPanel"]
-    components_CommandPalette["components/CommandPalette"]
     components_ConcessionariaInvoicesPanel["components/ConcessionariaInvoicesPanel"]
     components_ConcessionariaPasswordField["components/ConcessionariaPasswordField"]
     components_ContextHelp["components/ContextHelp"]
@@ -852,6 +877,7 @@ graph TD
     components_IntegrationCard["components/IntegrationCard"]
     components_LanguageSwitcher["components/LanguageSwitcher"]
     components_Loading["components/Loading"]
+    components_LogoMark["components/LogoMark"]
     components_Modal["components/Modal"]
     components_PaginationNav["components/PaginationNav"]
     components_PlantCard["components/PlantCard"]
@@ -904,6 +930,8 @@ graph TD
     pages_TemplatesPage["pages/TemplatesPage"]
     pages_UcsPage["pages/UcsPage"]
     pages_UsersPage["pages/UsersPage"]
+    pages_faturasCreateModal["pages/faturasCreateModal"]
+    pages_faturasInvoiceActions["pages/faturasInvoiceActions"]
     pages_faturasInvoiceDetail["pages/faturasInvoiceDetail"]
     pages_pendencias_PendenciasDetailPanel["pages/pendencias/PendenciasDetailPanel"]
     pages_pendencias_PendenciasEditorModal["pages/pendencias/PendenciasEditorModal"]
@@ -915,13 +943,16 @@ graph TD
     pages_rateio_RateioFormularioView["pages/rateio/RateioFormularioView"]
     pages_rateio_RateioHistoricoView["pages/rateio/RateioHistoricoView"]
     pages_rateio_RateioWizard["pages/rateio/RateioWizard"]
+    pages_reportsSourcePanel["pages/reportsSourcePanel"]
     pages_settingsActions["pages/settingsActions"]
+    pages_settingsApiCredentialForms["pages/settingsApiCredentialForms"]
     pages_settingsAppearance["pages/settingsAppearance"]
     pages_settingsDatabase["pages/settingsDatabase"]
     pages_settingsGeneral["pages/settingsGeneral"]
     pages_settingsIntegrations["pages/settingsIntegrations"]
     pages_settingsLogs["pages/settingsLogs"]
     pages_settingsShared["pages/settingsShared"]
+    pages_ucsShared["pages/ucsShared"]
   end
   subgraph services["services"]
     services_agendaService["services/agendaService"]
@@ -967,69 +998,99 @@ graph TD
   end
   components_BillingDiagnosticsPanel --> hooks_useToast
   components_BillingDiagnosticsPanel --> services_billingDiagnosticsService
+  components_BillingDiagnosticsPanel --> services_i18nService
   components_CategoryPicker --> services_documentsService
+  components_CategoryPicker --> services_i18nService
+  components_ClientCard --> components_ClientCardUcEditor
   components_ClientCard --> components_ClientDocumentsPanel
-  components_ClientCard --> components_ConcessionariaPasswordField
-  components_ClientCard --> components_ContextHelp
-  components_ClientCard --> components_PlantConnectionsField
   components_ClientCard --> components_cadastroFields
   components_ClientCard --> components_formFields
   components_ClientCard --> services_clientsService
+  components_ClientCard --> services_i18nService
   components_ClientCard --> services_plantService
+  components_ClientCardUcEditor --> components_ConcessionariaPasswordField
+  components_ClientCardUcEditor --> components_ContextHelp
+  components_ClientCardUcEditor --> components_PlantConnectionsField
+  components_ClientCardUcEditor --> components_cadastroFields
+  components_ClientCardUcEditor --> components_formFields
+  components_ClientCardUcEditor --> services_clientsService
+  components_ClientCardUcEditor --> services_i18nService
+  components_ClientCardUcEditor --> services_plantService
   components_ClientDetailView --> services_clientsService
+  components_ClientDetailView --> services_i18nService
   components_ClientDocumentsPanel --> components_Icon
   components_ClientDocumentsPanel --> hooks_useToast
   components_ClientDocumentsPanel --> services_documentsService
-  components_CommandPalette --> components_Icon
-  components_CommandPalette --> services_authService
+  components_ClientDocumentsPanel --> services_i18nService
   components_ConcessionariaInvoicesPanel --> components_DataTable
+  components_ConcessionariaInvoicesPanel --> components_FaturasUi
   components_ConcessionariaInvoicesPanel --> components_Icon
   components_ConcessionariaInvoicesPanel --> hooks_useToast
   components_ConcessionariaInvoicesPanel --> services_authService
   components_ConcessionariaInvoicesPanel --> services_billingCalculationsService
   components_ConcessionariaInvoicesPanel --> services_clientsService
+  components_ConcessionariaInvoicesPanel --> services_i18nService
   components_ConcessionariaPasswordField --> components_formFields
   components_ConcessionariaPasswordField --> hooks_useToast
   components_ConcessionariaPasswordField --> services_authService
+  components_ConcessionariaPasswordField --> services_i18nService
   components_ConcessionariaPasswordField --> services_ucsService
+  components_ContextHelp --> services_i18nService
   components_CreateCompanyModal --> components_cadastroFields
   components_CreateCompanyModal --> services_empresaService
+  components_CreateCompanyModal --> services_i18nService
   components_DashboardCards --> components_Icon
   components_DataTable --> components_Icon
   components_DataTable --> components_Modal
   components_DataTable --> components_StatusBadge
   components_DataTable --> components_UiState
+  components_DataTable --> services_i18nService
+  components_DetailDrawer --> services_i18nService
   components_DocumentLinkModal --> components_CategoryPicker
   components_DocumentLinkModal --> services_clientsService
   components_DocumentLinkModal --> services_documentsService
+  components_DocumentLinkModal --> services_i18nService
   components_DriveTreeView --> services_documentRules
   components_DriveTreeView --> services_driveService
+  components_DriveTreeView --> services_i18nService
   components_EditCompanyModal --> components_cadastroFields
   components_EditCompanyModal --> services_empresaService
+  components_EditCompanyModal --> services_i18nService
   components_ErrorBoundary --> components_Toast
   components_FaturasUi --> components_Modal
   components_FaturasUi --> components_StatusBadge
   components_FaturasUi --> services_faturasService
+  components_FaturasUi --> services_i18nService
   components_Header --> components_LanguageSwitcher
   components_Header --> components_ThemeToggle
   components_IconStatCard --> components_Icon
   components_ImportacoesModal --> components_Icon
   components_ImportacoesModal --> pages_ImportacoesPage
+  components_ImportacoesModal --> services_i18nService
   components_IntegrationCard --> components_BrandLogo
   components_LanguageSwitcher --> components_Tooltip
   components_LanguageSwitcher --> services_i18nService
+  components_Modal --> services_i18nService
   components_PlantCard --> components_ClientDocumentsPanel
   components_PlantCard --> components_formFields
+  components_PlantCard --> services_i18nService
   components_PlantCard --> services_plantService
   components_PlantConnectionsField --> services_clientsService
+  components_PlantConnectionsField --> services_i18nService
   components_PlantConnectionsField --> services_plantService
+  components_PlantDistribuicaoModal --> services_i18nService
   components_PlantDistribuicaoModal --> services_plantService
   components_PlantDistribuicaoModal --> services_rateioService
+  components_RegulatoryTariffModal --> services_i18nService
   components_RegulatoryTariffModal --> services_regulatoryTariffsService
   components_ReservedPanel --> components_Icon
   components_ReservedPanel --> services_documentRules
+  components_ReservedPanel --> services_i18nService
   components_ResultsList --> services_documentRules
+  components_ResultsList --> services_i18nService
+  components_SearchPanel --> services_i18nService
   components_Sidebar --> components_Icon
+  components_Sidebar --> components_LogoMark
   components_Sidebar --> services_authService
   components_Sidebar --> services_i18nService
   components_Sidebar --> services_settingsService
@@ -1040,6 +1101,7 @@ graph TD
   components_UcBillingRuleSection --> hooks_useToast
   components_UcBillingRuleSection --> services_authService
   components_UcBillingRuleSection --> services_billingRulesService
+  components_UcBillingRuleSection --> services_i18nService
   components_UcBillingRuleSection --> services_ucsService
   components_UcCard --> components_ConcessionariaPasswordField
   components_UcCard --> components_ContextHelp
@@ -1047,23 +1109,27 @@ graph TD
   components_UcCard --> components_cadastroFields
   components_UcCard --> components_formFields
   components_UcCard --> services_clientsService
+  components_UcCard --> services_i18nService
   components_UcCard --> services_plantService
   components_UcCard --> services_ucsService
+  components_UiState --> services_i18nService
+  components_cadastroFields --> services_i18nService
   hooks_useGlobalLoading --> components_Loading
   hooks_useToast --> components_Toast
-  layouts_BaseLayout --> components_CommandPalette
   layouts_BaseLayout --> components_Header
   layouts_BaseLayout --> components_Icon
   layouts_BaseLayout --> components_Loading
   layouts_BaseLayout --> components_Sidebar
   layouts_BaseLayout --> components_Toast
   layouts_BaseLayout --> services_authService
+  layouts_BaseLayout --> services_i18nService
   layouts_BaseLayout --> services_settingsService
   pages_AgendaPage --> components_Icon
   pages_AgendaPage --> hooks_useGlobalLoading
   pages_AgendaPage --> hooks_useToast
   pages_AgendaPage --> layouts_BaseLayout
   pages_AgendaPage --> services_agendaService
+  pages_AgendaPage --> services_i18nService
   pages_AgendaPage --> services_pendenciasService
   pages_BillingRuleEditorPage --> components_ContextHelp
   pages_BillingRuleEditorPage --> components_formFields
@@ -1072,6 +1138,7 @@ graph TD
   pages_BillingRuleEditorPage --> layouts_BaseLayout
   pages_BillingRuleEditorPage --> services_authService
   pages_BillingRuleEditorPage --> services_billingRulesService
+  pages_BillingRuleEditorPage --> services_i18nService
   pages_BillingRulesPage --> components_ContextHelp
   pages_BillingRulesPage --> components_DataTable
   pages_BillingRulesPage --> components_Icon
@@ -1080,8 +1147,10 @@ graph TD
   pages_BillingRulesPage --> layouts_BaseLayout
   pages_BillingRulesPage --> services_authService
   pages_BillingRulesPage --> services_billingRulesService
+  pages_BillingRulesPage --> services_i18nService
   pages_ChangePasswordPage --> components_Icon
   pages_ChangePasswordPage --> services_authService
+  pages_ChangePasswordPage --> services_i18nService
   pages_ClientsPage --> components_ClientCard
   pages_ClientsPage --> components_ClientDetailView
   pages_ClientsPage --> components_ClientDocumentsPanel
@@ -1093,6 +1162,7 @@ graph TD
   pages_ClientsPage --> hooks_useToast
   pages_ClientsPage --> layouts_BaseLayout
   pages_ClientsPage --> services_clientsService
+  pages_ClientsPage --> services_i18nService
   pages_ClientsPage --> services_listState
   pages_ClientsPage --> services_plantService
   pages_DashboardPage --> components_Icon
@@ -1101,6 +1171,7 @@ graph TD
   pages_DashboardPage --> hooks_useGlobalLoading
   pages_DashboardPage --> layouts_BaseLayout
   pages_DashboardPage --> services_dashboardService
+  pages_DashboardPage --> services_i18nService
   pages_DashboardPage --> services_pendenciasService
   pages_DocumentsPage --> components_DocumentLinkModal
   pages_DocumentsPage --> components_DriveTreeView
@@ -1115,6 +1186,7 @@ graph TD
   pages_DocumentsPage --> services_documentRules
   pages_DocumentsPage --> services_documentsService
   pages_DocumentsPage --> services_driveService
+  pages_DocumentsPage --> services_i18nService
   pages_EmpresasPage --> components_DataTable
   pages_EmpresasPage --> components_Icon
   pages_EmpresasPage --> components_IconStatCard
@@ -1126,6 +1198,7 @@ graph TD
   pages_EmpresasPage --> services_authService
   pages_EmpresasPage --> services_dashboardService
   pages_EmpresasPage --> services_empresaService
+  pages_EmpresasPage --> services_i18nService
   pages_FaturasPage --> components_ConcessionariaInvoicesPanel
   pages_FaturasPage --> components_DataTable
   pages_FaturasPage --> components_FaturasUi
@@ -1135,11 +1208,14 @@ graph TD
   pages_FaturasPage --> hooks_useGlobalLoading
   pages_FaturasPage --> hooks_useToast
   pages_FaturasPage --> layouts_BaseLayout
+  pages_FaturasPage --> pages_faturasCreateModal
+  pages_FaturasPage --> pages_faturasInvoiceActions
   pages_FaturasPage --> pages_faturasInvoiceDetail
   pages_FaturasPage --> services_authService
   pages_FaturasPage --> services_billingCalculationsService
   pages_FaturasPage --> services_clientsService
   pages_FaturasPage --> services_faturasService
+  pages_FaturasPage --> services_i18nService
   pages_FaturasPage --> services_listState
   pages_FaturasPage --> services_pendenciasService
   pages_FaturasPage --> services_ucsService
@@ -1151,8 +1227,10 @@ graph TD
   pages_FinanceiroPage --> hooks_useToast
   pages_FinanceiroPage --> layouts_BaseLayout
   pages_FinanceiroPage --> services_financeiroService
+  pages_FinanceiroPage --> services_i18nService
   pages_FinanceiroPage --> services_pendenciasService
   pages_ForgotPasswordPage --> components_Icon
+  pages_ForgotPasswordPage --> services_i18nService
   pages_ForgotPasswordPage --> services_passwordResetService
   pages_ImportacoesPage --> components_DataTable
   pages_ImportacoesPage --> components_Icon
@@ -1162,8 +1240,10 @@ graph TD
   pages_ImportacoesPage --> layouts_BaseLayout
   pages_ImportacoesPage --> services_authService
   pages_ImportacoesPage --> services_config
+  pages_ImportacoesPage --> services_i18nService
   pages_ImportacoesPage --> services_importacoesService
   pages_LoginPage --> components_Icon
+  pages_LoginPage --> components_LogoMark
   pages_LoginPage --> components_Sidebar
   pages_LoginPage --> services_authService
   pages_LoginPage --> services_config
@@ -1173,6 +1253,7 @@ graph TD
   pages_MessagesPage --> layouts_BaseLayout
   pages_MessagesPage --> services_authService
   pages_MessagesPage --> services_clientsService
+  pages_MessagesPage --> services_i18nService
   pages_MessagesPage --> services_whatsappService
   pages_PendenciasPage --> hooks_useGlobalLoading
   pages_PendenciasPage --> hooks_useToast
@@ -1182,6 +1263,7 @@ graph TD
   pages_PendenciasPage --> pages_pendencias_PendenciasListView
   pages_PendenciasPage --> pages_pendencias_shared
   pages_PendenciasPage --> services_clientsService
+  pages_PendenciasPage --> services_i18nService
   pages_PendenciasPage --> services_listState
   pages_PendenciasPage --> services_pendenciaCategoriasService
   pages_PendenciasPage --> services_pendenciasService
@@ -1198,6 +1280,7 @@ graph TD
   pages_PlantsPage --> pages_plantsDetailView
   pages_PlantsPage --> pages_plantsListView
   pages_PlantsPage --> pages_plantsShared
+  pages_PlantsPage --> services_i18nService
   pages_PlantsPage --> services_listState
   pages_PlantsPage --> services_plantService
   pages_PlantsPage --> services_ucsService
@@ -1207,6 +1290,7 @@ graph TD
   pages_RateioPage --> pages_rateio_RateioFormularioView
   pages_RateioPage --> pages_rateio_RateioHistoricoView
   pages_RateioPage --> pages_rateio_RateioWizard
+  pages_RateioPage --> services_i18nService
   pages_RateioPage --> services_plantService
   pages_RateioPage --> services_ucsService
   pages_ReportsPage --> components_Icon
@@ -1214,10 +1298,13 @@ graph TD
   pages_ReportsPage --> hooks_useGlobalLoading
   pages_ReportsPage --> hooks_useToast
   pages_ReportsPage --> layouts_BaseLayout
+  pages_ReportsPage --> pages_reportsSourcePanel
   pages_ReportsPage --> services_apiClient
   pages_ReportsPage --> services_googleAccountService
+  pages_ReportsPage --> services_i18nService
   pages_ReportsPage --> services_reportsService
   pages_ResetPasswordPage --> components_Icon
+  pages_ResetPasswordPage --> services_i18nService
   pages_ResetPasswordPage --> services_passwordResetService
   pages_SettingsPage --> components_BillingDiagnosticsPanel
   pages_SettingsPage --> hooks_useToast
@@ -1236,6 +1323,7 @@ graph TD
   pages_TemplatesPage --> hooks_useToast
   pages_TemplatesPage --> layouts_BaseLayout
   pages_TemplatesPage --> services_authService
+  pages_TemplatesPage --> services_i18nService
   pages_TemplatesPage --> services_messageTemplatesService
   pages_TemplatesPage --> services_whatsappService
   pages_UcsPage --> components_ClientDetailView
@@ -1248,8 +1336,10 @@ graph TD
   pages_UcsPage --> hooks_useGlobalLoading
   pages_UcsPage --> hooks_useToast
   pages_UcsPage --> layouts_BaseLayout
+  pages_UcsPage --> pages_ucsShared
   pages_UcsPage --> services_billingRulesService
   pages_UcsPage --> services_clientsService
+  pages_UcsPage --> services_i18nService
   pages_UcsPage --> services_listState
   pages_UcsPage --> services_plantService
   pages_UcsPage --> services_ucsService
@@ -1263,9 +1353,20 @@ graph TD
   pages_UsersPage --> layouts_BaseLayout
   pages_UsersPage --> services_apiClient
   pages_UsersPage --> services_authService
+  pages_UsersPage --> services_i18nService
   pages_UsersPage --> services_invitationService
   pages_UsersPage --> services_listState
   pages_UsersPage --> services_userService
+  pages_faturasCreateModal --> components_FaturasUi
+  pages_faturasCreateModal --> services_billingCalculationsService
+  pages_faturasCreateModal --> services_clientsService
+  pages_faturasCreateModal --> services_faturasService
+  pages_faturasCreateModal --> services_i18nService
+  pages_faturasCreateModal --> services_ucsService
+  pages_faturasInvoiceActions --> services_apiClient
+  pages_faturasInvoiceActions --> services_billingCalculationsService
+  pages_faturasInvoiceActions --> services_faturasService
+  pages_faturasInvoiceActions --> services_i18nService
   pages_faturasInvoiceDetail --> components_DetailDrawer
   pages_faturasInvoiceDetail --> components_FaturasUi
   pages_faturasInvoiceDetail --> components_Tooltip
@@ -1273,12 +1374,14 @@ graph TD
   pages_faturasInvoiceDetail --> services_billingCalculationsService
   pages_faturasInvoiceDetail --> services_clientsService
   pages_faturasInvoiceDetail --> services_faturasService
+  pages_faturasInvoiceDetail --> services_i18nService
   pages_faturasInvoiceDetail --> services_pendenciasService
   pages_plantsDetailView --> components_ClientDetailView
   pages_plantsDetailView --> components_DataTable
   pages_plantsDetailView --> components_Icon
   pages_plantsDetailView --> components_StatusBadge
   pages_plantsDetailView --> pages_plantsShared
+  pages_plantsDetailView --> services_i18nService
   pages_plantsDetailView --> services_plantService
   pages_plantsDetailView --> services_ucsService
   pages_plantsListView --> components_DataTable
@@ -1286,21 +1389,31 @@ graph TD
   pages_plantsListView --> components_IconStatCard
   pages_plantsListView --> components_Tooltip
   pages_plantsListView --> pages_plantsShared
+  pages_plantsListView --> services_i18nService
   pages_plantsListView --> services_listState
   pages_plantsListView --> services_plantService
   pages_plantsListView --> services_ucsService
   pages_plantsShared --> components_StatusBadge
+  pages_plantsShared --> services_i18nService
   pages_plantsShared --> services_plantService
   pages_plantsShared --> services_ucsService
+  pages_reportsSourcePanel --> components_Icon
+  pages_reportsSourcePanel --> services_i18nService
+  pages_reportsSourcePanel --> services_reportsService
   pages_settingsActions --> services_apiClient
   pages_settingsActions --> services_apiCredentialsService
   pages_settingsActions --> services_empresaService
   pages_settingsActions --> services_googleAccountService
+  pages_settingsActions --> services_i18nService
   pages_settingsActions --> services_logsService
   pages_settingsActions --> services_rateioConfigService
   pages_settingsActions --> services_regulatoryTariffsService
   pages_settingsActions --> services_settingsService
   pages_settingsActions --> services_whatsappService
+  pages_settingsApiCredentialForms --> components_formFields
+  pages_settingsApiCredentialForms --> pages_settingsShared
+  pages_settingsApiCredentialForms --> services_apiCredentialsService
+  pages_settingsApiCredentialForms --> services_i18nService
   pages_settingsAppearance --> components_Sidebar
   pages_settingsAppearance --> components_formFields
   pages_settingsAppearance --> pages_settingsShared
@@ -1310,6 +1423,7 @@ graph TD
   pages_settingsDatabase --> components_RegulatoryTariffModal
   pages_settingsDatabase --> components_formFields
   pages_settingsDatabase --> pages_settingsShared
+  pages_settingsDatabase --> services_i18nService
   pages_settingsDatabase --> services_regulatoryTariffsService
   pages_settingsDatabase --> services_settingsService
   pages_settingsGeneral --> components_cadastroFields
@@ -1318,10 +1432,10 @@ graph TD
   pages_settingsGeneral --> services_empresaService
   pages_settingsGeneral --> services_i18nService
   pages_settingsGeneral --> services_rateioConfigService
-  pages_settingsIntegrations --> components_BrandLogo
   pages_settingsIntegrations --> components_IntegrationCard
   pages_settingsIntegrations --> components_Modal
   pages_settingsIntegrations --> components_formFields
+  pages_settingsIntegrations --> pages_settingsApiCredentialForms
   pages_settingsIntegrations --> pages_settingsShared
   pages_settingsIntegrations --> services_apiCredentialsService
   pages_settingsIntegrations --> services_googleAccountService
@@ -1331,8 +1445,13 @@ graph TD
   pages_settingsLogs --> components_DetailDrawer
   pages_settingsLogs --> components_IconStatCard
   pages_settingsLogs --> pages_settingsShared
+  pages_settingsLogs --> services_i18nService
   pages_settingsLogs --> services_logsService
+  pages_settingsShared --> components_BrandLogo
+  pages_settingsShared --> services_apiCredentialsService
   pages_settingsShared --> services_authService
+  pages_settingsShared --> services_i18nService
+  pages_ucsShared --> services_i18nService
   services_agendaService --> services_apiClient
   services_agendaService --> services_pendenciasService
   services_apiClient --> services_authService
@@ -1362,8 +1481,10 @@ graph TD
   services_passwordResetService --> services_apiClient
   services_pendenciaCategoriasService --> services_apiClient
   services_pendenciasService --> services_apiClient
+  services_pendenciasService --> services_i18nService
   services_pendenciasService --> services_userService
   services_plantService --> services_apiClient
+  services_plantService --> services_i18nService
   services_rateioConfigService --> services_apiClient
   services_rateioFormularioService --> services_apiClient
   services_rateioService --> services_apiClient

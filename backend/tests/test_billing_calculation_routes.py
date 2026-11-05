@@ -282,6 +282,31 @@ class BillingCalculationRoutesTest(IsolatedTestRuntime, unittest.TestCase):
         response = self.client.post(url, data=pdf, headers=self.headers(6))
         self.assertEqual((response.status_code, response.json['code']), (404, 'CLIENT_NOT_FOUND'))
 
+    def test_delete_invoice_requires_permission_and_is_tenant_scoped(self):
+        url = '/api/v1/billing-calculations/invoices/10'
+        self.assertEqual(self.client.delete(url).status_code, 401)
+        for user_id in (3, 4):
+            self.assertEqual(self.client.delete(url, headers=self.headers(user_id)).status_code, 403)
+        self.assertEqual(self.client.delete('/api/v1/billing-calculations/invoices/10',
+                                            headers=self.headers(5)).status_code, 404)
+        self.assertEqual(self.client.delete('/api/v1/billing-calculations/invoices/999',
+                                            headers=self.headers(1)).status_code, 404)
+        response = self.client.delete(url, headers=self.headers(1))
+        self.assertEqual(response.status_code, 200, response.json)
+        self.assertIsNone(db.session.get(FaturaConcessionaria, 10))
+        self.assertIsNone(db.session.get(Document, 10))
+
+    def test_delete_invoice_blocked_after_calculation_executed(self):
+        execution = BillingCalculationExecution(empresa_id=10, fatura_concessionaria_id=10,
+            status='MISSING_DATA', auditoria={'stages': []})
+        db.session.add(execution)
+        db.session.commit()
+        response = self.client.delete('/api/v1/billing-calculations/invoices/10',
+                                      headers=self.headers(1))
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json['code'], 'INVOICE_HAS_CALCULATION')
+        self.assertIsNotNone(db.session.get(FaturaConcessionaria, 10))
+
 
 if __name__ == '__main__':
     unittest.main()

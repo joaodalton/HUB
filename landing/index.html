@@ -13,7 +13,7 @@ a { text-decoration: none; }
 .nav-link:hover { color: #0f172a; }
 .btn-primary:hover { background: #e0611f; }
 .btn-secondary:hover { background: #e3e9f1; }
-.lang-switcher { font: inherit; font-size: 13px; border: 1px solid #d5dde8; border-radius: 8px; padding: 4px 8px; background: #ffffff; color: #0f172a; }
+.lang-switcher { font: inherit; font-size: 11px; border: none; border-radius: 6px; padding: 2px 4px; background: transparent; color: #94a3b8; cursor: pointer; appearance: none; -webkit-appearance: none; }
 </style>
 </head>
 <body>
@@ -33,9 +33,9 @@ a { text-decoration: none; }
         <a class="btn-secondary" href="[URL_DO_APP]/login" style="background: #eef2f7; color: #0f172a; border: 1px solid #d5dde8; font-weight: 500; font-size: 13.5px; padding: 0 16px; min-height: 44px; box-sizing: border-box; border-radius: 12px; display: inline-flex; align-items: center;" data-i18n="nav.login">Entrar</a>
         <a class="btn-primary" href="#contato" style="background: #f0713a; color: #0b0f19; font-weight: 600; font-size: 13.5px; letter-spacing: 0.01em; padding: 0 16px; min-height: 44px; border-radius: 12px; display: inline-flex; align-items: center;" data-i18n="nav.falarComEquipe">Falar com a equipe</a>
         <select id="lang-switcher" class="lang-switcher" aria-label="Idioma">
-          <option value="pt">PT</option>
-          <option value="en">EN</option>
-          <option value="fr">FR</option>
+          <option value="pt">Português</option>
+          <option value="en">English</option>
+          <option value="fr">Français</option>
         </select>
       </nav>
     </div>
@@ -229,15 +229,15 @@ a { text-decoration: none; }
     <div style="max-width: 1120px; margin: 0 auto; padding: 80px 24px; display: flex; flex-direction: column; gap: 32px">
       <div style="display: flex; flex-direction: column; gap: 8px; max-width: 640px;">
         <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #c2410c;" data-i18n="nav.planos">Planos</span>
-        <h2 style="margin: 0; font-size: clamp(26px, 3.4vw, 36px); line-height: 1.15; font-weight: 700; letter-spacing: -0.02em; text-wrap: balance;" data-i18n="planos.title">Comece pelo plano Básico.</h2>
+        <h2 style="margin: 0; font-size: clamp(26px, 3.4vw, 36px); line-height: 1.15; font-weight: 700; letter-spacing: -0.02em; text-wrap: balance;" data-i18n="planos.title">Comece pelo plano Starter.</h2>
       </div>
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 16px; align-items: stretch;">
 
         <div style="background: #ffffff; border: 1px solid #f0713a; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 24px;">
           <div style="display: flex; flex-direction: column; gap: 8px;">
-            <span style="font-size: 16px; font-weight: 700;" data-i18n="planos.basico.nome">Básico</span>
+            <span style="font-size: 16px; font-weight: 700;" data-i18n="planos.basico.nome">Starter</span>
             <div style="display: flex; align-items: baseline; gap: 4px;">
-              <span style="font-size: 36px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums;">R$ 500</span>
+              <span style="font-size: 36px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums;">R$ 600</span>
               <span style="color: #475569;" data-i18n="planos.porMes">/mês</span>
             </div>
           </div>
@@ -247,13 +247,16 @@ a { text-decoration: none; }
             <li style="display: flex; gap: 8px;"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#047857" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 2px;"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg><span data-i18n="planos.basico.item3">Cobrança com ASAAS</span></li>
             <li style="display: flex; gap: 8px;"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#047857" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 2px;"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg><span data-i18n="planos.basico.item4">Conexão com WhatsApp e e-mail</span></li>
           </ul>
-          <a class="btn-primary" href="/checkout.html" style="background: #f0713a; color: #0b0f19; font-weight: 600; font-size: 13.5px; letter-spacing: 0.01em; min-height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center;" data-i18n="planos.basico.cta">Contratar o Básico</a>
+          <a class="btn-primary" href="/checkout.html" style="background: #f0713a; color: #0b0f19; font-weight: 600; font-size: 13.5px; letter-spacing: 0.01em; min-height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center;" data-i18n="planos.basico.cta">Contratar o Starter</a>
         </div>
 
         <div style="background: #ffffff; border: 1px solid #dbe3ed; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 24px;">
           <div style="display: flex; flex-direction: column; gap: 8px;">
-            <span style="font-size: 16px; font-weight: 700;" data-i18n="planos.plano2.nome">Plano 2</span>
-            <span style="font-size: 36px; font-weight: 700; letter-spacing: -0.02em; color: #475569;" data-i18n="common.emBreve">Em breve</span>
+            <span style="font-size: 16px; font-weight: 700;" data-i18n="planos.plano2.nome">Avançado</span>
+            <div style="display: flex; align-items: baseline; gap: 4px;">
+              <span style="font-size: 36px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums;">R$ 900</span>
+              <span style="color: #475569;" data-i18n="planos.porMes">/mês</span>
+            </div>
           </div>
           <p style="margin: 0; color: #475569; flex-grow: 1;" data-i18n="planos.novaCamada">Novas camadas de recursos chegando ao HUB.</p>
           <button disabled="" style="background: #eef2f7; color: #475569; border: 1px solid #d5dde8; font: inherit; font-weight: 500; font-size: 13.5px; min-height: 44px; border-radius: 12px; cursor: not-allowed;" data-i18n="common.emBreve">Em breve</button>
@@ -261,8 +264,11 @@ a { text-decoration: none; }
 
         <div style="background: #ffffff; border: 1px solid #dbe3ed; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 24px;">
           <div style="display: flex; flex-direction: column; gap: 8px;">
-            <span style="font-size: 16px; font-weight: 700;" data-i18n="planos.plano3.nome">Plano 3</span>
-            <span style="font-size: 36px; font-weight: 700; letter-spacing: -0.02em; color: #475569;" data-i18n="common.emBreve">Em breve</span>
+            <span style="font-size: 16px; font-weight: 700;" data-i18n="planos.plano3.nome">Enterprise</span>
+            <div style="display: flex; align-items: baseline; gap: 4px;">
+              <span style="font-size: 36px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums;">R$ 1.200</span>
+              <span style="color: #475569;" data-i18n="planos.porMes">/mês</span>
+            </div>
           </div>
           <p style="margin: 0; color: #475569; flex-grow: 1;" data-i18n="planos.novaCamada">Novas camadas de recursos chegando ao HUB.</p>
           <button disabled="" style="background: #eef2f7; color: #475569; border: 1px solid #d5dde8; font: inherit; font-weight: 500; font-size: 13.5px; min-height: 44px; border-radius: 12px; cursor: not-allowed;" data-i18n="common.emBreve">Em breve</button>
@@ -353,16 +359,16 @@ a { text-decoration: none; }
     'embreve.step1': { pt: 'O HUB consulta a concessionária', en: 'HUB queries the utility', fr: 'Le HUB interroge le distributeur' },
     'embreve.step2': { pt: 'Protocolo e fatura chegam ao cadastro da UC', en: "Protocol and invoice reach the unit's record", fr: "Le protocole et la facture arrivent dans la fiche de l'unité" },
     'embreve.step3': { pt: 'Rateio e cobrança seguem a partir dali', en: 'Allocation and billing continue from there', fr: 'La répartition et la facturation se poursuivent à partir de là' },
-    'planos.title': { pt: 'Comece pelo plano Básico.', en: 'Start with the Basic plan.', fr: 'Commencez par le plan de base.' },
-    'planos.basico.nome': { pt: 'Básico', en: 'Basic', fr: 'Basique' },
+    'planos.title': { pt: 'Comece pelo plano Starter.', en: 'Start with the Starter plan.', fr: 'Commencez par le plan Starter.' },
+    'planos.basico.nome': { pt: 'Starter', en: 'Starter', fr: 'Starter' },
     'planos.porMes': { pt: '/mês', en: '/month', fr: '/mois' },
     'planos.basico.item1': { pt: 'Clientes, UCs, usinas e documentos', en: 'Customers, units, plants and documents', fr: 'Clients, unités, centrales et documents' },
     'planos.basico.item2': { pt: 'Rateio automático', en: 'Automatic allocation', fr: 'Répartition automatique' },
     'planos.basico.item3': { pt: 'Cobrança com ASAAS', en: 'Billing with ASAAS', fr: 'Facturation avec ASAAS' },
     'planos.basico.item4': { pt: 'Conexão com WhatsApp e e-mail', en: 'Connection with WhatsApp and email', fr: 'Connexion avec WhatsApp et e-mail' },
-    'planos.basico.cta': { pt: 'Contratar o Básico', en: 'Get the Basic plan', fr: 'Souscrire au plan Basique' },
-    'planos.plano2.nome': { pt: 'Plano 2', en: 'Plan 2', fr: 'Plan 2' },
-    'planos.plano3.nome': { pt: 'Plano 3', en: 'Plan 3', fr: 'Plan 3' },
+    'planos.basico.cta': { pt: 'Contratar o Starter', en: 'Get the Starter plan', fr: 'Souscrire au plan Starter' },
+    'planos.plano2.nome': { pt: 'Avançado', en: 'Advanced', fr: 'Avancé' },
+    'planos.plano3.nome': { pt: 'Enterprise', en: 'Enterprise', fr: 'Enterprise' },
     'planos.novaCamada': { pt: 'Novas camadas de recursos chegando ao HUB.', en: 'New feature layers coming to HUB.', fr: 'De nouvelles couches de fonctionnalités arrivent dans le HUB.' },
     'contato.title': { pt: 'Coloque sua operação de energia em ordem com o HUB.', en: 'Get your energy operation in order with HUB.', fr: "Mettez votre exploitation énergétique en ordre avec le HUB." },
     'contato.description': { pt: 'Fale com a equipe e veja o HUB funcionando com os seus clientes.', en: 'Talk to the team and see HUB working with your customers.', fr: "Parlez à l'équipe et voyez le HUB fonctionner avec vos clients." },

@@ -2801,6 +2801,7 @@ Os cenários energéticos novos são sintéticos. F6 permanece PARTIAL; não hou
 mudança no parser/normalizer, nem evidência adicional de extração GD real.
 Nenhuma etapa C5.3/C5.4/BillingPolicy/Fatura/ASAAS foi iniciada.
 
+Implementar estratégias formalmente aprovadas.
 
 ---
 

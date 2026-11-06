@@ -1,12 +1,19 @@
 import { createElement } from '../dom';
 import { useToast } from '../hooks/useToast';
 import { analyzeBillingPdf, type PdfDiagnostic, type PdfDiagnosticStage } from '../services/billingDiagnosticsService';
+import { t } from '../services/i18nService';
 
-const STAGES: Record<string, string> = {
-  UPLOAD: 'Upload', EXTRACTION: 'Extração', NORMALIZATION: 'Normalização', UC_MATCHING: 'Identificação da UC',
-  RULE_RESOLUTION: 'Regra comercial', TARIFF_RESOLUTION: 'Tarifa', ENERGY_RESOLUTION: 'Energia elegível',
-  COMMERCIAL_DEDUCTIONS: 'Deduções comerciais', FIO_B: 'Fio B', FINAL_CALCULATION: 'Cálculo final', SNAPSHOT: 'Snapshot'
-};
+function stageLabel(stage: string): string {
+  const map: Record<string, string> = {
+    UPLOAD: t('billing.diagnostics.stageUpload'), EXTRACTION: t('billing.diagnostics.stageExtraction'),
+    NORMALIZATION: t('billing.diagnostics.stageNormalization'), UC_MATCHING: t('billing.diagnostics.stageUcMatching'),
+    RULE_RESOLUTION: t('billing.diagnostics.stageRuleResolution'), TARIFF_RESOLUTION: t('billing.diagnostics.stageTariffResolution'),
+    ENERGY_RESOLUTION: t('billing.diagnostics.stageEnergyResolution'), COMMERCIAL_DEDUCTIONS: t('billing.diagnostics.stageCommercialDeductions'),
+    FIO_B: t('billing.diagnostics.stageFioB'), FINAL_CALCULATION: t('billing.diagnostics.stageFinalCalculation'),
+    SNAPSHOT: t('billing.diagnostics.stageSnapshot')
+  };
+  return map[stage] ?? stage;
+}
 
 export function createBillingDiagnosticsPanel(): HTMLElement {
   const panel = createElement('section', { className: 'content-stack billing-diagnostics' });
@@ -29,7 +36,7 @@ export function createBillingDiagnosticsPanel(): HTMLElement {
       result = await analyzeBillingPdf(file);
       file = null;
     } catch (cause) {
-      error = cause instanceof Error ? cause.message : 'Não foi possível analisar o PDF.';
+      error = cause instanceof Error ? cause.message : t('billing.diagnostics.analyzeError');
     } finally {
       busy = false;
       render();
@@ -39,12 +46,12 @@ export function createBillingDiagnosticsPanel(): HTMLElement {
   function render(): void {
     const header = createElement('section', { className: 'settings-panel billing-diagnostics-card' });
     header.append(
-      createElement('span', { className: 'eyebrow', textContent: 'Configurações · Administração' }),
-      createElement('h2', { textContent: 'Diagnóstico do motor' }),
-      hint('Laboratório técnico: analise a extração e normalização de um PDF Copel. Nenhum cadastro ou cobrança é criado.')
+      createElement('span', { className: 'eyebrow', textContent: t('billing.diagnostics.eyebrow') }),
+      createElement('h2', { textContent: t('billing.diagnostics.title') }),
+      hint(t('billing.diagnostics.intro'))
     );
     const controls = createElement('section', { className: 'settings-panel billing-diagnostics-card' });
-    controls.appendChild(createElement('h3', { textContent: 'Analisar PDF' }));
+    controls.appendChild(createElement('h3', { textContent: t('billing.diagnostics.analyzePdf') }));
     const uploadControls = createElement('div', { className: 'billing-diagnostics-upload' });
     const fileField = createElement('label', { className: 'form-field' });
     const fileInput = createElement('input', { className: 'billing-diagnostics-file' });
@@ -52,11 +59,11 @@ export function createBillingDiagnosticsPanel(): HTMLElement {
     fileInput.accept = '.pdf,application/pdf';
     fileInput.disabled = busy;
     fileInput.addEventListener('change', () => { file = fileInput.files?.[0] ?? null; render(); });
-    fileField.append(createElement('span', { textContent: 'Arquivo PDF' }), fileInput);
-    uploadControls.append(fileField, button('Processar PDF', () => void upload(), busy || !file));
+    fileField.append(createElement('span', { textContent: t('billing.diagnostics.fileField') }), fileInput);
+    uploadControls.append(fileField, button(t('billing.diagnostics.processPdf'), () => void upload(), busy || !file));
     controls.appendChild(uploadControls);
-    if (file) controls.appendChild(hint(`${file.name} · ${(file.size / 1024 / 1024).toFixed(2)} MiB`));
-    if (busy) controls.appendChild(hint('Enviando e processando PDF… O resultado será exibido após a normalização.'));
+    if (file) controls.appendChild(hint(`${file.name} · ${(file.size / 1024 / 1024).toFixed(2)} ${t('billing.diagnostics.sizeUnit')}`));
+    if (busy) controls.appendChild(hint(t('billing.diagnostics.processing')));
     if (error) controls.appendChild(createElement('p', { className: 'importacao-error', textContent: error }));
     panel.replaceChildren(header, controls);
     if (result) panel.appendChild(renderResult(result));
@@ -65,30 +72,30 @@ export function createBillingDiagnosticsPanel(): HTMLElement {
   function renderResult(data: PdfDiagnostic): HTMLElement {
     const output = createElement('section', { className: 'settings-panel billing-diagnostics-card' });
     const title = createElement('div', { className: 'billing-diagnostics-stage-header' });
-    title.append(createElement('h3', { textContent: 'Resultado técnico' }), badge(data.status));
+    title.append(createElement('h3', { textContent: t('billing.diagnostics.resultTitle') }), badge(data.status));
     output.append(
       title,
-      summary('Execução', [
-        ['Identificador temporário', value(data.executionId)],
-        ['Duração', data.durationMs === null ? null : `${data.durationMs} ms`],
-        ['Arquivo', value(data.pdf?.name)],
-        ['SHA-256', value(data.pdf?.sha256)],
-        ['Extração', value(data.extractionStatus)],
-        ['Normalização', value(data.normalizationStatus)],
-        ['Elegibilidade GD', value(data.billingEligibility?.status)],
-        ['Motivo da elegibilidade', value(data.billingEligibility?.reason)]
+      summary(t('billing.diagnostics.executionTitle'), [
+        [t('billing.diagnostics.tempId'), value(data.executionId)],
+        [t('billing.diagnostics.duration'), data.durationMs === null ? null : `${data.durationMs} ms`],
+        [t('billing.diagnostics.file'), value(data.pdf?.name)],
+        [t('billing.diagnostics.sha256'), value(data.pdf?.sha256)],
+        [t('billing.diagnostics.extraction'), value(data.extractionStatus)],
+        [t('billing.diagnostics.normalization'), value(data.normalizationStatus)],
+        [t('billing.diagnostics.gdEligibility'), value(data.billingEligibility?.status)],
+        [t('billing.diagnostics.eligibilityReason'), value(data.billingEligibility?.reason)]
       ]),
-      structured('Informações técnicas do PDF', data.pdf),
-      structured('Campos extraídos', data.extracted),
-      structured('JSON normalizado', data.normalized),
-      structured('Eventos de compensação', data.compensations),
-      structured('Campos não identificados', data.missingFields),
-      structured('Warnings', data.warnings),
-      structured('Blockers', data.blockers)
+      structured(t('billing.diagnostics.pdfTechInfo'), data.pdf),
+      structured(t('billing.diagnostics.extractedFields'), data.extracted),
+      structured(t('billing.diagnostics.normalizedJson'), data.normalized),
+      structured(t('billing.diagnostics.compensationEvents'), data.compensations),
+      structured(t('billing.diagnostics.missingFields'), data.missingFields),
+      structured(t('billing.diagnostics.warnings'), data.warnings),
+      structured(t('billing.diagnostics.blockers'), data.blockers)
     );
-    if (data.error) output.appendChild(structured('Erro técnico', data.error));
+    if (data.error) output.appendChild(structured(t('billing.diagnostics.technicalError'), data.error));
     const stages = createElement('div', { className: 'billing-diagnostics-details' });
-    stages.appendChild(createElement('h3', { textContent: 'Etapas do processamento' }));
+    stages.appendChild(createElement('h3', { textContent: t('billing.diagnostics.processingStages') }));
     data.stages.forEach((stage) => stages.appendChild(stageCard(stage)));
     output.appendChild(stages);
     return output;
@@ -97,10 +104,10 @@ export function createBillingDiagnosticsPanel(): HTMLElement {
   function structured(title: string, data: unknown): HTMLElement {
     const details = createElement('details', { className: 'billing-diagnostics-structured' });
     const json = JSON.stringify(data ?? null, null, 2);
-    const copy = button('Copiar JSON', () => {
+    const copy = button(t('billing.diagnostics.copyJson'), () => {
       void navigator.clipboard.writeText(json).then(
-        () => toast.success('JSON copiado.'),
-        () => toast.error('Não foi possível copiar o JSON.')
+        () => toast.success(t('billing.diagnostics.jsonCopied')),
+        () => toast.error(t('billing.diagnostics.jsonCopyError'))
       );
     }, false);
     details.append(createElement('summary', { textContent: title }), copy, createElement('pre', { textContent: json }));
@@ -111,16 +118,16 @@ export function createBillingDiagnosticsPanel(): HTMLElement {
 function stageCard(stage: PdfDiagnosticStage): HTMLElement {
   const card = createElement('section', { className: 'billing-diagnostics-stage' });
   const heading = createElement('div', { className: 'billing-diagnostics-stage-header' });
-  heading.append(createElement('strong', { textContent: STAGES[stage.stage] ?? stage.stage }), badge(stage.status));
-  card.append(heading, summary('Execução', [
-    ['Horário', stage.timestamp ? new Date(stage.timestamp).toLocaleString('pt-BR') : null],
-    ['Duração', stage.durationMs === null ? null : `${stage.durationMs} ms`],
-    ['Componente', value(stage.component)], ['Versão', value(stage.version)]
+  heading.append(createElement('strong', { textContent: stageLabel(stage.stage) }), badge(stage.status));
+  card.append(heading, summary(t('billing.diagnostics.executionTitle'), [
+    [t('billing.diagnostics.stageTime'), stage.timestamp ? new Date(stage.timestamp).toLocaleString('pt-BR') : null],
+    [t('billing.diagnostics.duration'), stage.durationMs === null ? null : `${stage.durationMs} ms`],
+    [t('billing.diagnostics.stageComponent'), value(stage.component)], [t('billing.diagnostics.stageVersion'), value(stage.version)]
   ]));
-  if (stage.inputs && Object.keys(stage.inputs).length) card.appendChild(jsonDetails('Entradas', stage.inputs));
-  if (stage.outputs && Object.keys(stage.outputs).length) card.appendChild(jsonDetails('Saídas', stage.outputs));
-  if (stage.warnings?.length) card.appendChild(jsonDetails('Warnings', stage.warnings));
-  if (stage.blockers?.length) card.appendChild(jsonDetails('Blockers', stage.blockers));
+  if (stage.inputs && Object.keys(stage.inputs).length) card.appendChild(jsonDetails(t('billing.diagnostics.stageInputs'), stage.inputs));
+  if (stage.outputs && Object.keys(stage.outputs).length) card.appendChild(jsonDetails(t('billing.diagnostics.stageOutputs'), stage.outputs));
+  if (stage.warnings?.length) card.appendChild(jsonDetails(t('billing.diagnostics.warnings'), stage.warnings));
+  if (stage.blockers?.length) card.appendChild(jsonDetails(t('billing.diagnostics.blockers'), stage.blockers));
   return card;
 }
 

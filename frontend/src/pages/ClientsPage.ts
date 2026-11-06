@@ -19,8 +19,18 @@ import {
   updateClient
 } from '../services/clientsService';
 import { createDebouncedInput, matchesListSearch, pageSlice, readListParam, readPositiveListParam, writeListState } from '../services/listState';
+import { t } from '../services/i18nService';
 
 const PAGE_SIZE = 25;
+
+function clientStatusLabel(status: string): string {
+  return ({
+    Ativo: t('clients.status.ativo'),
+    'Esperando usina': t('clients.status.esperandoUsina'),
+    'Esperando rateio': t('clients.status.esperandoRateio'),
+    Concluido: t('clients.status.concluido')
+  } as Record<string, string>)[status] ?? status;
+}
 
 export function createClientsPage(): HTMLElement {
   const content = createElement('section', { className: 'content-stack' });
@@ -39,10 +49,16 @@ export function createClientsPage(): HTMLElement {
 
   const layout = createBaseLayout({
     content,
-    eyebrow: 'Gestão',
-    title: 'Clientes',
-    description: 'Acompanhe clientes, UCs vinculadas e status operacional.'
+    eyebrow: t('clients.page.eyebrow'),
+    title: t('clients.page.title'),
+    description: t('clients.page.description')
   });
+
+ const search = createElement('input');
+ search.type = 'search'; search.placeholder = t('clients.search.placeholder'); search.setAttribute('aria-label', t('clients.search.ariaLabel'));
+ const applySearch = createDebouncedInput((value) => { if (value !== searchTerm) { searchTerm = value; page = 1; writeListState({ busca: value || null, pagina: null, selecionada: null }); viewingClient = null; renderContent(); } });
+ search.addEventListener('input', () => applySearch(search.value));
+ const filters = createElement('div', { className: 'page-actions' }); filters.appendChild(search);
 
   renderContent();
   loadClients();
@@ -58,7 +74,7 @@ export function createClientsPage(): HTMLElement {
       loadError = false;
     } catch {
       loadError = true;
-      toast.error('Nao foi possivel carregar clientes. Verifique se o backend esta rodando.');
+      toast.error(t('clients.toast.loadError'));
     } finally {
       isLoading = false;
       loading.hide();
@@ -66,39 +82,38 @@ export function createClientsPage(): HTMLElement {
     }
   }
 
- const search = createElement('input');
- search.type = 'search'; search.placeholder = 'Buscar clientes...'; search.setAttribute('aria-label', 'Buscar clientes');
- const applySearch = createDebouncedInput((value) => { if (value !== searchTerm) { searchTerm = value; page = 1; writeListState({ busca: value || null, pagina: null, selecionada: null }); viewingClient = null; renderContent(); } });
- search.addEventListener('input', () => applySearch(search.value));
- const filters = createElement('div', { className: 'page-actions' }); filters.appendChild(search);
-
  function renderContent(): void {
     const pageActions = createElement('div', { className: 'page-actions' });
-    const newClientButton = createElement('button', { textContent: 'Novo cliente', type: 'button' });
-    const importButton = createElement('button', { className: 'secondary-button', textContent: 'Importação/exportação', type: 'button' });
+    const newClientButton = createElement('button', { textContent: t('clients.actions.new'), type: 'button' });
+    const importButton = createElement('button', { className: 'secondary-button', textContent: t('clients.actions.import'), type: 'button' });
     const filteredClients = clients.filter((client) => matchesListSearch(searchTerm, `${client.nome} ${client.cpf} ${client.email} ${client.uc} ${client.usina} ${client.status}`));
     const paged = pageSlice(filteredClients, page, PAGE_SIZE);
     page = paged.page;
     const table = createDataTable<ClientRow>({
-      title: 'Clientes cadastrados',
-      eyebrow: 'Listagem',
+      title: t('clients.table.title'),
+      eyebrow: t('clients.table.eyebrow'),
       rows: paged.rows,
-      emptyMessage: loadError ? 'Nao foi possivel carregar clientes.' : 'Nenhum cliente cadastrado ainda.',
+      emptyMessage: loadError ? t('clients.table.loadError') : t('clients.table.empty'),
       state: isLoading ? 'loading' : loadError ? 'error' : searchTerm ? 'filtered' : 'ready',
-      stateTitle: loadError ? 'Nao foi possivel carregar clientes' : searchTerm ? 'Nenhum cliente corresponde à busca' : 'Nenhum cliente cadastrado',
-      emptyAction: { label: 'Limpar filtros', onClick: () => { searchTerm = ''; page = 1; writeListState({ busca: null, pagina: null }); renderContent(); } },
-      errorAction: { label: 'Tentar novamente', onClick: () => void loadClients() },
+      stateTitle: loadError ? t('clients.table.stateTitleError') : searchTerm ? t('clients.table.stateTitleFiltered') : t('clients.table.stateTitleEmpty'),
+      emptyAction: { label: t('clients.actions.clearFilters'), onClick: () => { searchTerm = ''; page = 1; writeListState({ busca: null, pagina: null }); renderContent(); } },
+      errorAction: { label: t('common.retry'), onClick: () => void loadClients() },
       onRowClick: (client) => {
         viewingClient = client;
         writeListState({ selecionada: client.id });
         renderContent();
       },
       columns: [
-        { key: 'nome', label: 'Nome' },
-        { key: 'uc', label: 'UC' },
-        { key: 'usina', label: 'Usina' },
-        { key: 'consumo', label: 'Consumo', align: 'right' },
-        { key: 'status', label: 'Status' }
+        { key: 'nome', label: t('clients.columns.name') },
+        { key: 'uc', label: t('clients.columns.uc') },
+        { key: 'usina', label: t('clients.columns.plant') },
+        { key: 'consumo', label: t('clients.columns.consumption'), align: 'right' },
+        { key: 'status', label: t('clients.columns.status'), render: (client) => clientStatusLabel(client.status) },
+        { key: 'cpf', label: t('clients.columns.cpf'), defaultVisible: false },
+        { key: 'email', label: t('clients.columns.email'), defaultVisible: false },
+        { key: 'telefone', label: t('clients.columns.phone'), defaultVisible: false, render: (client) => client.telefone || t('clients.notInformed') },
+        { key: 'concessionaria', label: t('clients.columns.utility'), defaultVisible: false },
+        { key: 'dataNascimento', label: t('clients.columns.birthDate'), defaultVisible: false, render: (client) => formatClientBirthDate(client.dataNascimento) }
       ]
     });
     // `search` e `filters` vivem fora do renderContent (ver topo): recria-los a
@@ -119,7 +134,6 @@ export function createClientsPage(): HTMLElement {
       blocks.push(createClientEditor());
     }
 
-    blocks.push(table);
     content.replaceChildren(...blocks);
     if (viewingClient) content.appendChild(createClientDrawer(viewingClient));
   }
@@ -150,18 +164,18 @@ export function createClientsPage(): HTMLElement {
         renderContent();
       },
       onDelete: selectedClient ? async () => {
-        const confirmed = window.confirm(`Excluir o cliente ${selectedClient?.nome}? Essa acao nao pode ser desfeita.`);
+        const confirmed = window.confirm(`${t('clients.confirmDelete.prefix')} ${selectedClient?.nome}${t('clients.confirmDelete.suffix')}`);
 
         if (!confirmed || !selectedClient) return;
 
         loading.show();
         try {
           await deleteClient(selectedClient.id);
-          toast.success('Cliente excluido.');
+          toast.success(t('clients.toast.deleted'));
           selectedClient = null;
           await loadClients();
         } catch {
-          toast.error('Nao foi possivel excluir o cliente.');
+          toast.error(t('clients.toast.deleteError'));
         } finally {
           loading.hide();
         }
@@ -179,26 +193,26 @@ export function createClientsPage(): HTMLElement {
       title: client.nome,
       onClose: () => { viewingClient = null; writeListState({ selecionada: null }, 'replace'); renderContent(); },
       tabs: [
-        { label: 'Visão geral', content: createClientDetailView({ client, onEdit: openEditor, onDelete: () => handleDeleteFromDetail(client) }) },
-        { label: 'UCs', content: createClientUcPanel(client, openEditor) },
-        { label: 'Usinas', content: createClientPlantsPanel(client) },
-        { label: 'Documentos', content: createClientDocumentsPanel(client.id) }
+        { label: t('clients.drawer.tabOverview'), content: createClientDetailView({ client, onEdit: openEditor, onDelete: () => handleDeleteFromDetail(client) }) },
+        { label: t('clients.drawer.tabUcs'), content: createClientUcPanel(client, openEditor) },
+        { label: t('clients.drawer.tabPlants'), content: createClientPlantsPanel(client) },
+        { label: t('clients.drawer.tabDocuments'), content: createClientDocumentsPanel(client.id) }
       ]
     });
   }
 
   async function handleDeleteFromDetail(client: ClientRow): Promise<void> {
-    const confirmed = window.confirm(`Excluir o cliente ${client.nome}? Essa acao nao pode ser desfeita.`);
+    const confirmed = window.confirm(`${t('clients.confirmDelete.prefix')} ${client.nome}${t('clients.confirmDelete.suffix')}`);
     if (!confirmed) return;
 
     loading.show();
     try {
       await deleteClient(client.id);
-      toast.success('Cliente excluido.');
+      toast.success(t('clients.toast.deleted'));
       viewingClient = null;
       await loadClients();
     } catch {
-      toast.error('Nao foi possivel excluir o cliente.');
+      toast.error(t('clients.toast.deleteError'));
     } finally {
       loading.hide();
     }
@@ -220,27 +234,35 @@ export function createClientsPage(): HTMLElement {
 
       if (selectedClient) {
         await updateClient(selectedClient.id, payload);
-        toast.success('Cliente atualizado.');
+        toast.success(t('clients.toast.updated'));
       } else {
         await createClient(payload);
-        toast.success('Cliente cadastrado.');
+        toast.success(t('clients.toast.created'));
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Nao foi possivel salvar o cliente.');
+      toast.error(error instanceof Error ? error.message : t('clients.toast.saveError'));
     } finally {
       loading.hide();
     }
   }
 }
 
+// Split-based, sem Date() -- mesmo motivo documentado em ClientDetailView.ts
+// (evita o bug de "um dia antes" por causa de fuso horario).
+function formatClientBirthDate(value: string | null): string {
+  if (!value) return t('clients.notInformed');
+  const [year, month, day] = value.split('-');
+  return `${day}/${month}/${year}`;
+}
+
 function createPagination(page: number, pages: number, total: number, onPage: (page: number) => void): HTMLElement {
-  const nav = createElement('nav', { className: 'faturas-pagination' });
-  const previous = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Anterior' });
+  const nav = createElement('nav', { className: 'faturas-pagination pagination-left' });
+  const previous = createElement('button', { className: 'secondary-button', type: 'button', textContent: t('clients.pagination.previous') });
   previous.disabled = page <= 1;
   previous.addEventListener('click', () => onPage(page - 1));
-  const next = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Próxima' });
+  const next = createElement('button', { className: 'secondary-button', type: 'button', textContent: t('clients.pagination.next') });
   next.disabled = page >= pages || total === 0;
   next.addEventListener('click', () => onPage(page + 1));
-  nav.append(previous, createElement('span', { textContent: `${total ? page : 0} de ${total ? pages : 0}` }), next);
+  nav.append(previous, createElement('span', { textContent: `${total ? page : 0} ${t('clients.pagination.of')} ${total ? pages : 0}` }), next);
   return nav;
 }

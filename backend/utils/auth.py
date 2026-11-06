@@ -39,8 +39,22 @@ _PLATFORM_CONTEXT_SAFE_ENDPOINTS = {
 }
 _PLATFORM_CONTEXT_SAFE_ENDPOINT_PREFIXES = (
     'platform_routes.',
+    'platform_worker_routes.',
     'regulatory_tariff_routes.',
 )
+# Endpoints que so mutam o cookie de view ou a propria sessao/senha do
+# usuario logado (nunca dado de tenant) -- por isso ficam de fora do
+# bloqueio global de escrita do platform_worker. alterar_senha precisa
+# ficar aqui pra nao travar o must_change_password obrigatorio do worker
+# (deadlock: sem isso a troca de senha nunca passa do bloqueio de escrita);
+# logout precisa ficar aqui pra invalidar a sessao (bump de session_version)
+# de verdade no servidor, nao so limpar cookie no cliente.
+_PLATFORM_WORKER_WRITE_EXEMPT_ENDPOINTS = {
+    'platform_routes.entrar_na_empresa',
+    'platform_routes.sair_da_empresa',
+    'auth_routes.alterar_senha',
+    'auth_routes.logout',
+}
 
 
 def _is_platform_context_safe_endpoint(endpoint: str | None) -> bool:
@@ -103,18 +117,18 @@ def set_auth_cookies(response, token: str, remember: bool = False) -> None:
 
     response.set_cookie(
         COOKIE_NAME, token, httponly=True, secure=is_prod,
-        samesite='Lax', max_age=cookie_max_age, path='/'
+        samesite='None' if is_prod else 'Lax', max_age=cookie_max_age, path='/'
     )
     response.set_cookie(
         CSRF_COOKIE_NAME, secrets.token_urlsafe(32), httponly=False, secure=is_prod,
-        samesite='Lax', max_age=cookie_max_age, path='/'
+        samesite='None' if is_prod else 'Lax', max_age=cookie_max_age, path='/'
     )
 
 
 def clear_auth_cookies(response) -> None:
     is_prod = not Config.DEBUG
-    response.delete_cookie(COOKIE_NAME, path='/', samesite='Lax', secure=is_prod)
-    response.delete_cookie(CSRF_COOKIE_NAME, path='/', samesite='Lax', secure=is_prod)
+    response.delete_cookie(COOKIE_NAME, path='/', samesite='None' if is_prod else 'Lax', secure=is_prod)
+    response.delete_cookie(CSRF_COOKIE_NAME, path='/', samesite='None' if is_prod else 'Lax', secure=is_prod)
 
 def sign_platform_view(user_id: int, empresa_id: int) -> str:
     """Cookie de contexto de plataforma assinado e amarrado ao usuario. Sem
@@ -140,12 +154,12 @@ def set_platform_view_cookie(response, empresa_id: int, user_id: int) -> None:
     is_prod = not Config.DEBUG
     response.set_cookie(
         VIEW_COOKIE_NAME, sign_platform_view(user_id, empresa_id), httponly=True, secure=is_prod,
-        samesite='Lax', max_age=TOKEN_MAX_AGE_SECONDS, path='/'
+        samesite='None' if is_prod else 'Lax', max_age=TOKEN_MAX_AGE_SECONDS, path='/'
     )
 
 def clear_platform_view_cookie(response) -> None:
     is_prod = not Config.DEBUG
-    response.delete_cookie(VIEW_COOKIE_NAME, path='/', samesite='Lax', secure=is_prod)
+    response.delete_cookie(VIEW_COOKIE_NAME, path='/', samesite='None' if is_prod else 'Lax', secure=is_prod)
 
 def resolve_current_user_optional():
     """Mesma checagem de token de _require_auth, mas sem forçar 401 se não
@@ -170,6 +184,41 @@ def resolve_current_user_optional():
     from models.user import User
     user = db.session.get(User, token_data.get('user_id'))
     return user if user and user.status == 'ativo' and user.session_version == token_data.get('session_version') else None
+
+def _registrar_pendencia_sessao_usuario_inativo(user) -> None:
+    """Pendencia de erro (categoria Sistema) quando um usuario desativado
+    tenta usar um token antigo. Roda ANTES de g.current_empresa_id existir --
+    empresa_id vem explicito de user.empresa_id. Fail-safe obrigatorio: erro
+    aqui jamais pode atrasar ou substituir o 401 que o middleware ja retorna."""
+    try:
+        from models.pendencia import Pendencia
+        from services.automacao_regras import REGRA_SESSAO_USUARIO_INATIVO
+
+        abertas = Pendencia.query.filter_by(
+            empresa_id=user.empresa_id, status='aberta', categoria='Sistema',
+        ).all()
+        if any(
+            isinstance(p.metadados, dict)
+            and p.metadados.get('regra') == REGRA_SESSAO_USUARIO_INATIVO
+            and p.metadados.get('userId') == user.id
+            for p in abertas
+        ):
+            return
+        db.session.add(Pendencia(
+            empresa_id=user.empresa_id, tipo='erro', categoria='Sistema',
+            origem='Automacao',
+            titulo=f'Sessao de usuario desativado ({user.email}) em uso',
+            descricao=(
+                f'O usuario {user.email} esta com status "{user.status}" mas uma '
+                f'sessao antiga tentou autenticar com token ja emitido.'
+            ),
+            prioridade='alta',
+            metadados={'regra': REGRA_SESSAO_USUARIO_INATIVO, 'userId': user.id},
+        ))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
 
 def register_auth_middleware(app, public_paths: set[str], public_path_prefixes: set[str] = frozenset()) -> None:
     @app.before_request
@@ -207,7 +256,15 @@ def register_auth_middleware(app, public_paths: set[str], public_path_prefixes: 
         from models.empresa import Empresa
 
         user = db.session.get(User, token_data.get('user_id'))
-        if not user or user.status != 'ativo' or user.session_version != token_data.get('session_version'):
+        if not user:
+            return error_response('Usuario invalido ou inativo.', 401)
+        if user.status != 'ativo':
+            # Conta desativada/removida logicamente mas ainda existe -- so aqui
+            # o tenant (empresa_id) e conhecido. Mismatch isolado de
+            # session_version (logout/troca de senha normal) NAO entra aqui.
+            _registrar_pendencia_sessao_usuario_inativo(user)
+            return error_response('Usuario invalido ou inativo.', 401)
+        if user.session_version != token_data.get('session_version'):
             return error_response('Usuario invalido ou inativo.', 401)
 
         # A partir daqui, toda query contra um model com TenantMixin
@@ -216,16 +273,29 @@ def register_auth_middleware(app, public_paths: set[str], public_path_prefixes: 
         g.current_user = user
         g.current_empresa_id = user.empresa_id
         g.current_role = user.role
-        g.current_empresa = db.session.get(Empresa, user.empresa_id)
+        g.current_empresa = db.session.get(Empresa, user.empresa_id) if user.empresa_id is not None else None
         g.platform_view_empresa_id = None
+
+        # Bloqueio global de escrita do platform_worker: fiscalizacao e
+        # somente leitura em qualquer rota de tenant, sem excecao por rota --
+        # as duas excecoes (entrar/sair) so mutam o cookie de view, nunca
+        # dado de tenant.
+        if (
+            user.is_platform_worker
+            and request.method not in _SAFE_METHODS
+            and request.endpoint not in _PLATFORM_WORKER_WRITE_EXEMPT_ENDPOINTS
+        ):
+            return error_response('Acesso de fiscalizacao e somente leitura.', 403, code='PLATFORM_WORKER_READ_ONLY')
 
         # Platform admin "dentro" de uma empresa (ver routes/platform_routes.py):
         # sobrescreve g.current_empresa_id só pra esta requisição -- toda rota
         # existente (clients, plants, ucs, documents...) passa a enxergar a
         # empresa escolhida automaticamente, sem precisar de rota duplicada.
         # Cookie sozinho nunca é suficiente: só vale se o USUÁRIO LOGADO
-        # (não o cookie) for is_platform_admin de verdade.
-        if user.is_platform_admin:
+        # (não o cookie) for is_platform_admin de verdade. platform_worker
+        # tem o mesmo direito de "entrar" numa empresa (view somente leitura,
+        # ver bloqueio de escrita acima) e o mesmo gate de contexto obrigatorio.
+        if user.is_platform_admin or user.is_platform_worker:
             view_empresa_id = platform_view_from_cookie(request.cookies.get(VIEW_COOKIE_NAME), user.id)
             if view_empresa_id is not None:
                 empresa_visualizada = db.session.get(Empresa, view_empresa_id)

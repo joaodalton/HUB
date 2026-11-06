@@ -52,6 +52,11 @@ class FaturaAsaasClientTest(unittest.TestCase):
                 self.assertNotIn('test-only-secret', str(error.exception))
                 request.assert_called_once()
 
+    def test_criar_assinatura_posts_to_subscriptions(self):
+        with patch.object(self.client, '_request', return_value={'id': 'sub_1'}) as request:
+            self.assertEqual(self.client.criar_assinatura({'customer': 'cus_1'})['id'], 'sub_1')
+        request.assert_called_once_with('POST', '/subscriptions', {'customer': 'cus_1'})
+
     def test_provider_errors_do_not_expose_response_secrets(self):
         response = Mock(ok=False)
         response.json.return_value = {'errors': [{'description': 'test-only-secret'}]}

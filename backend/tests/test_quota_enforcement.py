@@ -32,7 +32,6 @@ class QuotaEnforcementTest(IsolatedTestRuntime, unittest.TestCase):
             'quota-enforcement-test-secret',
         )
         cls._franquias_originais = PLANOS['starter']['franquia'].copy()
-        PLANOS['starter']['franquia']['clientes'] = 2
         cls.app = create_app()
         cls.app.config['TESTING'] = True
         with cls.app.app_context():
@@ -40,24 +39,30 @@ class QuotaEnforcementTest(IsolatedTestRuntime, unittest.TestCase):
             vitalicia = Empresa(nome='Vitalicia', slug='quota-vitalicia')
             trial = Empresa(nome='Trial', slug='quota-trial')
             sem_assinatura = Empresa(nome='Sem assinatura', slug='quota-sem-assinatura')
-            db.session.add_all([vitalicia, trial, sem_assinatura])
+            suspensa = Empresa(nome='Suspensa', slug='quota-suspensa')
+            db.session.add_all([vitalicia, trial, sem_assinatura, suspensa])
             db.session.flush()
             db.session.add_all([
                 Assinatura(empresa_id=vitalicia.id, plano_chave='starter', tipo='vitalicio', status='ativa'),
                 Assinatura(empresa_id=trial.id, plano_chave='starter', tipo='trial', status='trial'),
-                LimiteContratado(empresa_id=trial.id, recurso='clientes', quantidade_contratada=2),
+                Assinatura(empresa_id=suspensa.id, plano_chave='teste', tipo='trial', status='suspensa'),
+                LimiteContratado(empresa_id=trial.id, recurso='clientes', quantidade_contratada=5000),
                 User(empresa_id=vitalicia.id, nome='Owner vitalicio', email='vitalicio@quota.test', password_hash='x', role='owner'),
                 User(empresa_id=trial.id, nome='Owner trial', email='trial@quota.test', password_hash='x', role='owner'),
+                User(empresa_id=suspensa.id, nome='Owner suspenso', email='suspenso@quota.test', password_hash='x', role='owner'),
             ])
             db.session.commit()
             cls.vitalicia_id = vitalicia.id
             cls.trial_id = trial.id
             cls.sem_assinatura_id = sem_assinatura.id
+            cls.suspensa_id = suspensa.id
             cls.vitalicia_owner_id = User.query.filter_by(empresa_id=vitalicia.id).one().id
             cls.trial_owner_id = User.query.filter_by(empresa_id=trial.id).one().id
+            cls.suspensa_owner_id = User.query.filter_by(empresa_id=suspensa.id).one().id
 
     @classmethod
     def tearDownClass(cls):
+        PLANOS['starter']['franquia'].clear()
         PLANOS['starter']['franquia'].update(cls._franquias_originais)
         with cls.app.app_context():
             db.session.remove()
@@ -84,35 +89,76 @@ class QuotaEnforcementTest(IsolatedTestRuntime, unittest.TestCase):
             },
         )
 
-    def test_trial_blocks_the_next_client_and_returns_quota_details(self):
-        PLANOS['starter']['franquia']['clientes'] = 2
-        self.assertEqual(self._create_client(self.trial_owner_id, 1).status_code, 201)
-        self.assertEqual(self._create_client(self.trial_owner_id, 2).status_code, 201)
+    def test_trial_blocks_the_next_user_and_returns_quota_details(self):
+        PLANOS['starter']['franquia']['usuarios'] = 1  # o owner do trial ja conta como 1
+        try:
+            blocked = self.app.test_client().post(
+                '/api/v1/users',
+                headers={'Authorization': f'Bearer {self._token(self.trial_owner_id)}'},
+                json={'nome': 'Bloqueado', 'email': 'bloqueado-usuarios@quota.test', 'senha': 'senha-segura'},
+            )
+            self.assertEqual(blocked.status_code, 403)
+            self.assertEqual(blocked.get_json()['code'], 'QUOTA_EXCEEDED')
+            self.assertEqual(blocked.get_json()['details'], {'recurso': 'usuarios', 'uso': 1, 'limite': 1})
+        finally:
+            PLANOS['starter']['franquia'].update(self._franquias_originais)
 
-        blocked = self._create_client(self.trial_owner_id, 3)
-        self.assertEqual(blocked.status_code, 403)
-        self.assertEqual(blocked.get_json()['code'], 'QUOTA_EXCEEDED')
-        self.assertEqual(blocked.get_json()['details'], {'recurso': 'clientes', 'uso': 2, 'limite': 2})
-
-    def test_vitalicia_and_empresa_sem_assinatura_are_unlimited(self):
+    def test_vitalicia_is_unlimited_and_empresa_sem_assinatura_has_fixed_client_ceiling(self):
         for number in range(10, 14):
             self.assertEqual(self._create_client(self.vitalicia_owner_id, number).status_code, 201)
 
         with self.app.test_request_context('/'):
             from flask import g
             g.current_empresa_id = self.sem_assinatura_id
-            self.assertIsNone(get_limite(self.sem_assinatura_id, 'clientes'))
-            self.assertEqual(verificar_cota(self.sem_assinatura_id, 'clientes'), (True, 0, None))
+            self.assertIsNone(get_limite(self.sem_assinatura_id, 'usuarios'))
+            self.assertEqual(get_limite(self.sem_assinatura_id, 'clientes'), 1000)
+            self.assertEqual(verificar_cota(self.sem_assinatura_id, 'clientes'), (True, 0, 1000))
+
+    def test_cliente_usa_teto_fixo_mesmo_sem_assinatura(self):
+        with self.app.app_context():
+            permitido, uso, limite = verificar_cota(self.sem_assinatura_id, 'clientes')
+        self.assertEqual(limite, 1000)
+        self.assertTrue(permitido)
+
+    def test_cliente_nao_e_afetado_por_limite_contratado(self):
+        # fixture do setUpClass: trial tem LimiteContratado(recurso='clientes', quantidade_contratada=5000)
+        with self.app.app_context():
+            permitido, uso, limite = verificar_cota(self.trial_id, 'clientes')
+        self.assertEqual(limite, 1000)
+
+    def test_assinatura_suspensa_bloqueia_criacao_de_recurso(self):
+        with self.app.app_context():
+            permitido, _uso, _limite = verificar_cota(self.suspensa_id, 'usinas')
+        self.assertFalse(permitido)
+
+        response = self.app.test_client().post(
+            '/api/v1/plants',
+            headers={'Authorization': f'Bearer {self._token(self.suspensa_owner_id)}'},
+            json={'nome': 'Usina bloqueada'},
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.get_json()['code'], 'QUOTA_EXCEEDED')
+
+    def test_assinatura_suspensa_bloqueia_ate_recurso_com_teto_fixo(self):
+        # 'clientes' usa teto fixo (1000), mas suspensa bloqueia criacao de
+        # QUALQUER recurso, independente da conta de uso/limite.
+        with self.app.app_context():
+            permitido, _uso, limite = verificar_cota(self.suspensa_id, 'clientes')
+        self.assertFalse(permitido)
+        self.assertEqual(limite, 1000)
+
+    def test_assinatura_suspensa_nao_bloqueia_leitura(self):
+        response = self.app.test_client().get(
+            '/api/v1/plants',
+            headers={'Authorization': f'Bearer {self._token(self.suspensa_owner_id)}'},
+        )
+        self.assertEqual(response.status_code, 200)
 
     def test_all_creation_routes_enforce_their_resource_quota(self):
-        with self.app.app_context():
-            LimiteContratado.query.filter_by(empresa_id=self.trial_id, recurso='clientes').delete()
-            db.session.commit()
-        PLANOS['starter']['franquia'].update({'clientes': 0, 'ucs': 0, 'usinas': 0, 'usuarios': 0})
+        PLANOS['starter']['franquia'].update({'ucs': 0, 'usinas': 0, 'usuarios': 0})
         try:
             headers = {'Authorization': f'Bearer {self._token(self.trial_owner_id)}'}
             requests = (
-                ('/api/v1/clients', {'nome': 'Bloqueado', 'cpf': '99999999999', 'email': 'bloqueado@quota.test'}, 'clientes'),
                 ('/api/v1/ucs', {'clienteId': 1, 'codigo': 'BLOQUEADA'}, 'ucs'),
                 ('/api/v1/plants', {'nome': 'Bloqueada'}, 'usinas'),
                 ('/api/v1/users', {'nome': 'Bloqueado', 'email': 'usuario@quota.test', 'senha': 'senha-segura'}, 'usuarios'),
@@ -125,9 +171,6 @@ class QuotaEnforcementTest(IsolatedTestRuntime, unittest.TestCase):
                 self.assertEqual(response.get_json()['details']['recurso'], recurso)
         finally:
             PLANOS['starter']['franquia'].update(self._franquias_originais)
-            with self.app.app_context():
-                db.session.add(LimiteContratado(empresa_id=self.trial_id, recurso='clientes', quantidade_contratada=2))
-                db.session.commit()
 
 
 if __name__ == '__main__':

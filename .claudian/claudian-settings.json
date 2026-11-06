@@ -1,8 +1,7 @@
 {
   "userName": "joao",
-  "permissionMode": "normal",
-  "model": "haiku",
-  "thinkingBudget": "off",
+  "permissionMode": "acceptEdits",
+  "model": "openai-codex/gpt-5.6-luna",
   "effortLevel": "high",
   "serviceTier": "default",
   "enableAutoTitleGeneration": true,
@@ -23,20 +22,55 @@
   "locale": "pt",
   "providerConfigs": {
     "claude": {
-      "enabled": false,
-      "responseStyle": "Default",
+      "enabled": true,
       "cliPath": "",
       "cliPathsByHost": {},
       "loadUserSettings": true,
       "enableChrome": false,
-      "visibleModels": [],
+      "visibleModels": [
+        "claude-haiku-4-5-20251001",
+        "claude-sonnet-5"
+      ],
       "modelAliases": {},
       "environmentVariables": "",
       "environmentHash": "",
-      "selectedModels": []
+      "selectedModels": [
+        {
+          "value": "claude-haiku-4-5-20251001",
+          "label": "Haiku 4.5",
+          "description": "Fastest for quick answers",
+          "resolvedModel": "claude-haiku-4-5-20251001",
+          "reasoningMetadataResolved": true,
+          "supportedEffortLevels": []
+        },
+        {
+          "value": "claude-sonnet-5",
+          "label": "Sonnet 5",
+          "description": "Efficient for routine tasks",
+          "resolvedModel": "claude-sonnet-5",
+          "reasoningMetadataResolved": true,
+          "supportedEffortLevels": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "outputStyle": null,
+      "promptSuggestions": false,
+      "discoveredOutputStyles": [
+        "default",
+        "Proactive",
+        "Concise",
+        "Explanatory",
+        "Learning"
+      ],
+      "sessionEnvironmentHash": ""
     },
     "codex": {
-      "enabled": true,
+      "enabled": false,
       "safeMode": "workspace-write",
       "cliPath": "",
       "cliPathsByHost": {},
@@ -46,16 +80,18 @@
       ],
       "enableUltraEffort": false,
       "responseStyle": "pragmatic",
+      "responseVerbosity": "default",
       "reasoningSummary": "detailed",
       "environmentVariables": "",
       "environmentHash": "runtime-input:v1:ed54f4f5238abeec7f65a5da1e468c9a639e157a7d1c7753b53f54ba1196e8a0",
+      "sessionEnvironmentHash": "runtime-input:v1:cf4a613a63a895356fbc95544817979656506c93b9fb3fe1c76833522e1c19fc",
       "installationMethodsByHost": {},
       "wslDistroOverridesByHost": {},
       "selectedModels": [
         {
           "model": "gpt-5.6-luna",
           "displayName": "GPT-5.6 Luna",
-          "description": "Fast and affordable agentic coding model.",
+          "description": "Older fast and efficient model.",
           "supportedReasoningEfforts": [
             {
               "value": "low",
@@ -79,13 +115,7 @@
             }
           ],
           "defaultReasoningEffort": "medium",
-          "serviceTiers": [
-            {
-              "id": "priority",
-              "name": "Fast",
-              "description": "1.5x speed, increased usage"
-            }
-          ],
+          "serviceTiers": [],
           "defaultServiceTier": null,
           "inputModalities": [
             "text",
@@ -114,7 +144,6 @@
       "environmentVariables": "",
       "modelAliases": {},
       "preferredThinkingByModel": {},
-      "selectedMode": "",
       "thinkingOptionsByModel": {},
       "visibleModels": [],
       "selectedModels": []
@@ -127,34 +156,56 @@
       "environmentVariables": "",
       "modelAliases": {},
       "preferredThinkingByModel": {},
+      "sessionEnvironmentHash": "",
       "visibleModels": [],
+      "selectedModels": []
+    },
+    "deepseek": {
+      "enabled": false,
+      "codeMode": false,
+      "presetPlugins": "",
+      "cliPath": "",
+      "cliPathsByHost": {},
+      "environmentVariables": "",
+      "environmentHash": "",
+      "visibleModels": [],
+      "modelAliases": {},
+      "preferredReasoningByModel": {},
       "selectedModels": []
     }
   },
-  "settingsProvider": "codex",
+  "settingsProvider": "claude",
   "lastSelectedChatModel": null,
-  "savedProviderModel": {},
-  "savedProviderEffort": {},
+  "inlineEditModel": null,
+  "savedProviderModel": {
+    "codex": "openai-codex/gpt-5.6-luna"
+  },
+  "savedProviderEffort": {
+    "codex": "high"
+  },
   "savedProviderServiceTier": {},
-  "savedProviderThinkingBudget": {},
   "savedProviderPermissionMode": {
-    "claude": "auto",
+    "claude": "acceptEdits",
     "codex": "normal"
   },
   "pendingProviderSessionInvalidations": {},
-  "maxWarmAgentProcesses": 5,
   "enableAutoScroll": true,
   "showMessageTimestamps": false,
   "deferMathRenderingDuringStreaming": true,
+  "pluginRenderedFenceLanguages": [],
   "expandFileEditsByDefault": false,
   "chatViewPlacement": "right-sidebar",
   "enableZenMode": true,
+  "zenModePosition": null,
   "enableDualPane": true,
   "dualPaneSide": "right",
   "restoreTabsOnStartup": true,
   "skillsSynced": false,
   "sessionManagerOrganization": "list",
   "sessionManagerSort": "last-updated",
+  "sessionAutoArchiveAfter": "off",
   "pinnedLinkedContentPaths": [],
-  "hiddenCommands": []
+  "hiddenCommands": [],
+  "thinkingBudget": "off",
+  "savedProviderThinkingBudget": {}
 }

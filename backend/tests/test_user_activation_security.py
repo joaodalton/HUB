@@ -14,6 +14,7 @@ from extensions import db  # noqa: E402
 from models.empresa import Empresa  # noqa: E402
 from models.user import User  # noqa: E402
 from models.log_entry import LogEntry  # noqa: E402
+from models.pendencia import Pendencia  # noqa: E402
 from utils.auth import generate_token, hash_password  # noqa: E402
 try:
     from .support import IsolatedTestRuntime  # noqa: E402
@@ -181,6 +182,83 @@ class UserActivationSecurityTest(IsolatedTestRuntime, unittest.TestCase):
             audit = LogEntry.query.filter_by(acao='password_changed').one()
             self.assertNotIn('senha-atual', str(audit.to_dict()))
             self.assertNotIn('senha-nova', str(audit.to_dict()))
+
+    def test_deactivated_user_old_token_creates_single_pendencia_and_normal_logout_does_not(self):
+        old_token = self._token(self.viewer_id)
+        with self.app.app_context():
+            empresa_id = db.session.get(User, self.viewer_id).empresa_id
+            Pendencia.query.filter_by(empresa_id=empresa_id).delete()
+            db.session.commit()
+
+        # Login normal continua funcionando.
+        self.assertEqual(
+            self.app.test_client().post(
+                '/api/v1/auth/login', json={'email': 'viewer@activation.test', 'senha': 'qualquer'},
+            ).status_code,
+            401,  # senha fake nesta suite (password_hash='x'); so confirma que a rota responde normalmente
+        )
+
+        self.assertEqual(self._status(self.admin_id, self.viewer_id, False).status_code, 200)
+        try:
+            # Usuario desativado insiste em usar o token antigo repetidas vezes:
+            # cria exatamente UMA pendencia, nao uma por tentativa.
+            for _ in range(3):
+                response = self.app.test_client().get(
+                    '/api/v1/clients', headers={'Authorization': f'Bearer {old_token}'},
+                )
+                self.assertEqual(response.status_code, 401)
+            with self.app.app_context():
+                abertas = Pendencia.query.filter_by(
+                    empresa_id=empresa_id, categoria='Sistema', status='aberta',
+                ).all()
+                self.assertEqual(
+                    len([p for p in abertas if (p.metadados or {}).get('userId') == self.viewer_id]), 1,
+                )
+        finally:
+            self.assertEqual(self._status(self.admin_id, self.viewer_id, True).status_code, 200)
+            with self.app.app_context():
+                Pendencia.query.filter_by(empresa_id=empresa_id).delete()
+                db.session.commit()
+
+        # Logout normal (session_version muda) NAO cria pendencia -- e comportamento esperado, nao erro.
+        fresh_token = self._token(self.viewer_id)
+        self.assertEqual(
+            self.app.test_client().put(
+                '/api/v1/users/{}'.format(self.viewer_id),
+                headers={'Authorization': f'Bearer {self._token(self.admin_id)}'},
+                json={'senha': 'outra-senha-valida'},
+            ).status_code,
+            200,
+        )
+        self.app.test_client().get('/api/v1/clients', headers={'Authorization': f'Bearer {fresh_token}'})
+        with self.app.app_context():
+            abertas = Pendencia.query.filter_by(empresa_id=empresa_id, categoria='Sistema', status='aberta').all()
+            self.assertEqual([p for p in abertas if (p.metadados or {}).get('userId') == self.viewer_id], [])
+
+    def test_deleted_user_old_token_never_creates_pendencia_and_still_returns_401(self):
+        with self.app.app_context():
+            empresa = Empresa(nome='Temp', slug='activation-temp')
+            db.session.add(empresa)
+            db.session.flush()
+            temp_user = User(empresa_id=empresa.id, nome='Temp', email='temp@activation.test', password_hash='x', role='viewer')
+            db.session.add(temp_user)
+            db.session.commit()
+            temp_id = temp_user.id
+
+        token = self._token(temp_id)
+        with self.app.app_context():
+            db.session.query(User).filter_by(id=temp_id).delete()
+            db.session.commit()
+
+        try:
+            response = self.app.test_client().get('/api/v1/clients', headers={'Authorization': f'Bearer {token}'})
+            self.assertEqual(response.status_code, 401)
+            with self.app.app_context():
+                self.assertEqual(Pendencia.query.count(), 0)
+        finally:
+            with self.app.app_context():
+                Empresa.query.filter_by(slug='activation-temp').delete()
+                db.session.commit()
 
     def test_forced_password_change_keeps_logout_available(self):
         token = self._token(self.forced_id)

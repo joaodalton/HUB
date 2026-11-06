@@ -1,4 +1,4 @@
-import { apiRequest, type ApiResponse } from './apiClient';
+import { apiRequest, fetchAllPages, type ApiResponse, type Pagination } from './apiClient';
 
 export type UserRole = 'owner' | 'admin' | 'operator' | 'financial' | 'viewer';
 
@@ -25,9 +25,20 @@ export type UserUpdatePayload = Partial<Pick<UserRow, 'nome' | 'email' | 'role'>
 };
 
 
+export type UsersPage = { data: UserRow[]; pagination: Pagination };
+
+export async function getUsersPage(page = 1, pageSize = 50): Promise<UsersPage> {
+  const response = await apiRequest<ApiResponse<UserRow[]> & Pick<UsersPage, 'pagination'>>(
+    `/users?page=${page}&pageSize=${pageSize}`
+  );
+  return { data: response.data, pagination: response.pagination };
+}
+
+// Lista completa (todas as paginas) -- mantido pra quem precisa de todos os
+// usuarios (ex.: seletor de responsavel), sem expor paginacao a esses
+// consumidores.
 export async function getUsers(): Promise<UserRow[]> {
-  const response = await apiRequest<ApiResponse<UserRow[]>>('/users');
-  return response.data;
+  return fetchAllPages((page, pageSize) => getUsersPage(page, pageSize));
 }
 
 export async function createUser(data: UserPayload): Promise<UserRow> {

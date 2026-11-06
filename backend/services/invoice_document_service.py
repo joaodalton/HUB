@@ -4,11 +4,18 @@ import hashlib
 from flask import current_app
 from werkzeug.utils import secure_filename
 
+from extensions import db
+from models.calculo_cobranca import BillingCalculationExecution
 from models.client import Client
 from models.document import Document
 from models.fatura_concessionaria import FaturaConcessionaria
-from services.document_service import resolve_file_path
+from models.pendencia import Pendencia
+from services.document_service import delete_document, resolve_file_path
 from services.object_storage import ObjectStorageError, get_object_storage
+
+
+class InvoiceHasCalculationError(Exception):
+    """Fatura já teve cálculo de cobrança executado; não pode ser excluída."""
 
 
 def load_invoice_pdf(invoice_id: int, empresa_id: int) -> tuple[bytes, str] | None:
@@ -45,6 +52,23 @@ def load_invoice_pdf(invoice_id: int, empresa_id: int) -> tuple[bytes, str] | No
         raise ObjectStorageError('Integridade do documento de fatura invalida.')
     client = Client.query.filter_by(id=invoice.client_id, empresa_id=empresa_id).first()
     return data, _download_name(invoice, client)
+
+
+def delete_invoice(invoice_id: int, empresa_id: int) -> bool:
+    invoice = FaturaConcessionaria.query.filter_by(id=invoice_id, empresa_id=empresa_id).first()
+    if invoice is None:
+        return False
+    has_calculation = BillingCalculationExecution.query.filter_by(
+        fatura_concessionaria_id=invoice_id, empresa_id=empresa_id,
+    ).first() is not None
+    if has_calculation:
+        raise InvoiceHasCalculationError()
+    Pendencia.query.filter_by(fatura_concessionaria_id=invoice_id, empresa_id=empresa_id).delete()
+    document_id = invoice.document_id
+    db.session.delete(invoice)
+    db.session.flush()
+    delete_document(document_id)
+    return True
 
 
 def _download_name(invoice: FaturaConcessionaria, client: Client | None) -> str:

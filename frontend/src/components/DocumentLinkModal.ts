@@ -3,6 +3,7 @@ import { createCategoryPicker } from './CategoryPicker';
 import { createElement } from '../dom';
 import type { ClientRow } from '../services/clientsService';
 import { linkDriveDocument } from '../services/documentsService';
+import { t } from '../services/i18nService';
 import type { DriveItem } from '../types';
 
 type DocumentLinkModalOptions = {
@@ -18,11 +19,11 @@ export function createDocumentLinkModal({ files, clients, onLinked, onError }: D
   const form = createElement('form', { className: 'client-form' });
   const header = createElement('div', { className: 'form-header' });
   const titleText = createElement('div');
-  const eyebrow = createElement('span', { className: 'eyebrow', textContent: 'Vincular documentos' });
+  const eyebrow = createElement('span', { className: 'eyebrow', textContent: t('documents.linkModal.eyebrow') });
   const heading = createElement('h2', {
-    textContent: `${files.length} ${files.length === 1 ? 'arquivo selecionado' : 'arquivos selecionados'}`
+    textContent: `${files.length} ${files.length === 1 ? t('documents.linkModal.fileSingular') : t('documents.linkModal.filePlural')}`
   });
-  const closeButton = createElement('button', { className: 'secondary-button', textContent: 'Fechar', type: 'button' });
+  const closeButton = createElement('button', { className: 'secondary-button', textContent: t('documents.linkModal.close'), type: 'button' });
 
   const fileList = createElement('ul', { className: 'document-list' });
   files.forEach((file) => {
@@ -30,9 +31,9 @@ export function createDocumentLinkModal({ files, clients, onLinked, onError }: D
   });
 
   const clientField = createElement('label', { className: 'form-field form-field-wide' });
-  const clientLabel = createElement('span', { textContent: 'Cliente' });
+  const clientLabel = createElement('span', { textContent: t('documents.linkModal.clientLabel') });
   const clientSelect = createElement('select');
-  const placeholder = createElement('option', { textContent: 'Selecione um cliente' });
+  const placeholder = createElement('option', { textContent: t('documents.linkModal.clientPlaceholder') });
   placeholder.value = '';
   clientSelect.appendChild(placeholder);
   clients.forEach((client) => {
@@ -44,12 +45,12 @@ export function createDocumentLinkModal({ files, clients, onLinked, onError }: D
   clientField.append(clientLabel, clientSelect);
 
   const categoryField = createElement('label', { className: 'form-field form-field-wide' });
-  const categoryLabel = createElement('span', { textContent: 'Categoria' });
+  const categoryLabel = createElement('span', { textContent: t('documents.linkModal.categoryLabel') });
   const categoryPicker = createCategoryPicker(onError);
   categoryField.append(categoryLabel, categoryPicker.wrapper);
 
   const actions = createElement('div', { className: 'form-actions' });
-  const saveButton = createElement('button', { textContent: 'Vincular', type: 'submit' });
+  const saveButton = createElement('button', { textContent: t('documents.linkModal.save'), type: 'submit' });
 
   closeButton.addEventListener('click', () => overlay.remove());
   overlay.addEventListener('click', (event) => {
@@ -64,12 +65,12 @@ export function createDocumentLinkModal({ files, clients, onLinked, onError }: D
       return;
     }
     if (!categoryPicker.select.value) {
-      onError('Escolha (ou crie) uma categoria antes de vincular.');
+      onError(t('documents.linkModal.categoryRequired'));
       return;
     }
 
     saveButton.disabled = true;
-    saveButton.textContent = 'Vinculando...';
+    saveButton.textContent = t('documents.linkModal.saving');
 
     const clienteId = Number(clientSelect.value);
     const categoriaId = Number(categoryPicker.select.value);
@@ -86,7 +87,7 @@ export function createDocumentLinkModal({ files, clients, onLinked, onError }: D
         });
         linked.push(file.id);
       } catch (error) {
-        onError(error instanceof Error ? error.message : `Nao foi possivel vincular "${file.name}".`);
+        onError(error instanceof Error ? error.message : `${t('documents.linkModal.linkErrorPrefix')} "${file.name}".`);
       }
     }
 

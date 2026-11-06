@@ -11,9 +11,12 @@
 .cell-id-name {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   min-width: 0;
 }
+
+.cell-id-name > * { min-width: 0; overflow-wrap: break-word; }
 
 .cell-id-tag {
   display: inline-flex;
@@ -137,6 +140,3 @@
 
 .plant-production-column small { color: var(--text-faint); font-size: 8px; }
 
-@media (max-width: 620px) {
-  .cell-id-name { flex-wrap: wrap; }
-}

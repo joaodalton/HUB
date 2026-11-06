@@ -2,6 +2,7 @@ import { createIcon } from '../../components/Icon';
 import { createElement } from '../../dom';
 import type { PlantRow } from '../../services/plantService';
 import { createStatusBadge, normalize } from './shared';
+import { t } from '../../services/i18nService';
 
 type Props = {
   plants: PlantRow[];
@@ -17,29 +18,29 @@ export function renderRateioPlantPicker({ plants, loadError, selectedPlantId, co
   const title = createElement('div', { className: 'panel-title' });
   const titleText = createElement('div');
   titleText.append(
-    createElement('span', { className: 'eyebrow', textContent: 'Escolha' }),
-    createElement('h2', { textContent: 'Selecione a usina para iniciar o rateio' })
+    createElement('span', { className: 'eyebrow', textContent: t('rateio.picker.eyebrow') }),
+    createElement('h2', { textContent: t('rateio.picker.title') })
   );
   title.appendChild(titleText);
 
   const searchWrap = createElement('div', { className: 'page-actions' });
   const searchInput = createElement('input');
   searchInput.type = 'text';
-  searchInput.placeholder = 'Pesquisar por nome...';
+  searchInput.placeholder = t('rateio.picker.searchPlaceholder');
   searchWrap.appendChild(searchInput);
   const listHolder = createElement('div', { className: 'rateio-plant-list' });
 
   function refreshList(): void {
     listHolder.replaceChildren();
     if (loadError) {
-      listHolder.appendChild(createElement('p', { className: 'empty-state small', textContent: 'Nao foi possivel carregar usinas.' }));
+      listHolder.appendChild(createElement('p', { className: 'empty-state small', textContent: t('rateio.picker.loadError') }));
       return;
     }
     const filtered = plants.filter((plant) => normalize(plant.nome).includes(normalize(searchTerm)));
     if (!filtered.length) {
       listHolder.appendChild(createElement('p', {
         className: 'empty-state small',
-        textContent: plants.length ? 'Nenhuma usina encontrada para essa busca.' : 'Nenhuma usina cadastrada ainda.'
+        textContent: plants.length ? t('rateio.picker.emptySearch') : t('rateio.picker.emptyDefault')
       }));
       return;
     }
@@ -56,7 +57,7 @@ export function renderRateioPlantPicker({ plants, loadError, selectedPlantId, co
     const info = createElement('div', { className: 'rateio-plant-row-info' });
     info.append(
       createElement('strong', { textContent: plant.nome }),
-      createElement('span', { textContent: `${plant.kwPico} kWp · ${connectedUcsCount(plant.id)} UCs conectadas` })
+      createElement('span', { textContent: `${plant.kwPico} kWp · ${connectedUcsCount(plant.id)} ${t('rateio.picker.connectedUcsSuffix')}` })
     );
     row.append(iconChip, info, createStatusBadge(plant.status));
     row.addEventListener('click', () => onSelect(plant));

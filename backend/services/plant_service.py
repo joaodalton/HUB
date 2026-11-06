@@ -1,24 +1,44 @@
 # backend/services/plant_service.py
 from datetime import date, datetime
+from decimal import Decimal, InvalidOperation
 
 from flask import g
 
 from extensions import db
 from models.plant import Plant
+from utils.pagination import paginate
+
+REPASSE_TIPOS_VALIDOS = ('percentual', 'valor_fixo')
 
 def _plant(plant_id): return Plant.query.filter_by(id=plant_id, empresa_id=g.current_empresa_id).first()
 
 
-def list_plants() -> list[dict]:
+def list_plants(page: int = 1, page_size: int = 50) -> tuple[list[dict], dict]:
     # Filtro automatico via TenantMixin (extensions.py)
-    plants = Plant.query.order_by(Plant.created_at.desc()).all()
-    return [plant.to_dict() for plant in plants]
+    query = Plant.query.order_by(Plant.created_at.desc())
+    plants, pagination = paginate(query, page, page_size)
+    return [plant.to_dict() for plant in plants], pagination
 
 
 def get_plant(plant_id: int) -> dict | None:
     # Filtro automatico via TenantMixin
     plant = _plant(plant_id)
     return plant.to_dict() if plant else None
+
+
+def _validar_repasse_tipo(repasse_tipo):
+    if repasse_tipo is not None and repasse_tipo not in REPASSE_TIPOS_VALIDOS:
+        raise ValueError("repasseTipo deve ser 'percentual', 'valor_fixo' ou nulo.")
+    return repasse_tipo
+
+
+def _validar_repasse_valor(repasse_valor):
+    if repasse_valor is None:
+        return None
+    try:
+        return Decimal(str(repasse_valor))
+    except InvalidOperation:
+        raise ValueError('repasseValor inválido.')
 
 
 def create_plant(data: dict) -> dict:
@@ -47,6 +67,8 @@ def create_plant(data: dict) -> dict:
         dia_emissao_usina=data.get('diaEmissaoUsina'),
         is_coringa=bool(data.get('isCoringa', False)),
         concessionaria=data.get('concessionaria'),
+        repasse_tipo=_validar_repasse_tipo(data.get('repasseTipo')),
+        repasse_valor=_validar_repasse_valor(data.get('repasseValor')),
         **_producao_mensal_fields(data)
     )
     db.session.add(plant)
@@ -83,6 +105,11 @@ def update_plant(plant_id: int, data: dict) -> dict | None:
     plant.dia_emissao_usina = data.get('diaEmissaoUsina', plant.dia_emissao_usina)
     plant.is_coringa = bool(data.get('isCoringa', plant.is_coringa))
     plant.concessionaria = data.get('concessionaria', plant.concessionaria)
+
+    if 'repasseTipo' in data:
+        plant.repasse_tipo = _validar_repasse_tipo(data['repasseTipo'])
+    if 'repasseValor' in data:
+        plant.repasse_valor = _validar_repasse_valor(data['repasseValor'])
 
     for mes, valor in _producao_mensal_fields(data, only_present=True).items():
         setattr(plant, mes, valor)

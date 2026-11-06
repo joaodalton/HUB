@@ -1,7 +1,10 @@
 # backend/routes/rateio_routes.py
 from flask import Blueprint, Response, request
 
-from services.rateio_service import aplicar_rateio, atualizar_distribuicao, confirmar_selecao, funil_qualificacao, list_historico, preview_rateio
+from services.rateio_service import (
+    aplicar_rateio, atualizar_distribuicao, confirmar_selecao, funil_qualificacao,
+    get_historico_execucao, list_historico, list_historico_execucoes, preview_rateio
+)
 from services.rateio_formulario_service import get_regras_documentos_rateio, montar_tabela_formulario, verificar_termos_adesao
 from services.rateio_pdf_service import DriveUnavailableError, gerar_termos_adesao_pdf
 from services.rateio_excel_service import gerar_formulario_excel, montar_preview_formulario
@@ -96,6 +99,22 @@ def historico():
     uc_id = request.args.get('ucId', type=int)
 
     return success_response(list_historico(competencia, plant_id, uc_id))
+
+
+@rateio_routes.route('/historico/execucoes', methods=['GET'])
+@require_permission('rateios.read')
+def historico_execucoes():
+    plant_id = request.args.get('plantId', type=int)
+    return success_response(list_historico_execucoes(plant_id))
+
+
+@rateio_routes.route('/historico/execucoes/<lote>', methods=['GET'])
+@require_permission('rateios.read')
+def historico_execucao_detalhe(lote: str):
+    try:
+        return success_response(get_historico_execucao(lote))
+    except ValueError as exc:
+        return error_response(str(exc), 404)
 
 
 # GET /api/v1/rateio/formulario?plantId=... -- tabela de revisao pro formulario Copel

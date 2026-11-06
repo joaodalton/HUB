@@ -1,4 +1,5 @@
 import { createDocumentLinkModal } from '../components/DocumentLinkModal';
+import { createDriveTreeView } from '../components/DriveTreeView';
 import { createReservedPanel } from '../components/ReservedPanel';
 import { createResultsPanel } from '../components/ResultsList';
 import { createSearchPanel } from '../components/SearchPanel';
@@ -8,19 +9,17 @@ import { useGlobalLoading } from '../hooks/useGlobalLoading';
 import { useToast } from '../hooks/useToast';
 import { createBaseLayout } from '../layouts/BaseLayout';
 import { getClients, type ClientRow } from '../services/clientsService';
-import { fileTypeLabel, isFolder, matchesDateRange, matchesFilter, matchesType } from '../services/documentRules';
-import { downloadReservedZip, listDriveFolder, searchDriveItems } from '../services/driveService';
+import { isFolder } from '../services/documentRules';
+import { downloadReservedZip, listDriveFolder, listDriveRoot, searchDriveItems } from '../services/driveService';
 import { getDocuments, type DocumentRow } from '../services/documentsService';
-import type { DriveItem, FilterKey } from '../types';
+import { t } from '../services/i18nService';
+import type { DriveItem } from '../types';
 
 export function createDocumentsPage(): HTMLElement {
-  let currentFilter: FilterKey = 'todos';
-  let currentType = 'todos';
-  let dateFrom = '';
-  let dateTo = '';
   let currentResults: DriveItem[] = [];
   let folderStack: DriveItem[] = [];
   let searchTerm = '';
+  let atRoot = false;
   let clients: ClientRow[] = [];
   let documents: DocumentRow[] = [];
   const reservedItems = new Map<string, DriveItem>();
@@ -43,29 +42,28 @@ export function createDocumentsPage(): HTMLElement {
   });
 
   const searchPanel = createSearchPanel({
-    onSearch: runSearch,
-    onFilterChange: (filter) => {
-      currentFilter = filter;
-      renderResults();
-    },
-    onTypeChange: (tipo) => {
-      currentType = tipo;
-      renderResults();
-    },
-    onDateRangeChange: (from, to) => {
-      dateFrom = from;
-      dateTo = to;
-      renderResults();
-    }
+    onSearch: runSearch
+  });
+
+  const driveTreeView = createDriveTreeView({
+    onSelectFolder: openFolder,
+    onOpenRoot: openRoot,
+    onError: (message) => toast.error(message)
   });
 
   const workspace = createElement('section', { className: 'workspace' });
   const content = createElement('section', { className: 'content-stack' });
   const statsHolder = createElement('div');
-  const mainColumn = createElement('section', { className: 'main-column' });
+  const treeColumn = createElement('aside', { className: 'tree-column' });
+  const documentsWindow = createElement('section', { className: 'documents-window' });
+  const mainColumn = createElement('div', { className: 'main-column' });
+  const sideColumn = createElement('aside', { className: 'side-column' });
 
+  treeColumn.append(driveTreeView.element);
   mainColumn.append(searchPanel.element, resultsPanel.element);
-  workspace.append(mainColumn, reservedPanel.element);
+  sideColumn.append(reservedPanel.element);
+  documentsWindow.append(mainColumn, sideColumn);
+  workspace.append(treeColumn, documentsWindow);
   content.append(statsHolder, workspace);
   renderReserved();
   loadClients();
@@ -73,8 +71,8 @@ export function createDocumentsPage(): HTMLElement {
 
   return createBaseLayout({
     content,
-    eyebrow: 'Central de documentos',
-    title: 'Busque, separe e abra arquivos do Drive'
+    eyebrow: t('documents.page.eyebrow'),
+    title: t('documents.page.title')
   });
 
   async function loadClients(): Promise<void> {
@@ -88,10 +86,10 @@ export function createDocumentsPage(): HTMLElement {
   async function loadDocumentStats(): Promise<void> {
     try {
       documents = await getDocuments();
-      const categories = new Set(documents.map((document) => document.categoria || 'Sem categoria'));
+      const categories = new Set(documents.map((document) => document.categoria || t('documents.page.noCategoria')));
       const metrics: IconStatCardProps[] = [
-        { label: 'Total de documentos', value: String(documents.length), chipColor: 'blue', icon: 'documents' },
-        { label: 'Categorias usadas', value: String(categories.size), chipColor: 'purple', icon: 'templates' }
+        { label: t('documents.page.metricTotal'), value: String(documents.length), chipColor: 'blue', icon: 'documents' },
+        { label: t('documents.page.metricCategorias'), value: String(categories.size), chipColor: 'purple', icon: 'templates' }
       ];
       const grid = createElement('section', { className: 'metric-grid' });
       metrics.forEach((metric) => grid.appendChild(createIconStatCard(metric)));
@@ -104,11 +102,11 @@ export function createDocumentsPage(): HTMLElement {
   async function runSearch(term: string): Promise<void> {
     searchTerm = term;
     folderStack = [];
+    atRoot = false;
     resultsPanel.setFolderName(null);
     if (!term) {
       currentResults = [];
-      resultsPanel.setMessage('Digite algo para iniciar a busca.');
-      searchPanel.updateTypeOptions([]);
+      resultsPanel.setMessage(t('documents.results.initialPrompt'));
       return;
     }
 
@@ -120,7 +118,26 @@ export function createDocumentsPage(): HTMLElement {
       updateResults();
     } catch (error) {
       currentResults = [];
-      const message = error instanceof Error ? error.message : 'Nao foi possivel pesquisar documentos.';
+      const message = error instanceof Error ? error.message : t('documents.page.searchError');
+      resultsPanel.setMessage(message);
+      toast.error(message);
+    } finally {
+      loading.hide();
+    }
+  }
+
+  async function openRoot(): Promise<void> {
+    resultsPanel.setLoading();
+    loading.show();
+
+    try {
+      currentResults = await listDriveRoot();
+      folderStack = [];
+      atRoot = true;
+      resultsPanel.setFolderName(t('documents.page.rootFolderName'));
+      updateResults();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t('documents.page.rootError');
       resultsPanel.setMessage(message);
       toast.error(message);
     } finally {
@@ -138,7 +155,7 @@ export function createDocumentsPage(): HTMLElement {
       resultsPanel.setFolderName(folder.name);
       updateResults();
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Nao foi possivel abrir a pasta.';
+      const message = error instanceof Error ? error.message : t('documents.page.folderError');
       resultsPanel.setMessage(message);
       toast.error(message);
     } finally {
@@ -149,6 +166,10 @@ export function createDocumentsPage(): HTMLElement {
   function openParentFolder(): void {
     folderStack.pop();
     if (folderStack.length === 0) {
+      if (atRoot) {
+        void openRoot();
+        return;
+      }
       void runSearch(searchTerm);
       return;
     }
@@ -163,7 +184,7 @@ export function createDocumentsPage(): HTMLElement {
         updateResults();
       })
       .catch((error: unknown) => {
-        const message = error instanceof Error ? error.message : 'Nao foi possivel abrir a pasta.';
+        const message = error instanceof Error ? error.message : t('documents.page.folderError');
         resultsPanel.setMessage(message);
         toast.error(message);
       })
@@ -171,22 +192,11 @@ export function createDocumentsPage(): HTMLElement {
   }
 
   function updateResults(): void {
-    searchPanel.updateTypeOptions(Array.from(new Set(currentResults.map(fileTypeLabel))));
-    searchPanel.updateFilterCounts({
-      todos: currentResults.length,
-      pastas: currentResults.filter((item) => matchesFilter(item, 'pastas')).length,
-      imagens: currentResults.filter((item) => matchesFilter(item, 'imagens')).length,
-      termo: currentResults.filter((item) => matchesFilter(item, 'termo')).length
-    });
     renderResults();
   }
 
   function renderResults(): void {
-    resultsPanel.render(currentResults.filter((item) =>
-      matchesFilter(item, currentFilter) &&
-      matchesType(item, currentType) &&
-      matchesDateRange(item, dateFrom, dateTo)
-    ));
+    resultsPanel.render(currentResults);
   }
 
   function renderReserved(): void {
@@ -220,7 +230,7 @@ export function createDocumentsPage(): HTMLElement {
     const files = Array.from(reservedItems.values()).filter((item) => !isFolder(item));
 
     if (files.length === 0) {
-      toast.error('Reserve pelo menos um arquivo (nao uma pasta) antes de vincular a um cliente.');
+      toast.error(t('documents.page.linkReserveWarning'));
       return;
     }
 
@@ -231,7 +241,7 @@ export function createDocumentsPage(): HTMLElement {
         linkedIds.forEach((id) => reservedItems.delete(id));
         renderResults();
         renderReserved();
-        toast.success(linkedIds.length === 1 ? 'Documento vinculado ao cliente.' : `${linkedIds.length} documentos vinculados ao cliente.`);
+        toast.success(linkedIds.length === 1 ? t('documents.page.linkedSingle') : `${linkedIds.length} ${t('documents.page.linkedPluralSuffix')}`);
       },
       onError: (message) => toast.error(message)
     }));
@@ -256,9 +266,9 @@ export function createDocumentsPage(): HTMLElement {
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
-      toast.success('ZIP gerado com sucesso.');
+      toast.success(t('documents.page.zipSuccess'));
     } catch {
-      toast.error('Nao foi possivel baixar o ZIP. Verifique se o backend esta rodando.');
+      toast.error(t('documents.page.zipError'));
     } finally {
       reservedPanel.setDownloading(false);
       loading.hide();

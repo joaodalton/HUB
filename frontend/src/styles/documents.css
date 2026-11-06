@@ -4,6 +4,42 @@
    painel de documentos dentro do cliente (upload minimalista).
    ============================================================ */
 
+.documents-window {
+  display: flex;
+  gap: 20px;
+  padding: var(--space-3) var(--space-4);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-sm);
+  min-width: 0;
+}
+
+.documents-window .main-column {
+  flex: 2 1 0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.documents-window .side-column {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.search-panel,
+.results-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+@media (max-width: 720px) {
+  .documents-window { flex-direction: column; }
+}
+
 .search-label {
   display: block;
   font-size: 11px;
@@ -17,12 +53,15 @@
 
 .search-row input {
   flex: 1;
+  min-width: 0;
   height: var(--control-height);
   background: var(--panel-soft);
   border: 1px solid var(--border);
   border-radius: var(--radius-input);
   padding: 0 12px;
 }
+
+.search-row button { flex-shrink: 0; }
 
 .filter-row {
   display: flex;
@@ -48,15 +87,6 @@
   color: var(--accent);
 }
 
-.refine-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 14px;
-}
-
-.refine-row .form-field { min-width: 160px; flex: 1; }
-
 .search-hint {
   margin: 12px 0 0;
   font-size: 12px;
@@ -65,16 +95,79 @@
 
 .workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 3fr);
   gap: 20px;
-  align-items: start;
+  align-items: stretch;
 }
 
-@media (max-width: 1000px) {
+@media (max-width: 720px) {
   .workspace { grid-template-columns: 1fr; }
 }
 
-.main-column { display: grid; gap: 20px; }
+.tree-column { display: grid; align-self: stretch; }
+
+/* ---------- Arvore de pastas do Drive ---------- */
+
+.drive-tree {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  min-height: 480px;
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+  align-self: stretch;
+}
+
+.drive-tree-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.drive-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.drive-tree-toggle {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  color: var(--text-faint);
+  font-size: 10px;
+  padding: 0;
+  cursor: pointer;
+}
+
+.drive-tree-root-label,
+.drive-tree-folder-label,
+.drive-tree-file {
+  background: transparent;
+  border: none;
+  padding: 2px 4px;
+  font-size: 13px;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.drive-tree-file {
+  color: var(--text-dim);
+  text-decoration: none;
+}
+
+.drive-tree-root-label:hover,
+.drive-tree-folder-label:hover,
+.drive-tree-file:hover {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
 
 .result-row, .reserved-row {
   display: flex;
@@ -105,6 +198,13 @@
   display: grid;
   gap: 8px;
   margin-top: 14px;
+  min-width: 0;
+}
+
+.reserved-actions button {
+  width: 100%;
+  min-width: 0;
+  white-space: normal;
 }
 
 /* ---------- Documentos do cliente (upload minimalista) ---------- */

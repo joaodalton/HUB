@@ -8,6 +8,7 @@
 :root {
   /* Semantic theme tokens. Legacy aliases below keep the existing design
      system compatible while pages are migrated incrementally. */
+  --hub-color-scheme: dark;
   --hub-bg: #0b0f19;
   --hub-surface: #121826;
   --hub-surface-elevated: #1a2232;
@@ -132,6 +133,7 @@
 }
 
 [data-theme="light"] {
+  --hub-color-scheme: light;
   --hub-bg: #f4f6f8;
   --hub-surface: #ffffff;
   --hub-surface-elevated: #ffffff;

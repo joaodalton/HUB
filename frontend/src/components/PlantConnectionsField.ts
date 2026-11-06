@@ -1,17 +1,18 @@
 import { createElement } from '../dom';
 import type { PlantConnection } from '../services/clientsService';
 import type { PlantRow } from '../services/plantService';
+import { t } from '../services/i18nService';
 
 const TARIFF_OPTIONS = ['A1', 'A2', 'A3', 'A3a', 'AS', 'B1', 'B2', 'B3', 'B4'];
 
 export function createTariffSelect(value: string) {
   const field = createElement('label', { className: 'form-field tariff-field' });
   const labelRow = createElement('span', { className: 'tariff-label' });
-  const labelText = createElement('span', { textContent: 'Base tarifaria' });
+  const labelText = createElement('span', { textContent: t('plants.tariff.label') });
   const help = createElement('span', { className: 'help-icon', textContent: '?' });
   const select = createElement('select');
 
-  help.title = 'A1 a AS: alta tensao por nivel de fornecimento. B1 residencial, B2 rural, B3 demais classes, B4 iluminacao publica.';
+  help.title = t('plants.tariff.helpTitle');
 
   TARIFF_OPTIONS.forEach((optionValue) => {
     const option = createElement('option', { textContent: optionValue });
@@ -44,7 +45,7 @@ export function createPlantConnections<T extends HasConnections>(
   const wrapper = createElement('div', { className: 'plant-connection-panel' });
   const title = createElement('span', {
     className: 'plant-connection-title',
-    textContent: 'Usinas conectadas'
+    textContent: t('plants.connections.title')
   });
 
   wrapper.appendChild(title);
@@ -52,7 +53,7 @@ export function createPlantConnections<T extends HasConnections>(
   if (target.conexoes.length === 0) {
     wrapper.appendChild(createElement('p', {
       className: 'empty-state small',
-      textContent: 'Nenhuma usina conectada ainda. Use a tela de Rateio para conectar.'
+      textContent: t('plants.connections.empty')
     }));
     return wrapper;
   }

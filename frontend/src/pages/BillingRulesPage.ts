@@ -15,16 +15,20 @@ import {
   type BillingRule,
   type BillingRuleAssignment
 } from '../services/billingRulesService';
+import { formatDate } from '../utils/date';
+import { t } from '../services/i18nService';
 
-const METHOD_LABELS: Record<string, string> = {
-  energia_compensada: 'Energia compensada',
-  energia_recebida: 'Energia recebida',
-  economia_gerada: 'Economia gerada',
-  valor_total_fatura: 'Valor total da fatura',
-  tarifa_fixa: 'Tarifa fixa',
-  tarifa_fixa_com_desconto: 'Tarifa fixa com desconto',
-  tarifa_especifica: 'Tarifa específica'
-};
+function methodLabels(): Record<string, string> {
+  return {
+    energia_compensada: t('billing.ruleEditor.methodEnergiaCompensada'),
+    energia_recebida: t('billing.ruleEditor.methodEnergiaRecebida'),
+    economia_gerada: t('billing.ruleEditor.methodEconomiaGerada'),
+    valor_total_fatura: t('billing.ruleEditor.methodValorTotalFatura'),
+    tarifa_fixa: t('billing.ruleEditor.methodTarifaFixa'),
+    tarifa_fixa_com_desconto: t('billing.ruleEditor.methodTarifaFixaComDesconto'),
+    tarifa_especifica: t('billing.ruleEditor.methodTarifaEspecifica')
+  };
+}
 
 type RuleRow = Record<string, unknown> & { rule: BillingRule; useCount: number; kind: 'default' | 'specific' | 'shared' };
 
@@ -40,7 +44,7 @@ export function createBillingRulesPage(): HTMLElement {
   let statusFilter = '';
   let loadError = false;
 
-  const layout = createBaseLayout({ content, eyebrow: 'Financeiro', title: 'Regras de cobrança' });
+  const layout = createBaseLayout({ content, eyebrow: t('nav.section.financeiro'), title: t('nav.item.regrasCobranca') });
   void load();
   return layout;
 
@@ -51,7 +55,7 @@ export function createBillingRulesPage(): HTMLElement {
       loadError = false;
     } catch (error) {
       loadError = true;
-      toast.error(error instanceof Error ? error.message : 'Não foi possível carregar as regras.');
+      toast.error(error instanceof Error ? error.message : t('billing.rulesList.loadError'));
     } finally {
       loading.hide();
       render();
@@ -76,17 +80,17 @@ export function createBillingRulesPage(): HTMLElement {
     });
 
     const intro = createElement('div', { className: 'billing-rules-intro' });
-    const copy = createElement('p', { textContent: 'Configure perfis comerciais e seus vínculos. Alterações valem para novas execuções.' });
-    intro.append(copy, createContextHelp('Regra padrão',
-      'A regra padrão é o vínculo da empresa. UCs sem regra própria ou do cliente a usam em novas execuções. Exemplo: trocar o padrão de A para B não altera snapshots anteriores.'));
+    const copy = createElement('p', { textContent: t('billing.rulesList.intro') });
+    intro.append(copy, createContextHelp(t('billing.rulesList.defaultRuleHelpTitle'),
+      t('billing.rulesList.defaultRuleHelpBody')));
     if (canWrite) {
       const add = createElement('button', { className: 'button-with-icon', type: 'button' });
-      add.append(createIcon('plus'), document.createTextNode('Nova regra'));
+      add.append(createIcon('plus'), document.createTextNode(t('billing.rulesList.newRuleButton')));
       add.addEventListener('click', () => navigate('/regras-cobranca/nova'));
       intro.appendChild(add);
       if (!company) {
         const configure = createElement('button', { className: 'secondary-button', type: 'button',
-          textContent: 'Configurar regra padrão' });
+          textContent: t('billing.rulesList.configureDefaultButton') });
         configure.addEventListener('click', () => navigate('/regras-cobranca/nova?default=1'));
         intro.appendChild(configure);
       }
@@ -95,8 +99,8 @@ export function createBillingRulesPage(): HTMLElement {
     const filters = createElement('div', { className: 'billing-rules-filters' });
     const searchInput = createElement('input');
     searchInput.type = 'search';
-    searchInput.placeholder = 'Buscar por nome';
-    searchInput.setAttribute('aria-label', 'Buscar regras por nome');
+    searchInput.placeholder = t('billing.rulesList.searchPlaceholder');
+    searchInput.setAttribute('aria-label', t('billing.rulesList.searchAriaLabel'));
     searchInput.value = search;
     searchInput.addEventListener('input', () => {
       const cursor = searchInput.selectionStart ?? searchInput.value.length;
@@ -107,62 +111,62 @@ export function createBillingRulesPage(): HTMLElement {
       next?.setSelectionRange(cursor, cursor);
     });
     filters.append(searchInput,
-      filterSelect('Método', methodFilter, [
-        { value: '', label: 'Todos os métodos' },
+      filterSelect(t('billing.rulesList.filterMethodLabel'), methodFilter, [
+        { value: '', label: t('billing.rulesList.filterAllMethods') },
         ...[...new Set(rules.map((rule) => rule.calculationMethod))].map((value) => ({
-          value, label: METHOD_LABELS[value] ?? value
+          value, label: methodLabels()[value] ?? value
         }))
       ], (value) => { methodFilter = value; render(); }),
-      filterSelect('Status', statusFilter, [
-        { value: '', label: 'Todos os status' },
-        { value: 'active', label: 'Ativas' },
-        { value: 'inactive', label: 'Inativas' }
+      filterSelect(t('billing.rulesList.filterStatusLabel'), statusFilter, [
+        { value: '', label: t('billing.rulesList.filterAllStatus') },
+        { value: 'active', label: t('billing.rulesList.filterActive') },
+        { value: 'inactive', label: t('billing.rulesList.filterInactive') }
       ], (value) => { statusFilter = value; render(); }));
 
     const table = createDataTable<RuleRow>({
-      title: 'Regras cadastradas', eyebrow: 'Listagem', rows: visible,
-      emptyMessage: loadError ? 'Não foi possível carregar as regras.' : 'Nenhuma regra encontrada.',
+      title: t('billing.rulesList.tableTitle'), eyebrow: t('billing.rulesList.tableEyebrow'), rows: visible,
+      emptyMessage: loadError ? t('billing.rulesList.loadError') : t('billing.rulesList.emptyMessage'),
       columns: [
-        { key: 'name', label: 'Nome', render: ({ rule, kind }) => {
+        { key: 'name', label: t('billing.rulesList.colNome'), render: ({ rule, kind }) => {
           const name = createElement('span', { className: 'billing-rule-name', textContent: rule.nome });
           if (kind === 'shared') return name;
           const cell = createElement('span', { className: 'billing-rule-name-cell' });
           cell.append(name, createElement('span', {
-            className: 'status-badge tone-info', textContent: kind === 'default' ? 'PADRÃO' : 'UC ESPECÍFICA'
+            className: 'status-badge tone-info', textContent: kind === 'default' ? t('billing.rulesList.badgeDefault') : t('billing.rulesList.badgeSpecific')
           }));
           return cell;
         } },
-        { key: 'method', label: 'Método tarifário', render: ({ rule }) => METHOD_LABELS[rule.calculationMethod] ?? rule.calculationMethod },
-        { key: 'icms', label: 'ICMS / Bandeira', render: ({ rule }) => [
-          rule.billingModifiers.icmsPolicy === 'exclude' ? 'Sem ICMS' : 'ICMS não configurado',
-          rule.billingModifiers.excludeTariffFlag === true ? 'Sem bandeira'
-            : rule.billingModifiers.excludeTariffFlag === false ? 'Com bandeira' : 'Bandeira não configurada'
+        { key: 'method', label: t('billing.rulesList.colMethod'), render: ({ rule }) => methodLabels()[rule.calculationMethod] ?? rule.calculationMethod },
+        { key: 'icms', label: t('billing.rulesList.colIcmsBandeira'), render: ({ rule }) => [
+          rule.billingModifiers.icmsPolicy === 'exclude' ? t('billing.ruleEditor.icmsExclude') : t('billing.ruleEditor.icmsNotConfigured'),
+          rule.billingModifiers.excludeTariffFlag === true ? t('billing.ruleEditor.flagSemBandeira')
+            : rule.billingModifiers.excludeTariffFlag === false ? t('billing.ruleEditor.flagComBandeira') : t('billing.rulesList.bandeiraNotConfigured')
         ].join(' · ') },
-        { key: 'modifiers', label: 'Modificadores', render: ({ rule }) => [
-          rule.billingModifiers.excludePisCofins === true ? 'Sem PIS/COFINS' : null,
-          rule.billingModifiers.gracePeriod.enabled ? 'Carência' : null,
-          rule.billingModifiers.recurringAdditionalCost !== null ? 'Adicional recorrente' : null
-        ].filter(Boolean).join(' · ') || 'Nenhum' },
-        { key: 'usage', label: 'UCs vinculadas', align: 'right', render: ({ useCount }) => String(useCount) },
-        { key: 'revision', label: 'Revisão', render: ({ rule }) => `v${rule.revision} · ${formatDate(rule.atualizadoEm)}` },
-        { key: 'status', label: 'Status', render: ({ rule }) => rule.ativo ? 'Ativa' : 'Inativa' },
-        { key: 'actions', label: 'Ações', render: ({ rule, kind }) => {
+        { key: 'modifiers', label: t('billing.rulesList.colModifiers'), render: ({ rule }) => [
+          rule.billingModifiers.excludePisCofins === true ? t('billing.rulesList.noPisCofins') : null,
+          rule.billingModifiers.gracePeriod.enabled ? t('billing.rulesList.gracePeriodLabel') : null,
+          rule.billingModifiers.recurringAdditionalCost !== null ? t('billing.rulesList.recurringSurchargeLabel') : null
+        ].filter(Boolean).join(' · ') || t('billing.rulesList.noneModifiers') },
+        { key: 'usage', label: t('billing.rulesList.colUcsLinked'), align: 'right', render: ({ useCount }) => String(useCount) },
+        { key: 'revision', label: t('billing.rulesList.colRevision'), render: ({ rule }) => `v${rule.revision} · ${formatDate(rule.atualizadoEm)}` },
+        { key: 'status', label: t('billing.rulesList.colStatus'), render: ({ rule }) => rule.ativo ? t('billing.rulesList.statusActive') : t('billing.rulesList.statusInactive') },
+        { key: 'actions', label: t('billing.rulesList.colActions'), render: ({ rule, kind }) => {
           const actions = createElement('span', { className: 'billing-rule-actions' });
           const open = createElement('button', {
-            className: 'secondary-button small-button', type: 'button', textContent: canWrite ? 'Editar' : 'Visualizar'
+            className: 'secondary-button small-button', type: 'button', textContent: canWrite ? t('billing.rulesList.editButton') : t('billing.rulesList.viewButton')
           });
           open.addEventListener('click', () => navigate(`/regras-cobranca/${rule.id}/editar`));
           actions.appendChild(open);
           if (canWrite && rule.ativo && kind !== 'default') {
             const makeDefault = createElement('button', {
-              className: 'secondary-button small-button', type: 'button', textContent: 'Definir como padrão'
+              className: 'secondary-button small-button', type: 'button', textContent: t('billing.rulesList.setDefaultButton')
             });
             makeDefault.addEventListener('click', () => void setDefault(rule, company));
             actions.appendChild(makeDefault);
           }
           if (canWrite && rule.ativo && !assignments.some((item) => item.grupoRegraCobrancaId === rule.id)) {
             const deactivate = createElement('button', {
-              className: 'danger-button small-button', type: 'button', textContent: 'Desativar'
+              className: 'danger-button small-button', type: 'button', textContent: t('billing.rulesList.deactivateButton')
             });
             deactivate.addEventListener('click', () => void deactivateRule(rule));
             actions.appendChild(deactivate);
@@ -173,35 +177,35 @@ export function createBillingRulesPage(): HTMLElement {
     });
     table.appendChild(createElement('p', {
       className: 'billing-rules-footnote',
-      textContent: 'Uso conta apenas UCs com vínculo direto ativo. Vínculos herdados de cliente ou empresa não entram nessa contagem.'
+      textContent: t('billing.rulesList.footnote')
     }));
     content.replaceChildren(intro, filters, table);
   }
 
   async function setDefault(rule: BillingRule, current?: BillingRuleAssignment): Promise<void> {
-    if (!window.confirm(`Definir “${rule.nome}” como regra padrão da empresa? UCs sem regra mais específica usarão esse vínculo em novas execuções. Snapshots anteriores não mudam.`)) return;
+    if (!window.confirm(t('billing.rulesList.confirmSetDefaultTemplate').replace('{name}', rule.nome))) return;
     loading.show();
     try {
       if (current) await updateBillingRuleAssignment(current.id, { grupoRegraCobrancaId: rule.id });
       else await createBillingRuleAssignment({ grupoRegraCobrancaId: rule.id, scopeType: 'company' });
-      toast.success('Regra padrão atualizada.');
+      toast.success(t('billing.rulesList.setDefaultSuccess'));
       await load();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível definir a regra padrão.');
+      toast.error(error instanceof Error ? error.message : t('billing.rulesList.setDefaultError'));
     } finally {
       loading.hide();
     }
   }
 
   async function deactivateRule(rule: BillingRule): Promise<void> {
-    if (!window.confirm(`Desativar “${rule.nome}”? A regra deixa de poder receber novos vínculos.`)) return;
+    if (!window.confirm(t('billing.rulesList.confirmDeactivateTemplate').replace('{name}', rule.nome))) return;
     loading.show();
     try {
       await updateBillingRule(rule.id, { ativo: false });
-      toast.success('Regra desativada.');
+      toast.success(t('billing.rulesList.deactivatedSuccess'));
       await load();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível desativar a regra.');
+      toast.error(error instanceof Error ? error.message : t('billing.rulesList.deactivateError'));
     } finally {
       loading.hide();
     }
@@ -220,11 +224,6 @@ function filterSelect(label: string, value: string, options: Array<{ value: stri
   select.addEventListener('change', () => onChange(select.value));
   field.append(createElement('span', { textContent: label }), select);
   return field;
-}
-
-function formatDate(value: string): string {
-  const [year, month, day] = value.slice(0, 10).split('-');
-  return year && month && day ? `${day}/${month}/${year}` : '—';
 }
 
 function navigate(path: string): void {

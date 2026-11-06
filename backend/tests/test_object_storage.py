@@ -2,8 +2,7 @@
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import Mock
-from unittest.mock import patch
+from unittest.mock import ANY, Mock, patch
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -34,11 +33,31 @@ class ObjectStorageTest(unittest.TestCase):
             self.assertIsInstance(get_object_storage(), S3ObjectStorage)
             client.assert_called_once_with('s3',
                 endpoint_url='https://account.r2.cloudflarestorage.com',
-                aws_access_key_id='id', aws_secret_access_key='secret', region_name='auto')
+                aws_access_key_id='id', aws_secret_access_key='secret', region_name='auto',
+                config=ANY)
             app.config['OBJECT_STORAGE_ENDPOINT'] = 'http://account.r2.cloudflarestorage.com'
             with self.assertRaises(ObjectStorageError):
                 get_object_storage()
             app.config['OBJECT_STORAGE_ENDPOINT'] = 'https://other.example.com'
+            with self.assertRaises(ObjectStorageError):
+                get_object_storage()
+
+    def test_s3_factory_accepts_backblaze_b2_endpoint(self):
+        app = Flask(__name__)
+        app.config.update(DEBUG=False, TESTING=False, STORAGE_PROVIDER='s3',
+            OBJECT_STORAGE_ENDPOINT='https://s3.us-west-002.backblazeb2.com',
+            OBJECT_STORAGE_BUCKET='private-bucket', OBJECT_STORAGE_ACCESS_KEY_ID='id',
+            OBJECT_STORAGE_SECRET_ACCESS_KEY='secret', OBJECT_STORAGE_REGION='us-west-002')
+        with app.app_context(), patch('boto3.client', return_value=Mock()) as client:
+            self.assertIsInstance(get_object_storage(), S3ObjectStorage)
+            client.assert_called_once_with('s3',
+                endpoint_url='https://s3.us-west-002.backblazeb2.com',
+                aws_access_key_id='id', aws_secret_access_key='secret', region_name='us-west-002',
+                config=ANY)
+            app.config['OBJECT_STORAGE_ENDPOINT'] = 'http://s3.us-west-002.backblazeb2.com'
+            with self.assertRaises(ObjectStorageError):
+                get_object_storage()
+            app.config['OBJECT_STORAGE_ENDPOINT'] = 'https://s3.us-west-002.backblazeb2.com.attacker.com'
             with self.assertRaises(ObjectStorageError):
                 get_object_storage()
 

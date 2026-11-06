@@ -210,6 +210,38 @@ class RateioServiceTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertFalse(historico[self.uc2.id].manual)
         self.assertEqual(Decimal(str(historico[self.uc2.id].percentual)), Decimal('30.00'))
 
+    def test_aplicar_rateio_rejects_sum_above_100_and_persists_nothing(self):
+        # producaoDisponivel=900; uc1=450(50%) + uc2=270(30%) + uc3=300(33.33%) = 113.33%
+        uc3 = ConsumerUnit(empresa_id=1, client_id=self.client.id, codigo='UC-3', consumo=Decimal('300'))
+        db.session.add(uc3)
+        db.session.flush()
+        c1 = PlantConnection(empresa_id=1, plant_id=self.plant.id, consumer_unit_id=self.uc1.id, percentual=Decimal('0'))
+        c2 = PlantConnection(empresa_id=1, plant_id=self.plant.id, consumer_unit_id=self.uc2.id, percentual=Decimal('0'))
+        c3 = PlantConnection(empresa_id=1, plant_id=self.plant.id, consumer_unit_id=uc3.id, percentual=Decimal('0'))
+        db.session.add_all([c1, c2, c3])
+        db.session.commit()
+
+        with self.assertRaises(ValueError) as ctx:
+            rateio_service.aplicar_rateio('2026-10', self.plant.id)
+        self.assertIn('excede 100%', str(ctx.exception))
+        self.assertEqual(Decimal(str(PlantConnection.query.get(c1.id).percentual)), Decimal('0'))
+        self.assertEqual(RateioHistorico.query.count(), 0)
+
+    def test_sync_connections_rejects_new_link_above_100(self):
+        from services.uc_service import sync_connections
+
+        db.session.add(PlantConnection(empresa_id=1, plant_id=self.plant.id, consumer_unit_id=self.uc1.id, percentual=Decimal('80')))
+        db.session.commit()
+
+        with self.assertRaises(ValueError) as ctx:
+            sync_connections(self.uc2, [{'plantId': self.plant.id, 'percentual': '25'}])
+        self.assertIn('excede 100%', str(ctx.exception))
+        self.assertEqual(PlantConnection.query.filter_by(consumer_unit_id=self.uc2.id).count(), 0)
+
+        # dentro do limite (80 + 20 = 100) tem que ser aceito
+        sync_connections(self.uc2, [{'plantId': self.plant.id, 'percentual': '20'}])
+        self.assertEqual(PlantConnection.query.filter_by(consumer_unit_id=self.uc2.id).count(), 1)
+
 
 if __name__ == '__main__':
     unittest.main()

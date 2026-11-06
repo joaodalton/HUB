@@ -1,4 +1,6 @@
 import { createElement } from '../dom';
+import { createLanguageSwitcher } from './LanguageSwitcher';
+import { createThemeToggle } from './ThemeToggle';
 
 type HeaderOptions = {
   eyebrow?: string;
@@ -21,6 +23,8 @@ export function createHeader({
     : null;
   text.append(eyebrow, heading);
   if (context) text.appendChild(context);
-  header.append(mark, text);
+  const controls = createElement('div', { className: 'header-controls' });
+  controls.append(createThemeToggle(), createLanguageSwitcher());
+  header.append(mark, text, controls);
   return header;
 }

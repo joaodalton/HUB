@@ -1,5 +1,6 @@
 // frontend/src/services/plantService.ts
-import { apiRequest, type ApiResponse } from './apiClient';
+import { apiRequest, fetchAllPages, type ApiResponse, type Pagination } from './apiClient';
+import { t } from './i18nService';
 
 export type PlantRow = {
   id: number;
@@ -24,6 +25,8 @@ export type PlantRow = {
   producaoMediaManual: number | null;
   reservaPercentual: number;
   diaEmissaoUsina: number | null;
+  repasseTipo: string | null;
+  repasseValor: number | null;
 };
 
 export type PlantPayload = {
@@ -47,12 +50,24 @@ export type PlantPayload = {
   numModulos?: number | null;
   producaoMediaManual?: number | null;
   diaEmissaoUsina?: number | null;
+  repasseTipo?: string | null;
+  repasseValor?: number | null;
 };
 
 
+export type PlantsPage = { data: PlantRow[]; pagination: Pagination };
+
+export async function getPlantsPage(page = 1, pageSize = 50): Promise<PlantsPage> {
+  const response = await apiRequest<ApiResponse<PlantRow[]> & Pick<PlantsPage, 'pagination'>>(
+    `/plants?page=${page}&pageSize=${pageSize}`
+  );
+  return { data: response.data, pagination: response.pagination };
+}
+
+// Lista completa (todas as paginas) -- mantido pra quem precisa do cadastro
+// inteiro pra selecao/calculo, sem expor paginacao a esses consumidores.
 export async function getPlants(): Promise<PlantRow[]> {
-  const response = await apiRequest<ApiResponse<PlantRow[]>>('/plants');
-  return response.data;
+  return fetchAllPages((page, pageSize) => getPlantsPage(page, pageSize));
 }
 
 export async function getAvailablePlants(): Promise<PlantRow[]> {
@@ -107,13 +122,6 @@ export async function updatePlantRateioConfig(id: number, data: PlantRateioConfi
 // nem dado ja salvo.
 export type PlantStatusTone = 'success' | 'warning' | 'danger' | 'neutral';
 
-const STATUS_LABELS: Record<string, string> = {
-  Online: 'Ativa',
-  Implantacao: 'Em Implantação',
-  Manutencao: 'Manutenção',
-  Inativa: 'Inativa'
-};
-
 const STATUS_TONES: Record<string, PlantStatusTone> = {
   Online: 'success',
   Implantacao: 'warning',
@@ -122,7 +130,13 @@ const STATUS_TONES: Record<string, PlantStatusTone> = {
 };
 
 export function plantStatusLabel(status: string): string {
-  return STATUS_LABELS[status] ?? status;
+  const labels: Record<string, string> = {
+    Online: t('plants.status.online'),
+    Implantacao: t('plants.status.implantacao'),
+    Manutencao: t('plants.status.manutencao'),
+    Inativa: t('plants.status.inativa')
+  };
+  return labels[status] ?? status;
 }
 
 export function plantStatusTone(status: string): PlantStatusTone {

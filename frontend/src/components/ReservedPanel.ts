@@ -1,6 +1,7 @@
 import { createElement, emptyState } from '../dom';
 import { createIcon } from './Icon';
 import { documentType, isFolder } from '../services/documentRules';
+import { t } from '../services/i18nService';
 import type { DriveItem } from '../types';
 
 type ReservedPanelOptions = {
@@ -19,17 +20,17 @@ export function createReservedPanel(options: ReservedPanelOptions): {
   const panel = createElement('aside', { className: 'reserved-panel' });
   const title = createElement('div', { className: 'panel-title' });
   const titleText = createElement('div');
-  const eyebrow = createElement('span', { className: 'eyebrow', textContent: 'Reservados' });
-  const heading = createElement('h2', { textContent: 'Separados para usar' });
-  const counter = createElement('span', { className: 'counter', textContent: '0 itens' });
+  const eyebrow = createElement('span', { className: 'eyebrow', textContent: t('documents.reserved.eyebrow') });
+  const heading = createElement('h2', { textContent: t('documents.reserved.heading') });
+  const counter = createElement('span', { className: 'counter', textContent: `0 ${t('documents.results.itemPlural')}` });
   const list = createElement('ul');
   const actions = createElement('div', { className: 'reserved-actions' });
-  const downloadButton = createElement('button', { textContent: 'Baixar ZIP', type: 'button' });
-  const linkButton = createElement('button', { textContent: 'Vincular a cliente', type: 'button' });
-  const openAllButton = createElement('button', { textContent: 'Abrir todos', type: 'button' });
+  const downloadButton = createElement('button', { textContent: t('documents.reserved.downloadZip'), type: 'button' });
+  const linkButton = createElement('button', { textContent: t('documents.reserved.linkToClient'), type: 'button' });
+  const openAllButton = createElement('button', { textContent: t('documents.reserved.openAll'), type: 'button' });
   const clearButton = createElement('button', {
     className: 'secondary-button',
-    textContent: 'Limpar selecao',
+    textContent: t('documents.reserved.clearSelection'),
     type: 'button'
   });
 
@@ -45,7 +46,7 @@ export function createReservedPanel(options: ReservedPanelOptions): {
   clearButton.addEventListener('click', options.onClear);
 
   function setDownloading(isDownloading: boolean): void {
-    downloadButton.textContent = isDownloading ? 'Baixando...' : 'Baixar ZIP';
+    downloadButton.textContent = isDownloading ? t('documents.reserved.downloading') : t('documents.reserved.downloadZip');
     downloadButton.disabled = isDownloading;
   }
 
@@ -53,14 +54,14 @@ export function createReservedPanel(options: ReservedPanelOptions): {
     const downloadableCount = items.filter((item) => !isFolder(item)).length;
 
     list.replaceChildren();
-    counter.textContent = `${items.length} ${items.length === 1 ? 'item' : 'itens'}`;
+    counter.textContent = `${items.length} ${items.length === 1 ? t('documents.results.itemSingular') : t('documents.results.itemPlural')}`;
     downloadButton.disabled = downloadableCount === 0;
     linkButton.disabled = downloadableCount === 0;
     openAllButton.disabled = items.length === 0;
     clearButton.disabled = items.length === 0;
-    
+
     if (items.length === 0) {
-      list.appendChild(emptyState('Nenhum arquivo reservado ainda.', true));
+      list.appendChild(emptyState(t('documents.reserved.empty'), true));
       return;
     }
 
@@ -77,7 +78,7 @@ export function createReservedPanel(options: ReservedPanelOptions): {
       link.target = '_blank';
       link.rel = 'noopener noreferrer';
 
-      remove.setAttribute('aria-label', `Remover ${item.name}`);
+      remove.setAttribute('aria-label', `${t('documents.reserved.removeAriaPrefix')} ${item.name}`);
       remove.addEventListener('click', () => options.onRemove(item));
 
       info.append(link, meta);

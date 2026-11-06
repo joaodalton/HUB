@@ -1,6 +1,7 @@
 import { createIcon } from '../../components/Icon';
 import { createElement } from '../../dom';
 import type { FormularioLinha } from '../../services/rateioFormularioService';
+import { t } from '../../services/i18nService';
 
 export function createEditableTable<T extends { ordem: number; fixa?: boolean }>({ columns, rows, emptyMessage, getRowKey, onChange }: {
   columns: Array<{ key: keyof T; label: string; align?: 'right'; render?: (row: T) => string | HTMLElement; editable?: boolean; onChange?: (row: T, value: string) => void }>;
@@ -16,7 +17,7 @@ export function createEditableTable<T extends { ordem: number; fixa?: boolean }>
   })));
   table.appendChild(header);
   if (!rows.length) {
-    table.appendChild(createElement('p', { className: 'empty-state small', textContent: emptyMessage ?? 'Nenhum registro.' }));
+    table.appendChild(createElement('p', { className: 'empty-state small', textContent: emptyMessage ?? t('rateioFormulario.controls.emptyDefault') }));
     return table;
   }
   rows.forEach((row) => {
@@ -50,13 +51,13 @@ export function createResponsavelField(label: string, value: string, onChange: (
 export function createTermoAdesaoBadge(row: FormularioLinha): HTMLElement {
   const badge = createElement('span', { className: 'termo-badge' });
   if (row.termoAdesaoOk === null) {
-    badge.textContent = 'Associação';
+    badge.textContent = t('rateioFormulario.controls.badgeAssociacao');
     return badge;
   }
   if (row.termoAdesaoOk) {
-    badge.append(createIcon('check'), document.createTextNode('OK')); badge.classList.add('ok');
+    badge.append(createIcon('check'), document.createTextNode(t('rateioFormulario.controls.badgeOk'))); badge.classList.add('ok');
   } else {
-    badge.append(createIcon('pending'), document.createTextNode('Faltando')); badge.classList.add('falta');
+    badge.append(createIcon('pending'), document.createTextNode(t('rateioFormulario.controls.badgeFaltando'))); badge.classList.add('falta');
   }
   return badge;
 }

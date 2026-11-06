@@ -18,7 +18,7 @@ A configuração do projeto só é aplicada quando o repositório é confiável 
 
 ## Regras compartilhadas
 
-Todos os agentes devem seguir `AGENTS.md`, ler `VISAO.md` e `PROGRESS.md` e
+Todos os agentes devem seguir `AGENTS.md`, ler `Documentos/md/product/VISAO.md` e `Documentos/md/history/PROGRESS.md` e
 consultar contratos e documentação do domínio afetados. As instruções globais do
 repositório prevalecem sobre estes perfis.
 

@@ -16,10 +16,6 @@
   .login-page {
     grid-template-columns: 1fr;
   }
-
-  .login-illustration {
-    display: none;
-  }
 }
 
 /* ---------- Lado esquerdo: marca ---------- */
@@ -37,7 +33,27 @@
   overflow: hidden;
 }
 
-/* Decoracao de fundo */
+@media (max-width: 900px) {
+  .login-illustration {
+    display: none;
+  }
+}
+
+.login-illustration-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  z-index: 0;
+}
+
+.login-illustration-video.is-hidden {
+  display: none;
+}
+
+/* Decoracao de fundo + overlay escuro sobre o video pra manter o texto legivel */
 .login-illustration::before {
   content: '';
   position: absolute;
@@ -45,9 +61,11 @@
   left: -50%;
   width: 200%;
   height: 200%;
+  z-index: 1;
   background:
     radial-gradient(circle at 30% 30%, rgba(240, 113, 58, 0.08) 0%, transparent 30%),
-    radial-gradient(circle at 70% 70%, rgba(91, 141, 239, 0.06) 0%, transparent 30%);
+    radial-gradient(circle at 70% 70%, rgba(91, 141, 239, 0.06) 0%, transparent 30%),
+    rgba(10, 14, 23, 0.55);
   animation: float 20s ease-in-out infinite;
 }
 
@@ -56,12 +74,15 @@
   50% { transform: translate(2%, 2%) rotate(2deg); }
 }
 
-.login-illustration-brand {
+.login-illustration-header {
   position: relative;
+  z-index: 2;
+}
+
+.login-illustration-brand {
   display: flex;
   align-items: center;
   gap: 16px;
-  z-index: 1;
 }
 
 .login-illustration-mark {
@@ -70,22 +91,19 @@
   height: 56px;
   flex-shrink: 0;
   border-radius: 14px;
-  background: linear-gradient(135deg, #5b8def 0%, #5b8def 48%, var(--accent) 52%, var(--accent) 100%);
-  box-shadow: 0 8px 32px rgba(240, 113, 58, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   animation: pulse 3s ease-in-out infinite;
 }
 
-@keyframes pulse {
-  0%, 100% { box-shadow: 0 8px 32px rgba(240, 113, 58, 0.3); }
-  50% { box-shadow: 0 8px 48px rgba(240, 113, 58, 0.5); }
+.login-illustration-mark svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
-.login-illustration-mark::after {
-  content: '';
-  position: absolute;
-  inset: 16px;
-  border-radius: 999px;
-  background: #060a13;
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3); }
+  50% { box-shadow: 0 8px 48px rgba(0, 0, 0, 0.5); }
 }
 
 .login-illustration-title {
@@ -96,25 +114,11 @@
 }
 
 .login-illustration-subtitle {
+  position: relative;
   margin: 10px 0 0;
   color: var(--text-dim);
   font-size: 15px;
-}
-
-.login-illustration-art {
-  position: relative;
-  flex: 1;
-  display: grid;
-  place-items: center;
-  min-height: 0;
-  z-index: 1;
-}
-
-.login-illustration-art svg {
-  width: 100%;
-  max-width: 400px;
-  height: auto;
-  filter: drop-shadow(0 0 40px rgba(240, 113, 58, 0.2));
+  z-index: 2;
 }
 
 .login-illustration-tagline {
@@ -125,7 +129,7 @@
   color: var(--text-dim);
   font-size: 15px;
   line-height: 1.5;
-  z-index: 1;
+  z-index: 2;
 }
 
 /* ---------- Lado direito: formulario ---------- */
@@ -367,6 +371,84 @@
   font-size: 11px;
 }
 
+.login-plan-options {
+  display: grid;
+  gap: 10px;
+}
+
+.login-plan-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-input, 10px);
+  background: var(--panel-soft);
+  cursor: pointer;
+  transition: all var(--transition-fast), transform 0.25s ease, opacity 0.25s ease;
+  transform: scale(1);
+  opacity: 1;
+}
+
+.login-plan-option.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-bg);
+  transform: scale(1.02);
+}
+
+.login-plan-options:has(.is-selected) .login-plan-option:not(.is-selected) {
+  opacity: 0.5;
+  transform: scale(0.95);
+}
+
+.login-plan-option input {
+  margin-top: 3px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.login-plan-option-info {
+  display: grid;
+  gap: 2px;
+}
+
+.login-plan-option-name {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.login-plan-option-price {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.login-plan-option-features {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.login-billing-options {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.login-billing-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.login-billing-option input {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
 .login-error {
   margin: 0;
   font-size: 12px;
@@ -375,6 +457,86 @@
   border: 1px solid var(--danger-border);
   border-radius: var(--radius-sm);
   padding: 10px 12px;
+}
+
+/* ---------- Checkout: cabe inteira na tela, sem scroll ---------- */
+
+.checkout-page {
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.checkout-page .login-form-panel {
+  padding: 16px 28px;
+}
+
+.checkout-page .login-form-card {
+  max-width: 380px;
+}
+
+.checkout-page .login-view {
+  gap: 12px;
+}
+
+.checkout-page .login-form-card h1 {
+  font-size: 20px;
+}
+
+.checkout-page .login-form-subtitle {
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+.checkout-page .login-form {
+  gap: 10px;
+}
+
+.checkout-page .login-field {
+  gap: 4px;
+}
+
+.checkout-page .login-field-label {
+  font-size: 11px;
+}
+
+.checkout-page .login-field-input input {
+  height: 36px;
+}
+
+.checkout-page .login-plan-options {
+  gap: 6px;
+}
+
+.checkout-page .login-plan-option {
+  padding: 6px 10px;
+}
+
+.checkout-page .login-plan-option-name {
+  font-size: 13px;
+}
+
+.checkout-page .login-plan-option-price {
+  font-size: 12px;
+}
+
+.checkout-page .login-plan-option-features {
+  font-size: 11px;
+}
+
+.checkout-page .login-billing-options {
+  gap: 10px;
+}
+
+.checkout-page .login-submit-button {
+  height: 38px;
+}
+
+@media (max-width: 480px) {
+  .checkout-page .login-form-panel {
+    padding: 12px 16px;
+    overflow-y: auto;
+  }
 }
 
 /* ---------- Responsive ---------- */

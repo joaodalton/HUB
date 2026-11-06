@@ -1,8 +1,19 @@
-import { apiRequest, type ApiResponse } from './apiClient';
+import { apiRequest, fetchAllPages, type ApiResponse, type Pagination } from './apiClient';
+import { t } from './i18nService';
+import type { UserRole } from './userService';
 
 export type PendenciaTipo = 'pendencia' | 'alerta' | 'erro';
 export type PendenciaPrioridade = 'baixa' | 'media' | 'alta' | 'critica';
 export type PendenciaStatus = 'aberta' | 'resolvida' | 'cancelada';
+export type ResponsavelTipo = 'usuario' | 'cargo';
+
+export const ROLES: UserRole[] = ['owner', 'admin', 'operator', 'financial', 'viewer'];
+
+// Mesmo mapa de UsersPage.ts (roleLabel) -- duplicado de proposito pra nao
+// criar dependencia cruzada entre paginas nao relacionadas.
+export function roleLabel(role: UserRole): string {
+  return t(`nav.role.${role}`);
+}
 
 export const PRIORIDADES: PendenciaPrioridade[] = ['baixa', 'media', 'alta', 'critica'];
 
@@ -43,8 +54,10 @@ export type PendenciaRow = {
   faturaId: number | null;
   prazo: string | null;
   prioridade: PendenciaPrioridade;
+  responsavelTipo: ResponsavelTipo;
   responsavelId: number | null;
   responsavelNome: string | null;
+  responsavelCargo: UserRole | null;
   status: PendenciaStatus;
   metadados: Record<string, unknown> | null;
   criadoEm: string | null;
@@ -63,6 +76,7 @@ export type PendenciaFiltros = {
   tipo?: PendenciaTipo;
   categoria?: string;
   status?: PendenciaStatus;
+  origem?: string;
 };
 
 // So os campos que a criacao manual ('+ Nova Pendencia') usa -- tipo nunca
@@ -77,18 +91,38 @@ export type PendenciaPayload = {
   usinaId: number | null;
   prazo: string;
   prioridade: PendenciaPrioridade;
+  responsavelTipo?: ResponsavelTipo;
+  responsavelId?: number | null;
+  responsavelCargo?: UserRole | null;
 };
 
 
-export async function getPendencias(filtros: PendenciaFiltros = {}): Promise<PendenciaRow[]> {
+function buildPendenciaQuery(filtros: PendenciaFiltros, page?: number, pageSize?: number): string {
   const params = new URLSearchParams();
   if (filtros.tipo) params.set('tipo', filtros.tipo);
   if (filtros.categoria) params.set('categoria', filtros.categoria);
   if (filtros.status) params.set('status', filtros.status);
-
+  if (filtros.origem) params.set('origem', filtros.origem);
+  if (page) params.set('page', String(page));
+  if (pageSize) params.set('pageSize', String(pageSize));
   const query = params.toString();
-  const response = await apiRequest<ApiResponse<PendenciaRow[]>>(`/pendencias${query ? `?${query}` : ''}`);
-  return response.data;
+  return query ? `?${query}` : '';
+}
+
+export type PendenciasPage = { data: PendenciaRow[]; pagination: Pagination };
+
+export async function getPendenciasPage(filtros: PendenciaFiltros = {}, page = 1, pageSize = 50): Promise<PendenciasPage> {
+  const response = await apiRequest<ApiResponse<PendenciaRow[]> & Pick<PendenciasPage, 'pagination'>>(
+    `/pendencias${buildPendenciaQuery(filtros, page, pageSize)}`
+  );
+  return { data: response.data, pagination: response.pagination };
+}
+
+// Lista completa (todas as paginas) -- mantido pra quem precisa da fila
+// inteira (dashboard, agenda, calculos), sem expor paginacao a esses
+// consumidores.
+export async function getPendencias(filtros: PendenciaFiltros = {}): Promise<PendenciaRow[]> {
+  return fetchAllPages((page, pageSize) => getPendenciasPage(filtros, page, pageSize));
 }
 
 export async function getPendenciaResumo(): Promise<PendenciaResumo> {
@@ -160,17 +194,17 @@ export async function verificarPendencias(): Promise<VerificacaoResponse> {
 }
 
 export function tipoLabel(tipo: PendenciaTipo): string {
-  if (tipo === 'alerta') return 'Alerta';
-  if (tipo === 'erro') return 'Erro';
-  return 'Pendência';
+  if (tipo === 'alerta') return t('pendencias.service.tipoAlerta');
+  if (tipo === 'erro') return t('pendencias.service.tipoErro');
+  return t('pendencias.service.tipoPendencia');
 }
 
 export function prioridadeLabel(prioridade: PendenciaPrioridade): string {
   const labels: Record<PendenciaPrioridade, string> = {
-    baixa: 'Baixa',
-    media: 'Média',
-    alta: 'Alta',
-    critica: 'Crítica'
+    baixa: t('pendencias.service.prioridadeBaixa'),
+    media: t('pendencias.service.prioridadeMedia'),
+    alta: t('pendencias.service.prioridadeAlta'),
+    critica: t('pendencias.service.prioridadeCritica')
   };
   return labels[prioridade];
 }
@@ -182,16 +216,22 @@ export function prioridadeTone(prioridade: PendenciaPrioridade): 'neutral' | 'wa
 }
 
 export function statusLabel(status: PendenciaStatus): string {
-  if (status === 'resolvida') return 'Resolvida';
-  if (status === 'cancelada') return 'Cancelada';
-  return 'Aberta';
+  if (status === 'resolvida') return t('pendencias.service.statusResolvida');
+  if (status === 'cancelada') return t('pendencias.service.statusCancelada');
+  return t('pendencias.service.statusAberta');
 }
 
 export function vinculacaoLabel(pendencia: PendenciaRow): string {
   const partes: string[] = [];
-  if (pendencia.clienteNome) partes.push(`Cliente: ${pendencia.clienteNome}`);
-  if (pendencia.ucCodigo) partes.push(`UC: ${pendencia.ucCodigo}`);
-  if (pendencia.usinaNome) partes.push(`Usina: ${pendencia.usinaNome}`);
-  if (pendencia.documentoNome) partes.push(`Documento: ${pendencia.documentoNome}`);
+  if (pendencia.clienteNome) partes.push(`${t('pendencias.service.vinculoCliente')}: ${pendencia.clienteNome}`);
+  if (pendencia.ucCodigo) partes.push(`${t('pendencias.service.vinculoUc')}: ${pendencia.ucCodigo}`);
+  if (pendencia.usinaNome) partes.push(`${t('pendencias.service.vinculoUsina')}: ${pendencia.usinaNome}`);
+  if (pendencia.documentoNome) partes.push(`${t('pendencias.service.vinculoDocumento')}: ${pendencia.documentoNome}`);
   return partes.length > 0 ? partes.join(' · ') : '-';
+}
+
+export function responsavelLabel(pendencia: PendenciaRow): string {
+  if (pendencia.responsavelTipo === 'cargo' && pendencia.responsavelCargo) return `${t('pendencias.service.cargoPrefix')}: ${roleLabel(pendencia.responsavelCargo)}`;
+  if (pendencia.responsavelNome) return pendencia.responsavelNome;
+  return '-';
 }

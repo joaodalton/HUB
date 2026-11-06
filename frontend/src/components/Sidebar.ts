@@ -1,11 +1,13 @@
 import { createElement } from '../dom';
 import { getCurrentUser, logout } from '../services/authService';
 import { createIcon, type IconName } from './Icon';
+import { createLogoMark } from './LogoMark';
 import { getSettings } from '../services/settingsService';
+import { t } from '../services/i18nService';
 
 
 type SidebarLink = {
-  label: string;
+  labelKey: string;
   path: string;
   icon: IconName;
   // false = item do mockup que ainda nao tem pagina de verdade. Fica visivel
@@ -14,7 +16,7 @@ type SidebarLink = {
 };
 
 type SidebarSection = {
-  title?: string;
+  titleKey?: string;
   items: SidebarLink[];
 };
 
@@ -23,36 +25,40 @@ type SidebarSection = {
 // estado real do projeto pra quem olhar a tela.
 export const HUB_VERSION = 'V1.x';
 
-const sections: SidebarSection[] = [
-  {
-    title: 'Operação',
-    items: [
-      { label: 'Clientes', path: '/clientes', icon: 'clients', enabled: true },
-      { label: 'UCs', path: '/ucs', icon: 'ucs', enabled: true },
-      { label: 'Usinas', path: '/usinas', icon: 'plants', enabled: true },
-      { label: 'Rateio', path: '/rateio', icon: 'rateio', enabled: true },
-      { label: 'Documentos', path: '/documentos', icon: 'documents', enabled: true }
-    ]
-  },
-  {
-    title: 'Financeiro',
-    items: [
-      { label: 'Faturas', path: '/faturas', icon: 'faturas', enabled: true },
-      { label: 'Regras de cobrança', path: '/regras-cobranca', icon: 'cobrancas', enabled: true }
-    ]
-  },
-  {
-    title: 'Gestão',
-    items: [
-      { label: 'Dashboard', path: '/dashboard', icon: 'dashboard', enabled: true },
-      { label: 'Templates', path: '/templates', icon: 'templates', enabled: true },
-      { label: 'Mensagens', path: '/mensagens', icon: 'mensagens', enabled: true },
-      { label: 'Pendências', path: '/pendencias', icon: 'pending', enabled: true },
-      { label: 'Agenda', path: '/agenda', icon: 'agenda', enabled: true },
-      { label: 'Configurações', path: '/configuracoes', icon: 'settings', enabled: true }
-    ]
-  }
-];
+function buildSections(): SidebarSection[] {
+  return [
+    {
+      titleKey: 'nav.section.operacao',
+      items: [
+        { labelKey: 'nav.item.clientes', path: '/clientes', icon: 'clients', enabled: true },
+        { labelKey: 'nav.item.ucs', path: '/ucs', icon: 'ucs', enabled: true },
+        { labelKey: 'nav.item.usinas', path: '/usinas', icon: 'plants', enabled: true },
+        { labelKey: 'nav.item.rateio', path: '/rateio', icon: 'rateio', enabled: true },
+        { labelKey: 'nav.item.documentos', path: '/documentos', icon: 'documents', enabled: true }
+      ]
+    },
+    {
+      titleKey: 'nav.section.financeiro',
+      items: [
+        { labelKey: 'nav.item.financeiro', path: '/financeiro', icon: 'pagamentos', enabled: true },
+        { labelKey: 'nav.item.faturas', path: '/faturas', icon: 'faturas', enabled: true },
+        { labelKey: 'nav.item.regrasCobranca', path: '/regras-cobranca', icon: 'cobrancas', enabled: true },
+        { labelKey: 'nav.item.relatorios', path: '/relatorios', icon: 'relatorios', enabled: true }
+      ]
+    },
+    {
+      titleKey: 'nav.section.gestao',
+      items: [
+        { labelKey: 'nav.item.dashboard', path: '/dashboard', icon: 'dashboard', enabled: true },
+        { labelKey: 'nav.item.templates', path: '/templates', icon: 'templates', enabled: true },
+        { labelKey: 'nav.item.mensagens', path: '/mensagens', icon: 'mensagens', enabled: true },
+        { labelKey: 'nav.item.pendencias', path: '/pendencias', icon: 'pending', enabled: true },
+        { labelKey: 'nav.item.agenda', path: '/agenda', icon: 'agenda', enabled: true },
+        { labelKey: 'nav.item.configuracoes', path: '/configuracoes', icon: 'settings', enabled: true }
+      ]
+    }
+  ];
+}
 
 let brandTextElement: HTMLElement | null = null;
 
@@ -64,29 +70,30 @@ export function refreshSidebarBrand(): void { if (brandTextElement) {
 export function createSidebar(): HTMLElement {
   const sidebar = createElement('aside', { className: 'sidebar' });
   const brand = createElement('div', { className: 'sidebar-brand' });
-  const brandMark = createElement('span', { className: 'sidebar-mark', textContent: 'H' });
+  const brandMark = createLogoMark('sidebar-mark');
   brandTextElement = createElement('span', { textContent: getSettings().companyName || 'HUB' });
   brandTextElement.title = brandTextElement.textContent ?? '';
   const nav = createElement('nav', { className: 'sidebar-nav' });
 
   brand.append(brandMark, brandTextElement);
 
-  const visibleSections = sections.map((section) => ({ ...section, items: [...section.items] }));
+  const visibleSections = buildSections().map((section) => ({ ...section, items: [...section.items] }));
   const administrationItems: SidebarLink[] = [
-    { label: 'Usuários', path: '/usuarios', icon: 'clients', enabled: true }
+    { labelKey: 'nav.item.usuarios', path: '/usuarios', icon: 'clients', enabled: true }
   ];
   if (getCurrentUser()?.isPlatformAdmin && !getCurrentUser()?.platformViewEmpresaId) {
-    administrationItems.push({ label: 'HUB Platform', path: '/platform', icon: 'dashboard', enabled: true });
+    administrationItems.push({ labelKey: 'nav.item.platform', path: '/platform', icon: 'dashboard', enabled: true });
+    administrationItems.push({ labelKey: 'nav.item.funcionarios', path: '/platform/funcionarios', icon: 'clients', enabled: true });
   }
-  visibleSections.push({ title: 'Administração', items: administrationItems });
+  visibleSections.push({ titleKey: 'nav.section.administracao', items: administrationItems });
 
   visibleSections.forEach((section) => {
     const sectionElement = createElement('div', { className: 'sidebar-section' });
 
-    if (section.title) {
+    if (section.titleKey) {
       sectionElement.appendChild(createElement('span', {
         className: 'sidebar-section-title',
-        textContent: section.title
+        textContent: t(section.titleKey)
       }));
     }
 
@@ -106,11 +113,12 @@ export function createSidebar(): HTMLElement {
 
 function createSidebarLink(item: SidebarLink): HTMLElement {
   const icon = createIcon(item.icon, 'sidebar-icon');
-  const label = createElement('span', { textContent: item.label });
+  const itemLabel = t(item.labelKey);
+  const label = createElement('span', { textContent: itemLabel });
 
   if (!item.enabled) {
     const disabledLink = createElement('span', { className: 'sidebar-link disabled' });
-    disabledLink.title = 'Em breve';
+    disabledLink.title = t('nav.comingSoon');
     disabledLink.append(icon, label);
     return disabledLink;
   }
@@ -121,8 +129,8 @@ function createSidebarLink(item: SidebarLink): HTMLElement {
   const link = createElement('a', { className: isActive ? 'sidebar-link active' : 'sidebar-link' });
 
   link.href = item.path;
-  link.title = item.label;
-  link.setAttribute('aria-label', item.label);
+  link.title = itemLabel;
+  link.setAttribute('aria-label', itemLabel);
   link.append(icon, label);
   link.addEventListener('click', (event) => {
     event.preventDefault();
@@ -152,7 +160,7 @@ function createUserCard(): HTMLElement {
   if (user?.platformViewEmpresaId) {
     text.appendChild(createElement('span', {
       className: 'sidebar-user-role',
-      textContent: `Visualizando: ${user.platformViewEmpresaNome ?? '—'}`
+      textContent: `${t('nav.viewing')}: ${user.platformViewEmpresaNome ?? '—'}`
     }));
   }
   card.append(avatar, text);
@@ -168,10 +176,10 @@ function createLogoutButton(): HTMLElement {
     className: 'sidebar-logout',
     type: 'button'
   });
-  logoutButton.title = 'Sair';
-  logoutButton.setAttribute('aria-label', 'Sair');
+  logoutButton.title = t('nav.logout');
+  logoutButton.setAttribute('aria-label', t('nav.logout'));
   logoutButton.append(createIcon('login'), createElement('span', {
-    className: 'sidebar-logout-label', textContent: 'Sair'
+    className: 'sidebar-logout-label', textContent: t('nav.logout')
   }));
 
   logoutButton.addEventListener('click', () => {
@@ -190,12 +198,12 @@ function initialsFor(email: string): string {
 }
 
 function roleLabel(role?: string): string {
-  const labels: Record<string, string> = {
-    owner: 'Proprietário',
-    admin: 'Administrador',
-    operator: 'Operacional',
-    financial: 'Financeiro',
-    viewer: 'Visualizador'
+  const keys: Record<string, string> = {
+    owner: 'nav.role.owner',
+    admin: 'nav.role.admin',
+    operator: 'nav.role.operator',
+    financial: 'nav.role.financial',
+    viewer: 'nav.role.viewer'
   };
-  return (role && labels[role]) || role || 'Usuário';
+  return (role && keys[role] && t(keys[role])) || role || t('nav.role.default');
 }

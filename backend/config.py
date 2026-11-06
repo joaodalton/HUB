@@ -45,7 +45,8 @@ class Config:
 
     GOOGLE_DRIVE_SCOPES = os.getenv(
         'GOOGLE_DRIVE_SCOPES',
-        'https://www.googleapis.com/auth/drive.readonly'
+        'https://www.googleapis.com/auth/drive.readonly,'
+        'https://www.googleapis.com/auth/drive.file'
     ).split(',')
 
     # OAuth 2.0 de usuario real (substitui/complementa o credentials.json de service account).
@@ -63,6 +64,10 @@ class Config:
 
     # Pra onde redirecionar de volta depois do callback do Google (a SPA do frontend, nao o backend).
     FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
+
+    # Checkout/cadastro-empresa hospedados em dominio proprio (Cloudflare Pages),
+    # separado do app principal. Vazio = CORS nao libera dominio extra nenhum.
+    MARKETING_URL = os.getenv('MARKETING_URL', '')
 
     # B1 conserva ambiente por instalacao; API keys/tokens cifrados por empresa.
     ASAAS_API_BASE_URL = os.getenv('ASAAS_API_BASE_URL', 'https://api-sandbox.asaas.com/v3')
@@ -93,6 +98,8 @@ class Config:
     ))
     # 100 MiB por arquivo ANEEL; limite exclusivo desta rota, em bytes.
     REGULATORY_TARIFF_MAX_BYTES = int(os.getenv('REGULATORY_TARIFF_MAX_BYTES', str(100 * 1024 * 1024)))
+    # Documento geral (cliente/UC/usina) enviado pra S3; limite exclusivo desta rota, em bytes.
+    DOCUMENT_MAX_BYTES = int(os.getenv('DOCUMENT_MAX_BYTES', str(20 * 1024 * 1024)))
     REGULATORY_TARIFF_TEMP_DIR = os.getenv('REGULATORY_TARIFF_TEMP_DIR', '')
     REGULATORY_TARIFF_MAX_ROWS = int(os.getenv('REGULATORY_TARIFF_MAX_ROWS', '100000'))
     REGULATORY_TARIFF_PREVIEW_TTL_MINUTES = int(os.getenv('REGULATORY_TARIFF_PREVIEW_TTL_MINUTES', '20'))
@@ -166,3 +173,11 @@ class Config:
         'pool_pre_ping': True,
         'pool_recycle': 280
     }
+
+    # Painel "Plataforma > Armazenamento": so leitura, via API do Neon
+    # (console.neon.tech), nunca troca a conexao ativa (SQLALCHEMY_DATABASE_URI
+    # fica fixa no boot). Vazio = card de armazenamento daquele ambiente
+    # some da pagina, mesmo espirito do Sentry/Resend sem chave configurada.
+    NEON_API_KEY = os.getenv('NEON_API_KEY', '')
+    NEON_PROJECT_ID_DEV = os.getenv('NEON_PROJECT_ID_DEV', '')
+    NEON_PROJECT_ID_PROD = os.getenv('NEON_PROJECT_ID_PROD', '')

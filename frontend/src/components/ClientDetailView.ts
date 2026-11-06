@@ -1,5 +1,6 @@
 import { createElement, statusTone } from '../dom';
 import type { ClientRow, ClientUc } from '../services/clientsService';
+import { t } from '../services/i18nService';
 
 type ClientDetailViewOptions = {
   client: ClientRow;
@@ -26,8 +27,8 @@ function createHeader(client: ClientRow, onEdit: () => void, onDelete: () => voi
     textContent: client.status
   });
   const actions = createElement('div', { className: 'detail-actions' });
-  const editButton = createElement('button', { className: 'secondary-button', textContent: 'Editar', type: 'button' });
-  const deleteButton = createElement('button', { className: 'danger-button', textContent: 'Excluir', type: 'button' });
+  const editButton = createElement('button', { className: 'secondary-button', textContent: t('clients.detail.editButton'), type: 'button' });
+  const deleteButton = createElement('button', { className: 'danger-button', textContent: t('clients.detail.deleteButton'), type: 'button' });
 
   editButton.addEventListener('click', onEdit);
   deleteButton.addEventListener('click', onDelete);
@@ -41,16 +42,16 @@ function createHeader(client: ClientRow, onEdit: () => void, onDelete: () => voi
 
 function createInfoPanel(client: ClientRow): HTMLElement {
   const panel = createElement('aside', { className: 'detail-info-panel' });
-  const eyebrow = createElement('span', { className: 'eyebrow', textContent: 'Informações gerais' });
+  const eyebrow = createElement('span', { className: 'eyebrow', textContent: t('clients.detail.infoEyebrow') });
   const grid = createElement('div', { className: 'detail-info-grid' });
 
   grid.append(
-    createInfoField('ID', String(client.id)),
-    createInfoField('CPF', client.cpf),
-    createInfoField('Telefone', client.telefone || 'Não informado'),
-    createInfoField('Email', client.email),
-    createInfoField('Concessionária', client.concessionaria),
-    createInfoField('Data de nascimento', formatBirthDate(client.dataNascimento))
+    createInfoField(t('clients.detail.labelId'), String(client.id)),
+    createInfoField(t('clients.detail.labelCpf'), client.cpf),
+    createInfoField(t('clients.detail.labelPhone'), client.telefone || t('clients.notInformed')),
+    createInfoField(t('clients.detail.labelEmail'), client.email),
+    createInfoField(t('clients.detail.labelUtility'), client.concessionaria),
+    createInfoField(t('clients.detail.labelBirthDate'), formatBirthDate(client.dataNascimento))
   );
 
   panel.append(eyebrow, grid);
@@ -61,9 +62,9 @@ export function createClientUcPanel(client: ClientRow, onAddUc: () => void): HTM
   const section = createElement('aside', { className: 'detail-uc-section' });
   const header = createElement('div', { className: 'panel-title' });
   const titleText = createElement('div');
-  const eyebrow = createElement('span', { className: 'eyebrow', textContent: 'UCs' });
-  const heading = createElement('h2', { textContent: `Unidades consumidoras (${client.ucs.length})` });
-  const addButton = createElement('button', { className: 'small-button', textContent: '+ Nova UC', type: 'button' });
+  const eyebrow = createElement('span', { className: 'eyebrow', textContent: t('clients.detail.ucsEyebrow') });
+  const heading = createElement('h2', { textContent: `${t('clients.detail.ucsHeadingPrefix')} (${client.ucs.length})` });
+  const addButton = createElement('button', { className: 'small-button', textContent: t('clients.detail.ucsAddButton'), type: 'button' });
 
   addButton.addEventListener('click', onAddUc);
   titleText.append(eyebrow, heading);
@@ -73,7 +74,7 @@ export function createClientUcPanel(client: ClientRow, onAddUc: () => void): HTM
   if (client.ucs.length === 0) {
     section.appendChild(createElement('p', {
       className: 'empty-state small',
-      textContent: 'Nenhuma UC vinculada ainda.'
+      textContent: t('clients.detail.ucsEmpty')
     }));
     return section;
   }
@@ -88,9 +89,9 @@ export function createClientUcPanel(client: ClientRow, onAddUc: () => void): HTM
 export function createClientPlantsPanel(client: ClientRow): HTMLElement {
   const section = createElement('section', { className: 'detail-uc-section' });
   const plants = [...new Set(client.ucs.flatMap((uc) => uc.conexoes.map((connection) => connection.usina)))];
-  section.appendChild(createElement('span', { className: 'eyebrow', textContent: 'Usinas vinculadas' }));
+  section.appendChild(createElement('span', { className: 'eyebrow', textContent: t('clients.detail.plantsEyebrow') }));
   if (plants.length === 0) {
-    section.appendChild(createElement('p', { className: 'empty-state small', textContent: 'Nenhuma usina vinculada ainda.' }));
+    section.appendChild(createElement('p', { className: 'empty-state small', textContent: t('clients.detail.plantsEmpty') }));
     return section;
   }
   const list = createElement('div', { className: 'uc-editor-list' });
@@ -108,15 +109,15 @@ function createUcViewCard(uc: ClientUc): HTMLElement {
   const titleGroup = createElement('div', { className: 'uc-summary-title' });
 
   titleGroup.append(
-    createElement('strong', { textContent: uc.codigo || 'UC sem código' }),
-    createElement('span', { textContent: uc.apelido || 'Mais informações' })
+    createElement('strong', { textContent: uc.codigo || t('clients.detail.ucCodeFallback') }),
+    createElement('span', { textContent: uc.apelido || t('clients.detail.ucMoreInfoFallback') })
   );
 
   summary.append(
     titleGroup,
     createElement('span', {
       className: `client-status-badge status-${isConnected ? 'success' : 'warning'}`,
-      textContent: isConnected ? 'Ativa' : 'Sem usina'
+      textContent: isConnected ? t('clients.detail.ucActive') : t('clients.detail.ucNoPlant')
     })
   );
 
@@ -124,11 +125,11 @@ function createUcViewCard(uc: ClientUc): HTMLElement {
   const grid = createElement('div', { className: 'uc-editor-grid' });
 
   grid.append(
-    createInfoField('Consumo', uc.consumo != null ? String(uc.consumo) : '-'),
-    createInfoField('Tarifa', uc.baseTarifaria),
-    createInfoField('Desconto', uc.desconto || '-'),
-    createInfoField('Ligação', uc.tipoLigacao),
-    createInfoField('Usina conectada', isConnected ? uc.conexoes.map((conexao) => conexao.usina).join(', ') : 'Nenhuma')
+    createInfoField(t('clients.detail.ucLabelConsumption'), uc.consumo != null ? String(uc.consumo) : '-'),
+    createInfoField(t('clients.detail.ucLabelTariff'), uc.baseTarifaria),
+    createInfoField(t('clients.detail.ucLabelDiscount'), uc.desconto || '-'),
+    createInfoField(t('clients.detail.ucLabelConnection'), uc.tipoLigacao),
+    createInfoField(t('clients.detail.ucLabelConnectedPlant'), isConnected ? uc.conexoes.map((conexao) => conexao.usina).join(', ') : t('clients.detail.ucNoConnectedPlant'))
   );
 
   body.appendChild(grid);
@@ -141,7 +142,7 @@ function createUcViewCard(uc: ClientUc): HTMLElement {
 // interpretado como UTC meia-noite, e toLocaleDateString com timezone
 // atras de UTC pode mostrar o dia anterior. So um split/reorder de string.
 function formatBirthDate(value: string | null): string {
-  if (!value) return 'Não informado';
+  if (!value) return t('clients.notInformed');
   const [year, month, day] = value.split('-');
   return `${day}/${month}/${year}`;
 }

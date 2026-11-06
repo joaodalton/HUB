@@ -5,7 +5,6 @@ from copy import copy
 from datetime import date
 from pathlib import Path
 
-from flask import g
 from openpyxl import load_workbook
 from openpyxl.worksheet.cell_range import CellRange
 

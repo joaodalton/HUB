@@ -140,6 +140,7 @@ export default defineConfig([
     ".github/skills/**",
     "node_modules/**",
     "dist/**",
+    "dist-marketing/**",
     "build/**",
     "coverage/**",
     "**/*.tsbuildinfo",

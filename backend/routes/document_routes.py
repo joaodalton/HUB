@@ -1,6 +1,9 @@
 # backend/routes/document_routes.py
+from io import BytesIO
+
 from flask import Blueprint, g, redirect, request, send_file, url_for
 
+from extensions import limiter
 from models.fatura_concessionaria import FaturaConcessionaria
 
 from services.document_service import (
@@ -9,23 +12,30 @@ from services.document_service import (
     delete_document,
     get_document,
     list_documents,
+    load_s3_document,
     rename_document,
     resolve_file_path
 )
+from services.log_service import LogService
+from services.object_storage import ObjectStorageError
 from services.permission_service import require_permission
 from utils.api_response import error_response, success_response
+from utils.pagination import get_pagination_params
 
 
 document_routes = Blueprint('document_routes', __name__, url_prefix='/api/v1/documents')
 
 
-# GET /api/v1/documents?clienteId=1&ucId=2 -- lista documentos, filtro opcional por cliente/UC
+# GET /api/v1/documents?clienteId=1&ucId=2&plantId=3&page=1&limit=50 -- lista documentos, filtro opcional por cliente/UC/usina
 @document_routes.route('', methods=['GET'])
 @require_permission('documents.read')
 def index():
     client_id = request.args.get('clienteId', type=int)
     uc_id = request.args.get('ucId', type=int)
-    return success_response(list_documents(client_id, uc_id))
+    plant_id = request.args.get('plantId', type=int)
+    page, page_size = get_pagination_params()
+    documents, pagination = list_documents(client_id, uc_id, plant_id, page=page, page_size=page_size)
+    return success_response(documents, pagination=pagination)
 
 
 @document_routes.route('/<int:document_id>', methods=['GET'])
@@ -39,8 +49,9 @@ def show(document_id: int):
     return success_response(document.to_dict())
 
 
-# POST /api/v1/documents -- multipart/form-data. Campos: arquivo (file), nome, clienteId, ucId, categoriaId
+# POST /api/v1/documents -- multipart/form-data. Campos: arquivo (file), nome, clienteId, ucId, plantId, categoriaId
 @document_routes.route('', methods=['POST'])
+@limiter.limit('10 per minute')
 @require_permission('documents.create')
 def store():
     if 'arquivo' not in request.files or not request.files['arquivo'].filename:
@@ -50,6 +61,7 @@ def store():
         'nome': request.form.get('nome', ''),
         'clienteId': request.form.get('clienteId', type=int),
         'ucId': request.form.get('ucId', type=int),
+        'plantId': request.form.get('plantId', type=int),
         'categoriaId': request.form.get('categoriaId', type=int)
     }
 
@@ -70,6 +82,7 @@ def store():
 # Vincula um arquivo que ja esta no Google Drive a um cliente/UC sem copiar/mover
 # o arquivo -- so cria o registro em Document apontando pro fileId do Drive.
 @document_routes.route('/drive-link', methods=['POST'])
+@limiter.limit('30 per minute')
 @require_permission('documents.create')
 def link_from_drive():
     data = request.get_json(silent=True) or {}
@@ -92,6 +105,7 @@ def link_from_drive():
 
 # PUT /api/v1/documents/<id> -- Body: {nome}. So renomeia, nao troca o arquivo.
 @document_routes.route('/<int:document_id>', methods=['PUT'])
+@limiter.limit('30 per minute')
 @require_permission('documents.update')
 def rename(document_id: int):
     data = request.get_json(silent=True) or {}
@@ -109,6 +123,7 @@ def rename(document_id: int):
 
 
 @document_routes.route('/<int:document_id>', methods=['DELETE'])
+@limiter.limit('30 per minute')
 @require_permission('documents.delete')
 def destroy(document_id: int):
     if not delete_document(document_id):
@@ -137,7 +152,17 @@ def download(document_id: int):
         invoice = FaturaConcessionaria.query.filter_by(
             empresa_id=g.current_empresa_id, document_id=document.id).first()
         if invoice is None:
-            return error_response('Documento nao encontrado.', 404)
+            if document.storage_provider != 's3':
+                return error_response('Documento nao encontrado.', 404)
+            # Documento geral no mesmo storage das faturas, sem vinculo com
+            # FaturaConcessionaria -- stream autenticado via backend, sem presigned URL.
+            try:
+                data, filename = load_s3_document(document)
+            except (ObjectStorageError, ValueError):
+                return error_response('Armazenamento de documentos indisponivel.', 503)
+            LogService.info(acao='download', mensagem=f'Documento {document.id} baixado', entidade='Document')
+            return send_file(BytesIO(data), mimetype=document.mime_type or 'application/octet-stream',
+                              as_attachment=True, download_name=filename)
         if g.current_user.is_platform_admin:
             selected = getattr(g, 'platform_view_empresa_id', None)
             if selected != document.empresa_id:

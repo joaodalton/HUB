@@ -147,7 +147,34 @@ def send_text(conversation_id, data):
     except MetaApiError as exc:
         message.status, message.provider_error = 'failed', str(exc)[:500]
         db.session.commit()
+        _registrar_pendencia_envio_falhou(conversation, exc)
         raise
+
+
+def _registrar_pendencia_envio_falhou(conversation, exc) -> None:
+    """Pendencia de erro (categoria Mensagens). Dedupe simples: nao recria se
+    ja existe pendencia aberta dessa regra para a mesma conversa (evita
+    espanar a tela a cada retry do mesmo envio)."""
+    from models.pendencia import Pendencia
+
+    abertas = Pendencia.query.filter_by(
+        status='aberta', categoria='Mensagens', origem='whatsapp_falhou',
+    ).all()
+    if any(
+        isinstance(p.metadados, dict) and p.metadados.get('conversationId') == conversation.id
+        for p in abertas
+    ):
+        return
+    db.session.add(Pendencia(
+        empresa_id=g.current_empresa_id, tipo='erro', categoria='Mensagens',
+        origem='whatsapp_falhou',
+        titulo=f'Falha ao enviar WhatsApp para {conversation.phone_number}',
+        descricao=str(exc)[:500],
+        client_id=conversation.client_id, consumer_unit_id=conversation.consumer_unit_id,
+        prioridade='media',
+        metadados={'conversationId': conversation.id},
+    ))
+    db.session.commit()
 
 
 def submit_template(template_id):

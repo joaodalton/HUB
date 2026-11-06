@@ -21,11 +21,10 @@ janela de leitura (dia de emissão da UC vs. da usina). Documentação e
 pendência financeira continuam existindo como campos no cadastro da UC, mas
 NÃO bloqueiam mais o funil -- não tem automação real por trás delas ainda.
 """
-from datetime import datetime
+import uuid
 from decimal import Decimal
 
 from flask import g
-from sqlalchemy import func
 
 from extensions import db
 from models.plant import Plant
@@ -33,7 +32,15 @@ from models.consumer_unit import ConsumerUnit, PlantConnection
 from models.rateio_historico import RateioHistorico
 from services.log_service import LogService
 from services import rateio_math as rm
-from services.settings_service import get_all_settings
+from services.rateio_calculo import (
+    _calcular_usina,
+    _checar_qualificacao,
+    _conexoes_por_uc,
+    _global_buffer_config,
+    _percentual_sugerido_uc,
+    _producao_disponivel_usina,
+    _validar_competencia,
+)
 
 
 def _plant(plant_id: int):
@@ -86,8 +93,10 @@ def funil_qualificacao(plant_id: int) -> dict:
         ucs_resultado.append({
             'ucId': uc.id,
             'ucCodigo': uc.codigo,
+            'apelido': uc.apelido,
             'clienteNome': uc.client.nome if uc.client else None,
             'consumo': rm.to_float(uc.consumo),
+            'diaEmissaoFatura': uc.dia_emissao_fatura,
             'percentualSugerido': rm.to_float(percentual_sugerido) if percentual_sugerido is not None else 0.0,
             'qualificado': qualificado,
             'motivo': motivo
@@ -95,6 +104,7 @@ def funil_qualificacao(plant_id: int) -> dict:
 
     return {
         'plantId': plant.id,
+        'diaEmissaoUsina': plant.dia_emissao_usina,
         'totalClientes': len(candidatas),
         'qualificados': qualificados,
         'ucs': ucs_resultado
@@ -111,9 +121,17 @@ def aplicar_rateio(competencia: str, plant_id: int | None = None) -> list[dict]:
     do valor que ja estava."""
     _validar_competencia(competencia)
     resultados = preview_rateio(plant_id)
+    lote = str(uuid.uuid4())
 
+    # Valida TODAS as usinas antes de escrever qualquer coisa (tudo ou nada,
+    # mesma politica de confirmar_selecao/atualizar_distribuicao) -- sem isso,
+    # aplicar_rateio recalculava e gravava percentual mesmo quando a soma dos
+    # calculados ficava acima de 100% (o preview so devolvia 'excedeLimite'
+    # como aviso, nada bloqueava a escrita de fato).
+    atualizacoes = []
     for resultado in resultados:
         plant = _plant(resultado['plantId'])
+        total_projetado = rm.ZERO
 
         for uc_resultado in resultado['ucs']:
             connection = PlantConnection.query.filter_by(
@@ -124,19 +142,29 @@ def aplicar_rateio(competencia: str, plant_id: int | None = None) -> list[dict]:
             if not connection:
                 continue  # aplicar_rateio nao cria conexao nova -- isso e papel do confirmar_selecao
 
-            if not connection.percentual_manual:
-                connection.percentual = rm.to_decimal(uc_resultado['percentualCalculado'])
+            novo_percentual = connection.percentual if connection.percentual_manual else rm.to_decimal(uc_resultado['percentualCalculado'])
+            total_projetado += novo_percentual
+            atualizacoes.append((plant, connection, uc_resultado, novo_percentual))
 
-            db.session.add(RateioHistorico(
-                empresa_id=g.current_empresa_id,
-                competencia=competencia,
-                plant_id=plant.id,
-                consumer_unit_id=uc_resultado['ucId'],
-                percentual=rm.to_decimal(connection.percentual),
-                consumo_considerado=rm.to_decimal(uc_resultado['consumoConsiderado']) if uc_resultado['consumoConsiderado'] is not None else None,
-                producao_considerada=rm.to_decimal(uc_resultado['producaoConsiderada']) if uc_resultado['producaoConsiderada'] is not None else None,
-                manual=connection.percentual_manual
-            ))
+        total_projetado = rm.q2(total_projetado)
+        if rm.excede_limite(total_projetado):
+            raise ValueError(f'Rateio da usina "{plant.nome}" ficaria em {total_projetado}% -- excede 100%. Ajuste antes de aplicar.')
+
+    for plant, connection, uc_resultado, novo_percentual in atualizacoes:
+        if not connection.percentual_manual:
+            connection.percentual = novo_percentual
+
+        db.session.add(RateioHistorico(
+            empresa_id=g.current_empresa_id,
+            competencia=competencia,
+            plant_id=plant.id,
+            consumer_unit_id=uc_resultado['ucId'],
+            percentual=rm.to_decimal(connection.percentual),
+            consumo_considerado=rm.to_decimal(uc_resultado['consumoConsiderado']) if uc_resultado['consumoConsiderado'] is not None else None,
+            producao_considerada=rm.to_decimal(uc_resultado['producaoConsiderada']) if uc_resultado['producaoConsiderada'] is not None else None,
+            manual=connection.percentual_manual,
+            lote=lote
+        ))
 
     db.session.commit()
 
@@ -230,6 +258,7 @@ def confirmar_selecao(plant_id: int, competencia: str, selecoes: list[dict]) -> 
     criadas = 0
     atualizadas = 0
     resultado_ucs = []
+    lote = str(uuid.uuid4())
 
     for uc_id, percentual in selecoes_por_uc.items():
         uc = _uc(uc_id)
@@ -266,7 +295,8 @@ def confirmar_selecao(plant_id: int, competencia: str, selecoes: list[dict]) -> 
             percentual=percentual,
             consumo_considerado=uc.consumo,
             producao_considerada=producao_considerada,
-            manual=True
+            manual=True,
+            lote=lote
         ))
 
         resultado_ucs.append({
@@ -371,163 +401,104 @@ def list_historico(competencia: str | None = None, plant_id: int | None = None, 
     return [registro.to_dict() for registro in registros]
 
 
-def _calcular_usina(plant: Plant) -> dict:
-    warnings: list[str] = []
+def _agrupar_por_lote(registros: list['RateioHistorico']) -> dict[str, list['RateioHistorico']]:
+    """Agrupa linhas de RateioHistorico pela execucao que as gravou.
+    Linha antiga (de antes do campo lote existir) vira um grupo so dela --
+    nao tem como juntar com outras retroativamente."""
+    grupos: dict[str, list[RateioHistorico]] = {}
+    for registro in registros:
+        chave = registro.lote or f'legado-{registro.id}'
+        grupos.setdefault(chave, []).append(registro)
+    return grupos
 
-    producao_media, reserva, producao_disponivel = _producao_disponivel_usina(plant)
-    if plant.producao_media() is None:
-        warnings.append('Usina sem produção cadastrada (nem manual, nem mensal) -- preencha ao menos a produção média antes de calcular.')
 
-    buffer_global_habilitado, buffer_global_percentual = _global_buffer_config()
+def list_historico_execucoes(plant_id: int | None = None) -> list[dict]:
+    """Tela de Historico (aba na pagina de Rateio): uma linha por EXECUCAO
+    (aplicar_rateio ou confirmar_selecao), nao por UC -- mostra quando rodou
+    e em qual usina. Clicar numa linha chama get_historico_execucao()."""
+    query = RateioHistorico.query
+    if plant_id:
+        query = query.filter(RateioHistorico.plant_id == plant_id)
 
-    connections = PlantConnection.query.filter_by(plant_id=plant.id).all()
-    n_usinas_por_uc = _conexoes_por_uc()
+    registros = query.order_by(RateioHistorico.created_at.desc()).all()
+    grupos = _agrupar_por_lote(registros)
 
-    resultado_ucs = []
-    percentual_total_alocado = rm.ZERO
-
-    for connection in connections:
-        uc = connection.consumer_unit
-        if not uc:
-            continue
-
-        # n_usinas_extra=0 -- a conexão JÁ existe (é essa mesma que estamos
-        # percorrendo), então já está contada na query de dentro da função.
-        consumo_considerado, consumo_ajustado, percentual_calculado = _percentual_sugerido_uc(
-            uc, producao_disponivel, buffer_global_habilitado, buffer_global_percentual,
-            n_usinas_extra=0, n_usinas_por_uc=n_usinas_por_uc,
-        )
-
-        if consumo_considerado is None:
-            warnings.append(f'UC {uc.codigo} sem consumo cadastrado -- ignorada no cálculo.')
-            continue
-
-        qualificado, motivo_qualificacao = _checar_qualificacao(plant, uc)
-        buffer_percentual_aplicado = _buffer_percentual_uc(uc, buffer_global_habilitado, buffer_global_percentual)
-
-        resultado_ucs.append({
-            'ucId': uc.id,
-            'ucCodigo': uc.codigo,
-            'clienteNome': uc.client.nome if uc.client else None,
-            'clienteCpfCnpj': uc.documento or (uc.client.cpf if uc.client else None),
-            'consumoTotal': rm.to_float(uc.consumo),
-            'consumoConsiderado': rm.to_float(consumo_considerado),
-            'bufferPercentualAplicado': rm.to_float(buffer_percentual_aplicado),
-            'consumoAjustado': rm.to_float(consumo_ajustado),
-            'producaoConsiderada': rm.to_float(consumo_ajustado),
-            'percentualCalculado': rm.to_float(percentual_calculado),
-            'qualificado': qualificado,
-            'motivoQualificacao': motivo_qualificacao
+    execucoes = []
+    for lote, linhas in grupos.items():
+        primeira = linhas[0]
+        execucoes.append({
+            'lote': lote,
+            'plantId': primeira.plant_id,
+            'usinaNome': primeira.plant.nome if primeira.plant else None,
+            'competencia': primeira.competencia,
+            'criadoEm': max(linha.created_at for linha in linhas).isoformat() if primeira.created_at else None,
+            'quantidadeUcs': len(linhas)
         })
-        percentual_total_alocado += percentual_calculado
 
-    percentual_total_alocado = rm.q2(percentual_total_alocado)
-    excede_limite = rm.excede_limite(percentual_total_alocado)
+    execucoes.sort(key=lambda item: item['criadoEm'] or '', reverse=True)
+    return execucoes
 
-    if excede_limite:
-        warnings.append(f'Soma dos percentuais ({percentual_total_alocado}%) excede 100% -- ajuste antes de aplicar.')
+
+def get_historico_execucao(lote: str) -> dict:
+    """Detalhe de uma execucao: percentual de cada UC NESSA execucao,
+    comparado com a execucao anterior da MESMA usina (se existir), pra
+    marcar cada UC como 'novo' (nao existia antes), 'alterado' (percentual
+    mudou) ou 'igual' (mesma usina, mesmo percentual)."""
+    linhas = RateioHistorico.query.filter(RateioHistorico.lote == lote).all()
+    if not linhas:
+        # fallback pro formato legado 'legado-<id>' (lote null, id da linha)
+        if lote.startswith('legado-'):
+            linha = RateioHistorico.query.filter_by(id=int(lote.removeprefix('legado-'))).first()
+            linhas = [linha] if linha else []
+
+    if not linhas:
+        raise ValueError('Execucao de rateio nao encontrada.')
+
+    plant_id = linhas[0].plant_id
+    criado_em = max(linha.created_at for linha in linhas)
+
+    # Acha a execucao anterior pelo LOTE, nao por created_at exato -- linhas
+    # da mesma execucao podem ter microssegundos diferentes entre si (uma
+    # chamada a datetime.utcnow() por linha), entao comparar timestamp
+    # perdia UCs da propria execucao anterior.
+    todas_da_usina = RateioHistorico.query.filter(RateioHistorico.plant_id == plant_id).all()
+    grupos_da_usina = _agrupar_por_lote(todas_da_usina)
+    grupos_ordenados = sorted(
+        grupos_da_usina.items(),
+        key=lambda item: max(linha.created_at for linha in item[1]),
+        reverse=True
+    )
+
+    percentual_anterior_por_uc: dict[int, Decimal] = {}
+    anterior_criado_em = None
+    for grupo_lote, grupo_linhas in grupos_ordenados:
+        if grupo_lote == lote or max(linha.created_at for linha in grupo_linhas) >= criado_em:
+            continue
+        anterior_criado_em = max(linha.created_at for linha in grupo_linhas)
+        percentual_anterior_por_uc = {linha.consumer_unit_id: linha.percentual for linha in grupo_linhas}
+        break
+
+    ucs = []
+    for linha in sorted(linhas, key=lambda item: (item.consumer_unit.codigo if item.consumer_unit else '')):
+        anterior = percentual_anterior_por_uc.get(linha.consumer_unit_id)
+        if anterior is None:
+            status = 'novo'
+        elif rm.to_decimal(anterior) == rm.to_decimal(linha.percentual):
+            status = 'igual'
+        else:
+            status = 'alterado'
+
+        uc_dict = linha.to_dict()
+        uc_dict['percentualAnterior'] = rm.to_float(anterior) if anterior is not None else None
+        uc_dict['status'] = status
+        ucs.append(uc_dict)
 
     return {
-        'plantId': plant.id,
-        'plantNome': plant.nome,
-        'producaoMedia': rm.to_float(rm.q2(producao_media)),
-        'reservaPercentual': rm.to_float(reserva),
-        'producaoDisponivel': rm.to_float(producao_disponivel),
-        'isCoringa': plant.is_coringa,
-        'percentualTotalAlocado': rm.to_float(percentual_total_alocado),
-        'excedeLimite': excede_limite,
-        'ucs': resultado_ucs,
-        'warnings': warnings
+        'lote': lote,
+        'plantId': plant_id,
+        'usinaNome': linhas[0].plant.nome if linhas[0].plant else None,
+        'competencia': linhas[0].competencia,
+        'criadoEm': criado_em.isoformat() if criado_em else None,
+        'temExecucaoAnterior': anterior_criado_em is not None,
+        'ucs': ucs
     }
-
-
-def _conexoes_por_uc() -> dict[int, int]:
-    """Numero de usinas por UC (da empresa atual), em UMA query -- antes era
-    um count() por UC dentro do loop (N+1 no funil e no preview)."""
-    rows = db.session.query(
-        PlantConnection.consumer_unit_id, func.count(PlantConnection.id)
-    ).group_by(PlantConnection.consumer_unit_id).all()
-    return {uc_id: int(total) for uc_id, total in rows}
-
-
-def _producao_disponivel_usina(plant: Plant) -> tuple[Decimal, Decimal, Decimal]:
-    """Retorna (producao_media, reserva_percentual, producao_disponivel).
-    producao_media() já resolve sozinho manual vs. média dos 12 meses
-    (ver models/plant.py)."""
-    producao_media = rm.to_decimal(plant.producao_media() or 0, campo='producao_media')
-    reserva = rm.to_decimal(plant.reserva_percentual or 0, campo='reserva_percentual')
-    return producao_media, reserva, rm.producao_disponivel(producao_media, reserva)
-
-
-def _buffer_percentual_uc(uc: ConsumerUnit, buffer_global_habilitado: bool, buffer_global_percentual: Decimal) -> Decimal:
-    """Override da UC ganha do valor global, se preenchido. Sem override,
-    só aplica se o toggle global (Configurações > Geral) estiver ligado."""
-    if uc.buffer_percentual is not None:
-        return rm.to_decimal(uc.buffer_percentual, campo='buffer_percentual')
-    if buffer_global_habilitado:
-        return buffer_global_percentual
-    return rm.ZERO
-
-
-def _percentual_sugerido_uc(
-    uc: ConsumerUnit,
-    producao_disponivel: Decimal,
-    buffer_global_habilitado: bool,
-    buffer_global_percentual: Decimal,
-    n_usinas_extra: int = 0,
-    n_usinas_por_uc: dict[int, int] | None = None,
-) -> tuple[Decimal | None, Decimal | None, Decimal | None]:
-    """Conta central do motor: consumo -> ajustado pelo buffer -> percentual
-    da produção disponível. Reutilizada tanto pro cálculo final (UC já
-    conectada) quanto pra pré-visualização de qualificação (UC candidata,
-    ainda não conectada -- por isso o n_usinas_extra).
-    Retorna (consumoConsiderado, consumoAjustado, percentual), todos None se
-    a UC não tiver consumo cadastrado."""
-    if uc.consumo is None:
-        return None, None, None
-
-    if n_usinas_por_uc is None:
-        n_usinas_existentes = PlantConnection.query.filter_by(consumer_unit_id=uc.id).count()
-    else:
-        n_usinas_existentes = n_usinas_por_uc.get(uc.id, 0)
-    n_usinas_da_uc = (n_usinas_existentes + n_usinas_extra) or 1
-
-    buffer_percentual = _buffer_percentual_uc(uc, buffer_global_habilitado, buffer_global_percentual)
-    return rm.percentual_sugerido(uc.consumo, n_usinas_da_uc, buffer_percentual, producao_disponivel)
-
-
-def _checar_qualificacao(plant: Plant, uc: ConsumerUnit) -> tuple[bool, str]:
-    """Único critério ativo hoje: dia de emissão da usina precisa ser igual
-    ou anterior ao dia de emissão da UC (senão a UC entraria tarde demais
-    no ciclo de leitura). Sem dado suficiente, não bloqueia -- fica como
-    'qualificado, mas sem dado pra confirmar'."""
-    if not plant.dia_emissao_usina or not uc.dia_emissao_fatura:
-        return True, 'Sem dado de dia de emissão suficiente para avaliar -- considerado qualificado.'
-
-    if plant.dia_emissao_usina <= uc.dia_emissao_fatura:
-        return True, 'Dia de emissão da usina é igual ou anterior ao da UC.'
-
-    return False, 'Dia de emissão da UC é anterior ao da usina -- não qualificada para esta competência.'
-
-
-def _global_buffer_config() -> tuple[bool, Decimal]:
-    """Valor padrão do buffer de consumo, configurado em Configurações >
-    Geral (Setting key/value, mesma tabela usada por Aparência). Cada UC
-    pode ter um valor próprio (ConsumerUnit.buffer_percentual) que ignora
-    este padrão -- ver _buffer_percentual_uc."""
-    settings = get_all_settings()
-    habilitado = settings.get('rateioBufferHabilitado') == 'true'
-
-    try:
-        percentual = rm.to_decimal(settings.get('rateioBufferPercentual') or 15)
-    except ValueError:
-        percentual = Decimal('15')
-
-    return habilitado, percentual
-
-
-def _validar_competencia(competencia: str) -> None:
-    try:
-        datetime.strptime(competencia, '%Y-%m')
-    except ValueError:
-        raise ValueError('Competencia deve estar no formato YYYY-MM (ex.: 2026-08).')

@@ -1,4 +1,4 @@
-import { apiRequest, type ApiResponse } from './apiClient';
+import { apiRequest, fetchAllPages, type ApiResponse, type Pagination } from './apiClient';
 
 export type PlantConnection = {
   id: number;
@@ -58,9 +58,20 @@ export type ClientPayload = {
 export const concessionarias = ['Copel'];
 
 
+export type ClientsPage = { data: ClientRow[]; pagination: Pagination };
+
+export async function getClientsPage(page = 1, pageSize = 50): Promise<ClientsPage> {
+  const response = await apiRequest<ApiResponse<ClientRow[]> & Pick<ClientsPage, 'pagination'>>(
+    `/clients?page=${page}&pageSize=${pageSize}`
+  );
+  return { data: response.data, pagination: response.pagination };
+}
+
+// Lista completa (todas as paginas) -- mantido pra quem precisa do cadastro
+// inteiro pra selecao/calculo (RateioWizard, FaturasPage, relatorios etc.),
+// sem expor paginacao a esses consumidores.
 export async function getClients(): Promise<ClientRow[]> {
-  const response = await apiRequest<ApiResponse<ClientRow[]>>('/clients');
-  return response.data;
+  return fetchAllPages((page, pageSize) => getClientsPage(page, pageSize));
 }
 
 export async function createClient(data: ClientPayload): Promise<ClientRow> {

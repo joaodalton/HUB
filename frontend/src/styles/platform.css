@@ -10,7 +10,6 @@
 }
 
 .platform-brand { color: var(--info); }
-.platform-brand .sidebar-mark { background: var(--info); }
 
 .platform-callout {
   display: grid;

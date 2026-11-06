@@ -7,13 +7,17 @@ from uuid import uuid4
 
 from flask import g
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from sqlalchemy.orm import selectinload
 
 from extensions import db
 from models.client import Client
 from models.consumer_unit import ConsumerUnit
+from models.calculo_cobranca import BillingCalculationSnapshot
 from models.fatura import Fatura
+from models.fatura_concessionaria import FaturaConcessionaria
 from models.user import User
 from services.asaas_client import AsaasClient, AsaasError, customer_payload, payment_payload
+from services.email_service import send_email
 from services.log_service import LogService
 from services.permission_service import can
 
@@ -25,6 +29,17 @@ class EmissaoPendente(AsaasError):
     def __init__(self, fatura_id):
         super().__init__('Emissao pendente de conciliacao. Repita o mesmo comando; nao crie outra cobranca.')
         self.fatura_id = fatura_id
+
+
+class DadosIncompletosError(ValueError):
+    def __init__(self, missing: list[str]):
+        super().__init__('Dados insuficientes para gerar boleto: ' + ', '.join(missing))
+        self.missing = missing
+
+
+class CalculoCobrancaPendente(ValueError):
+    def __init__(self):
+        super().__init__('Calculo de cobranca pendente. Execute o calculo de cobranca antes de gerar o boleto.')
 
 
 def _autorizar_emissao(empresa_id, user_id):
@@ -58,6 +73,8 @@ def emitir(data: dict, empresa_id: int, user_id: int) -> dict:
     uc = _uc(data.get('ucId'), empresa_id)
     if not client or not uc or uc.client_id != client.id:
         raise ValueError('Cliente ou UC não encontrado.')
+    if not client.email:
+        raise ValueError('Cliente sem email cadastrado.')
     try:
         valor = Decimal(str(data.get('valor'))).quantize(Decimal('0.01'))
         vencimento = date.fromisoformat(data.get('mesVencimento', ''))
@@ -169,11 +186,61 @@ def _concluir_emissao(fatura, payment):
     db.session.commit()
     LogService.info(acao='fatura_emitida', mensagem='Fatura emitida/conciliada via ASAAS.',
                     entidade='Fatura', entidade_id=fatura.id, metadados={'faturaId': fatura.id})
+    try:
+        send_email(
+            to=fatura.client.email,
+            subject='Sua fatura está disponível',
+            html=(f'<p>Sua fatura no valor de R$ {fatura.valor} com vencimento em '
+                  f'{fatura.mes_vencimento.isoformat()} está disponível.</p>'
+                  f'<p><a href="{fatura.boleto_url}">Acessar boleto</a></p>'),
+        )
+    except Exception as exc:
+        LogService.error(acao='fatura_email_falhou',
+                         mensagem='Falha ao notificar cliente por email sobre a fatura emitida.',
+                         entidade='Fatura', entidade_id=fatura.id, metadados={'erro': str(exc)})
     return fatura.to_dict()
 
 
+def gerar_boleto_concessionaria(fatura_concessionaria_id: int, empresa_id: int, user_id: int) -> dict:
+    invoice = FaturaConcessionaria.query.filter_by(
+        id=fatura_concessionaria_id, empresa_id=empresa_id).first()
+    if invoice is None:
+        raise LookupError('Fatura da concessionaria nao encontrada.')
+    missing = []
+    if invoice.consumer_unit_id is None:
+        missing.append('ucId')
+    if invoice.valor_total_concessionaria is None or invoice.valor_total_concessionaria <= 0:
+        missing.append('valor')
+    if invoice.data_vencimento is None:
+        missing.append('dataVencimento')
+    if not invoice.competencia or not re.fullmatch(r'[0-9]{4}-(0[1-9]|1[0-2])', invoice.competencia):
+        missing.append('competencia')
+    if invoice.status_validacao != 'valida':
+        missing.append('statusValidacao')
+    if missing:
+        raise DadosIncompletosError(missing)
+    snapshot = BillingCalculationSnapshot.query.filter_by(
+        empresa_id=empresa_id, fatura_concessionaria_id=invoice.id,
+    ).order_by(BillingCalculationSnapshot.id.desc()).first()
+    if snapshot is None:
+        raise CalculoCobrancaPendente()
+    payload = {
+        'clienteId': invoice.client_id,
+        'ucId': invoice.consumer_unit_id,
+        'valor': str(snapshot.valor_final),
+        'mesVencimento': invoice.data_vencimento.isoformat(),
+        'competencia': invoice.competencia,
+    }
+    return emitir(payload, empresa_id, user_id)
+
+
 def listar(empresa_id: int, filtros: dict) -> list[dict]:
-    query = Fatura.query.filter_by(empresa_id=empresa_id)
+    # Fatura.to_dict() acessa client.nome e consumer_unit.codigo: sem eager
+    # load sao 2 queries extras por fatura (N+1). selectinload resolve em 1
+    # query por relationship, independente do numero de faturas.
+    query = Fatura.query.filter_by(empresa_id=empresa_id).options(
+        selectinload(Fatura.client), selectinload(Fatura.consumer_unit),
+    )
     for field, column in [('clienteId', Fatura.client_id), ('ucId', Fatura.consumer_unit_id), ('status', Fatura.asaas_status), ('competencia', Fatura.competencia)]:
         if filtros.get(field): query = query.filter(column == filtros[field])
     return [item.to_dict() for item in query.order_by(Fatura.created_at.desc()).all()]

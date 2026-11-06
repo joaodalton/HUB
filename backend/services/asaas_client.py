@@ -6,6 +6,7 @@ import requests
 
 from config import Config
 from models.api_credential import ApiCredential
+from services.platform_config_service import get_platform_asaas_credentials
 
 
 class AsaasError(RuntimeError):
@@ -47,6 +48,9 @@ class AsaasTransport:
 
     def criar_cobranca(self, data: dict) -> dict:
         return self._request('POST', '/payments', data)
+
+    def criar_assinatura(self, data: dict) -> dict:
+        return self._request('POST', '/subscriptions', data)
 
     def consultar_cobranca(self, asaas_id: str) -> dict:
         return self._request('GET', f'/payments/{asaas_id}')
@@ -105,7 +109,8 @@ class PlatformAsaasService(AsaasTransport):
     """Platform gateway; never resolves an ApiCredential from a tenant."""
 
     def __init__(self):
-        super().__init__(Config.PLATFORM_ASAAS_API_BASE_URL, Config.PLATFORM_ASAAS_API_KEY)
+        credentials = get_platform_asaas_credentials()
+        super().__init__(credentials['base_url'], credentials['api_key'])
 
 
 def customer_payload(client) -> dict:

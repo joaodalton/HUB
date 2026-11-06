@@ -25,6 +25,7 @@ import uuid
 from decimal import Decimal
 
 from flask import g
+from sqlalchemy.orm import joinedload
 
 from extensions import db
 from models.plant import Plant
@@ -52,7 +53,7 @@ def _uc(uc_id: int):
 
 
 def preview_rateio(plant_id: int | None = None) -> list[dict]:
-    plants = [_plant(plant_id)] if plant_id else Plant.query.all()
+    plants = [_plant(plant_id)] if plant_id else Plant.query.filter_by(empresa_id=g.current_empresa_id).all()
     plants = [p for p in plants if p]
     return [_calcular_usina(plant) for plant in plants]
 
@@ -70,7 +71,8 @@ def funil_qualificacao(plant_id: int) -> dict:
     buffer_global_habilitado, buffer_global_percentual = _global_buffer_config()
 
     ja_conectadas_ids = {c.consumer_unit_id for c in PlantConnection.query.filter_by(plant_id=plant.id).all()}
-    candidatas = [uc for uc in ConsumerUnit.query.all() if uc.id not in ja_conectadas_ids]
+    todas_ucs = ConsumerUnit.query.filter_by(empresa_id=g.current_empresa_id).options(joinedload(ConsumerUnit.client)).all()
+    candidatas = [uc for uc in todas_ucs if uc.id not in ja_conectadas_ids]
     n_usinas_por_uc = _conexoes_por_uc()
 
     ucs_resultado = []
@@ -388,7 +390,9 @@ def atualizar_distribuicao(plant_id: int, atualizacoes: list[dict]) -> dict:
     }
 
 def list_historico(competencia: str | None = None, plant_id: int | None = None, uc_id: int | None = None) -> list[dict]:
-    query = RateioHistorico.query
+    query = RateioHistorico.query.options(
+        joinedload(RateioHistorico.plant), joinedload(RateioHistorico.consumer_unit)
+    )
 
     if competencia:
         query = query.filter(RateioHistorico.competencia == competencia)
@@ -416,7 +420,9 @@ def list_historico_execucoes(plant_id: int | None = None) -> list[dict]:
     """Tela de Historico (aba na pagina de Rateio): uma linha por EXECUCAO
     (aplicar_rateio ou confirmar_selecao), nao por UC -- mostra quando rodou
     e em qual usina. Clicar numa linha chama get_historico_execucao()."""
-    query = RateioHistorico.query
+    query = RateioHistorico.query.options(
+        joinedload(RateioHistorico.plant), joinedload(RateioHistorico.consumer_unit)
+    )
     if plant_id:
         query = query.filter(RateioHistorico.plant_id == plant_id)
 
@@ -444,11 +450,11 @@ def get_historico_execucao(lote: str) -> dict:
     comparado com a execucao anterior da MESMA usina (se existir), pra
     marcar cada UC como 'novo' (nao existia antes), 'alterado' (percentual
     mudou) ou 'igual' (mesma usina, mesmo percentual)."""
-    linhas = RateioHistorico.query.filter(RateioHistorico.lote == lote).all()
+    eager = [joinedload(RateioHistorico.plant), joinedload(RateioHistorico.consumer_unit)]
+    linhas = RateioHistorico.query.options(*eager).filter(RateioHistorico.lote == lote).all()
     if not linhas:
-        # fallback pro formato legado 'legado-<id>' (lote null, id da linha)
         if lote.startswith('legado-'):
-            linha = RateioHistorico.query.filter_by(id=int(lote.removeprefix('legado-'))).first()
+            linha = RateioHistorico.query.options(*eager).filter_by(id=int(lote.removeprefix('legado-'))).first()
             linhas = [linha] if linha else []
 
     if not linhas:
@@ -457,11 +463,7 @@ def get_historico_execucao(lote: str) -> dict:
     plant_id = linhas[0].plant_id
     criado_em = max(linha.created_at for linha in linhas)
 
-    # Acha a execucao anterior pelo LOTE, nao por created_at exato -- linhas
-    # da mesma execucao podem ter microssegundos diferentes entre si (uma
-    # chamada a datetime.utcnow() por linha), entao comparar timestamp
-    # perdia UCs da propria execucao anterior.
-    todas_da_usina = RateioHistorico.query.filter(RateioHistorico.plant_id == plant_id).all()
+    todas_da_usina = RateioHistorico.query.options(*eager).filter(RateioHistorico.plant_id == plant_id).all()
     grupos_da_usina = _agrupar_por_lote(todas_da_usina)
     grupos_ordenados = sorted(
         grupos_da_usina.items(),

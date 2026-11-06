@@ -6,6 +6,7 @@ from pathlib import Path
 from copy import copy
 
 from flask import g
+from sqlalchemy.orm import joinedload
 
 from extensions import db
 from models.client import Client
@@ -128,7 +129,10 @@ def exportar_workbook(empresa_id: int, tipos: set[str] | None = None) -> io.Byte
             continue
         sheet = workbook[name]
         fields = STANDARD_FIELDS[SHEETS[name]]
-        records = model.query.filter_by(empresa_id=empresa_id).order_by(model.id).all()
+        query = model.query.filter_by(empresa_id=empresa_id).order_by(model.id)
+        if model is ConsumerUnit:
+            query = query.options(joinedload(ConsumerUnit.client))
+        records = query.all()
         for index, record in enumerate(records, 2):
             data = record.to_dict()
             if name == 'UCs':
@@ -157,20 +161,25 @@ def confirmar(preview_id: int) -> dict | None:
     plan = preview.plano
     try:
         clients = {}
+        cpfs_existentes = {c.cpf for c in db.session.query(Client.cpf).filter(Client.empresa_id == g.current_empresa_id).all()}
         for row in plan['clientes']:
             cpf = normalize_cpf(row['cpf'])
-            if Client.query.filter(Client.empresa_id == g.current_empresa_id, Client.cpf == cpf).first():
+            if cpf in cpfs_existentes:
                 raise ValueError('Cliente duplicado no banco.')
             client = Client(empresa_id=g.current_empresa_id, nome=normalize_name(row['nome']), cpf=cpf, email=row['email'], telefone=normalize_phone(row['telefone']) if row.get('telefone') else None, concessionaria=row.get('concessionaria') or 'Copel', data_nascimento=_date(row.get('dataNascimento')))
-            db.session.add(client); db.session.flush(); clients[cpf] = client
+            db.session.add(client); db.session.flush(); clients[cpf] = client; cpfs_existentes.add(cpf)
+        ucs_existentes = {(uc.client_id, uc.codigo) for uc in db.session.query(ConsumerUnit.client_id, ConsumerUnit.codigo).filter(ConsumerUnit.empresa_id == g.current_empresa_id).all()}
         for row in plan['ucs']:
             cpf = _digits(row['clienteCpf']); client = clients.get(cpf)
             if not client: raise ValueError('UC referencia cliente ausente no mesmo arquivo.')
             codigo = normalize_uc_code(row['codigo'], row.get('concessionaria') or client.concessionaria)
-            if ConsumerUnit.query.filter(ConsumerUnit.empresa_id == g.current_empresa_id, ConsumerUnit.client_id == client.id, ConsumerUnit.codigo == codigo).first(): raise ValueError('UC duplicada no banco.')
+            if (client.id, codigo) in ucs_existentes: raise ValueError('UC duplicada no banco.')
+            ucs_existentes.add((client.id, codigo))
             db.session.add(ConsumerUnit(empresa_id=g.current_empresa_id, client_id=client.id, codigo=codigo, apelido=row.get('apelido'), documento=normalize_document(row['documento']) if row.get('documento') else None, consumo=_number(row.get('consumo')), base_tarifaria=row.get('baseTarifaria') or 'B1', tipo_ligacao=row.get('tipoLigacao') or 'Monofasico', desconto=row.get('desconto'), dia_emissao_fatura=_integer(row.get('diaEmissaoFatura')), concessionaria=row.get('concessionaria')))
+        usinas_existentes = {(p.nome, p.uc) for p in db.session.query(Plant.nome, Plant.uc).filter(Plant.empresa_id == g.current_empresa_id).all()}
         for row in plan['usinas']:
-            if Plant.query.filter(Plant.empresa_id == g.current_empresa_id, Plant.nome == row['nome'], Plant.uc == row['uc']).first(): raise ValueError('Usina duplicada no banco.')
+            if (row['nome'], row['uc']) in usinas_existentes: raise ValueError('Usina duplicada no banco.')
+            usinas_existentes.add((row['nome'], row['uc']))
             db.session.add(Plant(empresa_id=g.current_empresa_id, nome=row['nome'], uc=row['uc'], kw_pico=_number(row['kwPico']), marca_inversor=row.get('marcaInversor'), telefone_proprietario=row.get('telefoneProprietario'), email_proprietario=row.get('emailProprietario'), cidade=row.get('cidade'), uf=row.get('uf'), endereco=row.get('endereco'), num_modulos=_integer(row.get('numModulos')), producao_media_manual=_number(row.get('producaoMediaManual')), dia_emissao_usina=_integer(row.get('diaEmissaoUsina')), status=row.get('status') or 'Implantacao', responsavel=row.get('responsavel'), concessionaria=row.get('concessionaria')))
         preview.status = 'consumido'
         _audit('import_confirmed', preview, 'sucesso')

@@ -1,4 +1,5 @@
 import io
+import unicodedata
 import zipfile
 from collections import deque
 
@@ -18,6 +19,10 @@ def _escape_drive_literal(value: str) -> str:
     `\\'` fechar a string e injetar operadores (ex.: relaxar `in parents`)."""
     cleaned = ''.join(ch for ch in (value or '') if ch >= ' ')
     return cleaned.replace('\\', '\\\\').replace("'", "\\'")
+
+
+def _strip_accents(text: str) -> str:
+    return ''.join(c for c in unicodedata.normalize('NFD', text or '') if unicodedata.category(c) != 'Mn')
 
 
 class GoogleDriveService:
@@ -44,27 +49,33 @@ class GoogleDriveService:
     ]
 
     def search_files(self, query_text: str) -> list[dict]:
-        # Mesmo escape ja usado em find_duplicate() deste arquivo -- sem isso,
-        # buscar por termo com apostrofo (ex.: "O'Brien") quebra a sintaxe da
-        # query do Drive (erro 400 da API do Google, sem tratamento especifico
-        # em drive_routes.py -- vira 500 cru pro usuario).
-        escaped_query_text = _escape_drive_literal(query_text)
         mime_filter = ' or '.join(f"mimeType='{mime}'" for mime in self._SEARCHABLE_MIME_TYPES)
-        query = (
-            f"name contains '{escaped_query_text}' "
-            f"and ({mime_filter}) "
-            f"and trashed=false"
-        )
-        if self.root_folder_id:
-            query += f" and '{self.root_folder_id}' in parents"
+        # `name contains` do Drive e accent-sensitive: busca o termo original
+        # e, se diferir, tambem o termo sem acentos, deduplicando por file id.
+        termos = [query_text]
+        sem_acento = _strip_accents(query_text)
+        if sem_acento != query_text:
+            termos.append(sem_acento)
 
-        results = self.client.files().list(
-            q=query,
-            fields="files(id, name, mimeType, webViewLink, iconLink, modifiedTime)",
-            pageSize=50
-        ).execute()
+        encontrados: dict = {}
+        for termo in termos:
+            query = (
+                f"name contains '{_escape_drive_literal(termo)}' "
+                f"and ({mime_filter}) "
+                f"and trashed=false"
+            )
+            if self.root_folder_id:
+                query += f" and '{self.root_folder_id}' in parents"
 
-        return results.get('files', [])
+            results = self.client.files().list(
+                q=query,
+                fields="files(id, name, mimeType, webViewLink, iconLink, modifiedTime)",
+                pageSize=50
+            ).execute()
+            for arquivo in results.get('files', []):
+                encontrados.setdefault(arquivo['id'], arquivo)
+
+        return list(encontrados.values())
 
     def list_folder(self, folder_id: str) -> list[dict]:
         try:

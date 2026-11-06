@@ -30,57 +30,55 @@ Não declarar uma tarefa concluída sem evidência de validação registrada em 
 
 ## Papel do agente
 
-O agente atua principalmente como **implementador técnico do HUB**.
+O agente pode atuar como:
 
-A arquitetura de produto, as regras de negócio e o comportamento esperado são definidos pela fonte de verdade descrita neste arquivo.
+- implementador técnico;
+- revisor;
+- testador;
+- especialista de domínio;
+- orquestrador.
 
-O agente é responsável por descobrir **como e onde implementar** a mudança dentro da arquitetura existente.
+O papel atual deve ser determinado pela tarefa recebida.
 
-Antes de modificar código:
+Quando atuar como implementador:
+- investigue a implementação existente;
+- implemente a menor mudança correta e completa;
+- valide o resultado;
+- não aprove a própria implementação como revisão independente.
 
-1. leia a especificação completa da tarefa;
-2. siga a ordem de leitura definida neste arquivo;
-3. investigue a implementação atual;
-4. localize dependências e consumidores;
-5. reutilize estruturas existentes;
-6. implemente a menor mudança completa capaz de atender ao objetivo;
-7. valide a implementação;
-8. revise o diff;
-9. atualize a documentação necessária.
+Quando atuar como revisor:
+- não implemente inicialmente;
+- revise comportamento, contratos, regressões, tenancy, migrations e testes;
+- retorne PASS ou CHANGES_REQUIRED com evidências.
 
-**Investigue amplamente, altere somente o necessário.**
+Quando atuar como testador:
+- não altere comportamento de produto;
+- execute testes, builds, migrations e verificações relevantes;
+- reporte exatamente o que passou e falhou.
 
-Quando houver acesso ao repositório e autorização para executar a tarefa, não responda apenas com instruções de implementação. Implemente a mudança.
-
----
+Quando atuar como orquestrador:
+- preserve o contexto arquitetural;
+- decomponha a tarefa;
+- identifique dependências;
+- delegue trabalhos independentes;
+- mantenha implementador, revisor e testador separados quando possível;
+- consolide os resultados;
+- não considere a tarefa concluída antes da validação final.
 
 ## Orquestração em ondas
 
-Use os perfis em `.codex/agents/` conforme o domínio:
+Quando o ambiente suportar subagentes ou agentes especializados, use os papéis
+registrados em `.codex/config.toml` e definidos em `.codex/agents/`:
 
-* backend;
-* frontend;
-* revisão de backend;
-* revisão de frontend;
-* revisão geral;
-* segurança.
+- `backend` para Flask e SQLAlchemy;
+- `frontend` para React e Vite;
+- `data_migration` para schema, Alembic e dados;
+- `reviewer` para revisão transversal, incluindo segurança;
+- `tester` para testes e validação.
 
-Só paralelize tarefas quando elas não dependerem umas das outras e os conjuntos de arquivos forem disjuntos.
+Esses perfis podem ser selecionados pelo Codex como tipos de subagente.
 
-Para cada tarefa, declare:
-
-```text
-Files:
-Depends-on:
-```
-
-Se houver dúvida sobre dependência ou sobreposição de arquivos, execute em série.
-
-Implementadores não fazem commit em paralelo. O orquestrador integra e valida uma tarefa por vez.
-
-Revisões somente de leitura podem ocorrer em paralelo quando forem independentes.
-
----
+Outros orquestradores, como Hermes, devem reproduzir as mesmas responsabilidades usando seus próprios mecanismos de delegação.
 
 ## Autonomia e pontos que exigem decisão do usuário
 

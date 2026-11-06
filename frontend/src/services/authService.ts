@@ -1,4 +1,4 @@
-import { apiRequest } from './apiClient';
+import { apiRequest, type ApiResponse } from './apiClient';
 
 export type AuthUser = {
   id: number;
@@ -15,11 +15,6 @@ export type AuthUser = {
   homeEmpresaId?: number;
 };
 
-type ApiResponse<T> = {
-  success: boolean;
-  message: string;
-  data: T;
-};
 
 let cachedUser: AuthUser | null = null;
 let sessionChecked = false;

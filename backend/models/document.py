@@ -13,7 +13,8 @@ class Document(TenantMixin, db.Model):
     category_id = db.Column(db.Integer, db.ForeignKey('categories.id'), nullable=True)
 
     nome = db.Column(db.String(255), nullable=False)
-    # 'local' (arquivo salvo pelo backend) ou 'google_drive' (referencia a um file id do Drive).
+    # 's3' para novos PDFs privados, 'google_drive' e 'local' para legados;
+    # storage_ref guarda a chave opaca ou a referencia do provider registrado.
     storage_provider = db.Column(db.String(30), nullable=False, default='local')
     storage_ref = db.Column(db.String(500), nullable=True)
     mime_type = db.Column(db.String(100), nullable=True)

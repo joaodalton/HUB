@@ -2,6 +2,7 @@
 from datetime import datetime
 
 from flask import g
+from sqlalchemy.orm import selectinload
 
 from extensions import db
 from models.pendencia import Pendencia, PendenciaComentario, PRIORIDADES
@@ -12,7 +13,14 @@ def _tenant(model, identifier): return model.query.filter_by(id=identifier, empr
 
 def list_pendencias(filtros: dict) -> list[dict]:
     # Filtro automatico via TenantMixin (extensions.py)
-    query = Pendencia.query
+    query = Pendencia.query.options(
+        selectinload(Pendencia.client),
+        selectinload(Pendencia.consumer_unit),
+        selectinload(Pendencia.plant),
+        selectinload(Pendencia.document),
+        selectinload(Pendencia.responsavel),
+        selectinload(Pendencia.comentarios).selectinload(PendenciaComentario.autor),
+    )
 
     if filtros.get('tipo'):
         query = query.filter(Pendencia.tipo == filtros['tipo'])

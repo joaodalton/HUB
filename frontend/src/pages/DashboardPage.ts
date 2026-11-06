@@ -1,5 +1,6 @@
 import { createIcon } from '../components/Icon';
 import { createIconStatCard, type IconStatCardProps } from '../components/IconStatCard';
+import { createListSkeleton } from '../components/UiState';
 import { createElement } from '../dom';
 import { useGlobalLoading } from '../hooks/useGlobalLoading';
 import { createBaseLayout } from '../layouts/BaseLayout';
@@ -37,10 +38,7 @@ export function createDashboardPage(): HTMLElement {
 
   function render(): void {
     if (!resumo && !loadError) {
-      content.replaceChildren(createElement('section', {
-        className: 'dashboard-state loading-state',
-        textContent: 'Carregando resumo operacional...'
-      }));
+      content.replaceChildren(createListSkeleton(6));
       return;
     }
 
@@ -65,31 +63,28 @@ export function createDashboardPage(): HTMLElement {
       { label: 'Concluídas no mês', value: String(resumo.pendencias.resolvidasNoMes), chipColor: 'green', icon: 'check', onClick: () => navigate('/pendencias') }
     ];
 
-    const entityMetrics = [
+    const entityMetrics: Array<IconStatCardProps | null> = [
       metricForEntity('Clientes', resumo.clientes, 'clients', '/clientes'),
       metricForEntity('UCs', resumo.ucs, 'ucs', '/ucs'),
       metricForEntity('Usinas', resumo.usinas, 'plants', '/usinas'),
       metricForEntity('Documentos', resumo.documentos, 'documents', '/documentos')
     ];
+    const availableEntityMetrics = entityMetrics.filter((metric): metric is IconStatCardProps => metric !== null);
 
     const summary = createElement('section', { className: 'dashboard-summary' });
     summary.append(
       createElement('span', { className: 'dashboard-updated', textContent: `Atualizado ${formatDateTime(resumo.geradoEm)}` }),
       createElement('h2', { textContent: 'Operação' }),
-      createStatGrid(operationalMetrics),
-      createElement('h2', { textContent: 'Cadastros' }),
-      createStatGrid(entityMetrics),
-      createStatusCharts(resumo)
+      createStatGrid(operationalMetrics)
     );
+    if (availableEntityMetrics.length) summary.append(createElement('h2', { textContent: 'Cadastros' }), createStatGrid(availableEntityMetrics));
 
     content.replaceChildren(summary, createQueue(resumo.pendencias.fila));
   }
 }
 
-function metricForEntity(label: string, data: DashboardContagem, icon: IconStatCardProps['icon'], path: string): IconStatCardProps {
-  if (!data.disponivel) {
-    return { label: `${label} sem permissão`, value: '—', chipColor: 'purple', icon };
-  }
+function metricForEntity(label: string, data: DashboardContagem, icon: IconStatCardProps['icon'], path: string): IconStatCardProps | null {
+  if (!data.disponivel || data.total === null) return null;
   return { label, value: String(data.total ?? 0), chipColor: 'blue', icon, onClick: () => navigate(path) };
 }
 
@@ -97,45 +92,6 @@ function createStatGrid(metrics: IconStatCardProps[]): HTMLElement {
   const grid = createElement('section', { className: 'metric-grid' });
   metrics.forEach((metric) => grid.appendChild(createIconStatCard(metric)));
   return grid;
-}
-
-function createStatusCharts(resumo: DashboardResumo): HTMLElement {
-  const grid = createElement('section', { className: 'dashboard-status-grid' });
-  [
-    ['Status dos clientes', resumo.clientes],
-    ['Status das usinas', resumo.usinas]
-  ].forEach(([title, data]) => {
-    const chart = createStatusChart(title as string, data as DashboardContagem);
-    if (chart) grid.appendChild(chart);
-  });
-  return grid;
-}
-
-function createStatusChart(title: string, data: DashboardContagem): HTMLElement | null {
-  const entries = Object.entries(data.porStatus ?? {}).filter(([, count]) => count > 0);
-  if (!data.disponivel || entries.length === 0) return null;
-
-  const colors = ['var(--accent-secondary)', 'var(--success-vivid)', 'var(--warning-vivid)', 'var(--danger-vivid)', 'var(--chip-purple-fg)'];
-  const total = entries.reduce((sum, [, count]) => sum + count, 0);
-  let offset = 0;
-  const stops = entries.map(([, count], index) => {
-    const end = offset + (count / total) * 100;
-    const stop = `${colors[index % colors.length]} ${offset}% ${end}%`;
-    offset = end;
-    return stop;
-  });
-  const panel = createElement('section', { className: 'dashboard-status-chart' });
-  const donut = createElement('span', { className: 'dashboard-donut' });
-  donut.style.background = `conic-gradient(${stops.join(', ')})`;
-  donut.appendChild(createElement('span', { textContent: String(total) }));
-  const legend = createElement('div', { className: 'dashboard-status-legend' });
-  entries.forEach(([status, count], index) => {
-    const item = createElement('span', { textContent: `${status}: ${count}` });
-    item.style.setProperty('--status-color', colors[index % colors.length]);
-    legend.appendChild(item);
-  });
-  panel.append(createElement('h2', { textContent: title }), donut, legend);
-  return panel;
 }
 
 function createQueue(items: DashboardPendencia[]): HTMLElement {
@@ -163,8 +119,8 @@ function createQueue(items: DashboardPendencia[]): HTMLElement {
   const list = createElement('div', { className: 'dashboard-queue-list' });
   items.forEach((item) => {
     const row = createElement('a', { className: 'dashboard-queue-item' });
-    row.href = '/pendencias';
-    row.addEventListener('click', (event) => { event.preventDefault(); navigate('/pendencias'); });
+    row.href = `/pendencias?selecionada=${item.id}`;
+    row.addEventListener('click', (event) => { event.preventDefault(); navigate(row.href); });
     const info = createElement('div', { className: 'dashboard-queue-info' });
     info.append(
       createElement('strong', { textContent: item.titulo }),

@@ -6,10 +6,49 @@ import sys
 import tempfile
 import unittest
 import importlib.util
+from contextlib import closing
 from pathlib import Path
 
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(BACKEND_DIR))
+
+
+def _run_migration_in_process(database_path: Path, command: str, revision: str | None = None) -> subprocess.CompletedProcess:
+    import contextlib
+    import io
+    import logging
+
+    from flask import Flask
+    from flask_migrate import Migrate, downgrade, upgrade
+
+    from extensions import db
+
+    app = Flask('hub-migrations-test')
+    app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{database_path.as_posix()}"
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    db.init_app(app)
+    Migrate(app, db, directory=str(BACKEND_DIR / 'migrations'), render_as_batch=True)
+
+    # migrations/env.py chama fileConfig(alembic.ini), que reconfigura o logging
+    # (handlers para sys.stderr) a cada execucao -- um handler proprio seria
+    # descartado. Redirecionar stdout/stderr durante a execucao captura tudo,
+    # inclusive o "Error: <guarda>" que flask_migrate loga antes do sys.exit(1).
+    out, err = io.StringIO(), io.StringIO()
+    returncode = 0
+    try:
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err), app.app_context():
+            runner = {'upgrade': upgrade, 'downgrade': downgrade}[command]
+            runner(revision=revision or ('head' if command == 'upgrade' else '-1'))
+    except BaseException as exc:  # SystemExit(1) de flask_migrate ou excecao direta da migration
+        returncode = 1
+        err.write(f'\n{type(exc).__name__}: {exc}')
+    finally:
+        logging.getLogger('alembic').handlers.clear()
+        logging.getLogger('flask_migrate').handlers.clear()
+        with app.app_context():
+            db.engine.dispose()
+    return subprocess.CompletedProcess(args=[command, revision], returncode=returncode, stdout=out.getvalue(), stderr=err.getvalue())
 
 
 def _load_migration(filename: str):
@@ -22,24 +61,220 @@ def _load_migration(filename: str):
 
 
 class SQLiteMigrationsTest(unittest.TestCase):
-    def _environment(self, database_path: Path) -> dict:
-        environment = os.environ.copy()
-        environment.update({
-            'DATABASE_URL': f"sqlite:///{database_path.as_posix()}",
-            'SECRET_KEY': 'sqlite-migration-test-secret',
-            'FLASK_DEBUG': 'true',
-        })
-        return environment
+    def test_platform_asaas_ledger_upgrade_preserves_previous_schema_and_guards_data(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'platform-asaas.db'
+            before = self._flask(path, 'upgrade', 'v6b9d4e8f3a1')
+            self.assertEqual(before.returncode, 0, before.stdout + before.stderr)
+            with closing(sqlite3.connect(path)) as connection:
+                tenant_schema = connection.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='payment_webhook_events'").fetchone()[0]
+            upgraded = self._flask(path, 'upgrade', 'head')
+            self.assertEqual(upgraded.returncode, 0, upgraded.stdout + upgraded.stderr)
+            with closing(sqlite3.connect(path)) as connection:
+                self.assertEqual(connection.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='payment_webhook_events'").fetchone()[0], tenant_schema)
+                self.assertEqual(connection.execute('SELECT version_num FROM alembic_version').fetchone()[0], 'w7c0e5f9a4b2')
+                connection.execute("INSERT INTO platform_asaas_webhook_events (event_id,event_type,external_payment_id,payload_hash,received_at) VALUES ('evt_1','PAYMENT_RECEIVED','pay_1',?,CURRENT_TIMESTAMP)", ('a' * 64,))
+                connection.commit()
+                with self.assertRaises(sqlite3.IntegrityError):
+                    connection.execute("INSERT INTO platform_asaas_webhook_events (event_id,event_type,external_payment_id,payload_hash,received_at) VALUES ('evt_1','PAYMENT_RECEIVED','pay_2',?,CURRENT_TIMESTAMP)", ('b' * 64,))
+            downgrade = self._flask(path, 'downgrade', 'v6b9d4e8f3a1')
+            self.assertNotEqual(downgrade.returncode, 0)
+            self.assertIn('preservar eventos ASAAS da plataforma', downgrade.stdout + downgrade.stderr)
+
+    def test_cad1_client_name_upgrade_preserves_legacy_and_downgrade_guards_long_name(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'cad1.db'
+            result = self._flask(path, 'upgrade', 'u5a8c3d7e2f9')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection, connection:
+                connection.execute("INSERT INTO clients (id,empresa_id,nome,cpf,email,concessionaria,status) "
+                                   "VALUES (991,1,?, '52998224725','cad@example.com','Copel','Esperando usina')", ('A' * 150,))
+            result = self._flask(path, 'upgrade', 'head')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection, connection:
+                self.assertEqual(connection.execute('SELECT nome FROM clients WHERE id=991').fetchone()[0], 'A' * 150)
+                connection.execute('UPDATE clients SET nome=? WHERE id=991', ('B' * 200,))
+            result = self._flask(path, 'downgrade', 'u5a8c3d7e2f9')
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('truncate data', result.stdout + result.stderr)
+
+    def test_c42_grace_policy_upgrade_preserves_legacy_dates_and_guards_downgrade(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'grace-policy.db'
+            result = self._flask(path, 'upgrade', 'o9c4e8f1a3b5')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection, connection:
+                connection.execute("INSERT INTO grupos_regra_cobranca "
+                    "(id,empresa_id,nome,ativo,padrao,calculation_method,tariff_source,manual_tariff,"
+                    "discount_type,tariff_basis,billing_mode,due_date_basis,due_date_offset_days,revision,created_at,updated_at,"
+                    "grace_enabled,grace_without_discount,grace_start,grace_end) "
+                    "VALUES (100,1,'Legado carencia',1,1,'energia_compensada','manual',0.123456,'none','consumed',"
+                    "'auto','invoice_due_date',0,7,'2026-09-16','2026-09-16',1,1,'2026-09-01','2026-09-30')")
+                legacy = connection.execute('SELECT * FROM grupos_regra_cobranca').fetchone()
+            for command, target in (('upgrade', 'head'), ('downgrade', 'o9c4e8f1a3b5'), ('upgrade', 'head')):
+                result = self._flask(path, command, target)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                with closing(sqlite3.connect(path)) as connection:
+                    actual = connection.execute('SELECT * FROM grupos_regra_cobranca').fetchone()
+                    self.assertEqual(actual[:len(legacy)], legacy)
+                    self.assertTrue(all(value is None for value in actual[len(legacy):]))
+            with closing(sqlite3.connect(path)) as connection, connection:
+                with self.assertRaises(sqlite3.IntegrityError):
+                    connection.execute('UPDATE grupos_regra_cobranca SET grace_duration_months=0')
+                connection.execute('UPDATE grupos_regra_cobranca SET grace_duration_months=3')
+            result = self._flask(path, 'downgrade', 'o9c4e8f1a3b5')
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('preservar duracao de carencia C4.2', result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection:
+                self.assertEqual(connection.execute('SELECT grace_duration_months,grace_start,revision FROM grupos_regra_cobranca').fetchone(),
+                                 (3, '2026-09-01', 7))
+                self.assertEqual(connection.execute('SELECT version_num FROM alembic_version').fetchone()[0], 'p0d5f9a2b4c6')
+
+    def test_c42_postgresql_upgrade_sql(self):
+        from io import StringIO
+        from alembic.migration import MigrationContext
+        from alembic.operations import Operations
+        migration = _load_migration('p0d5f9a2b4c6_grace_policy_duration.py')
+        output = StringIO()
+        context = MigrationContext.configure(dialect_name='postgresql', opts={'as_sql': True, 'output_buffer': output})
+        with Operations.context(context):
+            migration.upgrade()
+        sql = output.getvalue()
+        self.assertIn('ADD COLUMN grace_duration_months INTEGER', sql)
+        self.assertIn('ck_grupo_regra_grace_duration', sql)
+        self.assertNotIn('UPDATE ', sql)
+        self.assertNotIn('DROP COLUMN', sql)
+
+    def test_c41_postgresql_upgrade_sql(self):
+        from io import StringIO
+        from alembic.migration import MigrationContext
+        from alembic.operations import Operations
+        migration = _load_migration('o9c4e8f1a3b5_billing_tariff_configuration.py')
+        output = StringIO()
+        context = MigrationContext.configure(dialect_name='postgresql',
+            opts={'as_sql': True, 'output_buffer': output})
+        with Operations.context(context):
+            migration.upgrade()
+        sql = output.getvalue()
+        self.assertIn('ADD COLUMN tariff_hp NUMERIC(18, 6)', sql)
+        self.assertIn('ADD COLUMN grace_start DATE', sql)
+        self.assertIn("icms_policy = 'exclude'", sql)
+        self.assertIn('ck_grupo_regra_fixed_discount', sql)
+        self.assertNotIn('UPDATE ', sql)
+
+    def test_c41_legacy_upgrade_roundtrip_constraints_and_lossless_downgrade_guard(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'commercial.db'
+            result = self._flask(path, 'upgrade', 'n8b3d7e0f2a4')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection, connection:
+                connection.execute("INSERT INTO grupos_regra_cobranca "
+                    "(id,empresa_id,nome,ativo,padrao,calculation_method,tariff_source,manual_tariff,"
+                    "discount_type,tariff_basis,billing_mode,due_date_basis,due_date_offset_days,revision,created_at,updated_at) "
+                    "VALUES (100,1,'Legado',1,1,'energia_compensada','manual',0.123456,'none','consumed',"
+                    "'auto','invoice_due_date',0,7,'2026-09-16','2026-09-16')")
+                connection.execute("INSERT INTO regra_cobranca_assignments "
+                    "(empresa_id,grupo_regra_cobranca_id,scope_type,ativo,created_at,updated_at) "
+                    "VALUES (1,100,'company',1,'2026-09-16','2026-09-16')")
+                legacy = connection.execute('SELECT * FROM grupos_regra_cobranca').fetchone()
+                assignments = connection.execute('SELECT * FROM regra_cobranca_assignments').fetchall()
+            for command, target in (('upgrade', 'o9c4e8f1a3b5'), ('downgrade', 'n8b3d7e0f2a4'),
+                                    ('upgrade', 'o9c4e8f1a3b5')):
+                result = self._flask(path, command, target)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                with closing(sqlite3.connect(path)) as connection:
+                    row = connection.execute('SELECT * FROM grupos_regra_cobranca').fetchone()
+                    self.assertEqual(row[:len(legacy)], legacy)
+                    self.assertTrue(all(value is None for value in row[len(legacy):]))
+                    self.assertEqual(connection.execute('SELECT * FROM regra_cobranca_assignments').fetchall(), assignments)
+                    self.assertEqual(connection.execute('PRAGMA foreign_key_check').fetchall(), [])
+            with closing(sqlite3.connect(path)) as connection, connection:
+                for update in ("icms_policy='include'", "grace_start='2026-09-01'",
+                               "grace_without_discount=1", "calculation_method='tarifa_fixa_com_desconto'"):
+                    with self.subTest(update=update), self.assertRaises(sqlite3.IntegrityError):
+                        connection.execute('UPDATE grupos_regra_cobranca SET ' + update)
+                connection.execute("UPDATE grupos_regra_cobranca SET icms_policy='exclude',tariff_hfp=0.734821")
+            result = self._flask(path, 'downgrade', 'n8b3d7e0f2a4')
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('preservar configuracoes comerciais C4.1', result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection:
+                self.assertEqual(connection.execute('SELECT version_num FROM alembic_version').fetchone()[0], 'o9c4e8f1a3b5')
+                self.assertEqual(connection.execute('SELECT icms_policy,tariff_hp FROM grupos_regra_cobranca').fetchone(), ('exclude', None))
+
+    def test_fixed_discount_optional_upgrade_preserves_legacy_and_guards_downgrade(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'fixed-discount.db'
+            result = self._flask(path, 'upgrade', 't4d9e2a7c1b5')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            statement = (
+                "INSERT INTO grupos_regra_cobranca "
+                "(id,empresa_id,nome,ativo,padrao,calculation_method,tariff_source,manual_tariff,"
+                "discount_type,discount_value,tariff_basis,billing_mode,due_date_basis,"
+                "due_date_offset_days,revision,created_at,updated_at) VALUES "
+                "(?,1,?,1,0,'tarifa_fixa_com_desconto','manual',0.654321,?,?,"
+                "'compensated','auto','invoice_due_date',0,1,'2026-09-24','2026-09-24')"
+            )
+            with closing(sqlite3.connect(path)) as connection, connection:
+                connection.execute(statement, (101, 'Legada', 'percentage', 15))
+            result = self._flask(path, 'upgrade', 'head')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection, connection:
+                self.assertEqual(connection.execute(
+                    'SELECT discount_type,discount_value FROM grupos_regra_cobranca WHERE id=101'
+                ).fetchone(), ('percentage', 15))
+                connection.execute(statement, (102, 'Sem desconto no grupo', 'none', None))
+                with self.assertRaises(sqlite3.IntegrityError):
+                    connection.execute(statement, (103, 'Fixo invalido', 'fixed', 1))
+            result = self._flask(path, 'downgrade', 't4d9e2a7c1b5')
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('preservar regras sem desconto no grupo', result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection, connection:
+                connection.execute('DELETE FROM grupos_regra_cobranca WHERE id=102')
+            result = self._flask(path, 'downgrade', 't4d9e2a7c1b5')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection:
+                self.assertEqual(connection.execute(
+                    'SELECT discount_type,discount_value FROM grupos_regra_cobranca WHERE id=101'
+                ).fetchone(), ('percentage', 15))
+
+    def test_b2_upgrade_preserves_faturas_and_downgrade_preserves_event_ledger(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'webhook.db'
+            result = self._flask(path, 'upgrade', 'j4d9e3f8a6b0')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection, connection:
+                connection.execute("INSERT INTO clients (id,nome,cpf,email,concessionaria,status,empresa_id) VALUES (100,'A','12345678901','a@test.local','Copel','ativo',1)")
+                connection.execute("INSERT INTO consumer_units (id,client_id,codigo,empresa_id,base_tarifaria,tipo_ligacao) VALUES (100,100,'UC',1,'B1','Monofasico')")
+                connection.execute("INSERT INTO faturas (id,empresa_id,client_id,consumer_unit_id,concessionaria,competencia,valor,mes_vencimento,asaas_id,asaas_status,created_at,updated_at) VALUES (100,1,100,100,'Copel','2026-09',10.25,'2026-10-05','pay_legacy','received','2026-09-01','2026-09-01')")
+                original = connection.execute('SELECT * FROM faturas').fetchall()
+            for command, target in (('upgrade', 'head'), ('downgrade', 'j4d9e3f8a6b0'), ('upgrade', 'head')):
+                result = self._flask(path, command, target)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                with closing(sqlite3.connect(path)) as connection:
+                    self.assertEqual(connection.execute('SELECT * FROM faturas').fetchall(), original)
+            with closing(sqlite3.connect(path)) as connection, connection:
+                indexes = {r[1] for r in connection.execute('PRAGMA index_list(payment_webhook_events)')}
+                self.assertTrue({'ix_payment_webhook_events_empresa_id', 'ix_payment_webhook_events_fatura_id'} <= indexes)
+                statement = "INSERT INTO payment_webhook_events (empresa_id,fatura_id,provider,event_id,event_type,external_payment_id,payload_hash,processed_at,created_at) VALUES (1,100,'asaas','evt_unique','PAYMENT_RECEIVED','pay_legacy','hash','2026-09-14','2026-09-14')"
+                connection.execute(statement)
+                with self.assertRaises(sqlite3.IntegrityError):
+                    connection.execute(statement)
+            result = self._flask(path, 'downgrade', 'j4d9e3f8a6b0')
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('preservar ledger de webhook', result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection:
+                self.assertEqual(connection.execute('SELECT COUNT(*) FROM payment_webhook_events').fetchone()[0], 1)
+                self.assertEqual(connection.execute('SELECT * FROM faturas').fetchall(), original)
+                self.assertEqual(connection.execute('SELECT version_num FROM alembic_version').fetchone()[0], 'k5e0f4a9b7c1')
 
     def _flask(self, database_path: Path, *args: str) -> subprocess.CompletedProcess:
-        return subprocess.run(
-            [sys.executable, '-m', 'flask', '--app', 'app', 'db', *args],
-            cwd=BACKEND_DIR,
-            env=self._environment(database_path),
-            text=True,
-            capture_output=True,
-            check=False,
-        )
+        """Executa `flask db <upgrade|downgrade> [rev]` EM PROCESSO.
+
+        A versao anterior abria um subprocesso por chamada (56 por suite), cada
+        um importando app.py inteiro (google-api-client, boto3, reportlab,
+        sentry): era a causa estrutural do timeout de 180 s no CI. Mantem a
+        mesma interface (returncode/stdout/stderr) para os testes nao mudarem."""
+        return _run_migration_in_process(database_path, *args)
 
     def test_legacy_numeric_normalizers_accept_valid_and_reject_malformed_data(self):
         migration = _load_migration('e5f9a3b2c7d4_consumo_percentual_numeric.py')
@@ -69,18 +304,151 @@ class SQLiteMigrationsTest(unittest.TestCase):
             try:
                 revision = connection.execute('SELECT version_num FROM alembic_version').fetchone()[0]
                 columns = {row[1] for row in connection.execute('PRAGMA table_info(api_credentials)')}
+                uc_columns = {row[1] for row in connection.execute('PRAGMA table_info(consumer_units)')}
                 client_columns = {row[1] for row in connection.execute('PRAGMA table_info(clients)')}
                 fatura_columns = {row[1] for row in connection.execute('PRAGMA table_info(faturas)')}
                 assinatura_columns = {row[1] for row in connection.execute('PRAGMA table_info(assinaturas)')}
+                whatsapp_integration_columns = {row[1] for row in connection.execute('PRAGMA table_info(whatsapp_integrations)')}
+                whatsapp_message_columns = {row[1] for row in connection.execute('PRAGMA table_info(whatsapp_messages)')}
+                agenda_event_columns = {row[1] for row in connection.execute('PRAGMA table_info(agenda_events)')}
+                fatura_concessionaria_columns = {row[1] for row in connection.execute('PRAGMA table_info(faturas_concessionarias)')}
+                fatura_concessionaria_indexes = {row[1] for row in connection.execute("PRAGMA index_list('faturas_concessionarias')")}
+                fatura_concessionaria_fks = {row[2] for row in connection.execute("PRAGMA foreign_key_list('faturas_concessionarias')")}
+                pendencia_columns = {row[1] for row in connection.execute("PRAGMA table_info('pendencias')")}
+                pendencia_indexes = {row[1]: row for row in connection.execute("PRAGMA index_list('pendencias')")}
+                pendencia_unique_columns = [row[2] for row in connection.execute(
+                    "PRAGMA index_info('sqlite_autoindex_pendencias_1')")]
+                billing_rule_columns = {row[1] for row in connection.execute("PRAGMA table_info('grupos_regra_cobranca')")}
+                billing_rule_indexes = {row[1]: row for row in connection.execute("PRAGMA index_list('grupos_regra_cobranca')")}
+                billing_rule_fks = {row[2] for row in connection.execute("PRAGMA foreign_key_list('grupos_regra_cobranca')")}
+                billing_rule_sql = connection.execute(
+                    "SELECT sql FROM sqlite_master WHERE type='table' AND name='grupos_regra_cobranca'"
+                ).fetchone()[0]
+                assignment_columns = {row[1] for row in connection.execute(
+                    "PRAGMA table_info('regra_cobranca_assignments')"
+                )}
+                assignment_indexes = {row[1]: row for row in connection.execute(
+                    "PRAGMA index_list('regra_cobranca_assignments')"
+                )}
+                assignment_fks = {row[2] for row in connection.execute(
+                    "PRAGMA foreign_key_list('regra_cobranca_assignments')"
+                )}
+                snapshot_columns = {row[1] for row in connection.execute(
+                    "PRAGMA table_info('billing_calculation_snapshots')"
+                )}
+                snapshot_indexes = {row[1] for row in connection.execute(
+                    "PRAGMA index_list('billing_calculation_snapshots')"
+                )}
+                snapshot_fk_rows = list(connection.execute(
+                    "PRAGMA foreign_key_list('billing_calculation_snapshots')"
+                ))
+                snapshot_fks = {row[2] for row in snapshot_fk_rows}
+                execution_columns = {row[1] for row in connection.execute(
+                    "PRAGMA table_info('billing_calculation_executions')"
+                )}
+                execution_indexes = {row[1] for row in connection.execute(
+                    "PRAGMA index_list('billing_calculation_executions')"
+                )}
+                execution_fk_rows = list(connection.execute(
+                    "PRAGMA foreign_key_list('billing_calculation_executions')"
+                ))
+                execution_fks = {row[2] for row in execution_fk_rows}
                 preview_indexes = {row[1] for row in connection.execute("PRAGMA index_list('import_previews')")}
             finally:
                 connection.close()
-            self.assertEqual(revision, 'a8f3c1d7e4b2')
-            self.assertTrue({'empresa_id', 'provider', 'nome', 'segredo_encrypted'}.issubset(columns))
+            self.assertEqual(revision, 'w7c0e5f9a4b2')
+            self.assertTrue({'empresa_id', 'fatura_concessionaria_id', 'fingerprint',
+                             'regra_snapshot', 'entrada_normalizada', 'resultado',
+                             'valor_final'}.issubset(snapshot_columns))
+            self.assertTrue({'empresa_id', 'fatura_concessionaria_id', 'snapshot_id',
+                             'status', 'auditoria'}.issubset(execution_columns))
+            self.assertNotIn('valor_final', execution_columns)
+            self.assertEqual(snapshot_fks, {'empresas', 'faturas_concessionarias'})
+            self.assertEqual(execution_fks,
+                             {'empresas', 'faturas_concessionarias', 'billing_calculation_snapshots'})
+            for rows, parent, child_id in (
+                (snapshot_fk_rows, 'faturas_concessionarias', 'fatura_concessionaria_id'),
+                (execution_fk_rows, 'faturas_concessionarias', 'fatura_concessionaria_id'),
+                (execution_fk_rows, 'billing_calculation_snapshots', 'snapshot_id'),
+            ):
+                tenant_rows = [row for row in rows if row[2] == parent]
+                expected = {(child_id, 'id'), ('empresa_id', 'empresa_id')}
+                if parent == 'billing_calculation_snapshots':
+                    expected.add(('fatura_concessionaria_id', 'fatura_concessionaria_id'))
+                self.assertEqual({(row[3], row[4]) for row in tenant_rows},
+                                 expected)
+                self.assertEqual(len({row[0] for row in tenant_rows}), 1)
+            self.assertTrue({'ix_billing_calculation_snapshots_empresa_id',
+                             'ix_billing_calculation_snapshots_fatura_concessionaria_id'}
+                            .issubset(snapshot_indexes))
+            self.assertTrue({'ix_billing_calculation_executions_empresa_id',
+                             'ix_billing_calculation_executions_fatura_concessionaria_id',
+                             'ix_billing_calculation_executions_snapshot_id'}
+                            .issubset(execution_indexes))
+            self.assertTrue({'empresa_id', 'provider', 'nome', 'segredo_encrypted', 'interna'}.issubset(columns))
+            self.assertTrue({'sem_usina_desde', 'concessionaria_credential_id'}.issubset(uc_columns))
             self.assertIn('asaas_customer_id', client_columns)
             self.assertTrue({'empresa_id', 'client_id', 'consumer_unit_id', 'asaas_id', 'asaas_status'}.issubset(fatura_columns))
             self.assertTrue({'empresa_id', 'plano_chave', 'tipo', 'status'}.issubset(assinatura_columns))
+            self.assertTrue({'empresa_id', 'api_credential_id', 'phone_number_id', 'business_account_id'}.issubset(whatsapp_integration_columns))
+            self.assertTrue({'empresa_id', 'conversation_id', 'direction', 'status'}.issubset(whatsapp_message_columns))
+            self.assertTrue({'empresa_id', 'titulo', 'inicio', 'status'}.issubset(agenda_event_columns))
+            self.assertTrue({
+                'empresa_id', 'client_id', 'consumer_unit_id', 'document_id',
+                'arquivo_hash', 'dados_brutos_extraidos', 'dados_normalizados',
+                'status_extracao', 'status_validacao',
+            }.issubset(fatura_concessionaria_columns))
+            self.assertTrue({
+                'ix_faturas_concessionarias_empresa_id',
+                'ix_faturas_concessionarias_empresa_chave',
+                'uq_faturas_concessionarias_id_empresa',
+                'sqlite_autoindex_faturas_concessionarias_1',
+            }.issubset(fatura_concessionaria_indexes))
+            self.assertEqual(
+                fatura_concessionaria_fks,
+                {'empresas', 'clients', 'consumer_units', 'documents'},
+            )
+            self.assertIn('fatura_concessionaria_id', pendencia_columns)
+            self.assertIn('sqlite_autoindex_pendencias_1', pendencia_indexes)
+            self.assertEqual(pendencia_indexes['sqlite_autoindex_pendencias_1'][2], 1)
+            self.assertEqual(pendencia_unique_columns,
+                ['empresa_id', 'fatura_concessionaria_id', 'origem'])
+            self.assertTrue({
+                'empresa_id', 'nome', 'ativo', 'padrao', 'calculation_method',
+                'tariff_source', 'manual_tariff', 'discount_type', 'discount_value',
+                'tariff_basis', 'energy_component_index', 'billing_mode',
+                'due_date_basis', 'due_date_offset_days', 'monthly_interest',
+                'fine_percentage', 'revision',
+            }.issubset(billing_rule_columns))
+            self.assertEqual(billing_rule_fks, {'empresas'})
+            self.assertTrue({
+                'ix_grupos_regra_cobranca_empresa_id',
+                'uq_grupos_regra_cobranca_default_ativo',
+            }.issubset(billing_rule_indexes))
+            self.assertEqual(billing_rule_indexes['uq_grupos_regra_cobranca_default_ativo'][4], 1)
+            self.assertGreaterEqual(billing_rule_sql.upper().count('NUMERIC(18, 6)'), 4)
             self.assertIn('ix_import_previews_expires_at', preview_indexes)
+            self.assertTrue({
+                'empresa_id', 'grupo_regra_cobranca_id', 'scope_type',
+                'client_id', 'consumer_unit_id', 'ativo',
+            }.issubset(assignment_columns))
+            self.assertEqual(
+                assignment_fks,
+                {'empresas', 'grupos_regra_cobranca', 'clients', 'consumer_units'},
+            )
+            self.assertTrue({
+                'uq_regra_assignment_company_ativo',
+                'uq_regra_assignment_client_ativo',
+                'uq_regra_assignment_uc_ativo',
+                'ix_regra_assignment_empresa_scope',
+            }.issubset(assignment_indexes))
+            for name in (
+                'uq_regra_assignment_company_ativo',
+                'uq_regra_assignment_client_ativo',
+                'uq_regra_assignment_uc_ativo',
+            ):
+                self.assertEqual(assignment_indexes[name][2], 1)
+                self.assertEqual(assignment_indexes[name][4], 1)
         finally:
             database_path.unlink(missing_ok=True)
 
@@ -110,6 +478,212 @@ class SQLiteMigrationsTest(unittest.TestCase):
             self.assertEqual(assinaturas, [(1, 'vitalicio', 'ativa'), (2, 'trial', 'trial')])
         finally:
             database_path.unlink(missing_ok=True)
+
+    def test_gd_pending_upgrade_preserves_existing_rows_and_enforces_unique_origin(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'gd-pending-upgrade.db'
+            result = self._flask(path, 'upgrade', 's3c8d1e6f9a2')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection, connection:
+                connection.execute("INSERT INTO empresas (id,nome,slug,status) VALUES (91,'E','gd-upgrade','ativa')")
+                connection.execute("INSERT INTO pendencias (id,empresa_id,tipo,categoria,origem,titulo,prioridade,status) "
+                                   "VALUES (91,91,'pendencia','Operacional','GD_COMPENSATION_UNVERIFIED','Legada','alta','aberta')")
+            result = self._flask(path, 'upgrade', 'head')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection, connection:
+                self.assertEqual(connection.execute(
+                    "SELECT titulo,fatura_concessionaria_id FROM pendencias WHERE id=91").fetchone(),
+                    ('Legada', None))
+                connection.execute("UPDATE pendencias SET fatura_concessionaria_id=42 WHERE id=91")
+                with self.assertRaises(sqlite3.IntegrityError):
+                    connection.execute("INSERT INTO pendencias (empresa_id,fatura_concessionaria_id,tipo,categoria,origem,titulo,prioridade,status) "
+                                       "VALUES (91,42,'pendencia','Operacional','GD_COMPENSATION_UNVERIFIED','Duplicada','alta','aberta')")
+
+    def test_live_q1_upgrade_restores_pendencia_query_without_losing_rows(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'live-q1-upgrade.db'
+            result = self._flask(path, 'upgrade', 'q1e6a4b9c2d7')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection, connection:
+                connection.execute("INSERT INTO empresas (id,nome,slug,status) VALUES (91,'E','live-q1','ativa')")
+                connection.execute("INSERT INTO pendencias (id,empresa_id,tipo,categoria,origem,titulo,prioridade,status) "
+                                   "VALUES (91,91,'pendencia','Operacional','Manual','Existente','alta','aberta')")
+                self.assertNotIn('fatura_concessionaria_id',
+                                 {row[1] for row in connection.execute('PRAGMA table_info(pendencias)')})
+            result = self._flask(path, 'upgrade', 'head')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection:
+                self.assertIn('fatura_concessionaria_id',
+                              {row[1] for row in connection.execute('PRAGMA table_info(pendencias)')})
+                self.assertEqual(connection.execute(
+                    'SELECT empresa_id,titulo,fatura_concessionaria_id FROM pendencias WHERE id=91'
+                ).fetchone(), (91, 'Existente', None))
+                self.assertEqual(connection.execute('SELECT version_num FROM alembic_version').fetchone()[0],
+                                 'w7c0e5f9a4b2')
+
+    def test_fatura_concessionaria_downgrade_preserves_source_records(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'fatura-concessionaria.db'
+            result = self._flask(path, 'upgrade')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            result = self._flask(path, 'downgrade', 'k5e0f4a9b7c1')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection:
+                tables = {row[0] for row in connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                )}
+                self.assertNotIn('faturas_concessionarias', tables)
+
+            self.assertEqual(self._flask(path, 'upgrade').returncode, 0)
+            with closing(sqlite3.connect(path)) as connection, connection:
+                connection.execute("INSERT INTO clients (id,nome,cpf,email,concessionaria,status,empresa_id) VALUES (100,'A','12345678901','a@test.local','Copel','ativo',1)")
+                connection.execute("INSERT INTO consumer_units (id,client_id,codigo,empresa_id,base_tarifaria,tipo_ligacao) VALUES (100,100,'UC',1,'B1','Monofasico')")
+                connection.execute("INSERT INTO documents (id,nome,storage_provider,empresa_id,client_id,consumer_unit_id) VALUES (100,'fatura.pdf','google_drive',1,100,100)")
+                connection.execute("INSERT INTO faturas_concessionarias (empresa_id,client_id,consumer_unit_id,document_id,arquivo_hash,status_extracao,status_validacao,created_at,updated_at) VALUES (1,100,100,100,'hash','recebida','pendente','2026-09-15','2026-09-15')")
+            result = self._flask(path, 'downgrade', 'k5e0f4a9b7c1')
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('preservar faturas originais', result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection:
+                self.assertEqual(connection.execute('SELECT COUNT(*) FROM faturas_concessionarias').fetchone()[0], 1)
+                self.assertEqual(connection.execute('SELECT version_num FROM alembic_version').fetchone()[0], 'l6f1a5b8c2d4')
+
+    def test_billing_rule_upgrade_constraints_and_downgrade_guard(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'billing-rule.db'
+            result = self._flask(path, 'upgrade')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            result = self._flask(path, 'downgrade', 'l6f1a5b8c2d4')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(self._flask(path, 'upgrade').returncode, 0)
+
+            statement = (
+                "INSERT INTO grupos_regra_cobranca "
+                "(empresa_id,nome,ativo,padrao,calculation_method,tariff_source,manual_tariff,"
+                "discount_type,discount_value,tariff_basis,billing_mode,due_date_basis,"
+                "due_date_offset_days,revision,created_at,updated_at) VALUES "
+                "(1,?,1,1,'energia_compensada','manual',0.123456,'none',NULL,'compensated',"
+                "'auto','invoice_due_date',-2,1,'2026-09-15','2026-09-15')"
+            )
+            with closing(sqlite3.connect(path)) as connection, connection:
+                connection.execute(statement, ('Default',))
+                with self.assertRaises(sqlite3.IntegrityError):
+                    connection.execute(statement, ('Segundo default',))
+                with self.assertRaises(sqlite3.IntegrityError):
+                    connection.execute(
+                        statement.replace("'manual',0.123456", "'manual',NULL"),
+                        ('Manual sem tarifa',),
+                    )
+
+            result = self._flask(path, 'downgrade', 'l6f1a5b8c2d4')
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('preservar perfis de regra de cobranca', result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection:
+                self.assertEqual(connection.execute('SELECT COUNT(*) FROM grupos_regra_cobranca').fetchone()[0], 1)
+                self.assertEqual(connection.execute('SELECT version_num FROM alembic_version').fetchone()[0], 'm7a2c6d9e1f3')
+
+    def test_assignment_upgrade_constraints_uniqueness_and_downgrade_guard(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'billing-rule-assignment.db'
+            self.assertEqual(self._flask(path, 'upgrade').returncode, 0)
+            self.assertEqual(self._flask(path, 'downgrade', 'm7a2c6d9e1f3').returncode, 0)
+            self.assertEqual(self._flask(path, 'upgrade').returncode, 0)
+
+            rule = (
+                "INSERT INTO grupos_regra_cobranca "
+                "(id,empresa_id,nome,ativo,padrao,calculation_method,tariff_source,manual_tariff,"
+                "discount_type,discount_value,tariff_basis,billing_mode,due_date_basis,"
+                "due_date_offset_days,revision,created_at,updated_at) VALUES "
+                "(100,1,'Regra',1,0,'energia_compensada','manual',0.123456,'none',NULL,"
+                "'compensated','auto','invoice_due_date',0,1,'2026-09-15','2026-09-15')"
+            )
+            company = (
+                "INSERT INTO regra_cobranca_assignments "
+                "(empresa_id,grupo_regra_cobranca_id,scope_type,client_id,consumer_unit_id,ativo,created_at,updated_at) "
+                "VALUES (1,100,'company',NULL,NULL,1,'2026-09-15','2026-09-15')"
+            )
+            with closing(sqlite3.connect(path)) as connection, connection:
+                connection.execute(rule)
+                connection.execute(company)
+                with self.assertRaises(sqlite3.IntegrityError):
+                    connection.execute(company)
+                with self.assertRaises(sqlite3.IntegrityError):
+                    connection.execute(company.replace("'company',NULL,NULL", "'client',NULL,NULL"))
+
+            result = self._flask(path, 'downgrade', 'm7a2c6d9e1f3')
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('preservar historico de assignments', result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection:
+                self.assertEqual(connection.execute(
+                    'SELECT COUNT(*) FROM regra_cobranca_assignments'
+                ).fetchone()[0], 1)
+                self.assertEqual(
+                    connection.execute('SELECT version_num FROM alembic_version').fetchone()[0],
+                    'n8b3d7e0f2a4',
+                )
+
+    def test_fatura_b1_upgrade_legacy_roundtrip_and_downgrade_guard(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'faturas.db'
+            result = self._flask(path, 'upgrade', 'i3c8d2e7f5a9')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection, connection:
+                connection.execute("INSERT INTO clients (id,nome,cpf,email,concessionaria,status,empresa_id) VALUES (100,'A','12345678901','a@test.local','Copel','ativo',1)")
+                connection.execute("INSERT INTO consumer_units (id,client_id,codigo,empresa_id,base_tarifaria,tipo_ligacao) VALUES (100,100,'UC',1,'B1','Monofasico')")
+                connection.execute("INSERT INTO faturas (id,empresa_id,client_id,consumer_unit_id,concessionaria,competencia,valor,mes_vencimento,asaas_id,asaas_status,created_at,updated_at) VALUES (100,1,100,100,'Copel','2026-09',10.25,'2026-10-05','pay_legacy','received','2026-09-01','2026-09-01')")
+                original = connection.execute('SELECT * FROM faturas').fetchone()
+            result = self._flask(path, 'upgrade')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection, connection:
+                row = connection.execute('SELECT * FROM faturas').fetchone()
+                self.assertEqual(row[:len(original)], original)
+                self.assertTrue(all(value is None for value in row[len(original):]))
+                columns = {r[1]: r for r in connection.execute('PRAGMA table_info(faturas)')}
+                self.assertEqual(columns['asaas_id'][3], 0)
+                self.assertNotIn('cobrancas', {r[0] for r in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")})
+            result = self._flask(path, 'downgrade', 'i3c8d2e7f5a9')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection, connection:
+                self.assertEqual(connection.execute('SELECT * FROM faturas').fetchone(), original)
+            self.assertEqual(self._flask(path, 'upgrade').returncode, 0)
+            with closing(sqlite3.connect(path)) as connection, connection:
+                connection.execute("UPDATE faturas SET external_reference='hub-test', emission_key='key', payment_provider='asaas', status_interno='aguardando_emissao', asaas_id=NULL WHERE id=100")
+            result = self._flask(path, 'downgrade', 'i3c8d2e7f5a9')
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('preservar diario de emissao', result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection, connection:
+                self.assertEqual(connection.execute('SELECT external_reference,asaas_id FROM faturas').fetchone(), ('hub-test', None))
+                self.assertEqual(connection.execute('SELECT version_num FROM alembic_version').fetchone()[0], 'j4d9e3f8a6b0')
+
+    def test_billing_calculation_migration_roundtrip_preserves_audit_rows(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'billing-calculation.db'
+            self.assertEqual(self._flask(path, 'upgrade', 'q1e6a4b9c2d7').returncode, 0)
+            self.assertEqual(self._flask(path, 'upgrade').returncode, 0)
+            result = self._flask(path, 'downgrade', 'q1e6a4b9c2d7')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection:
+                tables = {row[0] for row in connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                )}
+                self.assertNotIn('billing_calculation_snapshots', tables)
+                self.assertNotIn('billing_calculation_executions', tables)
+
+            self.assertEqual(self._flask(path, 'upgrade').returncode, 0)
+            with closing(sqlite3.connect(path)) as connection, connection:
+                connection.execute(
+                    "INSERT INTO billing_calculation_snapshots "
+                    "(empresa_id,fatura_concessionaria_id,fingerprint,regra_snapshot,"
+                    "entrada_normalizada,resultado,valor_final,created_at) VALUES "
+                    "(1,1,?,?,?, ?,13.42,'2026-09-24')",
+                    ('a' * 64, '{}', '{}', '{}'),
+                )
+            result = self._flask(path, 'downgrade', 'q1e6a4b9c2d7')
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('preservar auditoria', result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection:
+                self.assertEqual(connection.execute(
+                    'SELECT COUNT(*) FROM billing_calculation_snapshots'
+                ).fetchone()[0], 1)
 
     def test_google_account_downgrade_rejects_duplicate_email_before_rebuild(self):
         handle = tempfile.NamedTemporaryFile(suffix='.db', delete=False)

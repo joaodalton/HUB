@@ -1,4 +1,4 @@
-import { apiBlob, apiRequest, apiUpload } from './apiClient';
+import { apiBlob, apiRequest, apiUpload, type ApiResponse } from './apiClient';
 
 export type DocumentRow = {
   id: number;
@@ -19,11 +19,6 @@ export type CategoryRow = {
   descricao: string | null;
 };
 
-type ApiResponse<T> = {
-  success: boolean;
-  message: string;
-  data: T;
-};
 
 export async function getDocuments(clienteId?: number, ucId?: number): Promise<DocumentRow[]> {
   const params = new URLSearchParams();

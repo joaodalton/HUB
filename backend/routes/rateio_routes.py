@@ -3,8 +3,8 @@ from flask import Blueprint, Response, request
 
 from services.rateio_service import aplicar_rateio, atualizar_distribuicao, confirmar_selecao, funil_qualificacao, list_historico, preview_rateio
 from services.rateio_formulario_service import get_regras_documentos_rateio, montar_tabela_formulario, verificar_termos_adesao
-from services.rateio_pdf_service import DriveUnavailableError, gerar_formulario_pdf, gerar_termos_adesao_pdf
-from services.rateio_excel_service import gerar_formulario_excel
+from services.rateio_pdf_service import DriveUnavailableError, gerar_termos_adesao_pdf
+from services.rateio_excel_service import gerar_formulario_excel, montar_preview_formulario
 from services.permission_service import require_permission
 from utils.api_response import error_response, success_response
 
@@ -110,7 +110,7 @@ def formulario_tabela():
         return error_response('plantId e obrigatorio.', 400)
 
     try:
-        return success_response(montar_tabela_formulario(plant_id))
+        return success_response(montar_preview_formulario(plant_id))
     except ValueError as exc:
         return error_response(str(exc), 404)
 
@@ -140,38 +140,16 @@ def formulario_verificar_documentos():
     return success_response(resultado)
 
 
-# POST /api/v1/rateio/formulario/gerar-pdf -- Body: {plantId, responsavelNome, responsavelCpf}.
-# Retorna o PDF (binario) do Formulario Copel ja preenchido.
-@rateio_routes.route('/formulario/gerar-pdf', methods=['POST'])
+@rateio_routes.route('/formulario/preview', methods=['GET'])
 @require_permission('rateios.read')
-def formulario_gerar_pdf():
-    data = request.get_json(silent=True) or {}
-    plant_id = data.get('plantId')
-    responsavel_nome = (data.get('responsavelNome') or '').strip()
-    responsavel_cpf = (data.get('responsavelCpf') or '').strip()
-
+def formulario_preview():
+    plant_id = request.args.get('plantId', type=int)
     if not plant_id:
         return error_response('plantId e obrigatorio.', 400)
-    if not responsavel_nome or not responsavel_cpf:
-        return error_response('Nome e CPF do responsavel sao obrigatorios.', 400)
-
     try:
-        pdf_bytes = gerar_formulario_pdf(
-            plant_id,
-            responsavel_nome,
-            responsavel_cpf,
-            linhas_override=data.get('linhas')
-        )
+        return success_response(montar_preview_formulario(plant_id))
     except ValueError as exc:
-        return error_response(str(exc), 400)
-    except DriveUnavailableError as exc:
-        return error_response(f'Google Drive nao configurado ou indisponivel: {exc}', 503)
-
-    return Response(
-        pdf_bytes,
-        mimetype='application/pdf',
-        headers={'Content-Disposition': 'attachment; filename=formulario-copel-rateio.pdf'}
-    )
+        return error_response(str(exc), 404)
 
 
 # POST /api/v1/rateio/formulario/gerar-termos -- Body: {plantId}. Retorna o PDF
@@ -214,7 +192,9 @@ def formulario_gerar_excel():
         return error_response('Nome e CPF do responsavel sao obrigatorios.', 400)
 
     try:
-        xlsx_bytes = gerar_formulario_excel(plant_id, responsavel_nome, responsavel_cpf, data.get('linhas'))
+        xlsx_bytes = gerar_formulario_excel(
+            plant_id, responsavel_nome, responsavel_cpf, data.get('linhas'), bool(data.get('excedenteEnergia'))
+        )
     except ValueError as exc:
         return error_response(str(exc), 400)
 

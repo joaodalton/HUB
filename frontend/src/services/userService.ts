@@ -1,4 +1,4 @@
-import { apiRequest } from './apiClient';
+import { apiRequest, type ApiResponse } from './apiClient';
 
 export type UserRole = 'owner' | 'admin' | 'operator' | 'financial' | 'viewer';
 
@@ -20,11 +20,10 @@ export type UserPayload = {
   role: Exclude<UserRole, 'owner'>;
 };
 
-type ApiResponse<T> = {
-  success: boolean;
-  message: string;
-  data: T;
+export type UserUpdatePayload = Partial<Pick<UserRow, 'nome' | 'email' | 'role'>> & {
+  senha?: string;
 };
+
 
 export async function getUsers(): Promise<UserRow[]> {
   const response = await apiRequest<ApiResponse<UserRow[]>>('/users');
@@ -47,7 +46,12 @@ export async function setUserActive(id: number, ativo: boolean): Promise<UserRow
   return response.data;
 }
 
-export async function updateUser(id: number, data: Partial<Pick<UserRow, 'nome' | 'email' | 'role'>>): Promise<UserRow> {
+export async function updateUser(id: number, data: UserUpdatePayload): Promise<UserRow> {
   const response = await apiRequest<ApiResponse<UserRow>>(`/users/${id}`, { method: 'PUT', body: data });
+  return response.data;
+}
+
+export async function deleteUser(id: number): Promise<UserRow> {
+  const response = await apiRequest<ApiResponse<UserRow>>(`/users/${id}`, { method: 'DELETE' });
   return response.data;
 }

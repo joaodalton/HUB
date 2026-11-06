@@ -2,8 +2,8 @@ import { createIcon } from '../../components/Icon';
 import { createElement } from '../../dom';
 import type { FormularioLinha } from '../../services/rateioFormularioService';
 
-export function createEditableTable<T extends { ordem: number }>({ columns, rows, emptyMessage, getRowKey, onChange }: {
-  columns: Array<{ key: keyof T; label: string; align?: 'right'; render?: (row: T) => string; editable?: boolean; onChange?: (row: T, value: string) => void }>;
+export function createEditableTable<T extends { ordem: number; fixa?: boolean }>({ columns, rows, emptyMessage, getRowKey, onChange }: {
+  columns: Array<{ key: keyof T; label: string; align?: 'right'; render?: (row: T) => string | HTMLElement; editable?: boolean; onChange?: (row: T, value: string) => void }>;
   rows: T[];
   emptyMessage?: string;
   getRowKey: (row: T) => number | string;
@@ -20,13 +20,14 @@ export function createEditableTable<T extends { ordem: number }>({ columns, rows
     return table;
   }
   rows.forEach((row) => {
-    const tr = createElement('div', { className: 'rateio-table-row' });
+    const tr = createElement('div', { className: row.fixa ? 'rateio-table-row fixed' : 'rateio-table-row' });
     tr.dataset.rowKey = String(getRowKey(row));
     columns.forEach((column) => {
       const cell = createElement('div', { className: `rateio-table-cell ${column.align === 'right' ? 'right' : ''}` });
-      cell.textContent = column.render ? column.render(row) : String(row[column.key] ?? '');
+      const rendered = column.render ? column.render(row) : String(row[column.key] ?? '');
+      if (rendered instanceof HTMLElement) cell.replaceChildren(rendered); else cell.textContent = rendered;
       const update = column.onChange;
-      if (column.editable && update) {
+      if (column.editable && update && !row.fixa) {
         const input = createElement('input'); input.type = 'text'; input.value = String(row[column.key] ?? '');
         input.addEventListener('change', () => { update(row, input.value); onChange?.(row, input.value); });
         cell.replaceChildren(input);
@@ -48,6 +49,10 @@ export function createResponsavelField(label: string, value: string, onChange: (
 
 export function createTermoAdesaoBadge(row: FormularioLinha): HTMLElement {
   const badge = createElement('span', { className: 'termo-badge' });
+  if (row.termoAdesaoOk === null) {
+    badge.textContent = 'Associação';
+    return badge;
+  }
   if (row.termoAdesaoOk) {
     badge.append(createIcon('check'), document.createTextNode('OK')); badge.classList.add('ok');
   } else {

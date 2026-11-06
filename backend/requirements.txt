@@ -16,3 +16,4 @@ pypdf
 reportlab
 resend
 openpyxl
+boto3

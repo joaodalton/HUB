@@ -1,11 +1,6 @@
-import { apiRequest } from './apiClient';
+import { apiRequest, type ApiResponse } from './apiClient';
 import type { PendenciaPrioridade, PendenciaTipo } from './pendenciasService';
 
-type ApiResponse<T> = {
-  success: boolean;
-  message: string;
-  data: T;
-};
 
 export type DashboardPendencia = {
   id: number;

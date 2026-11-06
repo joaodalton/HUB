@@ -9,6 +9,7 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 16px;
+  min-width: 0;
 }
 
 @media (max-width: 640px) {
@@ -182,10 +183,13 @@
   flex-wrap: wrap;
 }
 
+.panel-title > div { min-width: 0; }
+
 .panel-title h2 {
   font-size: 16px;
   font-weight: 700;
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .panel-title-actions {
@@ -196,6 +200,8 @@
 
 .table-wrap {
   overflow-x: auto;
+  min-width: 0;
+  max-width: 100%;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
 }
@@ -203,6 +209,7 @@
 /* ---------- Data Table ---------- */
 .data-table {
   width: 100%;
+  min-width: max-content;
   border-collapse: collapse;
   font-size: 13px;
 }
@@ -212,7 +219,7 @@
   padding: 12px 14px;
   color: var(--text-faint);
   font-weight: 600;
-  font-size: 11px;
+  font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   border-bottom: 1px solid var(--border);
@@ -386,15 +393,6 @@
 
 /* ---------- Responsive Table ---------- */
 @media (max-width: 640px) {
-  .data-table {
-    font-size: 12px;
-  }
-
-  .data-table th,
-  .data-table td {
-    padding: 10px 12px;
-  }
-
   .metric-card strong {
     font-size: 20px;
   }

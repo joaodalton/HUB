@@ -145,6 +145,6 @@ def upload_documento(tipo: str):
     except Exception as exc:
         # Mesmo padrao do document_routes.py -- credentials.json ausente, conta
         # OAuth sem token valido etc. nunca vira 500 cru, vira "servico indisponivel".
-        return error_response(f'Google Drive nao configurado ou indisponivel: {exc}', 503)
+        return error_response('Armazenamento de documentos indisponivel.', 503)
 
     return success_response(resultado, 'Documento atualizado.')

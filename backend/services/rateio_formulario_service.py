@@ -116,9 +116,6 @@ def montar_tabela_formulario(plant_id: int) -> dict:
             # cliente -- ver comentario em models/consumer_unit.py: a UC pode
             # estar em CPF/CNPJ diferente do titular cadastrado no Cliente.
             'documento': (uc.documento if uc and uc.documento else (cliente.cpf if cliente else None)),
-            # codigo (nao codigoAneel) -- e o identificador que a Copel usa
-            # hoje nas telas/atendimento. Se precisar trocar pra codigoAneel,
-            # e so essa linha.
             'ucIdentificacao': uc.codigo if uc else None,
             'percentual': float(conexao.percentual or 0),
             'termoAdesaoOk': _tem_termo_adesao(cliente.id if cliente else None, uc.id if uc else None),

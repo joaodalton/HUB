@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request, send_file
+from flask import Blueprint, current_app, jsonify, request, send_file
 
 from services.drive_service import get_drive_service
 from services.permission_service import require_permission
@@ -13,8 +13,9 @@ def _resolve_service():
     se credentials.json faltar/for invalido -- nunca deixa a rota crashar com 500 cru."""
     try:
         return get_drive_service(), None
-    except Exception as exc:
-        return None, error_response(f'Google Drive nao configurado: {exc}', 503)
+    except Exception:
+        current_app.logger.warning('Google Drive indisponivel', exc_info=True)
+        return None, error_response('Google Drive nao configurado.', 503)
 
 
 @drive_routes.route('/search')

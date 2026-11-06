@@ -1,5 +1,5 @@
 // frontend/src/services/rateioService.ts
-import { apiRequest } from './apiClient';
+import { apiRequest, type ApiResponse } from './apiClient';
 
 export type RateioUcResultado = {
   ucId: number;
@@ -29,11 +29,6 @@ export type RateioPreview = {
   warnings: string[];
 };
 
-type ApiResponse<T> = {
-  success: boolean;
-  message: string;
-  data: T;
-};
 
 export async function previewRateio(plantId: number): Promise<RateioPreview> {
   const response = await apiRequest<ApiResponse<RateioPreview[]>>(`/rateio/preview?plantId=${plantId}`);

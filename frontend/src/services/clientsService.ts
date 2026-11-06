@@ -1,4 +1,4 @@
-import { apiRequest } from './apiClient';
+import { apiRequest, type ApiResponse } from './apiClient';
 
 export type PlantConnection = {
   id: number;
@@ -10,9 +10,9 @@ export type PlantConnection = {
 export type ClientUc = {
   id: number | string;
   codigo: string;
-  codigoAneel: string | null;
   apelido: string;
   documento: string | null;
+  senhaConcessionariaConfigurada?: boolean;
   endereco: string | null;
   cep: string | null;
   concessionaria: string | null;
@@ -26,6 +26,7 @@ export type ClientUc = {
   terminoContrato: string | null;
   carenciaMeses: number | null;
   percentualDescontoCarencia: string | null;
+  senhaConcessionaria?: string;
   conexoes: PlantConnection[];
 };
 
@@ -56,11 +57,6 @@ export type ClientPayload = {
 
 export const concessionarias = ['Copel'];
 
-type ApiResponse<T> = {
-  success: boolean;
-  message: string;
-  data: T;
-};
 
 export async function getClients(): Promise<ClientRow[]> {
   const response = await apiRequest<ApiResponse<ClientRow[]>>('/clients');

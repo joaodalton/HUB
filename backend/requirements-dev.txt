@@ -1,0 +1,5 @@
+# Ferramentas de desenvolvimento e CI (nao vao para producao)
+-r requirements.txt
+pytest
+pytest-xdist
+pip-audit

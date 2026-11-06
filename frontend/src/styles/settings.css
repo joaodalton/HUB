@@ -236,25 +236,46 @@
 
 .integration-card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: var(--space-3);
 }
 
 .integration-card {
   display: grid;
-  gap: var(--space-2);
-  padding: var(--space-3);
-  border: 1px solid var(--border-deep);
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-4) var(--space-3);
+  border: 1px solid var(--border);
   border-radius: var(--radius-card);
-  background: var(--panel-deep);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--transition-normal) ease, background var(--transition-normal) ease, transform var(--transition-normal) ease;
 }
 
-.integration-card-heading { display: flex; align-items: center; gap: var(--space-2); color: var(--text); }
-.integration-card-heading .icon { width: 20px; height: 20px; color: var(--accent-secondary); }
-.integration-card p { min-height: 34px; margin: 0; color: var(--text-dim); font-size: 12px; line-height: 1.4; }
-.integration-card .provider-badge { justify-self: start; }
-.integration-card .secondary-button { justify-self: start; }
-.integration-editor { display: grid; gap: var(--space-3); margin-top: var(--space-4); }
+.integration-card:hover { background: var(--panel-hover); border-color: var(--accent-border); transform: translateY(-1px); }
+
+.integration-card-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.integration-card-text { display: grid; gap: var(--space-1); }
+.integration-card-text strong { font-size: 15px; }
+.integration-card-text p { margin: 0; color: var(--text-dim); font-size: 13px; line-height: 1.5; }
+
+.integration-soon-card {
+  display: grid;
+  align-content: center;
+  gap: var(--space-1);
+  min-height: 140px;
+  padding: var(--space-3);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-card);
+  color: var(--text-dim);
+}
+.integration-soon-card strong { color: var(--text); font-size: 14px; }
+.integration-soon-card span { font-size: 13px; line-height: 1.5; }
+
+.integration-modal-content { display: grid; gap: var(--space-3); }
 
 /* ---------- Geral ---------- */
 
@@ -282,6 +303,32 @@
   padding-bottom: var(--space-3);
   border-bottom: 1px solid var(--border-deep);
 }
+
+.theme-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.theme-option {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-height);
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-input);
+  background: var(--panel-soft);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.theme-option:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.theme-option input { accent-color: var(--accent); }
 
 .appearance-panel .logo-row,
 .appearance-panel .color-field-grid {
@@ -313,3 +360,31 @@
 .api-credential-title span { font-size: 12px; color: var(--text-faint); }
 .api-credential-form { max-width: 560px; padding: 0 16px 16px; }
 .api-credential-form h3 { margin: 0; font-size: 15px; color: var(--text); }
+
+/* ---------- Diagnóstico financeiro administrativo ---------- */
+
+.billing-diagnostics-card { display: grid; gap: var(--space-3); }
+.billing-diagnostics-card h2, .billing-diagnostics-card h3 { margin: 0; color: var(--text); }
+.billing-diagnostics-upload { display: grid; grid-template-columns: minmax(180px, 1fr) auto; gap: var(--space-3); align-items: end; }
+.billing-diagnostics-file { min-height: var(--control-height); padding: 7px 10px !important; color-scheme: dark; }
+.billing-diagnostics-badge { display: inline-flex; width: fit-content; padding: 4px 8px; font-size: 11px; font-weight: 700; border-radius: 999px; color: var(--text-dim); background: var(--panel-soft); border: 1px solid var(--border); }
+.billing-diagnostics-badge.tone-success { color: var(--success); background: var(--success-bg); border-color: var(--success-border); }
+.billing-diagnostics-badge.tone-warning { color: var(--warning); background: var(--warning-bg); border-color: var(--warning-border); }
+.billing-diagnostics-badge.tone-danger { color: var(--danger); background: var(--danger-bg); border-color: var(--danger-border); }
+.billing-diagnostics-details { display: grid; gap: var(--space-3); }
+.billing-diagnostics-stage, .billing-diagnostics-summary, .billing-diagnostics-structured {
+  padding: var(--space-3); border: 1px solid var(--border-deep);
+  border-radius: var(--radius-card); background: var(--panel-deep);
+}
+.billing-diagnostics-stage { display: grid; gap: var(--space-2); }
+.billing-diagnostics-stage-header { display: flex; justify-content: space-between; gap: var(--space-2); align-items: center; }
+.billing-diagnostics-summary h3 { margin: 0 0 var(--space-2); color: var(--text); font-size: 13px; }
+.billing-diagnostics-summary dl { display: grid; grid-template-columns: minmax(110px, 1fr) minmax(0, 2fr); gap: var(--space-2); margin: 0; font-size: 12px; }
+.billing-diagnostics-summary dt { color: var(--text-faint); }
+.billing-diagnostics-summary dd { margin: 0; color: var(--text); overflow-wrap: anywhere; font-family: var(--font-mono); }
+.billing-diagnostics-structured summary { cursor: pointer; color: var(--text); font-size: 12px; }
+.billing-diagnostics-structured button { margin-top: var(--space-2); }
+.billing-diagnostics-structured pre { max-height: 280px; overflow: auto; margin-bottom: 0; color: var(--text-dim); white-space: pre-wrap; overflow-wrap: anywhere; font: 12px var(--font-mono); }
+@media (max-width: 760px) {
+  .billing-diagnostics-upload { grid-template-columns: 1fr; }
+}

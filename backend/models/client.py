@@ -10,7 +10,7 @@ class Client(TenantMixin, db.Model):
     __table_args__ = (db.UniqueConstraint('empresa_id', 'cpf', name='uq_clients_empresa_cpf'),)
 
     id = db.Column(db.Integer, primary_key=True)
-    nome = db.Column(db.String(150), nullable=False)
+    nome = db.Column(db.String(200), nullable=False)
     cpf = db.Column(db.String(20), nullable=False)
     email = db.Column(db.String(150), nullable=False)
     telefone = db.Column(db.String(20), nullable=True)

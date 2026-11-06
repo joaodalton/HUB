@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../services/authService', () => ({ clearSession: vi.fn() }));
-import { clearSession } from '../services/authService';
+vi.mock('../services/sessionState', () => ({ clearSession: vi.fn() }));
+import { clearSession } from '../services/sessionState';
 import { ApiRequestError, NetworkError, apiRequest, apiUpload } from '../services/apiClient';
 
 function mockFetch(status: number, body: unknown, headers: Record<string, string> = {}): ReturnType<typeof vi.fn> {

@@ -2,19 +2,34 @@
 
 ## Fonte de verdade e ordem de leitura
 
-1. Leia `VISAO.md` inteiro antes de iniciar uma tarefa. Ele é a visão canônica.
-2. Leia `PROGRESS.md` para saber o estado comprovado e a próxima entrega.
-3. Consulte `API_CONTRACTS.md`, `PENDENCIAS.md`, `RATEIO.md`, `SECURITY.md` e `DEPLOY.md` quando a mudança tocar seus domínios.
+1. Leia `Documentos/md/product/VISAO.md` inteiro antes de iniciar uma tarefa. Ele é a visão canônica.
+2. Leia `Documentos/md/history/PROGRESS.md` para saber o estado comprovado e a próxima entrega.
+3. Consulte `Documentos/md/architecture/API_CONTRACTS.md`, `Documentos/md/architecture/PENDENCIAS.md`, `Documentos/md/architecture/RATEIO.md`, `Documentos/md/compliance/SECURITY.md` e `Documentos/md/architecture/DEPLOY.md` quando a mudança tocar seus domínios.
 4. Inspecione os contratos e o código existente relacionado à tarefa antes de implementar.
 
 Em caso de conflito, siga esta ordem de precedência:
 
 1. instrução explícita do usuário na tarefa atual;
-2. `VISAO.md`;
+2. `Documentos/md/product/VISAO.md`;
 3. documentação específica do domínio;
 4. contratos e código existente.
 
 Se documentação e implementação divergirem de forma relevante para a tarefa, não escolha silenciosamente. Identifique a divergência e determine se ela exige decisão do usuário conforme as regras de autonomia deste arquivo.
+
+## Fonte canônica dos agentes
+
+As definições autoritativas dos agentes estão em `.claude/agents/`. Outras superfícies (`.paperclip-agent-bundles/`, `.codex/agents/`) são legadas e podem divergir; em caso de conflito, `.claude/agents/` prevalece.
+
+## Mapeamento de agentes
+
+| Agente | Arquivo | Modelo |
+|--------|---------|--------|
+| HUB Backend Developer | `.claude/agents/hub-backend-developer.md` | Sonnet 5 |
+| HUB Backend Reviewer | `.claude/agents/hub-backend-reviewer.md` | Sonnet 5 |
+| HUB Frontend Developer | `.claude/agents/hub-frontend-developer.md` | Sonnet 5 |
+| HUB Frontend Reviewer | `.claude/agents/hub-frontend-reviewer.md` | Sonnet 5 |
+| HUB Security Reviewer | `.claude/agents/hub-security-reviewer.md` | Sonnet 5 |
+| HUB Code Reviewer | `.claude/agents/hub-code-reviewer.md` | Sonnet 5 |
 
 ---
 
@@ -22,9 +37,9 @@ Se documentação e implementação divergirem de forma relevante para a tarefa,
 
 1. Segurança, isolamento por empresa, recuperação de regressões e migrations.
 2. Fluxos operacionais usáveis de ponta a ponta, incluindo backend, frontend e documentação na mesma entrega.
-3. V1.5 conforme `VISAO.md`, depois V2 financeiro e os itens posteriores na ordem definida pela visão.
+3. V1.5 conforme `Documentos/md/product/VISAO.md`, depois V2 financeiro e os itens posteriores na ordem definida pela visão.
 
-Não declarar uma tarefa concluída sem evidência de validação registrada em `PROGRESS.md`.
+Não declarar uma tarefa concluída sem evidência de validação, registrada em `Documentos/md/history/PROGRESS.md` pelo orquestrador.
 
 ---
 
@@ -122,8 +137,8 @@ Não solicitar ao usuário decisões que possam ser determinadas com segurança 
 * Não criar arquitetura paralela quando já existir padrão equivalente no HUB.
 * Não introduzir dependências novas sem necessidade.
 * Uma funcionalidade só está pronta quando interface e API correspondentes estiverem conectadas, quando ambas fizerem parte do fluxo.
-* Atualizar `API_CONTRACTS.md` no mesmo commit de qualquer alteração de contrato ou endpoint.
-* Atualizar `PROGRESS.md` no mesmo commit de qualquer entrega.
+* Atualizar `Documentos/md/architecture/API_CONTRACTS.md` no mesmo commit de qualquer alteração de contrato ou endpoint.
+* O orquestrador (sessão principal/lead) é o responsável por atualizar `Documentos/md/history/PROGRESS.md` no mesmo commit de qualquer entrega. Os agentes individuais reportam seus resultados e evidências; o orquestrador os registra.
 * Atualizar também a documentação operacional ou de domínio afetada.
 
 ---
@@ -175,7 +190,7 @@ Quando a tarefa exigir mudança de contrato:
 
 1. identifique todos os consumidores relevantes;
 2. atualize os consumidores afetados;
-3. atualize `API_CONTRACTS.md`;
+3. atualize `Documentos/md/architecture/API_CONTRACTS.md`;
 4. valide o fluxo completo.
 
 Não assuma nomes de arquivos, funções, campos, endpoints ou models. Verifique o repositório.
@@ -253,7 +268,7 @@ Se uma parte necessária não puder ser concluída:
 1. informe claramente a limitação;
 2. explique o que permanece pendente;
 3. não apresente o fluxo como completamente implementado;
-4. não registre a funcionalidade como concluída em `PROGRESS.md`.
+4. não registre a funcionalidade como concluída em `Documentos/md/history/PROGRESS.md`.
 
 ---
 
@@ -306,7 +321,7 @@ Antes de considerar uma implementação concluída:
 8. verifique migrations;
 9. execute a validação proporcional ao risco;
 10. atualize a documentação exigida;
-11. registre evidência de validação em `PROGRESS.md`.
+11. reporte a evidência de validação ao orquestrador, que a registra em `Documentos/md/history/PROGRESS.md`.
 
 Não reverta alterações existentes do usuário que não pertençam à tarefa.
 
@@ -346,7 +361,7 @@ Problemas encontrados fora do escopo, limitações ou pontos que mereçam Sprint
 
 ### Documentação
 
-Documentos atualizados, incluindo `PROGRESS.md` quando aplicável.
+Documentos atualizados, incluindo `Documentos/md/history/PROGRESS.md` quando aplicável.
 
 Não reproduza arquivos completos na resposta quando eles já tiverem sido modificados diretamente no repositório.
 
@@ -356,7 +371,7 @@ Não reproduza arquivos completos na resposta quando eles já tiverem sido modif
 
 A tarefa informa **o que deve ser construído**.
 
-`VISAO.md` informa **o que o HUB deve ser**.
+`Documentos/md/product/VISAO.md` informa **o que o HUB deve ser**.
 
 A documentação de domínio informa **as regras específicas do sistema**.
 

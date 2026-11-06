@@ -1,12 +1,12 @@
 # HUB — Sistema de Operação Solar
 
-Consulte [SECURITY.md](SECURITY.md) para os controles de multi-tenancy, RBAC,
+Consulte [SECURITY.md](Documentos/md/compliance/SECURITY.md) para os controles de multi-tenancy, RBAC,
 sessões, Google Drive e o procedimento de migração de segurança.
 
 > **Programa de trabalho diário** para organizar clientes, UCs (unidades consumidoras), usinas e documentos de uma operação de energia solar.
 > **Documentos relacionados:** [[VISAO]] · [[ARCHITECTURE]] · [[PROGRESS]] · [[API_CONTRACTS]]
 
-[![Status](https://img.shields.io/badge/versão-V0.x-blue)](VISAO.md)
+[![Status](https://img.shields.io/badge/versão-V0.x-blue)](Documentos/md/product/VISAO.md)
 [![Backend](https://img.shields.io/badge/backend-Flask%20%2B%20SQLAlchemy-green)](backend/)
 [![Frontend](https://img.shields.io/badge/frontend-TypeScript%20vanilla%20%2B%20Vite-blue)](frontend/)
 
@@ -298,7 +298,7 @@ A API segue padrão RESTful com envelope de resposta consistente:
 | GET | `/folders/<folderId>` | Lista o conteúdo de uma pasta do Drive |
 | POST | `/download-zip` | Download em lote do Drive |
 
-📄 **Contrato completo em**: [API_CONTRACTS.md](API_CONTRACTS.md)
+📄 **Contrato completo em**: [API_CONTRACTS.md](Documentos/md/architecture/API_CONTRACTS.md)
 
 ---
 
@@ -315,7 +315,7 @@ A API segue padrão RESTful com envelope de resposta consistente:
 - [ ] Disparos automáticos de WhatsApp por eventos da Agenda — depende de definir os gatilhos de negócio
 - [ ] V2.0: financeiro, importação de boleto/fatura e notificações
 
-📋 **Roadmap detalhado em**: [PROGRESS.md](PROGRESS.md)
+📋 **Roadmap detalhado em**: [PROGRESS.md](Documentos/md/history/PROGRESS.md)
 
 ---
 
@@ -323,9 +323,11 @@ A API segue padrão RESTful com envelope de resposta consistente:
 
 | Arquivo | Descrição |
 |---------|-----------|
-| [VISAO.md](VISAO.md) | Documento de visão — norte estratégico do projeto |
-| [PROGRESS.md](PROGRESS.md) | Status atual, tarefas concluídas e pendentes |
-| [API_CONTRACTS.md](API_CONTRACTS.md) | Contratos completos de todos os endpoints |
+| [VISAO.md](Documentos/md/product/VISAO.md) | Documento de visão — norte estratégico do projeto |
+| [PROGRESS.md](Documentos/md/history/PROGRESS.md) | Status atual, tarefas concluídas e pendentes |
+| [API_CONTRACTS.md](Documentos/md/architecture/API_CONTRACTS.md) | Contratos completos de todos os endpoints |
+| [REGRAS.md](Documentos/md/process/REGRAS.md) | Time de agentes `hub-*` (implementação + revisão) e gates por tipo de mudança |
+| [TASK_CONTRACT.md](Documentos/md/TASK_CONTRACT.md) | Template de Task Contract usado por todo agente |
 
 ---
 
@@ -344,7 +346,7 @@ Este é um projeto focado em uso interno. Se encontrar bugs ou tiver sugestões:
 
 1. Verifique se já existe uma issue relacionada
 2. Descreva o problema com detalhes (passos para reproduzir, comportamento esperado)
-3. Para features, discuta primeiro no `PROGRESS.md` antes de implementar
+3. Para features, discuta primeiro no `Documentos/md/history/PROGRESS.md` antes de implementar
 
 ---
 

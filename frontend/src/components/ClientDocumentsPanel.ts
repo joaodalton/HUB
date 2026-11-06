@@ -1,6 +1,7 @@
 import { createElement } from '../dom';
 import { createIcon } from './Icon';
 import { useToast } from '../hooks/useToast';
+import { t } from '../services/i18nService';
 import {
   deleteDocument,
   downloadDocumentFile,
@@ -13,17 +14,20 @@ import {
 // Categoria de documento saiu da interface (decisao 2026-07-30) -- atrapalhava mais
 // do que ajudava no fluxo. O campo continua existindo no banco (agora opcional),
 // so nao aparece mais aqui nem em nenhum outro lugar de upload.
-export function createClientDocumentsPanel(clientId: number | undefined): HTMLElement {
+// plantId: mesmo painel reaproveitado pra documentos de usina (Task 11) --
+// so troca o parametro de filtro/upload (clienteId -> plantId).
+export function createClientDocumentsPanel(clientId: number | undefined, plantId?: number): HTMLElement {
   const toast = useToast();
   const panel = createElement('div', { className: 'client-documents-panel' });
-  const title = createElement('span', { className: 'plant-connection-title', textContent: 'Documentos' });
+  const title = createElement('span', { className: 'plant-connection-title', textContent: t('clients.documents.title') });
+  const entityLabel = plantId ? t('clients.documents.entityPlant') : t('clients.documents.entityClient');
 
   panel.appendChild(title);
 
-  if (!clientId) {
+  if (!clientId && !plantId) {
     panel.appendChild(createElement('p', {
       className: 'empty-state small',
-      textContent: 'Salve o cliente primeiro pra poder anexar documentos.'
+      textContent: `${t('clients.documents.savePrefix')} ${entityLabel} ${t('clients.documents.saveSuffix')}`
     }));
     return panel;
   }
@@ -33,7 +37,7 @@ export function createClientDocumentsPanel(clientId: number | undefined): HTMLEl
   const dropButton = createElement('button', { className: 'upload-dropzone', type: 'button' });
 
   dropButton.appendChild(createIcon('upload'));
-  dropButton.setAttribute('aria-label', 'Adicionar documento');
+  dropButton.setAttribute('aria-label', t('clients.documents.addAriaLabel'));
   fileInput.type = 'file';
   fileInput.hidden = true;
 
@@ -52,11 +56,11 @@ export function createClientDocumentsPanel(clientId: number | undefined): HTMLEl
     dropButton.classList.add('loading');
 
     try {
-      await uploadDocument({ clienteId: clientId }, file);
-      toast.success('Documento enviado.');
+      await uploadDocument({ clienteId: clientId, plantId }, file);
+      toast.success(t('clients.documents.uploadSuccess'));
       await loadDocuments();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Nao foi possivel enviar o documento.');
+      toast.error(error instanceof Error ? error.message : t('clients.documents.uploadError'));
     } finally {
       dropButton.disabled = false;
       dropButton.classList.remove('loading');
@@ -65,13 +69,13 @@ export function createClientDocumentsPanel(clientId: number | undefined): HTMLEl
   });
 
   async function loadDocuments(): Promise<void> {
-    list.replaceChildren(createElement('small', { textContent: 'Carregando documentos...' }));
+    list.replaceChildren(createElement('small', { textContent: t('clients.documents.loading') }));
 
     try {
-      documents = await getDocuments(clientId);
+      documents = await getDocuments(clientId, undefined, plantId);
       renderDocuments();
     } catch {
-      list.replaceChildren(createElement('small', { textContent: 'Nao foi possivel carregar os documentos.' }));
+      list.replaceChildren(createElement('small', { textContent: t('clients.documents.loadError') }));
     }
   }
 
@@ -79,14 +83,14 @@ export function createClientDocumentsPanel(clientId: number | undefined): HTMLEl
     list.replaceChildren();
 
     if (documents.length === 0) {
-      list.appendChild(createElement('small', { textContent: 'Nenhum documento anexado ainda.' }));
+      list.appendChild(createElement('small', { textContent: t('clients.documents.empty') }));
       return;
     }
 
     documents.forEach((doc) => {
       const row = createElement('div', { className: 'client-document-row' });
       const name = createElement('input');
-      const downloadButton = createElement('button', { className: 'secondary-button', textContent: 'Baixar', type: 'button' });
+      const downloadButton = createElement('button', { className: 'secondary-button', textContent: t('clients.documents.download'), type: 'button' });
       const deleteButton = createElement('button', { className: 'icon-button', type: 'button' });
 
       deleteButton.appendChild(createIcon('x'));
@@ -103,27 +107,27 @@ export function createClientDocumentsPanel(clientId: number | undefined): HTMLEl
         try {
           await renameDocument(doc.id, novoNome);
           doc.nome = novoNome;
-          toast.success('Documento renomeado.');
+          toast.success(t('clients.documents.renameSuccess'));
         } catch {
-          toast.error('Nao foi possivel renomear o documento.');
+          toast.error(t('clients.documents.renameError'));
           name.value = doc.nome;
         }
       });
 
       downloadButton.addEventListener('click', () => {
-        downloadDocumentFile(doc.id, doc.nome).catch(() => toast.error('Nao foi possivel baixar o documento.'));
+        downloadDocumentFile(doc.id, doc.nome).catch(() => toast.error(t('clients.documents.downloadError')));
       });
 
-      deleteButton.setAttribute('aria-label', `Remover ${doc.nome}`);
+      deleteButton.setAttribute('aria-label', `${t('clients.documents.removeAriaLabelPrefix')} ${doc.nome}`);
       deleteButton.addEventListener('click', async () => {
-        if (!window.confirm(`Excluir o documento "${doc.nome}"? Essa acao nao pode ser desfeita.`)) return;
+        if (!window.confirm(`${t('clients.documents.deleteConfirm.prefix')} "${doc.nome}"${t('clients.documents.deleteConfirm.suffix')}`)) return;
 
         try {
           await deleteDocument(doc.id);
-          toast.success('Documento excluido.');
+          toast.success(t('clients.documents.deleteSuccess'));
           await loadDocuments();
         } catch {
-          toast.error('Nao foi possivel excluir o documento.');
+          toast.error(t('clients.documents.deleteError'));
         }
       });
 

@@ -3,6 +3,7 @@
 // Extraido do ClientDocumentsPanel pra reaproveitar no DocumentLinkModal sem duplicar.
 import { createElement } from '../dom';
 import { createCategory, getCategories, type CategoryRow } from '../services/documentsService';
+import { t } from '../services/i18nService';
 
 export function createCategoryPicker(onError: (message: string) => void): {
   wrapper: HTMLElement;
@@ -12,7 +13,7 @@ export function createCategoryPicker(onError: (message: string) => void): {
   const select = createElement('select');
   const newCategoryButton = createElement('button', {
     className: 'secondary-button',
-    textContent: '+ categoria',
+    textContent: t('clients.category.newButton'),
     type: 'button'
   });
 
@@ -25,7 +26,7 @@ export function createCategoryPicker(onError: (message: string) => void): {
     select.replaceChildren();
 
     const placeholder = createElement('option', {
-      textContent: categories.length === 0 ? 'Nenhuma categoria ainda' : 'Categoria...'
+      textContent: categories.length === 0 ? t('clients.category.placeholderEmpty') : t('clients.category.placeholderChoose')
     });
     placeholder.value = '';
     select.appendChild(placeholder);
@@ -40,7 +41,7 @@ export function createCategoryPicker(onError: (message: string) => void): {
   }
 
   newCategoryButton.addEventListener('click', async () => {
-    const nome = window.prompt('Nome da categoria (ex: Termo de adesao, Fatura, Contrato):');
+    const nome = window.prompt(t('clients.category.promptName'));
     if (!nome || !nome.trim()) return;
 
     try {
@@ -49,7 +50,7 @@ export function createCategoryPicker(onError: (message: string) => void): {
       renderOptions();
       select.value = String(category.id);
     } catch (error) {
-      onError(error instanceof Error ? error.message : 'Nao foi possivel criar a categoria.');
+      onError(error instanceof Error ? error.message : t('clients.category.createError'));
     }
   });
 

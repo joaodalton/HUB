@@ -1,4 +1,5 @@
 import { createElement } from '../dom';
+import { t } from '../services/i18nService';
 
 export type DetailDrawerTab = { label: string; content: HTMLElement };
 
@@ -15,7 +16,7 @@ export function createDetailDrawer({ title, badge, tabs = [], onClose, actions =
   const drawer = createElement('aside', { className: 'detail-drawer' });
   const header = createElement('header', { className: 'detail-drawer-header' });
   const heading = createElement('h2', { textContent: title });
-  const close = createElement('button', { className: 'icon-button neutral', textContent: '×', type: 'button', title: 'Fechar' });
+  const close = createElement('button', { className: 'icon-button neutral', textContent: '×', type: 'button', title: t('shared.detailDrawer.closeTitle') });
   const body = createElement('div', { className: 'detail-drawer-body' });
   const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   const titleId = `drawer-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -41,7 +42,7 @@ export function createDetailDrawer({ title, badge, tabs = [], onClose, actions =
     else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
   };
 
-  close.setAttribute('aria-label', 'Fechar painel');
+  close.setAttribute('aria-label', t('shared.detailDrawer.closeAriaLabel'));
   close.addEventListener('click', closeDrawer);
   header.append(heading, ...(badge ? [badge] : []), close);
   if (tabs.length > 0) {

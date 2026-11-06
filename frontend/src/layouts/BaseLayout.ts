@@ -3,11 +3,11 @@ import { createHeader } from '../components/Header';
 import { createLoading } from '../components/Loading';
 import { createSidebar } from '../components/Sidebar';
 import { createToastContainer } from '../components/Toast';
-import { createCommandPalette } from '../components/CommandPalette';
 import { createIcon } from '../components/Icon';
 import { getCurrentUser, refreshCurrentUser } from '../services/authService';
-import { sairDaVisualizacao } from '../services/platformService';
+import { sairDaVisualizacao } from '../platform/services/platformService';
 import { invalidateSettingsCache } from '../services/settingsService';
+import { t } from '../services/i18nService';
 
 type BaseLayoutOptions = {
   content: HTMLElement;
@@ -27,8 +27,6 @@ export function createBaseLayout({ content, eyebrow, title, description }: BaseL
   const overlay = createElement('div', { className: 'sidebar-overlay' });
 
   const header = createHeader({ eyebrow, title, description });
-  const palette = createCommandPalette();
-  header.appendChild(palette.trigger);
   const contextBanner = createPlatformContextBanner();
   main.append(header);
   if (contextBanner) main.appendChild(contextBanner);
@@ -59,7 +57,7 @@ export function createBaseLayout({ content, eyebrow, title, description }: BaseL
   });
   applySidebarPreference();
   body.append(sidebar, main);
-  shell.append(overlay, body, palette.element, createLoading(), createToastContainer());
+  shell.append(overlay, body, createLoading(), createToastContainer());
 
   // Toggle do menu mobile
   const menuToggle = createElement('button', {
@@ -125,16 +123,16 @@ export function createBaseLayout({ content, eyebrow, title, description }: BaseL
 
 function createPlatformContextBanner(): HTMLElement | null {
   const user = getCurrentUser();
-  if (!user?.isPlatformAdmin || !user.platformViewEmpresaId) return null;
+  if (!(user?.isPlatformAdmin || user?.isPlatformWorker) || !user.platformViewEmpresaId) return null;
   const banner = createElement('section', { className: 'platform-context-banner' });
   banner.setAttribute('role', 'status');
   const text = createElement('div');
   text.append(
-    createElement('strong', { textContent: 'PLATFORM ADMIN' }),
-    createElement('span', { textContent: `Empresa atual: ${user.platformViewEmpresaNome || `#${user.platformViewEmpresaId}`}` })
+    createElement('strong', { textContent: user.isPlatformAdmin ? t('platform.banner.platformAdmin') : t('platform.banner.platformWorker') }),
+    createElement('span', { textContent: t('platform.banner.empresaAtualTemplate').replace('{name}', user.platformViewEmpresaNome || `#${user.platformViewEmpresaId}`) })
   );
   const exit = createElement('button', { className: 'secondary-button button-with-icon', type: 'button' });
-  exit.append(createIcon('login'), document.createTextNode('Sair da empresa'));
+  exit.append(createIcon('login'), document.createTextNode(t('platform.banner.exitButton')));
   exit.addEventListener('click', () => {
     exit.disabled = true;
     void sairDaVisualizacao()

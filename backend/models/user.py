@@ -13,7 +13,7 @@ class User(db.Model):
     # (unico em toda a base) antes de existir uma "empresa atual" na
     # sessao. Ver comentario em extensions.py.
     id = db.Column(db.Integer, primary_key=True)
-    empresa_id = db.Column(db.Integer, db.ForeignKey('empresas.id'), nullable=False, index=True)
+    empresa_id = db.Column(db.Integer, db.ForeignKey('empresas.id'), nullable=True, index=True)
     nome = db.Column(db.String(150), nullable=False, default='')
     email = db.Column(db.String(150), nullable=False, unique=True)
     password_hash = db.Column(db.String(255), nullable=False)
@@ -24,6 +24,7 @@ class User(db.Model):
     # Flag global, separado dos papeis que valem apenas dentro da empresa.
     # E concedido exclusivamente pelo script administrativo.
     is_platform_admin = db.Column(db.Boolean, nullable=False, default=False)
+    is_platform_worker = db.Column(db.Boolean, nullable=False, default=False)
     session_version = db.Column(db.Integer, nullable=False, default=1)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -40,5 +41,6 @@ class User(db.Model):
             'status': self.status,
             'emailVerified': self.email_verified,
             'mustChangePassword': self.must_change_password,
-            'isPlatformAdmin': self.is_platform_admin
+            'isPlatformAdmin': self.is_platform_admin,
+            'isPlatformWorker': self.is_platform_worker
         }

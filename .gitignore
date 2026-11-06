@@ -6,6 +6,7 @@ backend/.env
 frontend/.env
 frontend/node_modules/
 frontend/dist/
+frontend/dist-marketing/
 backend/database/*.db
 backend/database/*.db-journal
 backend/database/teste.txt
@@ -18,6 +19,7 @@ tmp/
 output/
 .pytest_cache/
 backend/.pytest_cache/
+.claude/settings.local.json
 backend/debug_*.py
 backend/scripts/debug_*.py
 backend/scripts/testar_*.py
@@ -35,7 +37,7 @@ backend/scripts/testar_*.py
 !.codex/agents/tester.toml
 .maestri/
 .superpowers/
-docs/superpowers/
+Documentos/md/superpowers/
 .obsidian/
 graphify-out/
 backend/tests/fixtures/invoices/copel/private/
@@ -114,3 +116,6 @@ backend/tests/fixtures/invoices/copel/*
 !backend/tests/test_copel_deep.py
 !backend/tests/test_copel_parser.py
 !backend/tests/test_platform_boundary.py
+.worktrees/
+
+cloudflare/**/node_modules/

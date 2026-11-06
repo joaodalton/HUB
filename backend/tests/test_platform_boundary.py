@@ -106,8 +106,10 @@ class PlatformBoundaryTest(IsolatedTestRuntime, unittest.TestCase):
         response = client.get('/api/v1/platform/empresas', headers=self._auth(self.platform_id))
         self.assertEqual(response.status_code, 200)
         rows = response.get_json()['data']
-        self.assertEqual([row['totalUsuarios'] for row in rows], [4, 1])
-        self.assertEqual(set(rows[0]), {'id', 'nome', 'slug', 'status', 'totalUsuarios', 'createdAt'})
+        self.assertEqual([row['totalClientes'] for row in rows], [1, 1])
+        self.assertEqual([row['totalUcs'] for row in rows], [0, 0])
+        self.assertEqual([row['totalUsinas'] for row in rows], [0, 0])
+        self.assertEqual(set(rows[0]), {'id', 'nome', 'slug', 'status', 'totalClientes', 'totalUcs', 'totalUsinas', 'createdAt'})
 
     def test_existing_global_platform_apis_remain_available_without_tenant_view(self):
         client = self.app.test_client()

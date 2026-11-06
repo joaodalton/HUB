@@ -1,5 +1,6 @@
 from flask import Blueprint, request
 
+from extensions import limiter
 from services.client_service import (
     create_client,
     delete_client,
@@ -10,12 +11,14 @@ from services.client_service import (
 from services.permission_service import require_permission, require_quota
 from services.fatura_concessionaria_upload_service import InvoiceUploadError, upload_invoice
 from utils.api_response import error_response, success_response
+from utils.pagination import get_pagination_params
 
 
 client_routes = Blueprint('client_routes', __name__, url_prefix='/api/v1/clients')
 
 
 @client_routes.route('/<int:client_id>/invoices/upload', methods=['POST'])
+@limiter.limit('10 per minute')
 @require_permission('faturas.create')
 def upload_concessionaria_invoice(client_id: int):
     files = request.files.getlist('arquivo')
@@ -43,7 +46,9 @@ def upload_concessionaria_invoice(client_id: int):
 @client_routes.route('', methods=['GET'])
 @require_permission('clients.read')
 def index():
-    return success_response(list_clients())
+    page, page_size = get_pagination_params()
+    clients, pagination = list_clients(page=page, page_size=page_size)
+    return success_response(clients, pagination=pagination)
 
 
 @client_routes.route('/<int:client_id>', methods=['GET'])
@@ -58,6 +63,7 @@ def show(client_id: int):
 
 
 @client_routes.route('', methods=['POST'])
+@limiter.limit('30 per minute')
 @require_permission('clients.create')
 @require_quota('clientes')
 def store():
@@ -76,6 +82,7 @@ def store():
     return success_response(client, 'Cliente cadastrado.', 201)
 
 @client_routes.route('/<int:client_id>', methods=['PUT'])
+@limiter.limit('30 per minute')
 @require_permission('clients.update')
 def update(client_id: int):
     data = request.get_json(silent=True) or {}
@@ -97,6 +104,7 @@ def update(client_id: int):
 
 
 @client_routes.route('/<int:client_id>', methods=['DELETE'])
+@limiter.limit('30 per minute')
 @require_permission('clients.delete')
 def destroy(client_id: int):
     if not delete_client(client_id):

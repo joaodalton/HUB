@@ -1,0 +1,68 @@
+import type { Translation } from '../services/i18nService';
+
+export const pendenciasDict: Record<string, Translation> = {
+  // PendenciasPage.ts
+  'pendencias.page.eyebrow': { pt: 'Operação', en: 'Operations', fr: 'Opérations' },
+  'pendencias.page.title': { pt: 'Pendências', en: 'Pending issues', fr: 'Incidents' },
+  'pendencias.page.description': { pt: 'Central de ações do HUB para pendências, alertas e erros.', en: 'HUB action hub for pending issues, alerts and errors.', fr: "Centre d'actions du HUB pour les incidents, alertes et erreurs." },
+  'pendencias.page.loadError': { pt: 'Não foi possível carregar pendências. Verifique se o backend está rodando.', en: 'Could not load the pending issues. Check whether the backend is running.', fr: "Impossible de charger les incidents. Vérifiez que le backend est en cours d'exécution." },
+  'pendencias.page.autoCreatedSuffix': { pt: 'nova(s) pendência(s) criada(s) automaticamente.', en: 'new pending issue(s) automatically created.', fr: 'nouvelle(s) pendance(s) créée(s) automatiquement.' },
+  'pendencias.page.autoResolvedSuffix': { pt: 'pendência(s) resolvida(s) automaticamente.', en: 'pending issue(s) automatically resolved.', fr: 'incident(s) résolu(s) automatiquement.' },
+
+  // pendencias/PendenciasEditorModal.ts
+  'pendencias.editor.tipoResponsavel': { pt: 'Tipo de responsável', en: 'Responsible type', fr: 'Type de responsable' },
+  'pendencias.editor.tipoUsuario': { pt: 'Usuário', en: 'User', fr: 'Utilisateur' },
+  'pendencias.editor.tipoCargo': { pt: 'Cargo', en: 'Role', fr: 'Fonction' },
+  'pendencias.editor.responsavelUsuario': { pt: 'Responsável (usuário)', en: 'Responsible (user)', fr: 'Responsable (utilisateur)' },
+  'pendencias.editor.responsavelCargo': { pt: 'Responsável (cargo)', en: 'Responsible (role)', fr: 'Responsable (fonction)' },
+  'pendencias.editor.categoria': { pt: 'Categoria', en: 'Category', fr: 'Catégorie' },
+  'pendencias.editor.addCategoria': { pt: '+ categoria', en: '+ category', fr: '+ catégorie' },
+  'pendencias.editor.newCategoriaPrompt': { pt: 'Nome da nova categoria de pendência (ex: Idade, Contrato...):', en: 'Name of the new pending issue category (e.g.: Age, Contract...):', fr: "Nom de la nouvelle catégorie d'incident (ex. : Âge, Contrat...) :" },
+  'pendencias.editor.categoriaSaveError': { pt: 'Não foi possível salvar a nova categoria.', en: 'Could not save the new category.', fr: "Impossible d'enregistrer la nouvelle catégorie." },
+  'pendencias.editor.eyebrowEdit': { pt: 'Pendência', en: 'Pending issue', fr: 'Incident' },
+  'pendencias.editor.eyebrowNew': { pt: 'Nova pendência', en: 'New pending issue', fr: 'Nouvel incident' },
+  'pendencias.editor.headingNew': { pt: 'Cadastrar pendência', en: 'Register pending issue', fr: 'Enregistrer un incident' },
+  'pendencias.editor.closeButton': { pt: 'Fechar', en: 'Close', fr: 'Fermer' },
+  'pendencias.editor.fieldTitulo': { pt: 'Título', en: 'Title', fr: 'Titre' },
+  'pendencias.editor.fieldPrioridade': { pt: 'Prioridade', en: 'Priority', fr: 'Priorité' },
+  'pendencias.editor.fieldPrazo': { pt: 'Prazo', en: 'Due date', fr: 'Échéance' },
+  'pendencias.editor.fieldDescricao': { pt: 'Descrição', en: 'Description', fr: 'Description' },
+  'pendencias.editor.fieldCliente': { pt: 'Cliente (opcional)', en: 'Client (optional)', fr: 'Client (facultatif)' },
+  'pendencias.editor.fieldUc': { pt: 'UC (opcional)', en: 'Unit (optional)', fr: 'Unité (facultatif)' },
+  'pendencias.editor.fieldUsina': { pt: 'Usina (opcional)', en: 'Plant (optional)', fr: 'Centrale (facultatif)' },
+  'pendencias.editor.saveButton': { pt: 'Salvar pendência', en: 'Save pending issue', fr: "Enregistrer l'incident" },
+  'pendencias.editor.updateSuccess': { pt: 'Pendência atualizada.', en: 'Pending issue updated.', fr: 'Incident mis à jour.' },
+  'pendencias.editor.createSuccess': { pt: 'Pendência criada.', en: 'Pending issue created.', fr: 'Incident créé.' },
+  'pendencias.editor.saveError': { pt: 'Não foi possível salvar a pendência.', en: 'Could not save the pending issue.', fr: "Impossible d'enregistrer l'incident." },
+  'pendencias.editor.sectionInfo': { pt: 'Informações principais', en: 'Main information', fr: 'Informations principales' },
+  'pendencias.editor.sectionRelacionamento': { pt: 'Relacionamento', en: 'Relationship', fr: 'Relation' },
+  'pendencias.editor.sectionResponsavel': { pt: 'Responsável', en: 'Responsible', fr: 'Responsable' },
+
+  // pendencias/shared.ts
+  'pendencias.shared.vinculoNenhum': { pt: 'Nenhum', en: 'None', fr: 'Aucun' },
+  'pendencias.shared.attentionAction': { pt: 'Precisa de ação', en: 'Needs action', fr: 'Action requise' },
+  'pendencias.shared.attentionWaiting': { pt: 'Aguardando informação', en: 'Awaiting information', fr: "En attente d'information" },
+  'pendencias.shared.attentionInfo': { pt: 'Informativa', en: 'Informational', fr: 'Informative' },
+  'pendencias.shared.destFaturas': { pt: 'Abrir faturas', en: 'Open invoices', fr: 'Ouvrir les factures' },
+  'pendencias.shared.destUc': { pt: 'Abrir UC', en: 'Open unit', fr: "Ouvrir l'unité" },
+  'pendencias.shared.destUsina': { pt: 'Abrir usina', en: 'Open plant', fr: 'Ouvrir la centrale' },
+  'pendencias.shared.destCliente': { pt: 'Abrir cliente', en: 'Open client', fr: 'Ouvrir le client' },
+  'pendencias.shared.destDocumentos': { pt: 'Abrir documentos', en: 'Open documents', fr: 'Ouvrir les documents' },
+
+  // services/pendenciasService.ts (tipoLabel, prioridadeLabel, statusLabel, vinculacaoLabel, responsavelLabel)
+  'pendencias.service.tipoPendencia': { pt: 'Pendência', en: 'Pending issue', fr: 'Incident' },
+  'pendencias.service.tipoAlerta': { pt: 'Alerta', en: 'Alert', fr: 'Alerte' },
+  'pendencias.service.tipoErro': { pt: 'Erro', en: 'Error', fr: 'Erreur' },
+  'pendencias.service.prioridadeBaixa': { pt: 'Baixa', en: 'Low', fr: 'Basse' },
+  'pendencias.service.prioridadeMedia': { pt: 'Média', en: 'Medium', fr: 'Moyenne' },
+  'pendencias.service.prioridadeAlta': { pt: 'Alta', en: 'High', fr: 'Haute' },
+  'pendencias.service.prioridadeCritica': { pt: 'Crítica', en: 'Critical', fr: 'Critique' },
+  'pendencias.service.statusAberta': { pt: 'Aberta', en: 'Open', fr: 'Ouvert' },
+  'pendencias.service.statusResolvida': { pt: 'Resolvida', en: 'Resolved', fr: 'Résolu' },
+  'pendencias.service.statusCancelada': { pt: 'Cancelada', en: 'Canceled', fr: 'Annulé' },
+  'pendencias.service.vinculoCliente': { pt: 'Cliente', en: 'Client', fr: 'Client' },
+  'pendencias.service.vinculoUc': { pt: 'UC', en: 'Unit', fr: 'Unité' },
+  'pendencias.service.vinculoUsina': { pt: 'Usina', en: 'Plant', fr: 'Centrale' },
+  'pendencias.service.vinculoDocumento': { pt: 'Documento', en: 'Document', fr: 'Document' },
+  'pendencias.service.cargoPrefix': { pt: 'Cargo', en: 'Role', fr: 'Fonction' }
+};

@@ -17,6 +17,7 @@ class Assinatura(db.Model):
     fim_periodo_atual = db.Column(db.DateTime, nullable=True)
     proxima_cobranca = db.Column(db.DateTime, nullable=True)
     asaas_subscription_id = db.Column(db.String(100), nullable=True)
+    isento_cobranca = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

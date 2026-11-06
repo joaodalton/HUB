@@ -1,4 +1,5 @@
 import { createElement } from '../dom';
+import { t } from '../services/i18nService';
 
 export type UiStateKind = 'empty' | 'filtered' | 'error';
 
@@ -34,7 +35,7 @@ export function createUiState({ kind, title, description, action, compact = fals
 
 export function createListSkeleton(rows = 4): HTMLElement {
   const list = createElement('div', { className: 'skeleton-list' });
-  list.setAttribute('aria-label', 'Carregando lista');
+  list.setAttribute('aria-label', t('shared.uiState.loadingList'));
   list.setAttribute('aria-busy', 'true');
   for (let index = 0; index < rows; index += 1) {
     const row = createElement('div', { className: 'skeleton-list-row' });
@@ -46,7 +47,7 @@ export function createListSkeleton(rows = 4): HTMLElement {
 
 export function createTableSkeleton(columns: number, rows = 5): HTMLElement {
   const body = createElement('tbody', { className: 'skeleton-table-body' });
-  body.setAttribute('aria-label', 'Carregando tabela');
+  body.setAttribute('aria-label', t('shared.uiState.loadingTable'));
   for (let rowIndex = 0; rowIndex < rows; rowIndex += 1) {
     const row = createElement('tr');
     for (let columnIndex = 0; columnIndex < columns; columnIndex += 1) {

@@ -25,6 +25,7 @@ from models.document import Document
 from models.empresa import Empresa
 from models.fatura_concessionaria import FaturaConcessionaria
 from models.google_account import GoogleAccount
+from models.setting import Setting
 from models.user import User
 from services import fatura_concessionaria_upload_service as upload_service
 from services import drive_service
@@ -199,6 +200,10 @@ class FaturaConcessionariaUploadTest(IsolatedTestRuntime, unittest.TestCase):
                 empresa_id=1, nome='Platform', email='platform@a.test', password_hash='x',
                 role='viewer', is_platform_admin=True,
             ))
+            # POST /api/v1/documents (upload de documento geral, nao de fatura) usa o
+            # fluxo pre-existente (Drive) nesta suite; o padrao da empresa passou a ser
+            # 's3' (STORAGE-2) -- fixa explicitamente pra nao mudar o comportamento testado aqui.
+            db.session.add(Setting(empresa_id=1, chave='document_storage_provider', valor='google_drive'))
             db.session.commit()
             cls.user_ids = {
                 user.email: user.id for user in db.session.execute(db.select(User)).scalars()
@@ -275,7 +280,7 @@ class FaturaConcessionariaUploadTest(IsolatedTestRuntime, unittest.TestCase):
             invoice = FaturaConcessionaria.query.one()
             document = Document.query.one()
             self.assertEqual((invoice.empresa_id, invoice.client_id, document.client_id), (1, 1, 1))
-            self.assertIsNone(invoice.consumer_unit_id)
+            self.assertIsNotNone(invoice.consumer_unit_id)
 
     def test_general_document_upload_falls_back_when_oauth_token_cannot_be_decrypted(self):
         with self.app.app_context():
@@ -431,7 +436,7 @@ class FaturaConcessionariaUploadTest(IsolatedTestRuntime, unittest.TestCase):
             self.assertEqual(invoice.client_id, 1)
             self.assertIsNone(invoice.consumer_unit_id)
             self.assertEqual(invoice.arquivo_hash, hashlib.sha256(body).hexdigest())
-            self.assertEqual((invoice.status_extracao, invoice.status_validacao), ('recebida', 'pendente'))
+            self.assertEqual((invoice.status_extracao, invoice.status_validacao), ('layout_nao_reconhecido', 'pendente'))
             self.assertEqual((document.mime_type, document.storage_provider), ('application/pdf', 's3'))
             self.assertRegex(document.storage_ref, r'^tenants/1/invoices/\d{4}/\d{2}/[0-9a-f]{32}\.pdf$')
             self.assertEqual(document.nome, 'fatura_original.pdf')
@@ -709,6 +714,30 @@ class FaturaConcessionariaUploadTest(IsolatedTestRuntime, unittest.TestCase):
         with self.app.app_context():
             self.assertEqual((Document.query.count(), FaturaConcessionaria.query.count()), (1, 1))
         self.assertEqual(len(self.store.files), 1)
+
+    def test_critical_processing_issue_creates_pendencia_erro_once(self):
+        from services.fatura_processing_service import ProcessingResult, ProcessingStatus
+        from services.invoice_parsers.schemas import ExtractionIssue, IssueSeverity
+        from models.pendencia import Pendencia
+
+        resultado = ProcessingResult(ProcessingStatus.ERROR, issues=(
+            ExtractionIssue('PARSING_EXECUTION_FAILED', IssueSeverity.CRITICAL, 'Falha tecnica.'),
+        ))
+        with self.app.app_context():
+            document = Document(empresa_id=1, client_id=1, nome='fatura.pdf', storage_provider='s3', storage_ref='k')
+            db.session.add(document)
+            db.session.flush()
+            invoice = FaturaConcessionaria(empresa_id=1, client_id=1, document_id=document.id, arquivo_hash='h' * 64)
+            db.session.add(invoice)
+            db.session.commit()
+            upload_service._registrar_pendencia_erro_processamento(invoice, resultado)
+            upload_service._registrar_pendencia_erro_processamento(invoice, resultado)  # dedupe
+            abertas = Pendencia.query.filter_by(
+                empresa_id=1, categoria='Documentos', origem=upload_service.ORIGEM_ERRO_PROCESSAMENTO,
+            ).all()
+            self.assertEqual(len(abertas), 1)
+            self.assertEqual(abertas[0].fatura_concessionaria_id, invoice.id)
+            self.assertEqual(abertas[0].tipo, 'erro')
 
 
 if __name__ == '__main__':

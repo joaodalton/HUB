@@ -106,6 +106,22 @@ class WhatsappTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertEqual(self.request(self.b, '/api/v1/whatsapp/conversas').get_json()['data'], [])
         self.assertEqual(self.app.test_client().post('/api/v1/webhooks/whatsapp', json=payload).status_code, 403)
 
+    def test_send_failure_creates_pendencia_erro_once(self):
+        from services.whatsapp_service import MetaApiError
+        self.configure(self.a)
+        conversation = self.request(self.a, '/api/v1/whatsapp/conversas', 'POST', {'phoneNumber': '5511988887777'}).get_json()['data']
+        with patch('services.whatsapp_service._meta_request', side_effect=MetaApiError('A Meta recusou.')):
+            first = self.request(self.a, f"/api/v1/whatsapp/conversas/{conversation['id']}/mensagens", 'POST', {'body': 'Ola'})
+            second = self.request(self.a, f"/api/v1/whatsapp/conversas/{conversation['id']}/mensagens", 'POST', {'body': 'Ola de novo'})
+        self.assertEqual(first.status_code, 400)
+        self.assertEqual(second.status_code, 400)
+        with self.app.app_context():
+            from models.pendencia import Pendencia
+            abertas = Pendencia.query.filter_by(
+                empresa_id=self.empresa_a, categoria='Mensagens', origem='whatsapp_falhou', status='aberta',
+            ).all()
+        self.assertEqual(len(abertas), 1)
+
 
 if __name__ == '__main__':
     unittest.main()

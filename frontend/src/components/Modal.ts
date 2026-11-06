@@ -1,4 +1,5 @@
 import { createElement } from '../dom';
+import { t } from '../services/i18nService';
 
 export type ModalParts = { overlay: HTMLElement; dialog: HTMLElement; body: HTMLElement; close: () => void };
 
@@ -9,7 +10,7 @@ export function createModalShell(title: string, eyebrow?: string, onClose?: () =
   const headingWrap = createElement('div');
   const heading = createElement('h2', { textContent: title });
   const body = createElement('div', { className: 'modal-body' });
-  const closeButton = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Fechar' });
+  const closeButton = createElement('button', { className: 'secondary-button', type: 'button', textContent: t('shared.modal.close') });
   const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   const titleId = `hub-modal-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 

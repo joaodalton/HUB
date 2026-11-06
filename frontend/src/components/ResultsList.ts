@@ -1,5 +1,6 @@
 import { createElement, emptyState } from '../dom';
 import { documentType, formattedDate, isFolder } from '../services/documentRules';
+import { t } from '../services/i18nService';
 import type { DriveItem } from '../types';
 
 type ResultsListOptions = {
@@ -20,10 +21,10 @@ export function createResultsPanel(options: ResultsListOptions): {
   const panel = createElement('section', { className: 'results-panel' });
   const title = createElement('div', { className: 'panel-title' });
   const titleText = createElement('div');
-  const eyebrow = createElement('span', { className: 'eyebrow', textContent: 'Resultados' });
-  const heading = createElement('h2', { textContent: 'Arquivos encontrados' });
-  const counter = createElement('span', { className: 'counter', textContent: '0 itens' });
-  const backButton = createElement('button', { className: 'secondary-button', textContent: 'Voltar', type: 'button' });
+  const eyebrow = createElement('span', { className: 'eyebrow', textContent: t('documents.results.eyebrow') });
+  const heading = createElement('h2', { textContent: t('documents.results.heading') });
+  const counter = createElement('span', { className: 'counter', textContent: `0 ${t('documents.results.itemPlural')}` });
+  const backButton = createElement('button', { className: 'secondary-button', textContent: t('documents.results.back'), type: 'button' });
   const list = createElement('ul');
   list.id = 'resultados';
 
@@ -31,11 +32,11 @@ export function createResultsPanel(options: ResultsListOptions): {
   backButton.hidden = true;
   backButton.addEventListener('click', options.onBackFolder);
   title.append(titleText, counter, backButton);
-  list.appendChild(emptyState('Digite algo para iniciar a busca.'));
+  list.appendChild(emptyState(t('documents.results.initialPrompt')));
   panel.append(title, list);
 
   function setCount(count: number): void {
-    counter.textContent = `${count} ${count === 1 ? 'item' : 'itens'}`;
+    counter.textContent = `${count} ${count === 1 ? t('documents.results.itemSingular') : t('documents.results.itemPlural')}`;
   }
 
   function setMessage(message: string): void {
@@ -44,12 +45,12 @@ export function createResultsPanel(options: ResultsListOptions): {
   }
 
   function setLoading(): void {
-    list.replaceChildren(createElement('li', { className: 'loading-state', textContent: 'Consultando arquivos...' }));
+    list.replaceChildren(createElement('li', { className: 'loading-state', textContent: t('documents.results.loading') }));
     setCount(0);
   }
 
   function setFolderName(name: string | null): void {
-    heading.textContent = name ? `Conteudo: ${name}` : 'Arquivos encontrados';
+    heading.textContent = name ? `${t('documents.results.headingFolderPrefix')} ${name}` : t('documents.results.heading');
     backButton.hidden = !name;
   }
 
@@ -58,7 +59,7 @@ export function createResultsPanel(options: ResultsListOptions): {
     setCount(items.length);
 
     if (items.length === 0) {
-      list.appendChild(emptyState('Nenhum documento encontrado para esse filtro.'));
+      list.appendChild(emptyState(t('documents.results.emptyFiltered')));
       return;
     }
 
@@ -69,15 +70,15 @@ export function createResultsPanel(options: ResultsListOptions): {
       const link = createElement('a', { textContent: item.name });
       const meta = createElement('span', {
         className: 'result-meta',
-        textContent: `${documentType(item)} - modificado em ${formattedDate(item)}`
+        textContent: `${documentType(item)} - ${t('documents.results.metaSeparator')} ${formattedDate(item)}`
       });
       const actions = createElement('div', { className: 'result-actions' });
       const openLink = isFolder(item)
-        ? createElement('button', { className: 'small-button secondary-button', textContent: 'Ver conteudo', type: 'button' })
-        : createElement('a', { className: 'small-button secondary-link', textContent: 'Abrir' });
+        ? createElement('button', { className: 'small-button secondary-button', textContent: t('documents.results.viewContent'), type: 'button' })
+        : createElement('a', { className: 'small-button secondary-link', textContent: t('documents.results.open') });
       const toggle = createElement('button', {
         className: selected ? 'small-button remove-button' : 'small-button',
-        textContent: selected ? 'Remover' : 'Reservar',
+        textContent: selected ? t('documents.results.remove') : t('documents.results.reserve'),
         type: 'button'
       });
 

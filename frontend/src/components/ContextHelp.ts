@@ -1,4 +1,5 @@
 import { createElement } from '../dom';
+import { t } from '../services/i18nService';
 
 let nextHelpId = 0;
 
@@ -12,7 +13,7 @@ export function createContextHelp(label: string, explanation: string): HTMLEleme
   Object.assign(tip, { id, hidden: true });
   tip.setAttribute('role', 'tooltip');
   Object.entries({
-    'aria-label': `Ajuda: ${label}`,
+    'aria-label': `${t('shared.contextHelp.ariaLabelPrefix')}: ${label}`,
     'aria-controls': id,
     'aria-describedby': id,
     'aria-expanded': 'false'

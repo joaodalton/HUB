@@ -276,6 +276,16 @@ class FaturaEmissaoTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertEqual(self._rows(), [])
         self.asaas.criar_cobranca.assert_not_called()
 
+    def test_client_without_email_is_rejected_before_asaas(self):
+        with self.app.app_context():
+            Client.query.filter_by(id=1).update({'email': ''})
+            db.session.commit()
+        with self.assertRaisesRegex(ValueError, 'Cliente sem email cadastrado.'):
+            self._emit()
+        self.assertEqual(self._rows(), [])
+        self.asaas.criar_cliente.assert_not_called()
+        self.asaas.criar_cobranca.assert_not_called()
+
     def test_sync_recovers_intent_without_reposting(self):
         self.asaas.criar_cobranca.side_effect = AsaasError('unknown')
         with self.assertRaises(service.EmissaoPendente):

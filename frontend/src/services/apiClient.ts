@@ -1,5 +1,5 @@
 import { config } from './config';
-import { clearSession } from './authService';
+import { clearSession } from './sessionState';
 
 type RequestOptions = Omit<RequestInit, 'body'> & {
   body?: unknown;
@@ -9,7 +9,7 @@ const CSRF_COOKIE_NAME = 'hub_csrf';
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 export class ApiRequestError extends Error {
-  constructor(public readonly status: number, message: string) {
+  constructor(public readonly status: number, message: string, public readonly code?: string, public readonly details?: unknown) {
     super(message);
     this.name = 'ApiRequestError';
   }
@@ -39,9 +39,9 @@ function redirectToLogin(): void {
   }
 }
 
-async function readErrorMessage(response: Response): Promise<string> {
-  const payload = await response.json().catch(() => null) as { message?: string; error?: string } | null;
-  return payload?.message ?? payload?.error ?? 'Falha na comunicacao com a API.';
+async function readErrorPayload(response: Response): Promise<{ message: string; code?: string; details?: unknown }> {
+  const payload = await response.json().catch(() => null) as { message?: string; error?: string; code?: string; details?: unknown } | null;
+  return { message: payload?.message ?? payload?.error ?? 'Falha na comunicacao com a API.', code: payload?.code, details: payload?.details };
 }
 
 async function notifyRequiredPasswordChange(response: Response): Promise<void> {
@@ -57,6 +57,30 @@ async function notifyRequiredPasswordChange(response: Response): Promise<void> {
 /** Resposta padrao do backend (utils/api_response.py). Unica declaracao: os
  *  services importam daqui em vez de redeclarar (30 copias divergentes antes). */
 export type ApiResponse<T> = { success?: boolean; message?: string; data: T };
+
+/** Metadados de paginacao -- mesmo contrato ja usado por
+ *  /billing-calculations/invoices (ver billingCalculationsService.ts),
+ *  reaproveitado pelas listagens principais (clients/ucs/plants/pendencias/
+ *  users/documents). 'pagination' vem como chave irma de 'data'. */
+export type Pagination = { page: number; pageSize: number; total: number; pages: number };
+
+/** Percorre todas as paginas de um endpoint paginado e concatena -- usado
+ *  pelos consumidores que ainda precisam da lista inteira (seletores,
+ *  relatorios, calculos), sem expor paginacao pra eles. */
+export async function fetchAllPages<T>(
+  fetchPage: (page: number, pageSize: number) => Promise<{ data: T[]; pagination: Pagination }>,
+  pageSize = 200
+): Promise<T[]> {
+  let page = 1;
+  let items: T[] = [];
+  while (true) {
+    const result = await fetchPage(page, pageSize);
+    items = items.concat(result.data);
+    if (result.data.length === 0 || page >= result.pagination.pages) break;
+    page += 1;
+  }
+  return items;
+}
 
 export class NetworkError extends ApiRequestError {
   constructor(public readonly reason: unknown) {
@@ -74,7 +98,10 @@ async function execute(path: string, init: RequestInit): Promise<Response> {
   }
   if (response.status === 401) redirectToLogin();
   await notifyRequiredPasswordChange(response);
-  if (!response.ok) throw new ApiRequestError(response.status, await readErrorMessage(response));
+  if (!response.ok) {
+    const payload = await readErrorPayload(response);
+    throw new ApiRequestError(response.status, payload.message, payload.code, payload.details);
+  }
   return response;
 }
 

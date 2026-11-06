@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5173",
     "build": "tsc && vite build",
+    "build:marketing": "node scripts/build-marketing.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "lint:types": "eslint --config eslint.typed.config.mjs .",

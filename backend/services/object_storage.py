@@ -1,10 +1,16 @@
 """Domain-neutral private object storage for local development and S3 APIs."""
 import os
+import re
 from pathlib import Path, PurePosixPath
 from uuid import uuid4
 from urllib.parse import urlparse
 
+from botocore.config import Config as BotoConfig
 from flask import current_app
+
+
+def _remove_expect_header(request, **kwargs):
+    request.headers.pop('Expect', None)
 
 
 class ObjectStorageError(RuntimeError):
@@ -121,11 +127,13 @@ def get_object_storage(provider=None):
     if provider == 's3':
         endpoint = config.get('OBJECT_STORAGE_ENDPOINT', '')
         parsed = urlparse(endpoint)
+        allowed_host = bool(parsed.hostname) and (
+            parsed.hostname.endswith('.r2.cloudflarestorage.com')
+            or bool(re.fullmatch(r's3\.[a-z0-9-]+\.backblazeb2\.com', parsed.hostname)))
         if (not endpoint or not parsed.hostname or parsed.username or parsed.password
                 or parsed.query or parsed.fragment or (parsed.scheme != 'https' and not local_allowed)
                 or parsed.scheme not in ('https', 'http')
-                or (not local_allowed and (not parsed.hostname.endswith('.r2.cloudflarestorage.com')
-                                           or parsed.path not in ('', '/')))):
+                or (not local_allowed and (not allowed_host or parsed.path not in ('', '/')))):
             raise ObjectStorageError('Configuracao de object storage invalida.')
         if not all(config.get(name) for name in (
                 'OBJECT_STORAGE_BUCKET', 'OBJECT_STORAGE_ACCESS_KEY_ID',
@@ -136,7 +144,9 @@ def get_object_storage(provider=None):
             client = boto3.client('s3', endpoint_url=endpoint,
                 aws_access_key_id=config['OBJECT_STORAGE_ACCESS_KEY_ID'],
                 aws_secret_access_key=config['OBJECT_STORAGE_SECRET_ACCESS_KEY'],
-                region_name=config['OBJECT_STORAGE_REGION'])
+                region_name=config['OBJECT_STORAGE_REGION'],
+                config=BotoConfig(s3={'addressing_style': 'path', 'payload_signing_enabled': True}))
+            client.meta.events.register('before-send', _remove_expect_header)
         except Exception as exc:
             raise ObjectStorageError('Armazenamento de objetos indisponivel.') from exc
         return S3ObjectStorage(client, config['OBJECT_STORAGE_BUCKET'])

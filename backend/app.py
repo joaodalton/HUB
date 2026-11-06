@@ -25,9 +25,10 @@ def create_app() -> Flask:
 
     app = Flask(__name__)
     app.config.from_object(Config)
-    from utils.observability import configure_logging, register_error_handlers, register_request_id
+    from utils.observability import configure_logging, register_error_handlers, register_metrics, register_request_id
     configure_logging(app)
     register_request_id(app)
+    register_metrics(app)
     register_error_handlers(app)
     # Render (e qualquer LB) termina TLS e repassa X-Forwarded-For/Proto.
     # Sem ProxyFix, remote_addr e o IP do proxy e url_scheme e http.
@@ -58,6 +59,12 @@ def create_app() -> Flask:
         result = purge_expired_previews()
         click.echo(f"Previews regulatórias removidas: {result['previews']}; arquivos órfãos: {result['files']}")
 
+    @app.cli.command('expirar-planos-teste')
+    def expirar_planos_teste_command() -> None:
+        """Suspende assinaturas do plano teste cujo trial de 14 dias venceu."""
+        from scripts.expirar_planos_teste import expirar_planos_teste
+        click.echo(f'Assinaturas do plano teste suspensas: {expirar_planos_teste()}')
+
     from models.empresa import Empresa  # type: ignore
     from models.client import Client  # type: ignore
     from models.plant import Plant  # type: ignore
@@ -82,14 +89,18 @@ def create_app() -> Flask:
     from models.grupo_regra_cobranca import GrupoRegraCobranca  # type: ignore
     from models.regra_cobranca_assignment import RegraCobrancaAssignment  # type: ignore
     from models.payment_webhook_event import PaymentWebhookEvent  # type: ignore
-    from models.platform_asaas_webhook_event import PlatformAsaasWebhookEvent  # type: ignore
+    from hub_platform.models.platform_asaas_webhook_event import PlatformAsaasWebhookEvent  # type: ignore
     from models.assinatura import Assinatura  # type: ignore
     from models.limite_contratado import LimiteContratado  # type: ignore
+    from models.pedido_plano import PedidoPlano  # type: ignore
     from models.whatsapp import WhatsappIntegration, WhatsappConversation, WhatsappMessage  # type: ignore
     from models.agenda_event import AgendaEvent  # type: ignore
     from models.regulatory_tariff import RegulatoryTariff, RegulatoryTariffImport, RegulatoryTariffPreview  # type: ignore
+    from models.platform_configuracao import PlatformConfiguracao  # type: ignore
 
     cors_origins = [Config.FRONTEND_URL]
+    if Config.MARKETING_URL and Config.MARKETING_URL not in cors_origins:
+        cors_origins.append(Config.MARKETING_URL)
     if Config.DEBUG:
         cors_origins.append('http://localhost:5173')
         cors_origins.append('http://127.0.0.1:5173')
@@ -114,7 +125,8 @@ def create_app() -> Flask:
     from routes.user_routes import user_routes
     from routes.invitation_routes import invitation_routes
     from routes.rateio_routes import rateio_routes
-    from routes.platform_routes import platform_routes
+    from hub_platform.routes.platform_routes import platform_routes
+    from hub_platform.routes.platform_worker_routes import platform_worker_routes
     from routes.email_template_routes import email_template_routes
     from routes.api_credential_routes import api_credential_routes
     from routes.import_routes import import_routes
@@ -125,7 +137,9 @@ def create_app() -> Flask:
     from routes.regra_cobranca_assignment_routes import regra_cobranca_assignment_routes
     from routes.regulatory_tariff_routes import regulatory_tariff_routes
     from routes.billing_calculation_routes import billing_calculation_routes, platform_billing_calculation_routes
+    from routes.report_routes import report_routes
     from routes.billing_pdf_lab_routes import billing_pdf_lab_routes
+    from routes.financeiro_routes import financeiro_routes
 
     app.register_blueprint(health_routes)
     app.register_blueprint(auth_routes)
@@ -150,6 +164,7 @@ def create_app() -> Flask:
     app.register_blueprint(invitation_routes)
     app.register_blueprint(rateio_routes)
     app.register_blueprint(platform_routes)
+    app.register_blueprint(platform_worker_routes)
     app.register_blueprint(fatura_routes)
     app.register_blueprint(webhook_routes)
     app.register_blueprint(whatsapp_routes)
@@ -160,6 +175,8 @@ def create_app() -> Flask:
     app.register_blueprint(billing_calculation_routes)
     app.register_blueprint(platform_billing_calculation_routes)
     app.register_blueprint(billing_pdf_lab_routes)
+    app.register_blueprint(report_routes)
+    app.register_blueprint(financeiro_routes)
 
     from utils.auth import register_auth_middleware
     register_auth_middleware(app, public_paths={
@@ -171,7 +188,8 @@ def create_app() -> Flask:
         '/api/v1/webhooks/asaas',
         '/api/v1/webhooks/asaas/platform',
         '/api/v1/webhooks/whatsapp',
-        '/api/v1/auth/esqueci-senha', '/api/v1/auth/redefinir-senha'
+        '/api/v1/auth/esqueci-senha', '/api/v1/auth/redefinir-senha',
+        '/api/v1/platform/pedidos-plano', '/api/v1/platform/pedidos-plano/concluir',
     }, public_path_prefixes={
         # request.path e' o path LITERAL da requisicao (ex.: /api/v1/empresas/select),
         # nunca a string do padrao de rota com <string:slug> -- por isso essa rota

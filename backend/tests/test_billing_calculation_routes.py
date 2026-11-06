@@ -6,6 +6,7 @@ from io import BytesIO
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app import create_app
@@ -18,6 +19,7 @@ from models.empresa import Empresa
 from models.fatura import Fatura
 from models.fatura_concessionaria import FaturaConcessionaria
 from models.user import User
+from services import fatura_service as service
 from utils.auth import generate_token
 
 try:
@@ -172,6 +174,105 @@ class BillingCalculationRoutesTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertEqual(charges[0]['valor'], 40.0)
         self.assertEqual(response.json['data'][0]['ucCodigo'], 'UC-10')
 
+    def test_gerar_boleto_validates_completeness_then_emits(self):
+        url = '/api/v1/billing-calculations/invoices/10/gerar-boleto'
+        for user_id in (3, 4):
+            self.assertEqual(self.client.post(url, headers=self.headers(user_id)).status_code, 403)
+        incomplete = self.client.post(url, headers=self.headers(1))
+        self.assertEqual(incomplete.status_code, 422)
+        self.assertEqual(incomplete.json['code'], 'INVOICE_DATA_INCOMPLETE')
+        self.assertIn('ucId', incomplete.json['details']['missing'])
+
+        db.session.add(ConsumerUnit(id=10, empresa_id=10, client_id=10, codigo='UC-10'))
+        invoice = db.session.get(FaturaConcessionaria, 10)
+        invoice.consumer_unit_id = 10
+        invoice.valor_total_concessionaria = Decimal('50.00')
+        invoice.data_vencimento = date(2026, 10, 5)
+        invoice.competencia = '2026-09'
+        invoice.status_validacao = 'valida'
+        db.session.get(Client, 10).asaas_customer_id = 'cus_10'
+        db.session.commit()
+
+        no_snapshot = self.client.post(url, headers=self.headers(1))
+        self.assertEqual(no_snapshot.status_code, 422)
+        self.assertEqual(no_snapshot.json['code'], 'BILLING_CALCULATION_REQUIRED')
+
+        db.session.add(BillingCalculationSnapshot(
+            empresa_id=10, fatura_concessionaria_id=10, fingerprint='a' * 64,
+            regra_snapshot={}, entrada_normalizada={}, resultado={}, valor_final=Decimal('50.00')))
+        db.session.commit()
+
+        with patch.object(service, 'AsaasClient') as asaas_cls:
+            asaas = asaas_cls.return_value
+            asaas.criar_cobranca.side_effect = lambda payload: {
+                'id': 'pay_1', 'externalReference': payload['externalReference'],
+                'customer': 'cus_10', 'billingType': 'BOLETO', 'value': '50.00',
+                'dueDate': '2026-10-05', 'status': 'PENDING',
+                'bankSlipUrl': 'https://example.test/boleto',
+            }
+            response = self.client.post(url, headers=self.headers(1))
+        self.assertEqual(response.status_code, 201, response.json)
+        self.assertEqual(response.json['data']['asaasId'], 'pay_1')
+        self.assertEqual(self.client.post('/api/v1/billing-calculations/invoices/999/gerar-boleto',
+                                          headers=self.headers(1)).status_code, 404)
+
+    def test_gerar_boleto_uses_snapshot_value_not_invoice_gross_value(self):
+        url = '/api/v1/billing-calculations/invoices/10/gerar-boleto'
+        db.session.add(ConsumerUnit(id=10, empresa_id=10, client_id=10, codigo='UC-10'))
+        invoice = db.session.get(FaturaConcessionaria, 10)
+        invoice.consumer_unit_id = 10
+        invoice.valor_total_concessionaria = Decimal('999.00')
+        invoice.data_vencimento = date(2026, 10, 5)
+        invoice.competencia = '2026-09'
+        invoice.status_validacao = 'valida'
+        db.session.get(Client, 10).asaas_customer_id = 'cus_10'
+        db.session.add(BillingCalculationSnapshot(
+            empresa_id=10, fatura_concessionaria_id=10, fingerprint='c' * 64,
+            regra_snapshot={}, entrada_normalizada={}, resultado={}, valor_final=Decimal('45.50')))
+        db.session.commit()
+
+        with patch.object(service, 'AsaasClient') as asaas_cls:
+            asaas = asaas_cls.return_value
+            asaas.criar_cobranca.side_effect = lambda payload: {
+                'id': 'pay_3', 'externalReference': payload['externalReference'],
+                'customer': 'cus_10', 'billingType': 'BOLETO', 'value': '45.50',
+                'dueDate': '2026-10-05', 'status': 'PENDING',
+                'bankSlipUrl': 'https://example.test/boleto',
+            }
+            response = self.client.post(url, headers=self.headers(1))
+            self.assertEqual(response.status_code, 201, response.json)
+            self.assertEqual(asaas.criar_cobranca.call_args[0][0]['value'], 45.50)
+
+    def test_platform_gerar_boleto_emits_for_selected_company(self):
+        base = '/api/v1/platform/empresas/20/billing-calculations/invoices/20/gerar-boleto'
+        db.session.add(ConsumerUnit(id=20, empresa_id=20, client_id=20, codigo='UC-20'))
+        invoice = db.session.get(FaturaConcessionaria, 20)
+        invoice.consumer_unit_id = 20
+        invoice.valor_total_concessionaria = Decimal('50.00')
+        invoice.data_vencimento = date(2026, 10, 5)
+        invoice.competencia = '2026-09'
+        invoice.status_validacao = 'valida'
+        db.session.get(Client, 20).asaas_customer_id = 'cus_20'
+        db.session.add(BillingCalculationSnapshot(
+            empresa_id=20, fatura_concessionaria_id=20, fingerprint='d' * 64,
+            regra_snapshot={}, entrada_normalizada={}, resultado={}, valor_final=Decimal('50.00')))
+        db.session.commit()
+
+        with patch.object(service, 'AsaasClient') as asaas_cls:
+            asaas = asaas_cls.return_value
+            asaas.criar_cobranca.side_effect = lambda payload: {
+                'id': 'pay_2', 'externalReference': payload['externalReference'],
+                'customer': 'cus_20', 'billingType': 'BOLETO', 'value': '50.00',
+                'dueDate': '2026-10-05', 'status': 'PENDING',
+                'bankSlipUrl': 'https://example.test/boleto',
+            }
+            response = self.client.post(base, headers=self.headers(6))
+        self.assertEqual(response.status_code, 201, response.json)
+        self.assertEqual(response.json['data']['asaasId'], 'pay_2')
+        self.assertEqual(self.client.post('/api/v1/platform/empresas/999/billing-calculations'
+                                          '/invoices/20/gerar-boleto',
+                                          headers=self.headers(6)).status_code, 404)
+
     def test_platform_upload_reuses_existing_validation_and_tenant_client_check(self):
         base = '/api/v1/platform/empresas/20/billing-calculations/clients'
         url = base + '/10/invoices/upload'
@@ -180,6 +281,31 @@ class BillingCalculationRoutesTest(IsolatedTestRuntime, unittest.TestCase):
         pdf = {'arquivo': (BytesIO(b'%PDF-invalid'), 'fatura.pdf', 'application/pdf')}
         response = self.client.post(url, data=pdf, headers=self.headers(6))
         self.assertEqual((response.status_code, response.json['code']), (404, 'CLIENT_NOT_FOUND'))
+
+    def test_delete_invoice_requires_permission_and_is_tenant_scoped(self):
+        url = '/api/v1/billing-calculations/invoices/10'
+        self.assertEqual(self.client.delete(url).status_code, 401)
+        for user_id in (3, 4):
+            self.assertEqual(self.client.delete(url, headers=self.headers(user_id)).status_code, 403)
+        self.assertEqual(self.client.delete('/api/v1/billing-calculations/invoices/10',
+                                            headers=self.headers(5)).status_code, 404)
+        self.assertEqual(self.client.delete('/api/v1/billing-calculations/invoices/999',
+                                            headers=self.headers(1)).status_code, 404)
+        response = self.client.delete(url, headers=self.headers(1))
+        self.assertEqual(response.status_code, 200, response.json)
+        self.assertIsNone(db.session.get(FaturaConcessionaria, 10))
+        self.assertIsNone(db.session.get(Document, 10))
+
+    def test_delete_invoice_blocked_after_calculation_executed(self):
+        execution = BillingCalculationExecution(empresa_id=10, fatura_concessionaria_id=10,
+            status='MISSING_DATA', auditoria={'stages': []})
+        db.session.add(execution)
+        db.session.commit()
+        response = self.client.delete('/api/v1/billing-calculations/invoices/10',
+                                      headers=self.headers(1))
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json['code'], 'INVOICE_HAS_CALCULATION')
+        self.assertIsNotNone(db.session.get(FaturaConcessionaria, 10))
 
 
 if __name__ == '__main__':

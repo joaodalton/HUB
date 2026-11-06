@@ -3,11 +3,12 @@ import secrets
 
 from flask import g
 
-from config import Config
 from extensions import db
 from models.user import User
 from services.log_service import LogService
+from services.platform_config_service import get_signup_config
 from utils.auth import hash_password
+from utils.pagination import paginate
 
 # 'owner' de proposito fora daqui -- so nasce junto com a Empresa (ver
 # scripts/criar_empresa.py). Criar usuario "normal" (Owner/Admin convidando
@@ -15,9 +16,10 @@ from utils.auth import hash_password
 VALID_ROLES = {'admin', 'operator', 'financial', 'viewer'}
 
 
-def list_users(empresa_id: int) -> list[dict]:
-    users = User.query.filter_by(empresa_id=empresa_id).order_by(User.created_at.desc()).all()
-    return [user.to_dict() for user in users]
+def list_users(empresa_id: int, page: int = 1, page_size: int = 50) -> tuple[list[dict], dict]:
+    query = User.query.filter_by(empresa_id=empresa_id).order_by(User.created_at.desc())
+    users, pagination = paginate(query, page, page_size)
+    return [user.to_dict() for user in users], pagination
 
 
 def create_user(data: dict, empresa_id: int) -> dict:
@@ -114,10 +116,11 @@ def register_with_code(data: dict, provided_code: str, empresa_id: int) -> dict:
     estiver configurado E o codigo mandado bater. SEMPRE cria 'viewer', nunca
     'admin' -- forcado aqui, independente do que vier em data['papel']. Um
     auto-cadastro nao deve conseguir se dar poder de admin sozinho."""
-    if not Config.SIGNUP_CODE:
+    signup_code = get_signup_config()['code']
+    if not signup_code:
         raise ValueError('Cadastro publico desativado.')
 
-    if not provided_code or not secrets.compare_digest(provided_code, Config.SIGNUP_CODE):
+    if not provided_code or not secrets.compare_digest(provided_code, signup_code):
         raise ValueError('Codigo de acesso invalido.')
 
     return create_user({**data, 'role': 'viewer'}, empresa_id)

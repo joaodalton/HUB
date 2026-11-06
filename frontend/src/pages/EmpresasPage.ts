@@ -1,5 +1,6 @@
-import { createDataTable } from '../components/DataTable';
+import { attachActionsRail, createDataTable } from '../components/DataTable';
 import { createElement } from '../dom';
+import { maskCnpjInput } from '../components/cadastroFields';
 import { createFormSection, createInput } from '../components/formFields';
 import { useGlobalLoading } from '../hooks/useGlobalLoading';
 import { useToast } from '../hooks/useToast';
@@ -8,15 +9,16 @@ import { createIconStatCard } from '../components/IconStatCard';
 import { createBaseLayout } from '../layouts/BaseLayout';
 import { createEmpresa, getEmpresaAtual, getEmpresaDocumentos, getEmpresas, updateEmpresaPlatform, type EmpresaAtual, type EmpresaDocumentos, type EmpresaRow } from '../services/empresaService';
 import { getCurrentUser, refreshCurrentUser } from '../services/authService';
-import { entrarNaEmpresa, sairDaVisualizacao } from '../services/platformService';
+import { entrarNaEmpresa, sairDaVisualizacao } from '../platform/services/platformService';
 import { getDashboardResumo, type DashboardResumo } from '../services/dashboardService';
+import { t } from '../services/i18nService';
 
 export function createEmpresasPage(): HTMLElement {
   const content = createElement('section', { className: 'content-stack' });
   const layout = createBaseLayout({
     content,
-    eyebrow: 'Plataforma',
-    title: 'Empresas'
+    eyebrow: t('empresas.page.eyebrow'),
+    title: t('empresas.page.title')
   });
   const loading = useGlobalLoading();
   const toast = useToast();
@@ -32,7 +34,7 @@ export function createEmpresasPage(): HTMLElement {
     try {
       empresas = await getEmpresas();
     } catch {
-      toast.error('Não foi possível carregar as empresas.');
+      toast.error(t('empresas.page.loadError'));
     } finally {
       loading.hide();
       renderContent();
@@ -50,7 +52,7 @@ export function createEmpresasPage(): HTMLElement {
 
     const searchInput = createElement('input');
     searchInput.type = 'text';
-    searchInput.placeholder = 'Pesquisar empresa...';
+    searchInput.placeholder = t('empresas.page.searchPlaceholder');
     searchInput.value = searchTerm;
     searchInput.addEventListener('input', () => {
       searchTerm = searchInput.value;
@@ -62,16 +64,16 @@ export function createEmpresasPage(): HTMLElement {
     spacer.style.minWidth = '0';
 
     const newButton = createElement('button', { className: 'button-with-icon', type: 'button' });
-    newButton.append(createIcon('plus'), document.createTextNode('Nova Empresa'));
-    newButton.addEventListener('click', () => document.body.appendChild(createEmpresaModal(async data => { await createEmpresa(data); toast.success('Empresa criada.'); await load(); })));
+    newButton.append(createIcon('plus'), document.createTextNode(t('empresas.page.newButton')));
+    newButton.addEventListener('click', () => document.body.appendChild(createEmpresaModal(async data => { await createEmpresa(data); toast.success(t('empresas.page.createdSuccess')); await load(); })));
 
     toolbar.append(searchInput, spacer);
 
     const viewingEmpresaNome = getCurrentUser()?.platformViewEmpresaNome;
     if (viewingEmpresaNome) {
       const exitButton = createElement('button', { className: 'secondary-button button-with-icon', type: 'button' });
-      exitButton.append(createIcon('login'), document.createTextNode(`Sair de "${viewingEmpresaNome}"`));
-      exitButton.title = 'Voltar para a sua empresa';
+      exitButton.append(createIcon('login'), document.createTextNode(t('empresas.page.exitButtonTemplate').replace('{name}', viewingEmpresaNome)));
+      exitButton.title = t('empresas.page.exitButtonTitle');
       exitButton.addEventListener('click', () => void handleSair());
       toolbar.appendChild(exitButton);
     }
@@ -88,48 +90,50 @@ export function createEmpresasPage(): HTMLElement {
       const filtered = getFiltered();
       const isFiltered = Boolean(searchTerm);
 
-      return createDataTable<EmpresaRow>({
-        title: 'Empresas cadastradas na plataforma',
-        eyebrow: 'Empresas',
+      const panel = createDataTable<EmpresaRow>({
+        title: t('empresas.page.tableTitle'),
+        eyebrow: t('empresas.page.tableEyebrow'),
         rows: filtered,
         emptyMessage: loadError()
-          ? 'Não foi possível carregar as empresas.'
+          ? t('empresas.page.loadError')
           : isFiltered
-            ? 'Nenhuma empresa encontrada para esse filtro.'
-            : 'Nenhuma empresa cadastrada ainda.',
+            ? t('empresas.page.emptyFiltered')
+            : t('empresas.page.emptyAll'),
         onRowClick: (empresa) => {
           void openDetail(empresa);
         },
         columns: [
           {
+            key: 'id',
+            label: t('empresas.page.colId'),
+            render: (empresa) => `#${empresa.id}`
+          },
+          {
             key: 'nome',
-            label: 'Empresa',
+            label: t('empresas.page.colEmpresa'),
             render: (empresa) => createNomeCell(empresa)
           },
           {
             key: 'cnpj',
-            label: 'CNPJ',
+            label: t('empresas.page.colCnpj'),
             render: (empresa) => empresa.cnpj || '-'
           },
           {
             key: 'status',
-            label: 'Status',
+            label: t('empresas.page.colStatus'),
             render: (empresa) => createStatusBadge(empresa.status)
           },
           {
             key: 'totalUsuarios',
-            label: 'Usuários',
+            label: t('empresas.page.colUsuarios'),
             align: 'right',
             render: (empresa) => String(empresa.totalUsuarios)
-          },
-          {
-            key: 'acao',
-            label: '',
-            align: 'right',
-            render: (empresa) => createRowActions(empresa)
           }
         ]
       });
+
+      attachActionsRail(panel, filtered, createRowActions);
+      return panel;
     }
 
     refresh();
@@ -148,7 +152,6 @@ export function createEmpresasPage(): HTMLElement {
   function createNomeCell(empresa: EmpresaRow): HTMLElement {
     const wrap = createElement('div', { className: 'cell-id-name' });
     wrap.append(
-      createElement('span', { className: 'cell-id-tag', textContent: `#${empresa.id}` }),
       createElement('span', { textContent: empresa.nome }),
       createElement('span', {
         className: 'cell-slug',
@@ -160,10 +163,14 @@ export function createEmpresasPage(): HTMLElement {
 
   function createStatusBadge(status: string): HTMLElement {
     const tone = statusTone(status);
-    const label = status === 'ativo' ? 'Ativo' : 'Inativo';
+    const labels: Record<string, string> = {
+      ativa: t('empresas.page.statusAtiva'),
+      inativa: t('empresas.page.statusInativa'),
+      suspensa: t('empresas.page.statusSuspensa')
+    };
     return createElement('span', {
       className: `status-badge tone-${tone}`,
-      textContent: label
+      textContent: labels[status] ?? status
     });
   }
 
@@ -172,8 +179,8 @@ export function createEmpresasPage(): HTMLElement {
 
     const viewButton = createElement('button', { className: 'icon-button neutral', type: 'button' });
     viewButton.appendChild(createIcon('eye'));
-    viewButton.title = 'Visualizar / Entrar';
-    viewButton.setAttribute('aria-label', `Visualizar ${empresa.nome}`);
+    viewButton.title = t('empresas.page.viewTitle');
+    viewButton.setAttribute('aria-label', t('empresas.page.viewAriaTemplate').replace('{name}', empresa.nome));
     viewButton.addEventListener('click', (event) => {
       event.stopPropagation();
       void handleEntrar(empresa);
@@ -181,8 +188,8 @@ export function createEmpresasPage(): HTMLElement {
 
     const editButton = createElement('button', { className: 'icon-button neutral', type: 'button' });
     editButton.appendChild(createIcon('edit'));
-    editButton.title = 'Editar';
-    editButton.setAttribute('aria-label', `Editar ${empresa.nome}`);
+    editButton.title = t('empresas.page.editTitle');
+    editButton.setAttribute('aria-label', t('empresas.page.editAriaTemplate').replace('{name}', empresa.nome));
     editButton.addEventListener('click', (event) => {
       event.stopPropagation();
       openEditorModal(empresa);
@@ -190,8 +197,8 @@ export function createEmpresasPage(): HTMLElement {
 
     const deleteButton = createElement('button', { className: 'icon-button', type: 'button' });
     deleteButton.appendChild(createIcon('trash'));
-    deleteButton.title = 'Excluir';
-    deleteButton.setAttribute('aria-label', `Excluir ${empresa.nome}`);
+    deleteButton.title = t('empresas.page.deleteTitle');
+    deleteButton.setAttribute('aria-label', t('empresas.page.deleteAriaTemplate').replace('{name}', empresa.nome));
     deleteButton.addEventListener('click', (event) => {
       event.stopPropagation();
       confirmDelete(empresa);
@@ -211,11 +218,11 @@ export function createEmpresasPage(): HTMLElement {
       onSave: async (data) => {
         try {
           await updateEmpresaPlatform(empresa.id, data);
-          toast.success('Empresa atualizada.');
+          toast.success(t('empresas.page.updatedSuccess'));
           document.querySelector('.modal-overlay')?.remove();
           await load();
         } catch (error) {
-          toast.error(error instanceof Error ? error.message : 'Não foi possível salvar a empresa.');
+          toast.error(error instanceof Error ? error.message : t('empresas.page.saveError'));
         }
       },
       onClose: () => document.querySelector('.modal-overlay')?.remove()
@@ -224,12 +231,12 @@ export function createEmpresasPage(): HTMLElement {
 
   function confirmDelete(empresa: EmpresaRow): void {
     const confirmed = window.confirm(
-      `Suspender a empresa ${empresa.nome}? Os dados serão preservados.`
+      t('empresas.page.confirmSuspendTemplate').replace('{name}', empresa.nome)
     );
     if (!confirmed) return;
     void updateEmpresaPlatform(empresa.id, { status: 'suspensa' })
-      .then(() => { toast.success('Empresa suspensa.'); return load(); })
-      .catch((error) => toast.error(error instanceof Error ? error.message : 'Não foi possível suspender a empresa.'));
+      .then(() => { toast.success(t('empresas.page.suspendedSuccess')); return load(); })
+      .catch((error) => toast.error(error instanceof Error ? error.message : t('empresas.page.suspendError')));
   }
 
   function normalize(value: string): string {
@@ -248,7 +255,7 @@ export function createEmpresasPage(): HTMLElement {
       ]);
       content.replaceChildren(renderDetail(empresa, atual, documentos, resumo));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível abrir a empresa.');
+      toast.error(error instanceof Error ? error.message : t('empresas.page.openError'));
     } finally {
       loading.hide();
     }
@@ -262,7 +269,7 @@ export function createEmpresasPage(): HTMLElement {
       window.history.pushState({}, '', '/dashboard');
       window.dispatchEvent(new PopStateEvent('popstate'));
     } catch {
-      toast.error('Não foi possível entrar na empresa.');
+      toast.error(t('empresas.page.enterError'));
     } finally {
       loading.hide();
     }
@@ -273,10 +280,10 @@ export function createEmpresasPage(): HTMLElement {
     try {
       await sairDaVisualizacao();
       await refreshCurrentUser();
-      toast.success('Você voltou para a sua empresa.');
+      toast.success(t('empresas.page.exitedSuccess'));
       await load();
     } catch {
-      toast.error('Não foi possível sair da visualização.');
+      toast.error(t('empresas.page.exitError'));
     } finally {
       loading.hide();
     }
@@ -284,17 +291,17 @@ export function createEmpresasPage(): HTMLElement {
 
   function renderDetail(empresa: EmpresaRow, atual: EmpresaAtual, documentos: EmpresaDocumentos, resumo: DashboardResumo): HTMLElement {
     const detail = createElement('div', { className: 'content-stack' });
-    const back = createElement('button', { className: 'detail-back-link', type: 'button', textContent: '← Empresas' });
+    const back = createElement('button', { className: 'detail-back-link', type: 'button', textContent: t('empresas.page.backLink') });
     back.addEventListener('click', renderContent);
 
     const header = createElement('section', { className: 'detail-header' });
     const title = createElement('div', { className: 'detail-title-row' });
     title.append(createElement('span', { className: 'cell-id-tag', textContent: `#${empresa.id}` }), createElement('h2', { textContent: atual.nome }), createStatusBadge(empresa.status));
     const headerActions = createElement('div', { className: 'detail-actions' });
-    const edit = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Editar' });
+    const edit = createElement('button', { className: 'secondary-button', type: 'button', textContent: t('empresas.page.editButton') });
     edit.addEventListener('click', () => openEditorModal(empresa));
-    const suspend = createElement('button', { className: 'danger-button', type: 'button', textContent: empresa.status === 'suspensa' ? 'Reativar' : 'Suspender' });
-    suspend.addEventListener('click', () => void updateEmpresaPlatform(empresa.id, { status: empresa.status === 'suspensa' ? 'ativa' : 'suspensa' }).then(() => openDetail(empresa)).catch(error => toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar a empresa.')));
+    const suspend = createElement('button', { className: 'danger-button', type: 'button', textContent: empresa.status === 'suspensa' ? t('empresas.page.reactivateButton') : t('empresas.page.suspendButton') });
+    suspend.addEventListener('click', () => void updateEmpresaPlatform(empresa.id, { status: empresa.status === 'suspensa' ? 'ativa' : 'suspensa' }).then(() => openDetail(empresa)).catch(error => toast.error(error instanceof Error ? error.message : t('empresas.page.updateError'))));
     headerActions.append(edit, suspend);
     header.append(title, headerActions);
 
@@ -302,29 +309,29 @@ export function createEmpresasPage(): HTMLElement {
     const info = createElement('section', { className: 'detail-info-panel' });
     const infoGrid = createElement('div', { className: 'detail-info-grid' });
     infoGrid.append(...[
-      ['Razão social', atual.razaoSocial], ['CNPJ', atual.cnpj], ['E-mail', atual.email], ['Telefone', atual.telefone], ['Slug', empresa.slug]
-    ].map(([label, value]) => createDetailField(String(label), value || 'Não informado')));
-    info.append(createElement('span', { className: 'eyebrow', textContent: 'Informações gerais' }), infoGrid);
+      [t('empresas.page.fieldRazaoSocial'), atual.razaoSocial], [t('empresas.page.fieldCnpj'), atual.cnpj], [t('empresas.page.fieldEmail'), atual.email], [t('empresas.page.fieldTelefone'), atual.telefone], [t('empresas.page.fieldSlug'), empresa.slug]
+    ].map(([label, value]) => createDetailField(String(label), value || t('empresas.page.notInformed'))));
+    info.append(createElement('span', { className: 'eyebrow', textContent: t('empresas.page.infoEyebrow') }), infoGrid);
     const usage = createElement('section', { className: 'plant-summary-panel' });
     const usageRows = createElement('div', { className: 'plant-summary-rows' });
     usageRows.append(
-      createSummaryRow('Usuários ativos', String(empresa.totalUsuarios)),
-      createSummaryRow('Clientes cadastrados', countLabel(resumo.clientes.total)),
-      createSummaryRow('UCs', countLabel(resumo.ucs.total)),
-      createSummaryRow('Usinas', countLabel(resumo.usinas.total)));
-    usage.append(createElement('span', { className: 'eyebrow', textContent: 'Uso & Limites' }), usageRows);
-    const users = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Ver usuários desta empresa' });
+      createSummaryRow(t('empresas.page.summaryUsuarios'), String(empresa.totalUsuarios)),
+      createSummaryRow(t('empresas.page.summaryClientes'), countLabel(resumo.clientes.total)),
+      createSummaryRow(t('empresas.page.summaryUcs'), countLabel(resumo.ucs.total)),
+      createSummaryRow(t('empresas.page.summaryUsinas'), countLabel(resumo.usinas.total)));
+    usage.append(createElement('span', { className: 'eyebrow', textContent: t('empresas.page.usageEyebrow') }), usageRows);
+    const users = createElement('button', { className: 'secondary-button', type: 'button', textContent: t('empresas.page.viewUsersButton') });
     users.addEventListener('click', () => { window.history.pushState({}, '', '/usuarios'); window.dispatchEvent(new PopStateEvent('popstate')); });
     usage.appendChild(users);
     panels.append(info, usage);
 
     const tabs = createElement('section', { className: 'detail-tabs-panel' });
     const tabBar = createElement('div', { className: 'detail-tabs' });
-    const subscriptionTab = createElement('button', { className: 'detail-tab disabled', type: 'button', textContent: 'Assinatura (em breve)' });
+    const subscriptionTab = createElement('button', { className: 'detail-tab disabled', type: 'button', textContent: t('empresas.page.subscriptionTab') });
     subscriptionTab.disabled = true;
-    tabBar.append(createElement('button', { className: 'detail-tab active', type: 'button', textContent: 'Documentos' }), subscriptionTab);
+    tabBar.append(createElement('button', { className: 'detail-tab active', type: 'button', textContent: t('empresas.page.documentsTab') }), subscriptionTab);
     const docs = createElement('div', { className: 'detail-info-grid' });
-    docs.append(createDetailField('CNPJ', documentos.cnpj?.nome || 'Não anexado'), createDetailField('Estatuto', documentos.estatuto?.nome || 'Não anexado'));
+    docs.append(createDetailField(t('empresas.page.fieldCnpj'), documentos.cnpj?.nome || t('empresas.page.notAttached')), createDetailField(t('empresas.page.fieldEstatuto'), documentos.estatuto?.nome || t('empresas.page.notAttached')));
     tabs.append(tabBar, docs);
     detail.append(back, header, panels, tabs);
     return detail;
@@ -334,9 +341,9 @@ export function createEmpresasPage(): HTMLElement {
 function createEmpresaMetrics(empresas: EmpresaRow[]): HTMLElement {
   const grid = createElement('section', { className: 'metric-grid' });
   grid.append(
-    createIconStatCard({ icon: 'plants', chipColor: 'blue', value: String(empresas.length), label: 'Empresas' }),
-    createIconStatCard({ icon: 'check', chipColor: 'green', value: String(empresas.filter((empresa) => empresa.status === 'ativa').length), label: 'Empresas ativas' }),
-    createIconStatCard({ icon: 'clients', chipColor: 'purple', value: String(empresas.reduce((total, empresa) => total + empresa.totalUsuarios, 0)), label: 'Usuários' })
+    createIconStatCard({ icon: 'plants', chipColor: 'blue', value: String(empresas.length), label: t('empresas.page.metricEmpresas') }),
+    createIconStatCard({ icon: 'check', chipColor: 'green', value: String(empresas.filter((empresa) => empresa.status === 'ativa').length), label: t('empresas.page.metricEmpresasAtivas') }),
+    createIconStatCard({ icon: 'clients', chipColor: 'purple', value: String(empresas.reduce((total, empresa) => total + empresa.totalUsuarios, 0)), label: t('empresas.page.metricUsuarios') })
   );
   return grid;
 }
@@ -354,15 +361,15 @@ function createSummaryRow(label: string, value: string): HTMLElement {
 }
 
 function countLabel(total: number | null): string {
-  return total === null ? 'Indisponível' : String(total);
+  return total === null ? t('empresas.page.unavailable') : String(total);
 }
 
 function createEmpresaModal(onCreate: (data: { empresa: { nome: string; cnpj?: string }; owner: { nome: string; email: string; senha: string } }) => Promise<void>): HTMLElement {
   const overlay = createElement('section', { className: 'modal-overlay' }); const panel = createElement('article', { className: 'client-card' }); const form = createElement('form', { className: 'client-form' });
-  const nome = createInput('Nome da empresa', 'text', '', true); const cnpj = createInput('CNPJ', 'text', '', false); const owner = createInput('Nome do proprietário', 'text', '', true); const email = createInput('E-mail do proprietário', 'email', '', true); const senha = createInput('Senha inicial', 'password', '', true); senha.input.minLength = 6;
-  const cancel = createElement('button', { className: 'secondary-button', type: 'button', textContent: 'Cancelar' }); const submit = createElement('button', { type: 'submit', textContent: 'Criar empresa' }); const close = () => overlay.remove(); cancel.addEventListener('click', close);
-  form.append(createElement('h2', { textContent: 'Nova empresa' }), createFormSection('Dados da empresa', nome.field, cnpj.field), createFormSection('Usuário responsável', owner.field, email.field, senha.field), createElement('div', { className: 'form-actions' })); (form.lastElementChild as HTMLElement).append(cancel, submit);
-  form.addEventListener('submit', async event => { event.preventDefault(); if (!form.reportValidity()) return; submit.disabled = true; try { await onCreate({ empresa: { nome: nome.input.value.trim(), cnpj: cnpj.input.value.trim() || undefined }, owner: { nome: owner.input.value.trim(), email: email.input.value.trim(), senha: senha.input.value } }); close(); } catch (error) { submit.disabled = false; useToast().error(error instanceof Error ? error.message : 'Não foi possível criar a empresa.'); } }); panel.appendChild(form); overlay.appendChild(panel); return overlay;
+  const nome = createInput(t('empresas.page.fieldNomeEmpresa'), 'text', '', true); const cnpj = createInput(t('empresas.page.fieldCnpj'), 'text', '', false); maskCnpjInput(cnpj.input); const owner = createInput(t('empresas.page.fieldNomeProprietario'), 'text', '', true); const email = createInput(t('empresas.page.fieldEmailProprietario'), 'email', '', true); const senha = createInput(t('empresas.page.fieldSenhaInicial'), 'password', '', true); senha.input.minLength = 6;
+  const cancel = createElement('button', { className: 'secondary-button', type: 'button', textContent: t('empresas.page.cancel') }); const submit = createElement('button', { type: 'submit', textContent: t('empresas.page.createButton') }); const close = () => overlay.remove(); cancel.addEventListener('click', close);
+  form.append(createElement('h2', { textContent: t('empresas.page.newModalTitle') }), createFormSection(t('empresas.page.sectionDadosEmpresa'), nome.field, cnpj.field), createFormSection(t('empresas.page.sectionUsuarioResponsavel'), owner.field, email.field, senha.field), createElement('div', { className: 'form-actions' })); (form.lastElementChild as HTMLElement).append(cancel, submit);
+  form.addEventListener('submit', async event => { event.preventDefault(); if (!form.reportValidity()) return; submit.disabled = true; try { await onCreate({ empresa: { nome: nome.input.value.trim(), cnpj: cnpj.input.value.trim() || undefined }, owner: { nome: owner.input.value.trim(), email: email.input.value.trim(), senha: senha.input.value } }); close(); } catch (error) { submit.disabled = false; useToast().error(error instanceof Error ? error.message : t('empresas.page.createError')); } }); panel.appendChild(form); overlay.appendChild(panel); return overlay;
 }
 
 /* -----------------------------------------------------------------------
@@ -381,46 +388,52 @@ function buildEditorModal({ empresa, onSave, onClose }: EditorModalOptions): HTM
   const form = createElement('form', { className: 'client-form' });
   const header = createElement('div', { className: 'form-header' });
   const titleText = createElement('div');
-  const eyebrow = createElement('span', { className: 'eyebrow', textContent: 'Editar empresa' });
+  const eyebrow = createElement('span', { className: 'eyebrow', textContent: t('empresas.page.editEyebrow') });
   const heading = createElement('h2', { textContent: empresa.nome });
   const closeButton = createElement('button', {
     className: 'secondary-button',
-    textContent: 'Fechar',
+    textContent: t('empresas.page.close'),
     type: 'button'
   });
 
   const fields = createElement('div', { className: 'form-grid' });
 
-  const nome = createInput('Nome', 'text', empresa.nome, true);
-  const cnpj = createInput('CNPJ', 'text', empresa.cnpj ?? '', true);
+  const nome = createInput(t('empresas.page.fieldNome'), 'text', empresa.nome, true);
+  const cnpj = createInput(t('empresas.page.fieldCnpj'), 'text', empresa.cnpj ?? '', true);
+  maskCnpjInput(cnpj.input);
 
   const statusField = createElement('label', { className: 'form-field' });
-  const statusLabel = createElement('span', { textContent: 'Status' });
+  const statusLabel = createElement('span', { textContent: t('empresas.page.fieldStatus') });
   const statusSelect = createElement('select');
-  statusSelect.innerHTML = `
-    <option value="ativa">Ativa</option>
-    <option value="inativa">Inativa</option>
-    <option value="suspensa">Suspensa</option>
-  `;
+  const statusOptions: Array<[string, string]> = [
+    ['ativa', t('empresas.page.statusAtiva')],
+    ['inativa', t('empresas.page.statusInativa')],
+    ['suspensa', t('empresas.page.statusSuspensa')]
+  ];
+  statusOptions.forEach(([value, label]) => {
+    const option = createElement('option', { textContent: label }) as HTMLOptionElement;
+    option.value = value;
+    statusSelect.appendChild(option);
+  });
   statusSelect.value = empresa.status ?? 'ativa';
   statusField.append(statusLabel, statusSelect);
 
   const slugInfo = createElement('div', { className: 'form-field form-field-wide slug-info' });
-  const slugLabel = createElement('span', { textContent: 'Slug' });
+  const slugLabel = createElement('span', { textContent: t('empresas.page.fieldSlug') });
   const slugValue = createElement('span', {
     className: 'slug-value',
     textContent: empresa.slug
   });
   const slugNote = createElement('span', {
     className: 'slug-note',
-    textContent: 'usado como identificador — não editável'
+    textContent: t('empresas.page.slugNote')
   });
   slugInfo.append(slugLabel, slugValue, slugNote);
 
   const actions = createElement('div', { className: 'form-actions' });
   const saveButton = createElement('button', {
     className: 'button-with-icon',
-    textContent: 'Salvar empresa',
+    textContent: t('empresas.page.saveButton'),
     type: 'submit'
   });
   saveButton.append(createIcon('check'));

@@ -1,6 +1,8 @@
 import { createElement } from '../dom';
-import { createFormSection, createInput, createSelect } from './formFields';
+import { createFormSection, createInput, createSelect, createSelectField } from './formFields';
+import { createClientDocumentsPanel } from './ClientDocumentsPanel';
 import type { PlantRow } from '../services/plantService';
+import { t } from '../services/i18nService';
 
 export type PlantFormData = {
   nome: string;
@@ -19,6 +21,8 @@ export type PlantFormData = {
   numModulos: number | null;
   producaoMediaManual: number | null;
   diaEmissaoUsina: number | null;
+  repasseTipo: string | null;
+  repasseValor: number | null;
 };
 
 type PlantCardOptions = {
@@ -36,46 +40,46 @@ export function createPlantCard({ plant, onSave, onCancel, onDelete }: PlantCard
   const form = createElement('form', { className: 'client-form' });
   const header = createElement('div', { className: 'form-header' });
   const titleText = createElement('div');
-  const eyebrow = createElement('span', { className: 'eyebrow', textContent: plant ? 'Usina' : 'Nova usina' });
-  const heading = createElement('h2', { textContent: plant?.nome ?? 'Cadastrar usina' });
+  const eyebrow = createElement('span', { className: 'eyebrow', textContent: plant ? t('plants.card.eyebrowEdit') : t('plants.card.eyebrowNew') });
+  const heading = createElement('h2', { textContent: plant?.nome ?? t('plants.card.headingNew') });
   const closeButton = createElement('button', {
     className: 'secondary-button',
-    textContent: 'Fechar',
+    textContent: t('plants.card.closeButton'),
     type: 'button'
   });
-  const nome = createInput('Nome', 'text', plant?.nome ?? '', true);
-  const uc = createInput('UC', 'text', plant?.uc ?? '', true);
-  const kwPico = createInput('kW pico', 'number', plant?.kwPico ?? '', true);
-  const status = createSelect('Status', plant?.status ?? 'Online', plantStatuses);
+  const nome = createInput(t('plants.card.fieldNome'), 'text', plant?.nome ?? '', true);
+  const uc = createInput(t('plants.card.fieldUc'), 'text', plant?.uc ?? '', true);
+  const kwPico = createInput(t('plants.card.fieldKwPico'), 'number', plant?.kwPico ?? '', true);
+  const status = createSelect(t('plants.card.fieldStatus'), plant?.status ?? 'Online', plantStatuses);
   const percentualDisponivel = createInput(
-    'Disponivel para rateio (%)',
+    t('plants.card.fieldPercentualDisponivel'),
     'number',
     String(plant?.percentualDisponivel ?? 0),
     true
   );
-  const marcaInversor = createInput('Marca do inversor', 'text', plant?.marcaInversor ?? '', false);
-  const telefoneProprietario = createInput('Telefone do proprietario', 'tel', plant?.telefoneProprietario ?? '', false);
-  const emailProprietario = createInput('Email do proprietario', 'email', plant?.emailProprietario ?? '', false);
-  const cidade = createInput('Cidade', 'text', plant?.cidade ?? '', false);
-  const uf = createInput('UF', 'text', plant?.uf ?? '', false);
-  const endereco = createInput('Endereco', 'text', plant?.endereco ?? '', false);
-  const dataAtivacao = createInput('Data de ativacao', 'date', plant?.dataAtivacao ?? '', false);
-  const responsavel = createInput('Responsavel', 'text', plant?.responsavel ?? '', false);
-  const numModulos = createInput('Número de módulos', 'number', plant?.numModulos != null ? String(plant.numModulos) : '', false);
+  const marcaInversor = createInput(t('plants.card.fieldMarcaInversor'), 'text', plant?.marcaInversor ?? '', false);
+  const telefoneProprietario = createInput(t('plants.card.fieldTelefoneProprietario'), 'tel', plant?.telefoneProprietario ?? '', false);
+  const emailProprietario = createInput(t('plants.card.fieldEmailProprietario'), 'email', plant?.emailProprietario ?? '', false);
+  const cidade = createInput(t('plants.card.fieldCidade'), 'text', plant?.cidade ?? '', false);
+  const uf = createInput(t('plants.card.fieldUf'), 'text', plant?.uf ?? '', false);
+  const endereco = createInput(t('plants.card.fieldEndereco'), 'text', plant?.endereco ?? '', false);
+  const dataAtivacao = createInput(t('plants.card.fieldDataAtivacao'), 'date', plant?.dataAtivacao ?? '', false);
+  const responsavel = createInput(t('plants.card.fieldResponsavel'), 'text', plant?.responsavel ?? '', false);
+  const numModulos = createInput(t('plants.card.fieldNumModulos'), 'number', plant?.numModulos != null ? String(plant.numModulos) : '', false);
   const producaoMediaManual = createInput(
-    'Produção média (kWh)',
+    t('plants.card.fieldProducaoMedia'),
     'number',
     plant?.producaoMediaManual != null ? String(plant.producaoMediaManual) : '',
     false
   );
   const diaEmissaoUsina = createInput(
-    'Dia de emissão/leitura',
+    t('plants.card.fieldDiaEmissao'),
     'number',
     plant?.diaEmissaoUsina != null ? String(plant.diaEmissaoUsina) : '',
     false
   );
   const actions = createElement('div', { className: 'form-actions' });
-  const saveButton = createElement('button', { textContent: 'Salvar usina', type: 'submit' });
+  const saveButton = createElement('button', { textContent: t('plants.card.saveButton'), type: 'submit' });
 
   kwPico.input.min = '0';
   percentualDisponivel.input.min = '0';
@@ -84,10 +88,40 @@ export function createPlantCard({ plant, onSave, onCancel, onDelete }: PlantCard
   numModulos.input.min = '0';
   producaoMediaManual.input.min = '0';
   producaoMediaManual.input.step = '0.01';
-  producaoMediaManual.input.placeholder = 'Deixe em branco pra calcular pela produção mensal cadastrada';
+  producaoMediaManual.input.placeholder = t('plants.card.fieldProducaoMediaPlaceholder');
   diaEmissaoUsina.input.min = '1';
   diaEmissaoUsina.input.max = '31';
-  diaEmissaoUsina.input.placeholder = 'Dia do mês (1-31)';
+  diaEmissaoUsina.input.placeholder = t('plants.card.fieldDiaEmissaoPlaceholder');
+
+  const repasseTipo = createSelectField(t('plants.card.fieldRepasseTipo'), plant?.repasseTipo ?? '', [
+    { value: '', label: t('plants.card.repasseOptionNone') },
+    { value: 'percentual', label: t('plants.card.repasseOptionPercent') },
+    { value: 'valor_fixo', label: t('plants.card.repasseOptionFixed') }
+  ]);
+  const repasseValor = createInput(
+    t('plants.card.fieldRepasseValor'),
+    'number',
+    plant?.repasseValor != null ? String(plant.repasseValor) : '',
+    false
+  );
+  const repasseHint = createElement('p', { className: 'settings-hint' });
+
+  repasseValor.input.min = '0';
+  repasseValor.input.step = '0.01';
+  repasseValor.field.appendChild(repasseHint);
+
+  function syncRepasseHint(): void {
+    if (repasseTipo.select.value === 'percentual') {
+      repasseHint.textContent = t('plants.card.repasseHintPercent');
+    } else if (repasseTipo.select.value === 'valor_fixo') {
+      repasseHint.textContent = t('plants.card.repasseHintFixed');
+    } else {
+      repasseHint.textContent = '';
+    }
+  }
+
+  repasseTipo.select.addEventListener('change', syncRepasseHint);
+  syncRepasseHint();
 
   titleText.append(eyebrow, heading);
   header.append(titleText, closeButton);
@@ -96,7 +130,7 @@ export function createPlantCard({ plant, onSave, onCancel, onDelete }: PlantCard
   if (plant && onDelete) {
     const deleteButton = createElement('button', {
       className: 'danger-button',
-      textContent: 'Excluir usina',
+      textContent: t('plants.card.deleteButton'),
       type: 'button'
     });
 
@@ -134,15 +168,19 @@ export function createPlantCard({ plant, onSave, onCancel, onDelete }: PlantCard
       responsavel: responsavel.input.value.trim(),
       numModulos: numModulos.input.value.trim() ? Number(numModulos.input.value) : null,
       producaoMediaManual: producaoMediaManual.input.value.trim() ? Number(producaoMediaManual.input.value) : null,
-      diaEmissaoUsina: diaEmissaoUsina.input.value.trim() ? Number(diaEmissaoUsina.input.value) : null
+      diaEmissaoUsina: diaEmissaoUsina.input.value.trim() ? Number(diaEmissaoUsina.input.value) : null,
+      repasseTipo: repasseTipo.select.value || null,
+      repasseValor: repasseValor.input.value.trim() ? Number(repasseValor.input.value) : null
     });
   });
 
   form.append(
     header,
-    createFormSection('Dados principais', nome.field, uc.field, status.field, dataAtivacao.field),
-    createFormSection('Características técnicas', kwPico.field, numModulos.field, marcaInversor.field, percentualDisponivel.field, producaoMediaManual.field, diaEmissaoUsina.field),
-    createFormSection('Informações adicionais', telefoneProprietario.field, emailProprietario.field, cidade.field, uf.field, endereco.field, responsavel.field),
+    createFormSection(t('plants.card.sectionDados'), nome.field, uc.field, status.field, dataAtivacao.field),
+    createFormSection(t('plants.card.sectionTecnicas'), kwPico.field, numModulos.field, marcaInversor.field, percentualDisponivel.field, producaoMediaManual.field, diaEmissaoUsina.field),
+    createFormSection(t('plants.card.sectionAdicionais'), telefoneProprietario.field, emailProprietario.field, cidade.field, uf.field, endereco.field, responsavel.field),
+    createFormSection(t('plants.card.sectionRepasse'), repasseTipo.field, repasseValor.field),
+    createFormSection(t('plants.card.sectionDocumentos'), createClientDocumentsPanel(undefined, plant?.id)),
     actions
   );
   panel.appendChild(form);

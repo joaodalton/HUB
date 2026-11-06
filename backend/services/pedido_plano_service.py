@@ -1,0 +1,287 @@
+"""pedido_plano_service: checkout publico de assinatura de plano, fim a fim --
+criar_pedido (abre pedido pendente + assinatura ASAAS), confirmar_pagamento
+(chamado pelo webhook quando o pagamento e confirmado -- gera token de
+cadastro e envia e-mail) e concluir_cadastro (consome o token e cria
+Empresa + Assinatura + owner User)."""
+import hashlib
+import re
+import secrets
+from datetime import datetime, timedelta
+
+from sqlalchemy.exc import IntegrityError
+
+from config import Config
+from extensions import db
+from models.assinatura import Assinatura
+from models.empresa import Empresa
+from models.pedido_plano import PedidoPlano
+from models.user import User
+from planos.catalogo import PLANOS, get_plano
+from services.asaas_client import PlatformAsaasService
+from services.email_service import send_email
+from services.log_service import LogService
+from utils.auth import hash_password
+
+_SLUG_RE = re.compile(r'^[a-z0-9-]{1,60}$')
+_BILLING_TYPES = {'BOLETO', 'PIX', 'CREDIT_CARD'}
+# Timeout pra destravar um pedido que ficou presa em 'processando' porque o
+# processo caiu entre o UPDATE pendente->processando e o commit seguinte
+# (pago ou de volta pra pendente). Sem isso o pedido fica travado pra sempre
+# e nenhum webhook futuro (nem redelivery genuina da Asaas) tenta de novo.
+_PROCESSANDO_TIMEOUT = timedelta(minutes=2)
+
+
+def _asaas_transport():
+    return PlatformAsaasService()
+
+
+def criar_pedido(email: str, plano_chave: str, dados_pagamento: dict) -> dict:
+    if not isinstance(email, str) or not email.strip():
+        raise ValueError('Email e obrigatorio.')
+    if not isinstance(plano_chave, str):
+        raise ValueError('Plano inexistente ou nao comercializavel.')
+    if not isinstance(dados_pagamento, dict):
+        raise ValueError('Dados de pagamento invalidos.')
+    if len(email) > 150:  # mesmo limite de PedidoPlano.email (db.String(150))
+        raise ValueError('Email muito longo (maximo 150 caracteres).')
+    billing_type = dados_pagamento.get('billingType')
+    if billing_type not in _BILLING_TYPES:
+        raise ValueError('billingType invalido -- use BOLETO, PIX ou CREDIT_CARD.')
+    if plano_chave not in PLANOS or not PLANOS[plano_chave]['comprável']:
+        raise ValueError('Plano inexistente ou nao comercializavel.')
+    plano = get_plano(plano_chave)
+
+    dados_cliente = {k: v for k, v in dados_pagamento.items() if k != 'billingType'}
+
+    external_reference = 'hub-platform-pedido-' + secrets.token_urlsafe(16)
+    pedido = PedidoPlano(email=email, plano_chave=plano_chave, external_reference=external_reference)
+    db.session.add(pedido)
+    db.session.flush()
+
+    cliente = None
+    try:
+        transport = _asaas_transport()
+        cliente = transport.criar_cliente(dados_cliente)
+        assinatura = transport.criar_assinatura({
+            'customer': cliente['id'],
+            'billingType': billing_type,
+            'value': float(plano['preco']),
+            'cycle': 'MONTHLY',
+            'externalReference': external_reference,
+        })
+    except Exception as exc:
+        db.session.rollback()
+        if cliente is not None:
+            # Cliente ja foi criado na Asaas mas a assinatura falhou: fica orfao la,
+            # sem PedidoPlano aqui para linkar -- precisa reconciliacao manual.
+            LogService.error(
+                acao='asaas_cliente_orfao',
+                mensagem=f'Assinatura Asaas falhou apos criar cliente {cliente["id"]}; cliente ficou orfao na Asaas.',
+                entidade='PedidoPlano',
+                metadados={'asaasCustomerId': cliente['id'], 'externalReference': external_reference, 'erro': str(exc)},
+            )
+        raise
+
+    pedido.asaas_customer_id = cliente['id']
+    pedido.asaas_subscription_id = assinatura['id']
+    db.session.commit()
+
+    return {
+        'id': pedido.id,
+        'email': pedido.email,
+        'planoChave': pedido.plano_chave,
+        'externalReference': pedido.external_reference,
+        'asaasCustomerId': pedido.asaas_customer_id,
+        'asaasSubscriptionId': pedido.asaas_subscription_id,
+        'status': pedido.status,
+    }
+
+
+def _gerar_token() -> tuple[str, str]:
+    token_cru = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(token_cru.encode()).hexdigest()
+    return token_cru, token_hash
+
+
+def confirmar_pagamento(external_reference: str) -> bool:
+    """Chamado pelo webhook da Asaas quando o pagamento e confirmado.
+    Idempotente: replay do mesmo evento (ou qualquer chamada apos o pedido ja
+    ter saido de 'pendente') e no-op -- nao gera segundo token nem reenvia
+    e-mail. Retorna False somente quando ha um pedido 'pendente' pra esse
+    external_reference e o envio do e-mail falhou -- o webhook chamador deve
+    tratar isso como falha (nao-2xx) pra Asaas redeliverar o evento e essa
+    funcao ser chamada de novo; True em qualquer outro caso (nada a fazer, ou
+    concluido com sucesso agora)."""
+    pedido = PedidoPlano.query.filter_by(external_reference=external_reference).first()
+    if not pedido:
+        return True
+    processando_travado = (
+        pedido.status == 'processando'
+        and pedido.processando_desde is not None
+        and pedido.processando_desde < datetime.utcnow() - _PROCESSANDO_TIMEOUT
+    )
+    if pedido.status != 'pendente' and not processando_travado:
+        return True
+
+    # Guarded conditional update (mesmo padrao de concluir_cadastro): so uma
+    # chamada concorrente pode ganhar a troca pendente->processando. A outra
+    # ve rowcount 0 e e no-op, sem mandar e-mail duplicado com token orfao.
+    # Tambem aceita retomar um 'processando' travado ha mais de
+    # _PROCESSANDO_TIMEOUT (processo caiu entre as duas fases) -- caso
+    # contrario esse pedido fica preso pra sempre e nenhum webhook futuro
+    # tenta de novo.
+    resultado = db.session.execute(
+        db.update(PedidoPlano)
+        .where(
+            PedidoPlano.id == pedido.id,
+            db.or_(
+                PedidoPlano.status == 'pendente',
+                db.and_(
+                    PedidoPlano.status == 'processando',
+                    PedidoPlano.processando_desde < datetime.utcnow() - _PROCESSANDO_TIMEOUT,
+                ),
+            ),
+        )
+        .values(status='processando', processando_desde=datetime.utcnow())
+    )
+    if resultado.rowcount != 1:
+        db.session.rollback()
+        return True
+    db.session.commit()
+
+    token_cru, token_hash = _gerar_token()
+    enviado = _enviar_email_pagamento_confirmado(pedido, token_cru)
+    if not enviado:
+        # send_email ja logou o erro (email_failed); volta pra 'pendente' pra um
+        # proximo webhook (redelivery da Asaas) tentar de novo, em vez de ficar
+        # travado em 'processando' pra sempre.
+        db.session.execute(
+            db.update(PedidoPlano).where(PedidoPlano.id == pedido.id).values(status='pendente')
+        )
+        db.session.commit()
+        return False
+
+    db.session.execute(
+        db.update(PedidoPlano)
+        .where(PedidoPlano.id == pedido.id)
+        .values(status='pago', token_hash=token_hash, expires_at=datetime.utcnow() + timedelta(days=7))
+    )
+    db.session.commit()
+    return True
+
+
+def _enviar_email_pagamento_confirmado(pedido: PedidoPlano, token_cru: str) -> bool:
+    """Sem Empresa criada ainda nesse ponto do fluxo (e o proprio objetivo do
+    cadastro), entao nao ha empresa_id pra usar email_template_service --
+    e-mail direto com assunto/corpo fixos, igual send_email() ja suporta."""
+    link = f'{Config.FRONTEND_URL}/cadastro-empresa?token={token_cru}'
+    html = (
+        f'<p>Seu pagamento foi confirmado!</p>'
+        f'<p>Finalize o cadastro da sua empresa clicando no link abaixo:</p>'
+        f'<p><a href="{link}">{link}</a></p>'
+        f'<p>Este link expira em 7 dias.</p>'
+    )
+    text = (
+        'Seu pagamento foi confirmado!\n\n'
+        f'Finalize o cadastro da sua empresa acessando: {link}\n\n'
+        'Este link expira em 7 dias.'
+    )
+    return send_email(to=pedido.email, subject='Pagamento confirmado -- finalize seu cadastro', html=html, text=text)
+
+
+def _buscar_pedido_valido(token_cru: str) -> PedidoPlano:
+    token_hash = hashlib.sha256(token_cru.encode()).hexdigest()
+    pedido = PedidoPlano.query.filter_by(token_hash=token_hash).first()
+
+    if not pedido:
+        raise ValueError('Token invalido.')
+    if pedido.status == 'usado':
+        raise ValueError('Esse link ja foi usado.')
+    if pedido.status != 'pago':
+        raise ValueError('Token invalido.')
+    if pedido.expires_at is None or pedido.expires_at < datetime.utcnow():
+        pedido.status = 'expirado'
+        db.session.commit()
+        raise ValueError('Link expirado. Peca um novo.')
+
+    return pedido
+
+
+def concluir_cadastro(token_cru: str, nome_empresa: str, slug: str, senha: str) -> dict:
+    if not all(isinstance(v, str) for v in (token_cru, nome_empresa, slug, senha)):
+        raise ValueError('Token, nomeEmpresa, slug e senha precisam ser texto.')
+
+    nome_empresa = nome_empresa.strip()
+    if not nome_empresa:
+        raise ValueError('Nome da empresa e obrigatorio.')
+    if len(nome_empresa) > 150:  # mesmo limite de Empresa.nome (db.String(150))
+        raise ValueError('Nome da empresa muito longo (maximo 150 caracteres).')
+    if not _SLUG_RE.match(slug):
+        raise ValueError('Slug invalido -- use apenas letras minusculas, numeros e hifen (ate 60 caracteres).')
+    if len(senha) < 6:
+        raise ValueError('Senha precisa ter pelo menos 6 caracteres.')
+
+    pedido = _buscar_pedido_valido(token_cru)
+
+    if Empresa.query.filter_by(slug=slug).first():
+        raise ValueError(f'Ja existe uma empresa com slug "{slug}".')
+
+    # Mesma checagem que invitation_service.aceitar_convite faz antes de criar
+    # o User -- sem isso, um email ja usado em outra empresa cairia no
+    # IntegrityError do slug mais abaixo e devolveria uma mensagem errada,
+    # deixando o cliente que pagou travado pra sempre (toda tentativa de novo
+    # falha igual).
+    if User.query.filter(db.func.lower(User.email) == pedido.email.lower()).first():
+        raise ValueError('Ja existe um usuario com esse email.')
+
+    # Guarded conditional update (nao um simples pedido.status = 'usado'): duas
+    # chamadas concorrentes com o mesmo token pago so podem ter uma vencendo essa
+    # troca pago->usado -- a outra ve rowcount 0 e cai no ValueError, sem nunca
+    # criar Empresa/Assinatura/User duplicadas pro mesmo pagamento.
+    resultado = db.session.execute(
+        db.update(PedidoPlano)
+        .where(PedidoPlano.id == pedido.id, PedidoPlano.status == 'pago')
+        .values(status='usado')
+    )
+    if resultado.rowcount != 1:
+        db.session.rollback()
+        raise ValueError('Esse link ja foi usado.')
+
+    try:
+        empresa = Empresa(nome=nome_empresa, slug=slug, status='ativa')
+        db.session.add(empresa)
+        db.session.flush()
+
+        db.session.add(Assinatura(
+            empresa_id=empresa.id,
+            plano_chave=pedido.plano_chave,
+            tipo='pago',
+            status='ativa',
+            asaas_subscription_id=pedido.asaas_subscription_id,
+            inicio_periodo_atual=datetime.utcnow(),
+        ))
+
+        db.session.add(User(
+            empresa_id=empresa.id,
+            nome=nome_empresa,
+            email=pedido.email,
+            password_hash=hash_password(senha),
+            role='owner',
+            status='ativo',
+            email_verified=True,
+            must_change_password=False,
+        ))
+
+        db.session.commit()
+    except IntegrityError as exc:
+        db.session.rollback()
+        raise ValueError(f'Ja existe uma empresa com slug "{slug}".') from exc
+
+    LogService.info(
+        acao='pedido_plano_concluido',
+        mensagem=f'Cadastro concluido para {pedido.email} (empresa "{empresa.nome}")',
+        entidade='Empresa',
+        metadados={'empresaId': empresa.id, 'pedidoPlanoId': pedido.id}
+    )
+
+    return {'empresaId': empresa.id}

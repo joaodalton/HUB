@@ -20,6 +20,7 @@ import { templatesDict } from '../i18n/templates';
 import { reportsDict } from '../i18n/reports';
 import { messagesDict } from '../i18n/messages';
 import { platformDict } from '../i18n/platform';
+import { crmLeadsDict } from '../i18n/crmLeads';
 
 export type Language = 'pt' | 'en' | 'fr';
 
@@ -49,7 +50,8 @@ const dictionary: Record<string, Translation> = {
   ...templatesDict,
   ...reportsDict,
   ...messagesDict,
-  ...platformDict
+  ...platformDict,
+  ...crmLeadsDict
 };
 
 function isLanguage(value: string | null): value is Language {

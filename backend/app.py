@@ -97,6 +97,7 @@ def create_app() -> Flask:
     from models.agenda_event import AgendaEvent  # type: ignore
     from models.regulatory_tariff import RegulatoryTariff, RegulatoryTariffImport, RegulatoryTariffPreview  # type: ignore
     from models.platform_configuracao import PlatformConfiguracao  # type: ignore
+    from models.crm_lead import CrmLead  # type: ignore
 
     cors_origins = [Config.FRONTEND_URL]
     if Config.MARKETING_URL and Config.MARKETING_URL not in cors_origins:
@@ -140,6 +141,7 @@ def create_app() -> Flask:
     from routes.report_routes import report_routes
     from routes.billing_pdf_lab_routes import billing_pdf_lab_routes
     from routes.financeiro_routes import financeiro_routes
+    from routes.crm_lead_routes import crm_lead_routes
 
     app.register_blueprint(health_routes)
     app.register_blueprint(auth_routes)
@@ -177,6 +179,7 @@ def create_app() -> Flask:
     app.register_blueprint(billing_pdf_lab_routes)
     app.register_blueprint(report_routes)
     app.register_blueprint(financeiro_routes)
+    app.register_blueprint(crm_lead_routes)
 
     from utils.auth import register_auth_middleware
     register_auth_middleware(app, public_paths={

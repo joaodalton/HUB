@@ -54,6 +54,7 @@ function buildSections(): SidebarSection[] {
         { labelKey: 'nav.item.mensagens', path: '/mensagens', icon: 'mensagens', enabled: true },
         { labelKey: 'nav.item.pendencias', path: '/pendencias', icon: 'pending', enabled: true },
         { labelKey: 'nav.item.agenda', path: '/agenda', icon: 'agenda', enabled: true },
+        { labelKey: 'nav.item.crmLeads', path: '/crm-leads', icon: 'clients', enabled: true },
         { labelKey: 'nav.item.configuracoes', path: '/configuracoes', icon: 'settings', enabled: true }
       ]
     }

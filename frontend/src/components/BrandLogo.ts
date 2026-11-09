@@ -4,9 +4,10 @@
 // pixel-perfect e sem hotlink de imagem externa.
 import { createElement } from '../dom';
 
-export type BrandName = 'resend' | 'asaas' | 'whatsapp' | 'google';
+export type BrandName = 'resend' | 'asaas' | 'whatsapp' | 'google' | 'piperun';
 
 const markup: Record<BrandName, string> = {
+  piperun: '<svg viewBox="0 0 24 24"><rect width="24" height="24" rx="6" fill="#5B2E91"/><circle cx="12" cy="12" r="5" fill="none" stroke="#fff" stroke-width="2"/><path d="M12 9v6M9 12h6" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>',
   resend: '<svg viewBox="0 0 24 24"><rect width="24" height="24" rx="6" fill="#000"/><path d="M7 6.5h6.2a4 4 0 0 1 0 8H10l4.5 3H11l-4-3V6.5z" fill="none" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>',
   asaas: '<svg viewBox="0 0 24 24"><rect width="24" height="24" rx="6" fill="#0A4EE4"/><path d="M7 16 12 6l5 10" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 13h6" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>',
   whatsapp: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="#25D366"/><path d="M12 5.5a6.5 6.5 0 0 0-5.6 9.8L5.5 18.5l3.3-.9A6.5 6.5 0 1 0 12 5.5z" fill="#fff"/><path d="M9.6 9.3c.2-.4.4-.4.6-.4h.5c.2 0 .4 0 .5.4.2.4.6 1.4.6 1.5s0 .2-.1.3c-.2.3-.4.4-.6.6-.1.1-.2.2-.1.4.3.6.8 1.1 1.3 1.5.5.4 1 .6 1.2.7.2.1.3.1.4-.1l.6-.7c.1-.2.3-.2.5-.1l1.3.6c.2.1.3.2.3.3 0 .2 0 .9-.3 1.2-.3.3-1 .6-1.6.6-.6 0-1.6-.2-3-1.4-1.7-1.5-2.8-3.3-2.9-3.5-.1-.2-.8-1.1-.8-2.1 0-1 .5-1.5.7-1.7z" fill="#25D366"/></svg>',

@@ -9,7 +9,7 @@ from services.log_service import LogService
 from utils.crypto import encrypt_value
 
 
-PROVIDERS_VALIDOS = frozenset({'resend', 'whatsapp', 'asaas', 'concessionaria'})
+PROVIDERS_VALIDOS = frozenset({'resend', 'whatsapp', 'asaas', 'concessionaria', 'piperun'})
 
 
 class CredentialConflictError(ValueError):
@@ -111,6 +111,11 @@ def testar(credential_id: int) -> dict | None:
         AsaasClient(g.current_empresa_id).testar_conexao()
         _audit('api_credential_test_asaas', credential)
         return {'ok': True, 'modo': 'asaas-api', 'provider': credential.provider}
+    if credential.provider == 'piperun':
+        from services.crm.piperun_client import PipeRunClient
+        PipeRunClient(credential.get_segredo()).testar_conexao()
+        _audit('api_credential_test_piperun', credential)
+        return {'ok': True, 'modo': 'piperun-api', 'provider': credential.provider}
     _audit('api_credential_test_dry_run', credential)
     return {'ok': True, 'modo': 'dry-run', 'provider': credential.provider}
 
@@ -118,7 +123,7 @@ def testar(credential_id: int) -> dict | None:
 def _validar_provider(valor) -> str:
     provider = (valor or '').strip().lower()
     if provider not in PROVIDERS_VALIDOS:
-        raise ValueError('Provider invalido. Use resend, whatsapp, asaas ou concessionaria.')
+        raise ValueError('Provider invalido. Use resend, whatsapp, asaas, concessionaria ou piperun.')
     return provider
 
 

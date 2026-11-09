@@ -686,7 +686,7 @@ Sem body. Remove a conta do banco (**não revoga** o acesso do lado do Google �
 
 ## Credenciais de API (`/api-credentials`)
 
-Credenciais de integrações pertencem à empresa autenticada e requerem `settings.read` para consulta ou `settings.update` para alteração. Providers iniciais: `resend`, `whatsapp`, `asaas` e `concessionaria`. O segredo é criptografado com `SECRET_ENCRYPTION_KEY` antes de persistir e **nunca** aparece em resposta, erro ou auditoria.
+Credenciais de integrações pertencem à empresa autenticada e requerem `settings.read` para consulta ou `settings.update` para alteração. Providers iniciais: `resend`, `whatsapp`, `asaas`, `concessionaria` e `piperun`. O segredo é criptografado com `SECRET_ENCRYPTION_KEY` antes de persistir e **nunca** aparece em resposta, erro ou auditoria.
 
 ## WhatsApp Meta Cloud API (`/whatsapp`)
 
@@ -720,7 +720,19 @@ Body obrigatório: `{ "provider": "resend", "nome": "Principal", "segredo": "...
 
 ### `POST /api-credentials/<id>/testar`
 
-Para API keys Asaas, executa uma consulta autenticada a `/myAccount` usando a chave API cifrada selecionada para o ambiente ativo e retorna `{ "ok": true, "modo": "asaas-api", "provider": "asaas" }`, sem retornar a chave. Credenciais Asaas `webhook_token*` e os demais provedores executam somente dry-run local: verificam que a cifra existe e pode ser lida, sem fazer HTTP, e retornam `modo: "dry-run"`.
+Para API keys Asaas, executa uma consulta autenticada a `/myAccount` usando a chave API cifrada selecionada para o ambiente ativo e retorna `{ "ok": true, "modo": "asaas-api", "provider": "asaas" }`, sem retornar a chave. Para credenciais `piperun`, consulta `GET https://api.pipe.run/v1` com o token no header `token` e retorna `{ "ok": true, "modo": "piperun-api", "provider": "piperun" }`. Credenciais Asaas `webhook_token*` e os demais provedores executam somente dry-run local: verificam que a cifra existe e pode ser lida, sem fazer HTTP, e retornam `modo: "dry-run"`.
+
+## CRM — leads PipeRun (`/crm-leads`)
+
+Leitura local de negócios ("deals") importados por polling manual do PipeRun; **não cria nem atualiza `Client`** automaticamente — decisão deliberada da v1. Requer uma `ApiCredential` com `provider=piperun` já cadastrada (ver `/api-credentials`).
+
+### `GET /crm-leads`
+
+Exige `settings.read`. Lista os leads da empresa (`provider=piperun` por ora), ordenados por `atualizadoEmOrigem` desc. Cada item: `{ id, provider, externalId, titulo, status, valor, pipelineNome, etapaNome, criadoEmOrigem, atualizadoEmOrigem, importadoEm, atualizadoEm }`. `valor` é string decimal ou `null`. `status` é o código bruto do PipeRun (`0`=aberta, `1`=ganha, `3`=perdida).
+
+### `POST /crm-leads/sincronizar`
+
+Exige `settings.update`; limitado a 5 chamadas/minuto. Pagina `GET /deals` no PipeRun via cursor (até 50 páginas por chamada) e faz upsert por `(empresa_id, provider, externalId)`. Retorna `{ "total_importados": N, "total_atualizados": M }`. Sem credencial `piperun` cadastrada: `400`. Falha de rede ou autenticação no PipeRun: `503`.
 
 ---
 

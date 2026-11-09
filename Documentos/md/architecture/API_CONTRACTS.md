@@ -1158,8 +1158,12 @@ os dois documentos, e pode haver várias cobranças no mesmo contexto.
 visualização ou download do PDF original.
 
 Cada item também traz `gdIKwh` e `gdIIKwh` (string Decimal ou `null`: soma do
-valor absoluto dos eventos de compensação GD I / GD II extraídos; TE/TUSD do
-mesmo evento contam uma vez; `null` sem evento ou sem extração) e `problemas`:
+valor absoluto, em kWh, dos eventos GD I / GD II da fatura: injeção própria
+`ENERGIA INJETADA` e compensação `ENERGIA INJ. OUC MPT`; evento = classe + mês
++ contexto, TE/TUSD do mesmo evento contam uma vez, meses distintos somam;
+`null` sem evento, sem extração ou quando algum evento da classe não pode ser
+contado (quantidade ausente, unidade diferente de kWh, TE/TUSD divergentes ou
+par incompleto): nunca soma parcial) e `problemas`:
 `[{ code, message, fields }]` (vazio quando sem problema). Códigos:
 `NOT_PROCESSED`, `EXTRACTION_FAILED`, `LAYOUT_NOT_RECOGNIZED`, `UC_NOT_FOUND`,
 `UC_OTHER_CLIENT`, `MISSING_FIELDS` (`fields` = campos críticos não lidos) e

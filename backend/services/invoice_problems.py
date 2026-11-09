@@ -30,12 +30,34 @@ def invoice_problems(invoice) -> list[dict]:
 
 
 def gd_totals(invoice) -> dict:
-    """Soma kWh por classe GD; TE/TUSD do mesmo evento já vêm agrupados em `compensacoes`."""
-    energy = ((invoice.dados_normalizados or {}).get('invoice') or {}).get('billing_energy_input') or {}
+    """kWh de GD I / GD II na fatura (injeção própria + compensação OUC), por evento.
+
+    Evento = (classe GD, mês, contexto); TE/TUSD do mesmo evento são uma só quantidade.
+    Classe com evento não contável (quantidade ausente ou TE/TUSD divergentes) vira None:
+    nunca devolve soma parcial.
+    """
+    rows = ((invoice.dados_normalizados or {}).get('invoice') or {}).get('energy_components') or []
+    events, broken = {}, set()
+
+    def value(row, name):
+        field = row.get(name) or {}
+        return field.get('value') if field.get('status') == 'found' else None
+
+    for row in rows:
+        gd = value(row, 'gd_classification')
+        if gd not in ('GD_I', 'GD_II') or value(row, 'category') not in ('injected', 'compensated'):
+            continue
+        events.setdefault((gd, value(row, 'credit_month'), value(row, 'compensation_context')), []).append(row)
     totals = {'GD_I': None, 'GD_II': None}
-    for event in energy.get('compensacoes') or []:
-        gd, quantity = event.get('classificacao_gd'), event.get('quantidade_kwh')
-        if gd in totals and quantity is not None:
-            totals[gd] = (totals[gd] or Decimal(0)) + abs(Decimal(quantity))
-    return {'gdIKwh': None if totals['GD_I'] is None else str(totals['GD_I']),
-            'gdIIKwh': None if totals['GD_II'] is None else str(totals['GD_II'])}
+    for (gd, _, _), event in events.items():
+        try:
+            amounts = {abs(Decimal(value(r, 'amount_kwh'))) for r in event}
+        except (TypeError, ArithmeticError):
+            amounts = set()
+        pair = sorted(str(value(r, 'tariff_component')) for r in event) == ['TE', 'TUSD']
+        if not pair or len(amounts) != 1 or any(value(r, 'unit') != 'kWh' for r in event):
+            broken.add(gd)
+        else:
+            totals[gd] = (totals[gd] or Decimal(0)) + next(iter(amounts))
+    return {'gdIKwh': None if 'GD_I' in broken or totals['GD_I'] is None else str(totals['GD_I']),
+            'gdIIKwh': None if 'GD_II' in broken or totals['GD_II'] is None else str(totals['GD_II'])}

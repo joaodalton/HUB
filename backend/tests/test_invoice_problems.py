@@ -17,10 +17,10 @@ from models.fatura_concessionaria import FaturaConcessionaria
 from services.fatura_processing_service import FaturaProcessingService
 from services.invoice_problems import gd_totals, invoice_problems
 try:
-    from .fixtures.invoices.copel.build_fixture import make_gd_pdf
+    from .fixtures.invoices.copel.build_fixture import ITEMS, make_gd_pdf, make_pdf
     from .support import IsolatedTestRuntime
 except ImportError:
-    from fixtures.invoices.copel.build_fixture import make_gd_pdf
+    from fixtures.invoices.copel.build_fixture import ITEMS, make_gd_pdf, make_pdf
     from support import IsolatedTestRuntime
 
 
@@ -70,6 +70,35 @@ class InvoiceProblemsTest(unittest.TestCase):
         self.assertEqual(invoice_problems(invoice),
                          [{'code': 'REVIEW_REQUIRED', 'message': 'um; dois', 'fields': []}])
 
+    @staticmethod
+    def _row(kind, gd, month, amount, context='energia_injetada', unit='kWh', category='injected'):
+        def f(v):
+            return {'status': 'found', 'value': v}
+        return {'category': f(category), 'tariff_component': f(kind), 'gd_classification': f(gd),
+                'credit_month': f(month), 'compensation_context': f(context),
+                'amount_kwh': f(amount), 'unit': f(unit)}
+
+    def _gd(self, rows):
+        return gd_totals(_invoice(dados_normalizados={'invoice': {'energy_components': rows}}))
+
+    def test_gd_totals_events_are_counted_once_and_months_add(self):
+        r = self._row
+        self.assertEqual(self._gd([
+            r('TE', 'GD_I', '2030-08', '40'), r('TUSD', 'GD_I', '2030-08', '-40'),
+            r('TE', 'GD_I', '2030-07', '5'), r('TUSD', 'GD_I', '2030-07', '5'),
+            r('TE', 'GD_I', '2030-08', '30', 'energia_inj_ouc_mpt', category='compensated'),
+            r('TUSD', 'GD_I', '2030-08', '30', 'energia_inj_ouc_mpt', category='compensated'),
+        ]), {'gdIKwh': '75', 'gdIIKwh': None})
+
+    def test_gd_totals_unreliable_class_is_none_not_partial(self):
+        r = self._row
+        ok2 = [r('TE', 'GD_II', '2030-08', '7'), r('TUSD', 'GD_II', '2030-08', '7')]
+        for bad in ([r('TE', 'GD_I', '2030-08', '10'), r('TUSD', 'GD_I', '2030-08', '11')],
+                    [r('TE', 'GD_I', '2030-08', '10')],
+                    [r('TE', 'GD_I', '2030-08', '10', unit='UN'), r('TUSD', 'GD_I', '2030-08', '10')]):
+            good = [r('TE', 'GD_I', '2030-07', '5'), r('TUSD', 'GD_I', '2030-07', '5')]
+            self.assertEqual(self._gd(good + bad + ok2), {'gdIKwh': None, 'gdIIKwh': '7'})
+
     def test_gd_totals_without_extraction(self):
         self.assertEqual(gd_totals(_invoice()), {'gdIKwh': None, 'gdIIKwh': None})
 
@@ -112,6 +141,19 @@ class GdTotalsTest(IsolatedTestRuntime, unittest.TestCase):
         db.session.commit()
         FaturaProcessingService().process(invoice.id, document=pdf)
         return db.session.get(FaturaConcessionaria, 10)
+
+    def test_gd_totals_own_uc_injection_plus_ouc(self):
+        item = lambda label, kwh: (label, 'kWh', kwh, '0,310667', '-37,30', '', '', '0,310850')
+        pdf = make_pdf(changes={'uc': '000000000000104'}, items=ITEMS + (
+            item('ENERGIA INJETADA TE 08/2030 GDI-I', '40'), item('ENERGIA INJETADA TUSD 08/2030 GDI-I', '40'),
+            item('ENERGIA INJ. OUC MPT TE 07/2030 GDI-I', '-30'),
+            item('ENERGIA INJ. OUC MPT TUSD 07/2030 GDI-I', '-30')))
+        invoice = FaturaConcessionaria(id=10, empresa_id=10, client_id=10, document_id=10,
+                                       arquivo_hash=hashlib.sha256(pdf).hexdigest())
+        db.session.add(invoice)
+        db.session.commit()
+        FaturaProcessingService().process(10, document=pdf)
+        self.assertEqual(gd_totals(db.session.get(FaturaConcessionaria, 10)), {'gdIKwh': '70', 'gdIIKwh': None})
 
     def test_gd_totals_per_case(self):
         for case, expected in (('gd1_gd2', {'gdIKwh': '30', 'gdIIKwh': '352'}),

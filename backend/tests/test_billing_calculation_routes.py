@@ -172,7 +172,11 @@ class BillingCalculationRoutesTest(IsolatedTestRuntime, unittest.TestCase):
         charges = response.json['data'][0]['contextualCharges']
         self.assertEqual(len(charges), 1)
         self.assertEqual(charges[0]['valor'], 40.0)
+        self.assertEqual((charges[0]['invoiceUrl'], charges[0]['billingMode']), (None, None))
         self.assertEqual(response.json['data'][0]['ucCodigo'], 'UC-10')
+        row = response.json['data'][0]
+        self.assertEqual((row['gdIKwh'], row['gdIIKwh']), (None, None))
+        self.assertEqual([p['code'] for p in row['problemas']], ['NOT_PROCESSED'])
 
     def test_gerar_boleto_validates_completeness_then_emits(self):
         url = '/api/v1/billing-calculations/invoices/10/gerar-boleto'

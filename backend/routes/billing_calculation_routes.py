@@ -19,6 +19,7 @@ from services.fatura_service import (
     CalculoCobrancaPendente, DadosIncompletosError, EmissaoPendente, gerar_boleto_concessionaria,
 )
 from services.invoice_document_service import InvoiceHasCalculationError, delete_invoice, load_invoice_pdf
+from services.invoice_problems import gd_totals, invoice_problems
 from services.object_storage import ObjectStorageError
 from services.permission_service import require_permission
 from utils.api_response import error_response, success_response
@@ -146,6 +147,9 @@ def _invoices():
                 'asaasStatus': charge.asaas_status, 'asaasId': charge.asaas_id,
                 'valor': float(charge.valor), 'mesVencimento': charge.mes_vencimento.isoformat(),
                 'boletoUrl': charge.boleto_url,
+                # Task 5 cria as colunas; até lá None.
+                'invoiceUrl': getattr(charge, 'invoice_url', None),
+                'billingMode': getattr(charge, 'billing_mode', None),
             })
     pending_ids = {row.fatura_concessionaria_id for row in Pendencia.query.filter(
         Pendencia.empresa_id == tenant, Pendencia.status == 'aberta',
@@ -168,6 +172,7 @@ def _invoices():
                                     and row.document.storage_provider in ('google_drive', 'local', 's3')
                                     and row.document.storage_ref),
         'temPendencia': row.id in pending_ids,
+        **gd_totals(row), 'problemas': invoice_problems(row),
         'contextualCharges': charges_by_context.get((row.consumer_unit_id, row.competencia), []),
         'createdAt': row.created_at.isoformat(),
     } for row in rows]

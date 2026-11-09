@@ -85,16 +85,17 @@ def _client_from_document(file_bytes: bytes, empresa_id: int) -> Client:
         parsed = selection.parser.parse(file_bytes)
         code = parsed.identificacao_fiscal.get('codigo_uc')
         if code is None or code.status != 'found' or not isinstance(code.value, str):
-            _fail('UC da fatura ausente ou ilegivel.', 'UC_CODE_UNREADABLE', 422)
+            _fail('Não foi possível ler o código da UC no PDF.', 'UC_NOT_READABLE', 422)
     except InvoiceUploadError:
         raise
     except Exception:
-        _fail('Nao foi possivel extrair a UC da fatura.', 'UC_CODE_UNREADABLE', 422)
+        _fail('Não foi possível ler o código da UC no PDF.', 'UC_NOT_READABLE', 422)
 
     concessionaria = parsed.identificacao_fiscal.get('concessionaria')
     matches = find_document_ucs(empresa_id, code.value, concessionaria.value if concessionaria else None).limit(2).all()
     if not matches:
-        _fail('UC da fatura nao encontrada nesta empresa.', 'UC_NOT_FOUND', 422)
+        _fail(f'UC {code.value} não está cadastrada em nenhum cliente. Cadastre a UC e importe de novo.',
+              'UC_NOT_FOUND', 422)
     if len(matches) != 1:
         _fail('Mais de uma UC corresponde a fatura.', 'UC_MATCH_AMBIGUOUS', 409)
     client = Client.query.filter_by(id=matches[0].client_id, empresa_id=empresa_id).first()

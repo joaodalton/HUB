@@ -380,7 +380,7 @@ Erros: 400 (sem arquivo / sem categoria), 409 (cliente, UC ou categoria informad
 
 Upload da página de Faturas sem seleção de cliente. Requer `faturas.create` e exatamente um campo `arquivo` (PDF); o tenant vem da autenticação. Após validar o PDF, o backend extrai o código documental da UC pelo parser suportado e procura correspondência exata em `ConsumerUnit.codigo` **dentro da empresa**. Apenas uma UC correspondente autoriza vincular o documento ao cliente proprietário dessa UC. Não recebe cliente, UC ou empresa do corpo da requisição. O vínculo persistido no upload é com o cliente; `consumerUnitId` só é preenchido pelo processamento/validação F7.
 
-Para administrador da plataforma, a rota equivalente é `POST /platform/empresas/<empresaId>/billing-calculations/invoices/upload`, com empresa explícita e a mesma permissão. Erros antes do armazenamento: `INVOICE_LAYOUT_UNSUPPORTED` ou `UC_CODE_UNREADABLE` (422), `UC_NOT_FOUND` (422), `UC_MATCH_AMBIGUOUS` (409) e `CLIENT_NOT_FOUND` (404). Falha de vínculo não cria Documento nem fatura. Validação de arquivo, resposta e limites seguem o contrato abaixo. Uma duplicata por hash é conferida contra a UC atual: cliente divergente retorna `INVOICE_CLIENT_CONFLICT` (409), sem alterar a fonte histórica; cliente igual retorna a fonte imutável existente.
+Para administrador da plataforma, a rota equivalente é `POST /platform/empresas/<empresaId>/billing-calculations/invoices/upload`, com empresa explícita e a mesma permissão. Erros antes do armazenamento: `INVOICE_LAYOUT_UNSUPPORTED` ou `UC_NOT_READABLE` (422, "Não foi possível ler o código da UC no PDF."), `UC_NOT_FOUND` (422, mensagem com o código da UC lida), `UC_MATCH_AMBIGUOUS` (409) e `CLIENT_NOT_FOUND` (404). Falha de vínculo não cria Documento nem fatura. Validação de arquivo, resposta e limites seguem o contrato abaixo. Uma duplicata por hash é conferida contra a UC atual: cliente divergente retorna `INVOICE_CLIENT_CONFLICT` (409), sem alterar a fonte histórica; cliente igual retorna a fonte imutável existente.
 
 O campo legado `codigoAneel` permanece no banco para preservar valores anteriores, mas não participa da correspondência e não é exposto e, se enviado, é ignorado no CRUD de UC. Para o layout Copel suportado, `codigo` deve conter o mesmo identificador documental de 15 dígitos do PDF. Ausência de compensação GD não impede o upload; afeta a elegibilidade posterior para cobrança.
 
@@ -1147,7 +1147,8 @@ Os filtros são aplicados antes da paginação, sempre na empresa autenticada.
 `valorTotalConcessionaria`, `dataVencimento`, `documentoId`,
 `documentoDisponivel`, `temPendencia` e `contextualCharges`, além dos campos
 anteriores. `contextualCharges` é um array de zero ou mais
-`{ id, statusInterno, asaasStatus, asaasId, valor, mesVencimento, boletoUrl }`
+`{ id, statusInterno, asaasStatus, asaasId, valor, mesVencimento, boletoUrl, invoiceUrl, billingMode }`
+(`invoiceUrl`/`billingMode` são `null` até existirem na cobrança)
 da mesma empresa, UC e competência. Valor e
 vencimento podem ser nulos até a extração. `temPendencia` considera somente
 pendência aberta vinculada à fatura original. A associação com cobranças
@@ -1155,6 +1156,14 @@ ASAAS por UC e competência é contextual; não existe vínculo persistido entre
 os dois documentos, e pode haver várias cobranças no mesmo contexto.
 `documentoDisponivel` não é uma URL de acesso; esta lista não concede
 visualização ou download do PDF original.
+
+Cada item também traz `gdIKwh` e `gdIIKwh` (string Decimal ou `null`: soma do
+valor absoluto dos eventos de compensação GD I / GD II extraídos; TE/TUSD do
+mesmo evento contam uma vez; `null` sem evento ou sem extração) e `problemas`:
+`[{ code, message, fields }]` (vazio quando sem problema). Códigos:
+`NOT_PROCESSED`, `EXTRACTION_FAILED`, `LAYOUT_NOT_RECOGNIZED`, `UC_NOT_FOUND`,
+`UC_OTHER_CLIENT`, `MISSING_FIELDS` (`fields` = campos críticos não lidos) e
+`REVIEW_REQUIRED` (revisão sem campo identificável).
 As rotas administrativas equivalentes ficam sob
 `/platform/empresas/<empresaId>/billing-calculations` e exigem
 `is_platform_admin` com empresa explícita. O resultado nunca chama ASAAS.

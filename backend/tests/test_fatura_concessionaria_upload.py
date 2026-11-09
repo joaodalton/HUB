@@ -324,6 +324,8 @@ class FaturaConcessionariaUploadTest(IsolatedTestRuntime, unittest.TestCase):
             db.session.commit()
         response = self._upload_auto(make_pdf())
         self.assertEqual((response.status_code, response.json['code']), (422, 'UC_NOT_FOUND'))
+        self.assertEqual(response.json['error'],
+                         'UC 000000000000001 não está cadastrada em nenhum cliente. Cadastre a UC e importe de novo.')
         with self.app.app_context():
             self.assertEqual((Document.query.count(), FaturaConcessionaria.query.count()), (0, 0))
 
@@ -360,7 +362,8 @@ class FaturaConcessionariaUploadTest(IsolatedTestRuntime, unittest.TestCase):
                                      path='/api/v1/platform/empresas/1/billing-calculations/invoices/upload')
         self.assertEqual(response.status_code, 422, response.json)
         self.assertEqual(response.json, {
-            'code': 'UC_NOT_FOUND', 'error': 'UC da fatura nao encontrada nesta empresa.',
+            'code': 'UC_NOT_FOUND',
+            'error': 'UC 000000000000001 não está cadastrada em nenhum cliente. Cadastre a UC e importe de novo.',
         })
         with self.app.app_context():
             self.assertEqual((Document.query.count(), FaturaConcessionaria.query.count()), (0, 0))
@@ -380,7 +383,7 @@ class FaturaConcessionariaUploadTest(IsolatedTestRuntime, unittest.TestCase):
 
     def test_auto_upload_rejects_unreadable_uc_and_unknown_layout(self):
         unreadable = self._upload_auto(make_pdf(changes={'uc': '000000000000001 000000000000002'}))
-        self.assertEqual((unreadable.status_code, unreadable.json['code']), (422, 'UC_CODE_UNREADABLE'))
+        self.assertEqual((unreadable.status_code, unreadable.json['code']), (422, 'UC_NOT_READABLE'))
         unknown = self._upload_auto(self._pdf())
         self.assertEqual((unknown.status_code, unknown.json['code']), (422, 'INVOICE_LAYOUT_UNSUPPORTED'))
         with self.app.app_context():

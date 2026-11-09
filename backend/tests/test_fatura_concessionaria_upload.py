@@ -287,7 +287,6 @@ class FaturaConcessionariaUploadTest(IsolatedTestRuntime, unittest.TestCase):
         from models.calculo_cobranca import BillingCalculationExecution
         from models.grupo_regra_cobranca import GrupoRegraCobranca
         from models.regra_cobranca_assignment import RegraCobrancaAssignment
-        self.addCleanup(self._auto_calc_cleanup)
         with self.app.app_context():
             db.session.add(ConsumerUnit(empresa_id=1, client_id=1, codigo='000000000000001',
                                         codigo_aneel='570778003105'))
@@ -329,14 +328,21 @@ class FaturaConcessionariaUploadTest(IsolatedTestRuntime, unittest.TestCase):
         response = self._upload_auto(make_pdf())
         self.assertEqual(response.status_code, 201, response.json)
         with self.app.app_context():
-            self.assertEqual(Execution.query.filter_by(status='CALCULATED').count(), 0)
+            invoice = FaturaConcessionaria.query.one()
+            rows = Execution.query.filter_by(fatura_concessionaria_id=invoice.id).all()
+            self.assertEqual(len(rows), 1)
+            self.assertNotEqual(rows[0].status, 'CALCULATED')
 
     def test_auto_calculation_failure_is_swallowed(self):
         self._auto_calc_setup(with_rule=True)
         with patch('services.billing_calculation_service.BillingCalculationService.execute',
                    side_effect=RuntimeError('boom')):
             response = self._upload_auto(make_pdf())
-        self.assertEqual(response.status_code, 201, response.json)
+            self.assertEqual(response.status_code, 201, response.json)
+            follow_up = self._upload_auto(make_pdf())
+        self.assertEqual(follow_up.status_code, 200, follow_up.json)
+        with self.app.app_context():
+            self.assertEqual(FaturaConcessionaria.query.count(), 1)
 
     def test_general_document_upload_falls_back_when_oauth_token_cannot_be_decrypted(self):
         with self.app.app_context():

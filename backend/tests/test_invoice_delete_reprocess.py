@@ -83,6 +83,8 @@ class InvoiceDeleteReprocessTest(IsolatedTestRuntime, unittest.TestCase):
             # SQLite de teste nao tem os triggers de imutabilidade do PostgreSQL.
             db.session.execute(db.text('DELETE FROM billing_calculation_executions'))
             db.session.execute(db.text('DELETE FROM billing_calculation_snapshots'))
+            db.session.execute(db.text('DELETE FROM regra_cobranca_assignments'))
+            db.session.execute(db.text('DELETE FROM grupos_regra_cobranca'))
             for model in (Pendencia, Fatura, FaturaConcessionaria, Document, ConsumerUnit):
                 model.query.delete()
             db.session.commit()
@@ -116,13 +118,33 @@ class InvoiceDeleteReprocessTest(IsolatedTestRuntime, unittest.TestCase):
                 concessionaria='Copel', valor=10, mes_vencimento=date(2030, 10, 10), **kw))
             db.session.commit()
 
+    def add_rule(self):
+        from decimal import Decimal
+        from models.grupo_regra_cobranca import GrupoRegraCobranca
+        from models.regra_cobranca_assignment import RegraCobrancaAssignment
+        with self.app.app_context():
+            db.session.add(GrupoRegraCobranca(
+                id=901, empresa_id=1, nome='Regra', ativo=True, padrao=False, revision=1,
+                calculation_method='energia_compensada', tariff_source='invoice',
+                manual_tariff=Decimal('0.70'), discount_type='none', tariff_basis='compensated',
+                billing_mode='auto', due_date_basis='invoice_due_date', due_date_offset_days=0))
+            db.session.add(RegraCobrancaAssignment(
+                empresa_id=1, grupo_regra_cobranca_id=901, scope_type='company', ativo=True))
+            db.session.commit()
+
+    def executions(self, invoice_id):
+        with self.app.app_context():
+            return BillingCalculationExecution.query.filter_by(fatura_concessionaria_id=invoice_id).count()
+
     def add_execution(self, invoice_id):
         with self.app.app_context():
-            db.session.add(BillingCalculationExecution(empresa_id=1, fatura_concessionaria_id=invoice_id,
-                status='MISSING_DATA', auditoria={'stages': []}))
+            execution = BillingCalculationExecution(empresa_id=1, fatura_concessionaria_id=invoice_id,
+                status='MISSING_DATA', auditoria={'stages': []})
+            db.session.add(execution)
             db.session.add(Pendencia(empresa_id=1, tipo='pendencia', categoria='Documentos', titulo='x',
                 fatura_concessionaria_id=invoice_id))
             db.session.commit()
+            return execution.id
 
     def delete(self, invoice_id, email='owner@a.test'):
         return self.http.delete(f'{BASE}/invoices/{invoice_id}', headers=self.h(email))
@@ -132,7 +154,7 @@ class InvoiceDeleteReprocessTest(IsolatedTestRuntime, unittest.TestCase):
 
     def test_delete_with_calculation_is_soft_and_hides_invoice(self):
         invoice_id, _, _ = self.valid_invoice()
-        self.add_execution(invoice_id)
+        execution_id = self.add_execution(invoice_id)
         response = self.delete(invoice_id)
         self.assertEqual(response.status_code, 200, response.json)
         listing = self.http.get(f'{BASE}/invoices', headers=self.h()).json['data']
@@ -141,9 +163,8 @@ class InvoiceDeleteReprocessTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertEqual(self.delete(invoice_id).status_code, 404)
         with self.app.app_context():
             self.assertIsNotNone(db.session.get(FaturaConcessionaria, invoice_id).deleted_at)
-            # upload ja calcula sozinho: o historico (>= o inserido a mao) permanece
-            self.assertGreaterEqual(BillingCalculationExecution.query.filter_by(
-                fatura_concessionaria_id=invoice_id).count(), 1)
+            # upload ja calcula sozinho: a execucao inserida a mao segue no historico
+            self.assertIsNotNone(db.session.get(BillingCalculationExecution, execution_id))
             self.assertEqual(Pendencia.query.filter_by(fatura_concessionaria_id=invoice_id).count(), 0)
 
     def test_delete_blocked_by_active_boleto_allowed_when_canceled(self):
@@ -249,6 +270,33 @@ class InvoiceDeleteReprocessTest(IsolatedTestRuntime, unittest.TestCase):
         self.add_charge(uc_id, '2030-09', asaas_id=None, status_interno='aguardando_emissao')
         response = self.reprocess(invoice_id)
         self.assertEqual((response.status_code, response.json['code']), (409, 'REPROCESS_NOT_ALLOWED'))
+
+    def test_reprocess_ending_valid_runs_new_calculation(self):
+        invoice_id = self.upload(make_gd_pdf('gd1')).json['data']['invoiceId']
+        self.add_uc()
+        self.add_rule()
+        before = self.executions(invoice_id)
+        self.assertEqual(self.reprocess(invoice_id).status_code, 200)
+        with self.app.app_context():
+            self.assertEqual(db.session.get(FaturaConcessionaria, invoice_id).status_validacao, 'valida')
+        self.assertEqual(self.executions(invoice_id), before + 1)
+
+    def test_restore_runs_new_calculation(self):
+        invoice_id, _, _ = self.valid_invoice()
+        self.add_rule()
+        self.assertEqual(self.delete(invoice_id).status_code, 200)
+        before = self.executions(invoice_id)
+        self.assertEqual(self.upload(make_gd_pdf('gd1')).status_code, 201)
+        self.assertEqual(self.executions(invoice_id), before + 1)
+
+    def test_restore_skipped_by_active_boleto_creates_no_execution(self):
+        invoice_id, uc_id, comp = self.valid_invoice()
+        self.add_rule()
+        self.assertEqual(self.delete(invoice_id).status_code, 200)
+        self.add_charge(uc_id, comp, asaas_id='pay_4', asaas_status='pending')
+        before = self.executions(invoice_id)
+        self.assertEqual(self.upload(make_gd_pdf('gd1')).status_code, 201)
+        self.assertEqual(self.executions(invoice_id), before)
 
     def test_restore_with_active_boleto_skips_reprocess(self):
         invoice_id, uc_id, comp = self.valid_invoice()

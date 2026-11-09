@@ -171,7 +171,21 @@ def upload_invoice(client_id: int | None, file_storage) -> tuple[dict, bool]:
             _registrar_pendencia_erro_processamento(invoice, resultado)
     except Exception:
         current_app.logger.error('Falha ao disparar extracao automatica da fatura: %s', invoice.id)
+    _auto_calculate(invoice.id)
     return _result(invoice, False), False
+
+
+def _auto_calculate(invoice_id: int) -> None:
+    """Calcula a cobranca logo apos o vinculo; nunca altera o resultado do upload."""
+    try:
+        invoice = db.session.get(FaturaConcessionaria, invoice_id)
+        if invoice is None or invoice.status_validacao != 'valida':
+            return
+        from services.billing_calculation_service import BillingCalculationService
+        BillingCalculationService().execute(invoice_id)
+    except Exception:
+        db.session.rollback()
+        current_app.logger.error('Falha no calculo automatico da fatura: %s', invoice_id)
 
 
 _EXTRACTION_FIELDS = (
@@ -234,6 +248,7 @@ def _run_reprocess(invoice: FaturaConcessionaria, file_bytes: bytes) -> dict:
     elif existing is not None and resultado.status == ProcessingStatus.PARSED:
         existing.status, existing.resolved_at = 'resolvida', datetime.utcnow()
         db.session.commit()
+    _auto_calculate(invoice.id)
     db.session.refresh(invoice)
     return _result(invoice, False)
 

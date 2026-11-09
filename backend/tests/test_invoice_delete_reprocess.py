@@ -141,7 +141,8 @@ class InvoiceDeleteReprocessTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertEqual(self.delete(invoice_id).status_code, 404)
         with self.app.app_context():
             self.assertIsNotNone(db.session.get(FaturaConcessionaria, invoice_id).deleted_at)
-            self.assertEqual(BillingCalculationExecution.query.filter_by(
+            # upload ja calcula sozinho: o historico (>= o inserido a mao) permanece
+            self.assertGreaterEqual(BillingCalculationExecution.query.filter_by(
                 fatura_concessionaria_id=invoice_id).count(), 1)
             self.assertEqual(Pendencia.query.filter_by(fatura_concessionaria_id=invoice_id).count(), 0)
 

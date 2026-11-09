@@ -21,9 +21,11 @@ Exclusivo de Platform Admin. Retorna contagens globais baratas:
 ### `GET /platform/empresas`
 
 Exclusivo de Platform Admin. Retorna a lista administrativa mínima, ordenada por
-nome, com `id`, `nome`, `slug`, `status`, `totalUsuarios` e `createdAt`. A
-contagem de usuários é agregada na mesma consulta; o contrato não expõe
-documentos, credenciais, referências de storage ou dados cadastrais adicionais.
+nome, com `id`, `nome`, `slug`, `status`, `totalClientes`, `totalUcs`,
+`totalUsinas`, `totalUsuarios` e `createdAt`. Cada contagem (clientes, UCs,
+usinas, usuários) é agregada por `empresa_id` na mesma consulta; o contrato
+não expõe documentos, credenciais, referências de storage ou dados
+cadastrais adicionais.
 
 ### `POST /platform/empresas/<empresaId>/entrar`
 

@@ -102,6 +102,13 @@ export const platformDict: Record<string, Translation> = {
   'platform.overview.calloutDescription': { pt: 'Selecione explicitamente o tenant antes de operar seus dados.', en: 'Explicitly select the tenant before operating its data.', fr: 'Sélectionnez explicitement le tenant avant d’en exploiter les données.' },
   'platform.overview.loadError': { pt: 'Não foi possível carregar a visão geral.', en: 'Could not load the overview.', fr: 'Impossible de charger la vue d’ensemble.' },
   'platform.overview.retry': { pt: 'Tentar novamente', en: 'Try again', fr: 'Réessayer' },
+  'platform.overview.shareTitle': { pt: 'Participação das empresas na plataforma', en: 'Companies’ share of the platform', fr: 'Part des entreprises dans la plateforme' },
+  'platform.overview.shareDescription': { pt: 'Percentual de cada empresa em relação ao total de UCs, usinas e usuários do HUB.', en: 'Each company’s percentage of the HUB’s total UCs, plants and users.', fr: 'Pourcentage de chaque entreprise par rapport au total des UCs, centrales et utilisateurs du HUB.' },
+  'platform.overview.shareEmpty': { pt: 'Nenhuma empresa cadastrada.', en: 'No companies registered.', fr: 'Aucune entreprise enregistrée.' },
+  'platform.overview.shareUcs': { pt: 'UCs', en: 'UCs', fr: 'UCs' },
+  'platform.overview.shareUsinas': { pt: 'Usinas', en: 'Plants', fr: 'Centrales' },
+  'platform.overview.shareUsuarios': { pt: 'Usuários', en: 'Users', fr: 'Utilisateurs' },
+  'platform.overview.shareLoadError': { pt: 'Não foi possível carregar a participação das empresas.', en: 'Could not load the companies’ share.', fr: 'Impossible de charger la part des entreprises.' },
 
   // PlatformStoragePage.ts
   'platform.storage.title': { pt: 'Armazenamento', en: 'Storage', fr: 'Stockage' },

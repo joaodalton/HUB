@@ -109,7 +109,8 @@ class PlatformBoundaryTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertEqual([row['totalClientes'] for row in rows], [1, 1])
         self.assertEqual([row['totalUcs'] for row in rows], [0, 0])
         self.assertEqual([row['totalUsinas'] for row in rows], [0, 0])
-        self.assertEqual(set(rows[0]), {'id', 'nome', 'slug', 'status', 'totalClientes', 'totalUcs', 'totalUsinas', 'createdAt'})
+        self.assertEqual([row['totalUsuarios'] for row in rows], [4, 1])
+        self.assertEqual(set(rows[0]), {'id', 'nome', 'slug', 'status', 'totalClientes', 'totalUcs', 'totalUsinas', 'totalUsuarios', 'createdAt'})
 
     def test_existing_global_platform_apis_remain_available_without_tenant_view(self):
         client = self.app.test_client()

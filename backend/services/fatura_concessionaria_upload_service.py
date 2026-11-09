@@ -216,7 +216,13 @@ def _run_reprocess(invoice: FaturaConcessionaria, file_bytes: bytes) -> dict:
         setattr(invoice, name, None)
     invoice.status_extracao, invoice.status_validacao = 'recebida', 'pendente'
     db.session.commit()
-    resultado = FaturaProcessingService().process(invoice.id, document=file_bytes)
+    try:
+        resultado = FaturaProcessingService().process(invoice.id, document=file_bytes)
+    except Exception:
+        # Como no upload: nao expoe PDF; fatura fica em 'recebida' (reprocessavel).
+        db.session.rollback()
+        current_app.logger.error('Falha ao reprocessar a fatura: %s', invoice.id)
+        return _result(invoice, False)
     critical = any(issue.severity == IssueSeverity.CRITICAL for issue in resultado.issues)
     existing = Pendencia.query.filter_by(empresa_id=invoice.empresa_id,
         fatura_concessionaria_id=invoice.id, origem=ORIGEM_ERRO_PROCESSAMENTO).first()

@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 _DB = tempfile.NamedTemporaryFile(suffix='.db', delete=False)
@@ -24,6 +25,8 @@ from models.fatura_concessionaria import FaturaConcessionaria
 from models.pendencia import Pendencia
 from models.user import User
 from services import fatura_concessionaria_upload_service as upload_service
+from services.fatura_processing_service import ProcessingStatus
+from services.invoice_parsers.schemas import IssueSeverity
 from utils.auth import generate_token
 try:
     from .fixtures.invoices.copel.build_fixture import GD_CASES, make_gd_pdf, make_pdf
@@ -226,6 +229,78 @@ class InvoiceDeleteReprocessTest(IsolatedTestRuntime, unittest.TestCase):
         self.add_charge(uc_id, comp, asaas_id='pay_2', asaas_status='pending')
         response = self.reprocess(invoice_id)
         self.assertEqual((response.status_code, response.json['code']), (409, 'REPROCESS_NOT_ALLOWED'))
+
+    def test_reprocess_of_other_tenants_invoice_is_404_and_untouched(self):
+        invoice_id = self.upload(make_gd_pdf('gd1')).json['data']['invoiceId']
+        self.assertEqual(self.reprocess(invoice_id, 'owner@b.test').status_code, 404)
+        with self.app.app_context():
+            self.assertEqual(db.session.get(FaturaConcessionaria, invoice_id).status_validacao,
+                             'uc_nao_encontrada')
+
+    def test_reprocess_refused_by_pending_emission(self):
+        invoice_id = self.upload(make_gd_pdf('gd1')).json['data']['invoiceId']
+        self.add_uc()
+        with self.app.app_context():
+            uc_id = ConsumerUnit.query.one().id
+            invoice = db.session.get(FaturaConcessionaria, invoice_id)
+            invoice.consumer_unit_id, invoice.competencia = uc_id, '2030-09'
+            db.session.commit()
+        self.add_charge(uc_id, '2030-09', asaas_id=None, status_interno='aguardando_emissao')
+        response = self.reprocess(invoice_id)
+        self.assertEqual((response.status_code, response.json['code']), (409, 'REPROCESS_NOT_ALLOWED'))
+
+    def test_restore_with_active_boleto_skips_reprocess(self):
+        invoice_id, uc_id, comp = self.valid_invoice()
+        self.assertEqual(self.delete(invoice_id).status_code, 200)
+        self.add_charge(uc_id, comp, asaas_id='pay_3', asaas_status='pending')
+        with patch.object(upload_service.FaturaProcessingService, 'process') as process:
+            response = self.upload(make_gd_pdf('gd1'))
+        process.assert_not_called()
+        self.assertEqual(response.status_code, 201, response.json)
+        self.assertFalse(response.json['data']['duplicate'])
+        with self.app.app_context():
+            invoice = db.session.get(FaturaConcessionaria, invoice_id)
+            self.assertIsNone(invoice.deleted_at)
+            self.assertEqual(invoice.status_validacao, 'valida')
+
+    def test_reprocess_critical_issue_creates_then_reopens_error_pendencia(self):
+        invoice_id = self.upload(make_gd_pdf('gd1')).json['data']['invoiceId']
+        critical = SimpleNamespace(status=ProcessingStatus.ERROR,
+                                   issues=[SimpleNamespace(severity=IssueSeverity.CRITICAL, message='falha x')])
+        origin = upload_service.ORIGEM_ERRO_PROCESSAMENTO
+        with patch.object(upload_service.FaturaProcessingService, 'process', return_value=critical):
+            self.assertEqual(self.reprocess(invoice_id).status_code, 200)
+            with self.app.app_context():
+                pend = Pendencia.query.filter_by(fatura_concessionaria_id=invoice_id, origem=origin).one()
+                self.assertEqual(pend.status, 'aberta')
+                pend.status = 'resolvida'
+                db.session.commit()
+            self.assertEqual(self.reprocess(invoice_id).status_code, 200)
+        with self.app.app_context():
+            pend = Pendencia.query.filter_by(fatura_concessionaria_id=invoice_id, origem=origin).one()
+            self.assertEqual((pend.status, pend.resolved_at), ('aberta', None))
+
+    def test_process_failure_does_not_500_and_leaves_invoice_reprocessable(self):
+        invoice_id = self.upload(make_gd_pdf('gd1')).json['data']['invoiceId']
+        self.add_uc()
+        boom = patch.object(upload_service.FaturaProcessingService, 'process', side_effect=RuntimeError('x'))
+        with boom:
+            self.assertEqual(self.reprocess(invoice_id).status_code, 200)
+        with self.app.app_context():
+            self.assertEqual(db.session.get(FaturaConcessionaria, invoice_id).status_extracao, 'recebida')
+        self.assertEqual(self.reprocess(invoice_id).status_code, 200)
+        with self.app.app_context():
+            self.assertEqual(db.session.get(FaturaConcessionaria, invoice_id).status_validacao, 'valida')
+        self.assertEqual(self.delete(invoice_id).status_code, 200)
+        with boom:
+            response = self.upload(make_gd_pdf('gd1'))
+        self.assertEqual(response.status_code, 201, response.json)
+        with self.app.app_context():
+            invoice = db.session.get(FaturaConcessionaria, invoice_id)
+            self.assertEqual((invoice.deleted_at, invoice.status_extracao), (None, 'recebida'))
+        self.assertEqual(self.reprocess(invoice_id).status_code, 200)
+        with self.app.app_context():
+            self.assertEqual(db.session.get(FaturaConcessionaria, invoice_id).status_validacao, 'valida')
 
 
 if __name__ == '__main__':

@@ -148,9 +148,8 @@ def _invoices():
                 'asaasStatus': charge.asaas_status, 'asaasId': charge.asaas_id,
                 'valor': float(charge.valor), 'mesVencimento': charge.mes_vencimento.isoformat(),
                 'boletoUrl': charge.boleto_url,
-                # Task 5 cria as colunas; até lá None.
-                'invoiceUrl': getattr(charge, 'invoice_url', None),
-                'billingMode': getattr(charge, 'billing_mode', None),
+                'invoiceUrl': charge.invoice_url,
+                'billingMode': charge.billing_mode,
             })
     pending_ids = {row.fatura_concessionaria_id for row in Pendencia.query.filter(
         Pendencia.empresa_id == tenant, Pendencia.status == 'aberta',
@@ -254,7 +253,7 @@ def _gerar_boleto(invoice_id):
     except DadosIncompletosError as exc:
         return error_response(str(exc), 422, code='INVOICE_DATA_INCOMPLETE', details={'missing': exc.missing})
     except CalculoCobrancaPendente as exc:
-        return error_response(str(exc), 422, code='BILLING_CALCULATION_REQUIRED')
+        return error_response(str(exc), 422, code='BILLING_CALCULATION_REQUIRED', details=exc.details)
     except (ValueError, AsaasError) as exc:
         return error_response(str(exc), 400)
 

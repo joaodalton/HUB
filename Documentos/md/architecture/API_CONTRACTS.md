@@ -276,6 +276,9 @@ Paginado (ver "Convenções gerais" acima). `data` = array de `ConsumerUnit`:
 `null`/vazio significa sem desconto. Novos valores fora desse formato são
 rejeitados no CRUD de UC/Cliente e no preview de importação. Valores legados
 inválidos bloqueiam novas execuções financeiras para revisão.
+`debitoAutomatico` (boolean, padrão `false`) indica débito automático da UC e
+decide o modo `auto` da regra na emissão; no `POST`/`PUT` aceita somente boolean JSON,
+outro tipo retorna `400` com `code: "INVALID_DEBITO_AUTOMATICO"`.
 `senhaConcessionariaConfigurada` indica se existe senha salva para a UC; a senha não aparece nas respostas comuns.
 
 ### `GET /ucs/<id>`
@@ -1150,6 +1153,20 @@ inclui distribuidora, dimensões e vigência; conteúdo idêntico é no-op e div
 
 ### C5.5 — Diagnóstico de cálculo
 
+`POST /billing-calculations/invoices/<id>/gerar-boleto` (e a variante de plataforma)
+aplica o modo de cobrança da regra na emissão. Ordem: (1) dados faltantes
+→ `422 INVOICE_DATA_INCOMPLETE`; (2) se existe emissão pendente da mesma empresa + UC
++ competência (`asaasId` nulo, `aguardando_emissao`/`erro_emissao`), reemite com
+`valor`, `mesVencimento` e `billingMode` já gravados nela (mesma chave de emissão,
+sem recalcular, nunca cria segunda Fatura); (3) se há boleto ativo, devolve-o sem novo
+POST; (4) senão recalcula (`BillingCalculationService`) e, se o cálculo não gerar
+snapshot, devolve `422 BILLING_CALCULATION_REQUIRED` com
+`details: { stage, blockers: [...] }` da execução; (5) modo = `unified` ou
+`separate` conforme a regra (`auto` → `separate` se a UC tem `debitoAutomatico`,
+senão `unified`); valor = valor HUB (`separate`) ou valor HUB + total da concessionária
+(`unified`); (6) emite. A resposta é a Fatura (ver `/faturas`) mais
+`faturaConcessionariaId`.
+
 `GET /billing-calculations`, `GET /billing-calculations/invoices`,
 `POST /billing-calculations/invoices/<id>/execute`, e detalhes de execução/snapshot
 exigem respectivamente `billing_calculations.read` e `billing_calculations.execute`.
@@ -1165,7 +1182,7 @@ Os filtros são aplicados antes da paginação, sempre na empresa autenticada.
 `documentoDisponivel`, `temPendencia` e `contextualCharges`, além dos campos
 anteriores. `contextualCharges` é um array de zero ou mais
 `{ id, statusInterno, asaasStatus, asaasId, valor, mesVencimento, boletoUrl, invoiceUrl, billingMode }`
-(`invoiceUrl`/`billingMode` são `null` até existirem na cobrança)
+(`invoiceUrl`/`billingMode` são `null` em cobranças legadas ou manuais)
 da mesma empresa, UC e competência. Valor e
 vencimento podem ser nulos até a extração. `temPendencia` considera somente
 pendência aberta vinculada à fatura original. A associação com cobranças
@@ -1285,7 +1302,9 @@ Todas as rotas autenticadas são isoladas pela empresa atual. `owner`, `admin` e
 
 Lista ou consulta a intenção/espelho local da cobrança ASAAS. IDs de outra empresa retornam 404.
 Campos adicionais: `statusInterno` (`aguardando_emissao|emitida|erro_emissao|cancelada|null`),
-`paymentProvider` (`asaas|null`) e `externalReference` (`string|null`). `asaasId` agora
+`paymentProvider` (`asaas|null`), `externalReference` (`string|null`),
+`billingMode` (`unified|separate|null`; nulo em cobranças manuais/legadas) e
+`invoiceUrl` (`string|null`, link de pagamento do ASAAS, separado de `boletoUrl`). `asaasId` agora
 aceita `null` antes da conclusão. Campos novos ficam nulos nos legados. `asaasStatus`
 mantém o contrato/default `pending`, mas só representa confirmação remota quando
 `asaasId` está presente. Nenhum segredo, hash do comando ou cabeçalho ASAAS é retornado.
@@ -1327,6 +1346,10 @@ para registros com `asaasId`. Intenções ainda não emitidas não entram nessas
 Pública, sem Bearer. Body ASAAS: `{ "id": "evt_...", "event": "PAYMENT_RECEIVED", "payment": { "id": "pay_...", "externalReference": "hub-...", "status": "RECEIVED" } }`.
 `id` do envelope é a identidade do evento (não o ID do pagamento); aceita IDs ASAAS com `&`.
 Campos adicionais são tolerados, sem persistência do payload completo.
+`payment.invoiceUrl` é gravado em `invoiceUrl` e `bankSlipUrl` em `boletoUrl` (sem
+`bankSlipUrl`, `boletoUrl` mantém o fallback para `invoiceUrl`). Em `PAYMENT_RECEIVED`,
+a pendência `pagar_concessionaria` só é criada quando `billingMode != 'separate'`
+(`null` legado mantém o comportamento anterior).
 
 Resolve uma única Fatura por `externalReference`, ou por `payment.id` como fallback
 não ambíguo. Referências contraditórias são rejeitadas; legados sem referência local

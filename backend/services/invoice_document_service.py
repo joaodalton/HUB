@@ -19,14 +19,18 @@ class InvoiceHasBoletoError(Exception):
     """Fatura tem boleto ativo ou emissão pendente; não pode ser excluída."""
 
 
-def has_active_boleto(invoice: FaturaConcessionaria) -> bool:
+def active_boleto(invoice: FaturaConcessionaria) -> Fatura | None:
     if invoice.consumer_unit_id is None or invoice.competencia is None:
-        return False
+        return None
     return Fatura.query.filter(
         Fatura.empresa_id == invoice.empresa_id, Fatura.consumer_unit_id == invoice.consumer_unit_id,
         Fatura.competencia == invoice.competencia, Fatura.asaas_id.isnot(None),
         Fatura.asaas_status.notin_(('canceled', 'refunded')),
-    ).first() is not None
+    ).first()
+
+
+def has_active_boleto(invoice: FaturaConcessionaria) -> bool:
+    return active_boleto(invoice) is not None
 
 
 def has_pending_emission(invoice: FaturaConcessionaria) -> Fatura | None:

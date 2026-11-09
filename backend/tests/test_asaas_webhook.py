@@ -285,6 +285,46 @@ class AsaasWebhookTest(IsolatedTestRuntime, unittest.TestCase):
                 fatura_concessionaria_id=invoice_id, origem='pagar_concessionaria').one()
             self.assertEqual(pendencia.status, 'aberta')
 
+    def _pendencias_pagar(self, billing_mode):
+        with self.app.app_context():
+            uc = ConsumerUnit.query.filter_by(empresa_id=1).one()
+            client = Client.query.filter_by(empresa_id=1).one()
+            documento = Document(empresa_id=1, nome='fatura.pdf')
+            db.session.add(documento)
+            db.session.flush()
+            db.session.add(FaturaConcessionaria(empresa_id=1, client_id=client.id, consumer_unit_id=uc.id,
+                document_id=documento.id, competencia='2026-09', arquivo_hash='hash-1'))
+            Fatura.query.filter_by(id=1).update({'billing_mode': billing_mode})
+            db.session.commit()
+        self.assertEqual(self.post().status_code, 200)
+        with self.app.app_context():
+            return Pendencia.query.filter_by(origem='pagar_concessionaria').count()
+
+    def test_webhook_received_separate_nao_cria_pendencia_pagar_concessionaria(self):
+        self.assertEqual(self._pendencias_pagar('separate'), 0)
+
+    def test_webhook_received_unified_cria_pendencia_pagar_concessionaria(self):
+        self.assertEqual(self._pendencias_pagar('unified'), 1)
+
+    def test_webhook_received_legado_sem_billing_mode_cria_pendencia(self):
+        self.assertEqual(self._pendencias_pagar(None), 1)
+
+    def test_webhook_grava_invoice_url_e_boleto_url_separados(self):
+        payload = self.payload(bankSlipUrl='https://example.test/boleto',
+                               invoiceUrl='https://example.test/fatura')
+        self.assertEqual(self.post(payload).status_code, 200)
+        with self.app.app_context():
+            fatura = db.session.get(Fatura, 1)
+            self.assertEqual((fatura.boleto_url, fatura.invoice_url),
+                             ('https://example.test/boleto', 'https://example.test/fatura'))
+
+    def test_webhook_sem_bank_slip_mantem_fallback_do_boleto_para_invoice_url(self):
+        self.assertEqual(self.post(self.payload(invoiceUrl='https://example.test/fatura')).status_code, 200)
+        with self.app.app_context():
+            fatura = db.session.get(Fatura, 1)
+            self.assertEqual((fatura.boleto_url, fatura.invoice_url),
+                             ('https://example.test/fatura', 'https://example.test/fatura'))
+
     def test_webhook_payment_received_verifica_repasse_da_usina_conectada(self):
         with self.app.app_context():
             uc = ConsumerUnit.query.filter_by(empresa_id=1).one()

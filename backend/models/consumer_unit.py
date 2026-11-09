@@ -34,6 +34,7 @@ class ConsumerUnit(TenantMixin, db.Model):
     documentacao_completa = db.Column(db.Boolean, nullable=False, default=False)
     sem_pendencia_financeira = db.Column(db.Boolean, nullable=False, default=False)
     cliente_estrategico = db.Column(db.Boolean, nullable=False, default=False)
+    debito_automatico = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
 
     # Override do buffer de consumo (%) só desta UC -- se preenchido, ganha
     # do valor global de Configurações > Geral (ver rateio_service.py).
@@ -76,6 +77,7 @@ class ConsumerUnit(TenantMixin, db.Model):
             'documentacaoCompleta': self.documentacao_completa,
             'semPendenciaFinanceira': self.sem_pendencia_financeira,
             'clienteEstrategico': self.cliente_estrategico,
+            'debitoAutomatico': self.debito_automatico,
             'bufferPercentual': float(self.buffer_percentual) if self.buffer_percentual is not None else None,
             'conexoes': [conexao.to_dict() for conexao in self.conexoes]
         }

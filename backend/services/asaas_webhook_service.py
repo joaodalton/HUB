@@ -135,11 +135,13 @@ def _aplicar(fatura, event_type, payment):
             if value is not None and not _text(value, limit):
                 raise WebhookError(400)
             setattr(fatura, target, value)
-    if not payment.get('bankSlipUrl') and 'invoiceUrl' in payment:
+    if 'invoiceUrl' in payment:
         value = payment['invoiceUrl']
         if value is not None and not _text(value, 2048):
             raise WebhookError(400)
-        fatura.boleto_url = value
+        fatura.invoice_url = value
+        if not payment.get('bankSlipUrl'):
+            fatura.boleto_url = value
     # B1 conserva propriedade da emissao/reconciliacao e do workflow interno.
     # Nao preencher asaas_id nem liberar reservas a partir de um webhook.
     if status == 'received':
@@ -148,7 +150,8 @@ def _aplicar(fatura, event_type, payment):
             criar_pendencia_pagar_concessionaria,
             verificar_e_criar_pendencia_repasse,
         )
-        criar_pendencia_pagar_concessionaria(fatura)
+        if fatura.billing_mode != 'separate':  # separada: o cliente paga a concessionaria direto
+            criar_pendencia_pagar_concessionaria(fatura)
         conexoes = PlantConnection.query.filter_by(consumer_unit_id=fatura.consumer_unit_id).all()
         for conexao in conexoes:
             verificar_e_criar_pendencia_repasse(conexao.plant_id, fatura.competencia)

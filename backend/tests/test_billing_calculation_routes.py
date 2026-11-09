@@ -6,6 +6,7 @@ from io import BytesIO
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -62,6 +63,18 @@ class BillingCalculationRoutesTest(IsolatedTestRuntime, unittest.TestCase):
                                 role=role, is_platform_admin=platform))
         db.session.commit()
         self.client = self.app.test_client()
+        # A emissao recalcula; aqui o calculo e simulado a partir do snapshot semeado (o real e coberto
+        # em test_billing_mode_emissao).
+        calc = patch.object(service, 'BillingCalculationService')
+        calc.start().return_value.execute.side_effect = self._fake_execute
+        self.addCleanup(calc.stop)
+
+    @staticmethod
+    def _fake_execute(invoice_id):
+        snapshot = BillingCalculationSnapshot.query.filter_by(
+            fatura_concessionaria_id=invoice_id).order_by(BillingCalculationSnapshot.id.desc()).first()
+        stages = [{'stage': 'EXTRACTION', 'blockers': ['EXTRACTION_UNAVAILABLE']}]
+        return SimpleNamespace(snapshot=snapshot, auditoria={'stages': stages})
 
     def tearDown(self):
         db.session.rollback()
@@ -200,10 +213,11 @@ class BillingCalculationRoutesTest(IsolatedTestRuntime, unittest.TestCase):
         no_snapshot = self.client.post(url, headers=self.headers(1))
         self.assertEqual(no_snapshot.status_code, 422)
         self.assertEqual(no_snapshot.json['code'], 'BILLING_CALCULATION_REQUIRED')
+        self.assertEqual(no_snapshot.json['details']['blockers'], ['EXTRACTION_UNAVAILABLE'])
 
         db.session.add(BillingCalculationSnapshot(
             empresa_id=10, fatura_concessionaria_id=10, fingerprint='a' * 64,
-            regra_snapshot={}, entrada_normalizada={}, resultado={}, valor_final=Decimal('50.00')))
+            regra_snapshot={'billing_mode': 'separate'}, entrada_normalizada={}, resultado={}, valor_final=Decimal('50.00')))
         db.session.commit()
 
         with patch.object(service, 'AsaasClient') as asaas_cls:
@@ -232,7 +246,7 @@ class BillingCalculationRoutesTest(IsolatedTestRuntime, unittest.TestCase):
         db.session.get(Client, 10).asaas_customer_id = 'cus_10'
         db.session.add(BillingCalculationSnapshot(
             empresa_id=10, fatura_concessionaria_id=10, fingerprint='c' * 64,
-            regra_snapshot={}, entrada_normalizada={}, resultado={}, valor_final=Decimal('45.50')))
+            regra_snapshot={'billing_mode': 'separate'}, entrada_normalizada={}, resultado={}, valor_final=Decimal('45.50')))
         db.session.commit()
 
         with patch.object(service, 'AsaasClient') as asaas_cls:
@@ -259,7 +273,7 @@ class BillingCalculationRoutesTest(IsolatedTestRuntime, unittest.TestCase):
         db.session.get(Client, 20).asaas_customer_id = 'cus_20'
         db.session.add(BillingCalculationSnapshot(
             empresa_id=20, fatura_concessionaria_id=20, fingerprint='d' * 64,
-            regra_snapshot={}, entrada_normalizada={}, resultado={}, valor_final=Decimal('50.00')))
+            regra_snapshot={'billing_mode': 'separate'}, entrada_normalizada={}, resultado={}, valor_final=Decimal('50.00')))
         db.session.commit()
 
         with patch.object(service, 'AsaasClient') as asaas_cls:

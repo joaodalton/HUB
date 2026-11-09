@@ -52,6 +52,10 @@ def resolve_billing_mode(rule_mode: str, debito_automatico: bool) -> str:
     raise ValueError('Modo de cobranca da regra invalido.')
 
 
+def snapshot_billing_mode(snapshot, debito_automatico: bool) -> str:
+    return resolve_billing_mode(snapshot.regra_snapshot.get('billing_mode'), debito_automatico)
+
+
 def _autorizar_emissao(empresa_id, user_id):
     user = User.query.filter_by(id=user_id, status='ativo').first()
     tenant = getattr(g, 'current_empresa_id', None)
@@ -252,7 +256,7 @@ def gerar_boleto_concessionaria(fatura_concessionaria_id: int, empresa_id: int, 
         stage = next((row for row in execution.auditoria.get('stages', []) if row.get('blockers')), {})
         raise CalculoCobrancaPendente({'stage': stage.get('stage'), 'blockers': stage.get('blockers', [])})
     uc = _uc(invoice.consumer_unit_id, empresa_id)
-    mode = resolve_billing_mode(snapshot.regra_snapshot.get('billing_mode'), bool(uc and uc.debito_automatico))
+    mode = snapshot_billing_mode(snapshot, bool(uc and uc.debito_automatico))
     valor = snapshot.valor_final
     if mode == 'unified':
         valor += invoice.valor_total_concessionaria

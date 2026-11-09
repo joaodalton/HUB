@@ -35,6 +35,12 @@ _DECIMALS = InvoiceNormalizer.DECIMALS | {
 }
 
 
+def blocked_stage(auditoria):
+    """Primeira etapa que bloqueou a execucao (ou None)."""
+    return next((stage for stage in auditoria.get('stages', []) if stage['status'] in
+                 ('REVIEW_REQUIRED', 'MISSING_DATA', 'UNSUPPORTED', 'ERROR')), None)
+
+
 class _Blocked(Exception):
     def __init__(self, status, code):
         self.status, self.code = status, code

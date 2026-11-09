@@ -14,7 +14,7 @@ from models.fatura import Fatura
 from models.fatura_concessionaria import FaturaConcessionaria
 from models.pendencia import Pendencia
 from services.asaas_client import AsaasError
-from services.billing_calculation_service import BillingCalculationService
+from services.billing_calculation_service import BillingCalculationService, blocked_stage
 from services.fatura_service import (
     CalculoCobrancaPendente, DadosIncompletosError, EmissaoPendente, gerar_boleto_concessionaria,
 )
@@ -42,8 +42,7 @@ def _require_tenant_user():
 
 def _execution(row, *, detail=False):
     stages = row.auditoria.get('stages', [])
-    blocked = next((stage for stage in stages if stage['status'] in
-                    ('REVIEW_REQUIRED', 'MISSING_DATA', 'UNSUPPORTED', 'ERROR')), None)
+    blocked = blocked_stage(row.auditoria)
     result = {
         'id': row.id, 'empresaId': row.empresa_id,
         'invoiceId': row.fatura_concessionaria_id, 'snapshotId': row.snapshot_id,

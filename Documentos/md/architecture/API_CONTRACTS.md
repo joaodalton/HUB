@@ -538,6 +538,22 @@ Lista as regras automáticas disponíveis. Retorna array de regras com `id`, `no
 
 ---
 
+## Financeiro (`/financeiro`)
+
+### `GET /financeiro/pendentes-boleto` — `billing_calculations.read`, escopo do tenant
+Faturas da concessionária válidas (`status_validacao = valida`, não excluídas, com UC) sem boleto ativo (`asaas_id` nulo ou `asaas_status` `canceled`/`refunded`), agrupadas por usina conectada à UC (UC em N usinas aparece nos N grupos). Grupo sem usina (`usinaId`/`usinaNome` nulos) por último; demais por nome; itens por nome do cliente. Sem paginação. `data`:
+```json
+[{"usinaId": 3, "usinaNome": "Usina Norte", "itens": [{
+  "invoiceId": 12, "clienteId": 5, "clienteNome": "Ana Reis", "ucId": 9, "ucCodigo": "000555444333222",
+  "competencia": "2026-10", "dataVencimento": "2026-11-20",
+  "valorConcessionaria": "71.05", "valorHub": "168.75", "valorCobrar": "239.80",
+  "billingMode": "unified", "emissaoPendente": false, "bloqueio": null}]}]
+```
+- Valores em string com 2 casas. `valorHub`/`billingMode`/`valorCobrar` vêm da execução de cálculo mais recente (snapshot); `unified` = hub + Copel, `separate` = hub. Sem snapshot, os três são `null`. `emissaoPendente: true` (Fatura sem `asaas_id` em `aguardando_emissao`/`erro_emissao`): `valorCobrar` e `billingMode` vêm dessa Fatura.
+- `bloqueio` (`{code, message}` ou `null`, primeiro que se aplicar): `CLIENT_EMAIL_MISSING`, `INVOICE_DATA_INCOMPLETE` (campos `dataVencimento`, `valor`), `NOT_CALCULATED`, `RULE_MISSING` (última execução bloqueada em `RULE_RESOLUTION`), `CALCULATION_BLOCKED` (outra etapa).
+
+---
+
 ## Dashboard (`/dashboard`)
 
 ### `GET /dashboard/resumo`

@@ -112,5 +112,55 @@ def make_pdf(*, changes=None, omitted=(), duplicate=None, shift=(0, 0), items=IT
     return output.getvalue()
 
 
+def _gd_item(label, kwh, te):
+    # tarifas de gd_events_sanitized.json (ouc_gdi_gdii_2026_09); TE e TUSD
+    tariff, taxed = ('0,310850', '0,310667') if te else ('0,457170', '0,457000')
+    return (f'ENERGIA INJ. OUC MPT {label}', 'kWh', f'-{kwh}', taxed, '-37,30', '', '', tariff)
+
+
+def _gd_case(n, total, rows):
+    return {
+        'changes': {
+            'uc': f'000000000000{n}', 'reference': '09/2030', 'due': '10/10/2030', 'total': f'R${total}',
+            'fiscal': f'NOTA FISCAL No. 000000{n} - SÉRIE 1 / DATA DE EMISSÃO: 02/09/2030',
+            'key': f'0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0{n}',
+            'readings': '01/08/2030     01/09/2030    31    01/10/2030',
+        },
+        'items': ITEMS + tuple(_gd_item(f'{kind} {month} {gd}', kwh, kind == 'TE')
+                               for month, gd, kwh, kinds in rows for kind in kinds),
+    }
+
+
+GD_CASES = {
+    'gd1': _gd_case('101', '150,10', (('08/2030', 'GDI-I', 120, ('TE', 'TUSD')),)),
+    'gd2': _gd_case('102', '96,40', (('08/2030', 'GDII-II', 210, ('TE', 'TUS')),)),
+    'gd1_gd2': _gd_case('103', '184,20', (('07/2030', 'GDI-I', 30, ('TE', 'TUSD')),
+                                          ('08/2030', 'GDII-II', 352, ('TE', 'TUS')))),
+}
+
+
+def make_gd_pdf(case):
+    return make_pdf(**GD_CASES[case])
+
+
+def gd_expected(case):
+    """expected.json derivado dos dados do caso, nao do parser."""
+    changes, items = GD_CASES[case]['changes'], GD_CASES[case]['items']
+    components = []
+    for label, _, qty, *_ in items[len(ITEMS):]:
+        comp, month, gd = label.removeprefix('ENERGIA INJ. OUC MPT ').split()
+        gd = 'GD_II' if gd.startswith('GDII') else 'GD_I'
+        components.append({'tariff_component': 'TUSD' if comp.startswith('TUS') else 'TE', 'gd_classification': gd,
+                           'credit_month': f'{month[3:]}-{month[:2]}', 'amount_kwh': qty})
+    return {'uc': changes['uc'], 'competencia': '2030-09', 'vencimento': '2030-10-10',
+            'total': changes['total'].removeprefix('R$').replace(',', '.'), 'gd_components': components}
+
+
 if __name__ == '__main__':
-    Path(__file__).with_name('core_anon.pdf').write_bytes(make_pdf())
+    import json
+    here = Path(__file__).parent
+    here.joinpath('core_anon.pdf').write_bytes(make_pdf())
+    for name in GD_CASES:
+        here.joinpath(f'{name}_anon.pdf').write_bytes(make_gd_pdf(name))
+        here.joinpath(f'{name}_anon.expected.json').write_text(
+            json.dumps(gd_expected(name), indent=2) + '\n', encoding='utf-8')

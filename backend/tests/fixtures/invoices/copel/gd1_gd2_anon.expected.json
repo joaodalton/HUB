@@ -1,0 +1,32 @@
+{
+  "uc": "000000000000103",
+  "competencia": "2030-09",
+  "vencimento": "2030-10-10",
+  "total": "184.20",
+  "gd_components": [
+    {
+      "tariff_component": "TE",
+      "gd_classification": "GD_I",
+      "credit_month": "2030-07",
+      "amount_kwh": "-30"
+    },
+    {
+      "tariff_component": "TUSD",
+      "gd_classification": "GD_I",
+      "credit_month": "2030-07",
+      "amount_kwh": "-30"
+    },
+    {
+      "tariff_component": "TE",
+      "gd_classification": "GD_II",
+      "credit_month": "2030-08",
+      "amount_kwh": "-352"
+    },
+    {
+      "tariff_component": "TUSD",
+      "gd_classification": "GD_II",
+      "credit_month": "2030-08",
+      "amount_kwh": "-352"
+    }
+  ]
+}

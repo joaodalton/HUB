@@ -384,6 +384,23 @@ Para administrador da plataforma, a rota equivalente é `POST /platform/empresas
 
 O campo legado `codigoAneel` permanece no banco para preservar valores anteriores, mas não participa da correspondência e não é exposto e, se enviado, é ignorado no CRUD de UC. Para o layout Copel suportado, `codigo` deve conter o mesmo identificador documental de 15 dígitos do PDF. Ausência de compensação GD não impede o upload; afeta a elegibilidade posterior para cobrança.
 
+### `DELETE /billing-calculations/invoices/<invoiceId>` e `POST .../<invoiceId>/reprocess`
+
+Ambos exigem `faturas.create`; equivalentes em `/platform/empresas/<empresaId>/billing-calculations/...`.
+Fatura de outra empresa, inexistente ou já excluída: `404`.
+
+- `DELETE`: exclusão **lógica** (`faturas_concessionarias.deleted_at`). Recusa com `409 INVOICE_HAS_BOLETO`
+  ("Esta fatura já tem boleto gerado e não pode ser excluída. Cancele o boleto antes.") quando existe `Fatura`
+  da mesma empresa/UC/competência com `asaas_id` e `asaas_status` fora de `canceled`/`refunded`, ou emissão
+  pendente (`asaas_id` nulo e `status_interno` `aguardando_emissao`/`erro_emissao`). Cálculos e snapshots
+  (imutáveis) e o PDF permanecem; pendências da fatura são removidas. A fatura some de listagem, download,
+  cálculo, boleto e processamento. Reenviar o mesmo PDF restaura a fatura (mesmo id, `duplicate: false`) e a reprocessa.
+- `POST .../reprocess` (10/min): só para fatura sem boleto ativo/emissão pendente e com `statusExtracao` em
+  `recebida|erro|layout_nao_reconhecido` ou `statusValidacao` em
+  `uc_nao_encontrada|uc_pertence_outro_cliente|revisao_necessaria`; caso contrário `409 REPROCESS_NOT_ALLOWED`.
+  Zera a extração, reprocessa o PDF armazenado e fecha a pendência de erro de processamento em caso de sucesso.
+  Resposta igual ao upload (`invoiceId`, `invoice`, `duplicate: false`). Falha de storage: `503 DOCUMENT_STORAGE_UNAVAILABLE`.
+
 ### `GET /billing-calculations/invoices/<invoiceId>/download`
 
 Requer autenticação e `faturas.read`, resolve `FaturaConcessionaria` e seu

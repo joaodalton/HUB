@@ -203,7 +203,7 @@ def _concluir_emissao(fatura, payment):
 
 def gerar_boleto_concessionaria(fatura_concessionaria_id: int, empresa_id: int, user_id: int) -> dict:
     invoice = FaturaConcessionaria.query.filter_by(
-        id=fatura_concessionaria_id, empresa_id=empresa_id).first()
+        id=fatura_concessionaria_id, empresa_id=empresa_id, deleted_at=None).first()
     if invoice is None:
         raise LookupError('Fatura da concessionaria nao encontrada.')
     missing = []

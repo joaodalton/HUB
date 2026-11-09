@@ -18,7 +18,8 @@ from services.billing_calculation_service import BillingCalculationService
 from services.fatura_service import (
     CalculoCobrancaPendente, DadosIncompletosError, EmissaoPendente, gerar_boleto_concessionaria,
 )
-from services.invoice_document_service import InvoiceHasCalculationError, delete_invoice, load_invoice_pdf
+from services.fatura_concessionaria_upload_service import InvoiceUploadError, reprocess_invoice
+from services.invoice_document_service import InvoiceHasBoletoError, delete_invoice, load_invoice_pdf
 from services.invoice_problems import gd_totals, invoice_problems
 from services.object_storage import ObjectStorageError
 from services.permission_service import require_permission
@@ -96,7 +97,7 @@ def _invoices():
         Fatura.consumer_unit_id == invoice.consumer_unit_id,
         Fatura.competencia == invoice.competencia,
     )
-    query = invoice.query.filter(invoice.empresa_id == tenant)
+    query = invoice.query.filter(invoice.empresa_id == tenant, invoice.deleted_at.is_(None))
     search = request.args.get('q', '').strip()
     if search:
         pattern = f'%{search}%'
@@ -217,14 +218,26 @@ def _download_invoice(invoice_id):
 def _delete_invoice(invoice_id):
     try:
         deleted = delete_invoice(invoice_id, g.current_empresa_id)
-    except InvoiceHasCalculationError:
+    except InvoiceHasBoletoError:
         return error_response(
-            'Esta fatura já teve um boleto/cálculo de cobrança gerado e não pode mais ser excluída.',
-            409, code='INVOICE_HAS_CALCULATION',
+            'Esta fatura já tem boleto gerado e não pode ser excluída. Cancele o boleto antes.',
+            409, code='INVOICE_HAS_BOLETO',
         )
     if not deleted:
         return error_response('Fatura não encontrada.', 404)
     return success_response(None, 'Fatura excluída.')
+
+
+def _reprocess_invoice(invoice_id):
+    try:
+        return success_response(reprocess_invoice(invoice_id, g.current_empresa_id), 'Fatura reprocessada.')
+    except LookupError:
+        return error_response('Fatura não encontrada.', 404)
+    except InvoiceUploadError as exc:
+        return error_response(str(exc), exc.status_code, code=exc.code)
+    except ObjectStorageError:
+        return error_response('Armazenamento de documentos indisponivel.', 503,
+                              code='DOCUMENT_STORAGE_UNAVAILABLE')
 
 
 def _gerar_boleto(invoice_id):
@@ -295,6 +308,13 @@ def execute(invoice_id):
 @require_permission('faturas.create')
 def gerar_boleto(invoice_id):
     return _gerar_boleto(invoice_id)
+
+
+@billing_calculation_routes.post('/invoices/<int:invoice_id>/reprocess')
+@limiter.limit('10 per minute')
+@require_permission('faturas.create')
+def reprocess(invoice_id):
+    return _reprocess_invoice(invoice_id)
 
 
 @billing_calculation_routes.delete('/invoices/<int:invoice_id>')
@@ -377,6 +397,13 @@ def platform_execute(empresa_id, invoice_id):
 @require_permission('faturas.create')
 def platform_gerar_boleto(empresa_id, invoice_id):
     return _gerar_boleto(invoice_id)
+
+
+@platform_billing_calculation_routes.post('/invoices/<int:invoice_id>/reprocess')
+@limiter.limit('10 per minute')
+@require_permission('faturas.create')
+def platform_reprocess(empresa_id, invoice_id):
+    return _reprocess_invoice(invoice_id)
 
 
 @platform_billing_calculation_routes.delete('/invoices/<int:invoice_id>')

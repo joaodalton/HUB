@@ -16,9 +16,10 @@ from models.consumer_unit import ConsumerUnit
 from models.fatura_concessionaria import FaturaConcessionaria
 from models.document import Document
 from models.pendencia import Pendencia
+from services.invoice_document_service import has_active_boleto, has_pending_emission, load_invoice_pdf
 from services.invoice_parsers.schemas import IssueSeverity
 from services.object_storage import get_object_storage
-from services.fatura_processing_service import FaturaProcessingService
+from services.fatura_processing_service import FaturaProcessingService, ProcessingStatus
 from services.invoice_parsers.extraction import MinimalExtractor
 from services.invoice_parsers.registry import default_registry
 from services.uc_code import find_document_ucs
@@ -118,6 +119,8 @@ def upload_invoice(client_id: int | None, file_storage) -> tuple[dict, bool]:
     if existing:
         if client_id is None and existing.client_id != client.id:
             _fail('Fatura ja recebida com cliente diferente da UC documental.', 'INVOICE_CLIENT_CONFLICT', 409)
+        if existing.deleted_at is not None:
+            return _restore(existing, file_bytes), False
         return _result(existing, True), True
 
     document = None
@@ -169,6 +172,64 @@ def upload_invoice(client_id: int | None, file_storage) -> tuple[dict, bool]:
     except Exception:
         current_app.logger.error('Falha ao disparar extracao automatica da fatura: %s', invoice.id)
     return _result(invoice, False), False
+
+
+_EXTRACTION_FIELDS = (
+    'parser_name', 'parser_version', 'layout_name', 'layout_version', 'dados_brutos_extraidos',
+    'dados_normalizados', 'consumer_unit_id', 'codigo_uc_extraido', 'chave_acesso', 'competencia',
+    'concessionaria', 'numero_nota_fiscal', 'serie_nota_fiscal', 'data_emissao',
+    'data_leitura_anterior', 'data_leitura_atual', 'data_proxima_leitura', 'data_vencimento',
+    'consumo_kwh', 'energia_compensada_kwh', 'injecao_gd1_kwh', 'injecao_gd2_kwh',
+    'saldo_creditos_kwh', 'valor_total_concessionaria',
+)
+
+
+def _restore(invoice: FaturaConcessionaria, file_bytes: bytes) -> dict:
+    """Reimporta PDF de fatura excluida logicamente: reativa e reprocessa."""
+    invoice.deleted_at = None
+    if has_active_boleto(invoice) or has_pending_emission(invoice) is not None:
+        db.session.commit()
+        return _result(invoice, False)
+    return _run_reprocess(invoice, file_bytes)
+
+
+def reprocess_invoice(invoice_id: int, empresa_id: int) -> dict:
+    invoice = FaturaConcessionaria.query.filter_by(
+        id=invoice_id, empresa_id=empresa_id, deleted_at=None).first()
+    if invoice is None:
+        raise LookupError('Fatura nao encontrada.')
+    reprocessable = (invoice.status_extracao in ('recebida', 'erro', 'layout_nao_reconhecido')
+                     or invoice.status_validacao in ('uc_nao_encontrada', 'uc_pertence_outro_cliente',
+                                                     'revisao_necessaria'))
+    if (not reprocessable or has_active_boleto(invoice)
+            or has_pending_emission(invoice) is not None):
+        _fail('Esta fatura nao pode ser reprocessada.', 'REPROCESS_NOT_ALLOWED', 409)
+    loaded = load_invoice_pdf(invoice_id, empresa_id)
+    if loaded is None:
+        raise LookupError('Fatura nao encontrada.')
+    return _run_reprocess(invoice, loaded[0])
+
+
+def _run_reprocess(invoice: FaturaConcessionaria, file_bytes: bytes) -> dict:
+    """Zera a extracao e reprocessa; calculos/snapshots antigos ficam como historico."""
+    for name in _EXTRACTION_FIELDS:
+        setattr(invoice, name, None)
+    invoice.status_extracao, invoice.status_validacao = 'recebida', 'pendente'
+    db.session.commit()
+    resultado = FaturaProcessingService().process(invoice.id, document=file_bytes)
+    critical = any(issue.severity == IssueSeverity.CRITICAL for issue in resultado.issues)
+    existing = Pendencia.query.filter_by(empresa_id=invoice.empresa_id,
+        fatura_concessionaria_id=invoice.id, origem=ORIGEM_ERRO_PROCESSAMENTO).first()
+    if critical and existing is None:
+        _registrar_pendencia_erro_processamento(invoice, resultado)
+    elif critical:
+        existing.status, existing.resolved_at = 'aberta', None
+        db.session.commit()
+    elif existing is not None and resultado.status == ProcessingStatus.PARSED:
+        existing.status, existing.resolved_at = 'resolvida', datetime.utcnow()
+        db.session.commit()
+    db.session.refresh(invoice)
+    return _result(invoice, False)
 
 
 def _registrar_pendencia_erro_processamento(invoice: FaturaConcessionaria, resultado) -> None:

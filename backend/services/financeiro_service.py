@@ -23,6 +23,7 @@ def criar_pendencia_pagar_concessionaria(fatura: Fatura) -> None:
         empresa_id=fatura.empresa_id,
         consumer_unit_id=fatura.consumer_unit_id,
         competencia=fatura.competencia,
+        deleted_at=None,
     ).first()
     if invoice is None:
         return

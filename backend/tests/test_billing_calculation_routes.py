@@ -297,19 +297,19 @@ class BillingCalculationRoutesTest(IsolatedTestRuntime, unittest.TestCase):
                                             headers=self.headers(1)).status_code, 404)
         response = self.client.delete(url, headers=self.headers(1))
         self.assertEqual(response.status_code, 200, response.json)
-        self.assertIsNone(db.session.get(FaturaConcessionaria, 10))
-        self.assertIsNone(db.session.get(Document, 10))
+        self.assertIsNotNone(db.session.get(FaturaConcessionaria, 10).deleted_at)
+        self.assertIsNotNone(db.session.get(Document, 10))
 
-    def test_delete_invoice_blocked_after_calculation_executed(self):
+    def test_delete_invoice_allowed_after_calculation_executed_without_boleto(self):
         execution = BillingCalculationExecution(empresa_id=10, fatura_concessionaria_id=10,
             status='MISSING_DATA', auditoria={'stages': []})
         db.session.add(execution)
         db.session.commit()
         response = self.client.delete('/api/v1/billing-calculations/invoices/10',
                                       headers=self.headers(1))
-        self.assertEqual(response.status_code, 409)
-        self.assertEqual(response.json['code'], 'INVOICE_HAS_CALCULATION')
-        self.assertIsNotNone(db.session.get(FaturaConcessionaria, 10))
+        self.assertEqual(response.status_code, 200, response.json)
+        self.assertIsNotNone(db.session.get(FaturaConcessionaria, 10).deleted_at)
+        self.assertEqual(BillingCalculationExecution.query.filter_by(fatura_concessionaria_id=10).count(), 1)
 
 
 if __name__ == '__main__':

@@ -145,7 +145,7 @@ class BillingCalculationService:
             raise LookupError('Fatura não encontrada.')
         if db.session.new or db.session.dirty or db.session.deleted:
             raise ValueError('Execução exige sessão limpa.')
-        invoice = FaturaConcessionaria.query.filter_by(id=invoice_id, empresa_id=empresa_id).populate_existing().first()
+        invoice = FaturaConcessionaria.query.filter_by(id=invoice_id, empresa_id=empresa_id, deleted_at=None).populate_existing().first()
         if invoice is None:
             raise LookupError('Fatura não encontrada.')
 

@@ -1,25 +1,47 @@
 """Authorized invoice document lookup and provider-aware reading."""
 import hashlib
+from datetime import datetime
 
 from flask import current_app
 from werkzeug.utils import secure_filename
 
 from extensions import db
-from models.calculo_cobranca import BillingCalculationExecution
 from models.client import Client
 from models.document import Document
+from models.fatura import Fatura
 from models.fatura_concessionaria import FaturaConcessionaria
 from models.pendencia import Pendencia
-from services.document_service import delete_document, resolve_file_path
+from services.document_service import resolve_file_path
 from services.object_storage import ObjectStorageError, get_object_storage
 
 
-class InvoiceHasCalculationError(Exception):
-    """Fatura já teve cálculo de cobrança executado; não pode ser excluída."""
+class InvoiceHasBoletoError(Exception):
+    """Fatura tem boleto ativo ou emissão pendente; não pode ser excluída."""
+
+
+def has_active_boleto(invoice: FaturaConcessionaria) -> bool:
+    if invoice.consumer_unit_id is None or invoice.competencia is None:
+        return False
+    return Fatura.query.filter(
+        Fatura.empresa_id == invoice.empresa_id, Fatura.consumer_unit_id == invoice.consumer_unit_id,
+        Fatura.competencia == invoice.competencia, Fatura.asaas_id.isnot(None),
+        Fatura.asaas_status.notin_(('canceled', 'refunded')),
+    ).first() is not None
+
+
+def has_pending_emission(invoice: FaturaConcessionaria) -> Fatura | None:
+    if invoice.consumer_unit_id is None or invoice.competencia is None:
+        return None
+    return Fatura.query.filter(
+        Fatura.empresa_id == invoice.empresa_id, Fatura.consumer_unit_id == invoice.consumer_unit_id,
+        Fatura.competencia == invoice.competencia, Fatura.asaas_id.is_(None),
+        Fatura.status_interno.in_(('aguardando_emissao', 'erro_emissao')),
+    ).first()
 
 
 def load_invoice_pdf(invoice_id: int, empresa_id: int) -> tuple[bytes, str] | None:
-    invoice = FaturaConcessionaria.query.filter_by(id=invoice_id, empresa_id=empresa_id).first()
+    invoice = FaturaConcessionaria.query.filter_by(
+        id=invoice_id, empresa_id=empresa_id, deleted_at=None).first()
     if invoice is None:
         return None
     document = Document.query.filter_by(id=invoice.document_id, empresa_id=empresa_id).first()
@@ -55,19 +77,16 @@ def load_invoice_pdf(invoice_id: int, empresa_id: int) -> tuple[bytes, str] | No
 
 
 def delete_invoice(invoice_id: int, empresa_id: int) -> bool:
-    invoice = FaturaConcessionaria.query.filter_by(id=invoice_id, empresa_id=empresa_id).first()
+    """Exclusão lógica: cálculos/snapshots são imutáveis e permanecem como histórico."""
+    invoice = FaturaConcessionaria.query.filter_by(
+        id=invoice_id, empresa_id=empresa_id, deleted_at=None).first()
     if invoice is None:
         return False
-    has_calculation = BillingCalculationExecution.query.filter_by(
-        fatura_concessionaria_id=invoice_id, empresa_id=empresa_id,
-    ).first() is not None
-    if has_calculation:
-        raise InvoiceHasCalculationError()
+    if has_active_boleto(invoice) or has_pending_emission(invoice) is not None:
+        raise InvoiceHasBoletoError()
     Pendencia.query.filter_by(fatura_concessionaria_id=invoice_id, empresa_id=empresa_id).delete()
-    document_id = invoice.document_id
-    db.session.delete(invoice)
-    db.session.flush()
-    delete_document(document_id)
+    invoice.deleted_at = datetime.utcnow()
+    db.session.commit()
     return True
 
 

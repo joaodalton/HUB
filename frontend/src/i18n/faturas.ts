@@ -86,7 +86,7 @@ export const faturasDict: Record<string, Translation> = {
   'faturas.page.deleteInvoice': { pt: 'Excluir', en: 'Delete', fr: 'Supprimer' },
   'faturas.page.confirmDeleteInvoice': { pt: 'Excluir esta fatura da concessionária? O documento enviado será apagado e não poderá ser usado para gerar boleto.', en: 'Delete this utility invoice? The uploaded document will be removed and can no longer be used to generate a charge.', fr: 'Supprimer cette facture du distributeur ? Le document envoyé sera supprimé et ne pourra plus être utilisé pour générer une facturation.' },
   'faturas.page.invoiceDeletedSuccess': { pt: 'Fatura excluída.', en: 'Invoice deleted.', fr: 'Facture supprimée.' },
-  'faturas.page.deleteInvoiceHasCalculation': { pt: 'Esta fatura já teve um boleto/cálculo de cobrança gerado e não pode mais ser excluída.', en: 'This invoice already had a charge/calculation generated and can no longer be deleted.', fr: 'Cette facture a déjà eu une facturation/un calcul généré et ne peut plus être supprimée.' },
+  'faturas.page.deleteInvoiceHasBoleto': { pt: 'Esta fatura já tem boleto gerado e não pode ser excluída. Cancele o boleto antes.', en: 'This invoice already has a boleto issued and cannot be deleted. Cancel the boleto first.', fr: 'Cette facture a déjà un boleto émis et ne peut pas être supprimée. Annulez d’abord le boleto.' },
   'faturas.page.deleteInvoiceError': { pt: 'Não foi possível excluir a fatura.', en: 'Could not delete the invoice.', fr: 'Impossible de supprimer la facture.' },
 
   // faturasInvoiceDetail.ts

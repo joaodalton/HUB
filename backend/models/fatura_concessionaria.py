@@ -62,6 +62,8 @@ class FaturaConcessionaria(TenantMixin, db.Model):
     dados_brutos_extraidos = db.Column(db.JSON, nullable=True)
     dados_normalizados = db.Column(db.JSON, nullable=True)
 
+    deleted_at = db.Column(db.DateTime, nullable=True)  # exclusao logica: calculos sao imutaveis
+
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(
         db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow,

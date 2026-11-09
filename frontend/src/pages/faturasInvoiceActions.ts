@@ -56,8 +56,8 @@ export function createInvoiceActions(ctx: InvoiceActionsContext): {
       void deleteBillingInvoice(item.id, empresaId)
         .then(() => { toast.success(t('faturas.page.invoiceDeletedSuccess')); return load(); })
         .catch((cause) => {
-          if (cause instanceof ApiRequestError && cause.code === 'INVOICE_HAS_CALCULATION') {
-            toast.error(t('faturas.page.deleteInvoiceHasCalculation'));
+          if (cause instanceof ApiRequestError && cause.code === 'INVOICE_HAS_BOLETO') {
+            toast.error(t('faturas.page.deleteInvoiceHasBoleto'));
           } else {
             toast.error(cause instanceof Error ? cause.message : t('faturas.page.deleteInvoiceError'));
           }

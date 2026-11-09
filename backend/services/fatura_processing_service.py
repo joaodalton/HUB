@@ -57,7 +57,7 @@ class FaturaProcessingService:
         if persist and (db.session.new or db.session.dirty or db.session.deleted):
             return self._error('CLEAN_SESSION_REQUIRED', 'Processamento exige sessão sem alterações pendentes.')
         invoice = FaturaConcessionaria.query.filter_by(
-            id=fatura_id, empresa_id=empresa_id,
+            id=fatura_id, empresa_id=empresa_id, deleted_at=None,
         ).first()
         if invoice is None:
             return self._error('INVOICE_NOT_FOUND', 'Fatura não encontrada.')
@@ -116,6 +116,7 @@ class FaturaProcessingService:
             conflict = key.status == 'found' and FaturaConcessionaria.query.filter(
                 FaturaConcessionaria.empresa_id == empresa_id,
                 FaturaConcessionaria.id != invoice.id,
+                FaturaConcessionaria.deleted_at.is_(None),
                 FaturaConcessionaria.chave_acesso == key.value,
                 FaturaConcessionaria.arquivo_hash != invoice.arquivo_hash,
             ).first() is not None

@@ -76,7 +76,6 @@ function render(invoice: BillingInvoice, canIssueInvoice: (invoice: BillingInvoi
     relatedPendencias: () => [],
     invoiceDownloadButton: () => document.createElement('button'),
     canIssueInvoice,
-    openCreateModal: vi.fn(),
     getSelectedInvoiceId: () => invoice.id,
     reload,
     toast,

@@ -1,10 +1,8 @@
 import { createDataTable } from '../components/DataTable';
 import { INVOICES_IMPORTED_EVENT } from '../components/InvoiceImportButton';
 import { createIcon } from '../components/Icon';
-import { createIconStatCard } from '../components/IconStatCard';
-import { filterSelect, createBadge, createChargeCell, statusLabel, extracaoLabel, internoLabel, validacaoLabel, formatCurrency, formatDate, formatReference } from '../components/FaturasUi';
+import { filterSelect, createBadge, statusLabel, internoLabel, boletoBadge, currentBoleto, extractionCell, kwhLabel, formatCurrency, formatDate, formatReference } from '../components/FaturasUi';
 import { createElement } from '../dom';
-import { attachTooltip } from '../components/Tooltip';
 import { useGlobalLoading } from '../hooks/useGlobalLoading';
 import { useToast } from '../hooks/useToast';
 import { createBaseLayout } from '../layouts/BaseLayout';
@@ -14,7 +12,6 @@ import { getClients, type ClientRow } from '../services/clientsService';
 import { getFaturas, type FaturaRow } from '../services/faturasService';
 import { createFaturaInvoiceDetail } from './faturasInvoiceDetail';
 import { createInvoiceActions } from './faturasInvoiceActions';
-import { openCreateModal } from './faturasCreateModal';
 import { getPendencias, type PendenciaRow } from '../services/pendenciasService';
 import { getUcs, type UcRow } from '../services/ucsService';
 import { createDebouncedInput, readListParam, readPositiveListParam, writeListState } from '../services/listState';
@@ -40,8 +37,7 @@ export function createFaturasPage(): HTMLElement {
   let filters: InvoiceFilters = {
     q: readListParam('busca'), usinaId: Number(readListParam('usina')) || undefined,
     competencia: readListParam('competencia'), statusProcessamento: readListParam('processamento'),
-    statusCobranca: readListParam('cobranca'),
-    comPendencia: readListParam('pendencia') === 'true' ? true : readListParam('pendencia') === 'false' ? false : undefined
+    statusCobranca: readListParam('cobranca')
   };
   let error = false, busy = false, requestId = 0;
   const requestedInvoiceId = Number(readListParam('selecionada'));
@@ -55,14 +51,13 @@ export function createFaturasPage(): HTMLElement {
     title: t('faturas.page.title'),
     description: t('faturas.page.description')
   });
-  const { invoiceDownloadButton, invoicePdfCell } = createInvoiceActions({ empresaId, toast, load, contextualCharges });
+  const clientName = (item: BillingInvoice) => item.clienteNome ?? clients.find((client) => client.id === item.clientId)?.nome ?? t('faturas.page.noClientLink');
+  const { invoiceDownloadButton, invoiceActionsCell } = createInvoiceActions({ empresaId, toast, load, clientName });
+  // O router nao desmonta paginas; popstate marca a saida da tela (mesmo padrao de PendenciasPage).
+  const onImported = () => { void load(); };
   window.addEventListener(INVOICES_IMPORTED_EVENT, onImported);
+  window.addEventListener('popstate', () => window.removeEventListener(INVOICES_IMPORTED_EVENT, onImported), { once: true });
   void load(); return layout;
-
-  function onImported(): void {
-    if (!content.isConnected) { window.removeEventListener(INVOICES_IMPORTED_EVENT, onImported); return; }
-    void load();
-  }
 
   async function load(): Promise<void> {
     const current = ++requestId;
@@ -116,7 +111,7 @@ export function createFaturasPage(): HTMLElement {
     selectedInvoice = null;
     selectedInvoiceId = null;
     openedSelection = false;
-    writeListState({ busca: filters.q, usina: filters.usinaId, competencia: filters.competencia, processamento: filters.statusProcessamento, cobranca: filters.statusCobranca, pendencia: filters.comPendencia, pagina: null, selecionada: null });
+    writeListState({ busca: filters.q, usina: filters.usinaId, competencia: filters.competencia, processamento: filters.statusProcessamento, cobranca: filters.statusCobranca, pagina: null, selecionada: null });
     void load();
   }
 
@@ -136,34 +131,7 @@ export function createFaturasPage(): HTMLElement {
   }
 
   function render(): void {
-    const toolbar = createElement('section', { className: 'faturas-toolbar' });
-    const actions = createElement('div', { className: 'faturas-toolbar-actions' });
-    if (canIssue) {
-      const issue = createElement('button', { className: 'button-with-icon', type: 'button' });
-      issue.append(createIcon('plus'), document.createTextNode(t('faturas.page.issueCharge')));
-      issue.disabled = !canIssueInvoice(selectedInvoice);
-      issue.title = issue.disabled ? t('faturas.page.issueChargeTooltip') : '';
-      if (issue.disabled) attachTooltip(issue, issue.title);
-      issue.addEventListener('click', () => { if (canIssueInvoice(selectedInvoice)) showCreateModal(selectedInvoice!); });
-      actions.appendChild(issue);
-    }
-    toolbar.append(actions);
-    content.replaceChildren(toolbar, ...(canReadInvoices
-      ? [createFilters(), createSummary(), createTable(), createPagination()]
-      : [createSummary(), createReadOnlyChargeTable()]));
-  }
-
-  function createSummary(): HTMLElement {
-    const grid = createElement('section', { className: 'metric-grid' });
-    const rows = canReadInvoices
-      ? [
-          { label: t('faturas.page.summaryFaturas'), value: String(pagination.total), chipColor: 'blue' as const, icon: 'faturas' as const },
-          { label: t('faturas.page.summaryComPendencia'), value: String(invoices.filter((item) => item.temPendencia).length), chipColor: 'amber' as const, icon: 'pending' as const },
-          { label: t('faturas.page.summaryCobrancas'), value: String(charges.length), chipColor: 'green' as const, icon: 'cobrancas' as const }
-        ]
-      : [{ label: t('faturas.page.summaryCobrancas'), value: String(charges.length), chipColor: 'green' as const, icon: 'cobrancas' as const }];
-    rows.forEach((item) => grid.appendChild(createIconStatCard(item)));
-    return grid;
+    content.replaceChildren(...(canReadInvoices ? [createFilters(), createTable(), createPagination()] : [createReadOnlyChargeTable()]));
   }
 
   function createFilters(): HTMLElement {
@@ -211,16 +179,20 @@ export function createFaturasPage(): HTMLElement {
       { value: 'overdue', label: t('faturas.page.cobOverdue') }, { value: 'canceled', label: t('faturas.page.cobCanceled') },
       { value: 'refunded', label: t('faturas.page.cobRefunded') }
     ], (value) => applyFilters({ ...filters, statusCobranca: value }));
-    const pending = filterSelect(t('faturas.page.filterPendencia'), filters.comPendencia === undefined ? '' : String(filters.comPendencia), [
-      { value: '', label: t('faturas.page.pendAll') }, { value: 'true', label: t('faturas.page.pendCom') }, { value: 'false', label: t('faturas.page.pendSem') }
-    ], (value) => applyFilters({ ...filters, comPendencia: value ? value === 'true' : undefined }));
-    panel.append(searchWrap, plant, reference, processing, charge, pending);
+    panel.append(searchWrap, plant, reference, processing, charge);
     return panel;
+  }
+
+  function clientCell(item: BillingInvoice): HTMLElement {
+    const cell = createElement('div', { className: 'faturas-client-cell' });
+    cell.append(createElement('span', { className: item.clienteNome || item.clientId ? '' : 'faturas-problem', textContent: clientName(item) }),
+      createElement('small', { textContent: item.ucCodigo ?? ucs.find((uc) => uc.id === item.consumerUnitId)?.codigo ?? '—' }));
+    return cell;
   }
 
   function createTable(): HTMLElement {
     const hasActiveFilters = Boolean(
-      filters.q || filters.usinaId || filters.competencia || filters.statusProcessamento || filters.statusCobranca || filters.comPendencia !== undefined
+      filters.q || filters.usinaId || filters.competencia || filters.statusProcessamento || filters.statusCobranca
     );
     const table = createDataTable<BillingInvoice>({
       title: t('faturas.page.tableTitle'),
@@ -233,16 +205,15 @@ export function createFaturasPage(): HTMLElement {
       errorAction: { label: t('common.retry'), onClick: () => void load() },
       onRowClick: openInvoiceDetail,
       columns: [
-        { key: 'usinas', label: t('faturas.page.colUsina'), render: (item) => item.usinas?.map((plant) => plant.nome).join(', ') || t('faturas.page.noPlantLink') },
-        { key: 'clienteNome', label: t('faturas.page.colCliente'), render: (item) => item.clienteNome ?? clients.find((client) => client.id === item.clientId)?.nome ?? '—' },
-        { key: 'ucCodigo', label: t('faturas.page.colUc'), render: (item) => item.ucCodigo ?? ucs.find((uc) => uc.id === item.consumerUnitId)?.codigo ?? t('faturas.page.awaitingValidation') },
         { key: 'competencia', label: t('faturas.page.colCompetencia'), render: (item) => formatReference(item.competencia) },
-        { key: 'valorTotalConcessionaria', label: t('faturas.page.colValorConcessionaria'), align: 'right', render: (item) => formatCurrency(item.valorTotalConcessionaria) },
-        { key: 'dataVencimento', label: t('faturas.page.colVencimento'), render: (item) => formatDate(item.dataVencimento) },
-        { key: 'statusProcessamento', label: t('faturas.page.colProcessamento'), render: (item) => createBadge(item.statusValidacao === 'pendente' ? extracaoLabel(item.statusExtracao) : validacaoLabel(item.statusValidacao)) },
-        { key: 'statusCobranca', label: t('faturas.page.colCobranca'), render: (item) => createChargeCell(item.contextualCharges ?? contextualCharges(item)) },
-        { key: 'temPendencia', label: t('faturas.page.colPendencia'), render: (item) => item.temPendencia ? createBadge(t('faturas.page.pendenciaAberta'), 'warning') : '—' },
-        { key: 'documentoDisponivel', label: t('faturas.page.colPdf'), render: invoicePdfCell }
+        { key: 'clienteNome', label: t('faturas.page.colClienteUc'), render: clientCell },
+        { key: 'usinas', label: t('faturas.page.colUsinaShort'), render: (item) => item.usinas?.map((plant) => plant.nome).join(', ') || '—' },
+        { key: 'problemas', label: t('faturas.page.colExtracao'), render: extractionCell },
+        { key: 'gdIKwh', label: t('faturas.page.colGdI'), render: (item) => kwhLabel(item.gdIKwh) },
+        { key: 'gdIIKwh', label: t('faturas.page.colGdII'), render: (item) => kwhLabel(item.gdIIKwh) },
+        { key: 'valorTotalConcessionaria', label: t('faturas.page.colValorCopel'), align: 'right', render: (item) => formatCurrency(item.valorTotalConcessionaria) },
+        { key: 'contextualCharges', label: t('faturas.page.colBoleto'), render: (item) => boletoBadge(currentBoleto(item.contextualCharges ?? []).boleto) },
+        { key: 'documentoDisponivel', label: t('faturas.page.colAcoes'), render: invoiceActionsCell }
       ]
     });
     return table;
@@ -285,16 +256,12 @@ export function createFaturasPage(): HTMLElement {
     if (updateUrl) writeListState({ selecionada: invoice.id });
     createFaturaInvoiceDetail(invoice, {
       content, clients, isPlatformAdmin: Boolean(user?.isPlatformAdmin), canIssue, empresaId,
-      contextualCharges, relatedPendencias, invoiceDownloadButton, canIssueInvoice, openCreateModal: showCreateModal,
+      contextualCharges, relatedPendencias, invoiceDownloadButton, canIssueInvoice,
       getSelectedInvoiceId: () => selectedInvoiceId, reload: load, toast,
       onClose: () => {
         selectedInvoice = null; selectedInvoiceId = null; openedSelection = false;
         writeListState({ selecionada: null }, 'replace'); render();
       }
     });
-  }
-
-  function showCreateModal(invoice: BillingInvoice): void {
-    openCreateModal({ invoice, clients, ucs, canIssueInvoice, toast, reload: load });
   }
 }

@@ -1,16 +1,9 @@
 import { createElement } from '../dom';
+import type { BillingInvoice } from '../services/billingCalculationsService';
 import type { FaturaRow } from '../services/faturasService';
 import { t } from '../services/i18nService';
-import { createModalShell } from './Modal';
 import { createStatusBadge, type StatusTone } from './StatusBadge';
 export { formatDate } from '../utils/date';
-
-export function createModal(title: string, eyebrow: string, onClose?: () => void): HTMLElement {
-  const { overlay, dialog } = createModalShell(title, eyebrow, onClose);
-  dialog.classList.add('fatura-modal');
-  document.body.appendChild(overlay);
-  return overlay;
-}
 
 export function detailSection(title: string, fields: Array<[string, string]>): HTMLElement {
   const section = createElement('section', { className: 'fatura-detail-section' });
@@ -24,19 +17,6 @@ export function detailSection(title: string, fields: Array<[string, string]>): H
   section.appendChild(grid);
   return section;
 }
-export function selectField(label: string, options: Array<{ value: string; label: string }>, required = false) {
-  const field = createElement('label', { className: 'form-field' });
-  const select = createElement('select'); select.required = required;
-  select.append(...options.map((item) => option(item.value, item.label)));
-  field.append(createElement('span', { textContent: label }), select);
-  return { field, select };
-}
-export function textField(label: string, type: string, value: string, required = false) {
-  const field = createElement('label', { className: 'form-field' });
-  const input = createElement('input'); input.type = type; input.value = value; input.required = required;
-  field.append(createElement('span', { textContent: label }), input);
-  return { field, input };
-}
 export function option(value: string, label: string): HTMLOptionElement { const element = createElement('option', { textContent: label }); element.value = value; return element; }
 export function filterSelect(label: string, value: string, options: Array<{ value: string; label: string }>, onChange: (value: string) => void): HTMLElement {
   const field = createElement('label', { className: 'faturas-filter-field' });
@@ -46,12 +26,6 @@ export function filterSelect(label: string, value: string, options: Array<{ valu
 }
 export function createBadge(label: string, tone: StatusTone = 'neutral'): HTMLElement {
   return createStatusBadge(label, tone);
-}
-export function createChargeCell(charges: Array<{ asaasId: string | null; asaasStatus: FaturaRow['asaasStatus']; statusInterno: string | null }>): HTMLElement {
-  if (!charges.length) return createBadge(t('faturas.status.semCobranca'));
-  const wrap = createElement('div', { className: 'fatura-charge-cell' });
-  charges.forEach((charge) => wrap.appendChild(createBadge(charge.asaasId ? statusLabel(charge.asaasStatus) : charge.statusInterno ?? t('faturas.page.awaitingIssuance'), charge.asaasStatus === 'received' && charge.asaasId ? 'success' : charge.asaasStatus === 'overdue' && charge.asaasId ? 'danger' : 'warning')));
-  return wrap;
 }
 export function statusLabel(status: FaturaRow['asaasStatus']): string {
   return ({
@@ -90,4 +64,23 @@ export function validacaoLabel(status: string): string {
 }
 export function formatCurrency(value: string | number | null | undefined): string { return value == null ? '—' : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value)); }
 export function formatReference(value: string | null): string { if (!value) return '—'; if (!/^\d{4}-\d{2}$/.test(value)) return value; const [year, month] = value.split('-'); return `${month}/${year}`; }
-export function currentMonth(): string { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`; }
+
+export type InvoiceCharge = NonNullable<BillingInvoice['contextualCharges']>[number];
+// Boleto da linha: cobrancas canceladas/estornadas nao contam; sem asaasId a emissao ainda esta pendente (nao e boleto).
+export function currentBoleto(charges: InvoiceCharge[]): { boleto: InvoiceCharge | null; canMutate: boolean } {
+  const active = charges.filter((charge) => charge.asaasStatus !== 'canceled' && charge.asaasStatus !== 'refunded');
+  return { boleto: active.filter((charge) => charge.asaasId).sort((a, b) => b.id - a.id)[0] ?? null, canMutate: active.length === 0 };
+}
+export function boletoBadge(boleto: InvoiceCharge | null): HTMLElement {
+  if (!boleto) return createBadge(t('faturas.page.boletoNone'));
+  if (boleto.asaasStatus === 'received') return createBadge(t('faturas.page.boletoPaid'), 'success');
+  return createBadge(boleto.asaasStatus === 'overdue' ? t('faturas.page.boletoOverdue') : t('faturas.page.boletoAwaiting'), 'warning');
+}
+export function kwhLabel(value: string | null | undefined): string { return value == null ? '—' : `${Number(value).toLocaleString('pt-BR')} kWh`; }
+export function extractionCell(item: BillingInvoice): HTMLElement {
+  const cell = createElement('div', { className: 'faturas-extraction-cell' });
+  if (!item.problemas.length) { cell.appendChild(createBadge(t('faturas.page.procExtraida'), 'success')); return cell; }
+  cell.appendChild(createBadge(t('faturas.page.procErro'), 'danger'));
+  item.problemas.forEach((problem) => cell.appendChild(createElement('p', { className: 'faturas-problem', textContent: problem.message })));
+  return cell;
+}

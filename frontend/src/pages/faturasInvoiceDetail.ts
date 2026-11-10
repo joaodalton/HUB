@@ -28,7 +28,6 @@ interface InvoiceDetailOptions {
   relatedPendencias: (invoice: BillingInvoice) => PendenciaRow[];
   invoiceDownloadButton: (invoice: BillingInvoice) => HTMLButtonElement;
   canIssueInvoice: (invoice: BillingInvoice) => boolean;
-  openCreateModal: (invoice: BillingInvoice) => void;
   getSelectedInvoiceId: () => number | null;
   reload: () => Promise<void>;
   toast: { success: (message: string) => void; error: (message: string) => void };
@@ -38,7 +37,7 @@ interface InvoiceDetailOptions {
 export function createFaturaInvoiceDetail(invoice: BillingInvoice, options: InvoiceDetailOptions): void {
   const {
     content, clients, isPlatformAdmin, canIssue, empresaId, contextualCharges,
-    relatedPendencias, invoiceDownloadButton, canIssueInvoice, openCreateModal,
+    relatedPendencias, invoiceDownloadButton, canIssueInvoice,
     getSelectedInvoiceId, reload, toast, onClose
   } = options;
   const body = createElement('div', { className: 'fatura-drawer-content' });
@@ -120,10 +119,6 @@ export function createFaturaInvoiceDetail(invoice: BillingInvoice, options: Invo
     tabs: [{ label: t('faturas.detail.tabDetails'), content: body }],
     onClose
   });
-  if (canIssueInvoice(invoice)) {
-    const issue = createElement('button', { type: 'button', textContent: t('faturas.detail.issueForInvoice') });
-    issue.addEventListener('click', () => { drawer.remove(); openCreateModal(invoice); }); body.appendChild(issue);
-  }
   content.appendChild(drawer);
   void renderAuditHistory(invoice, history);
 

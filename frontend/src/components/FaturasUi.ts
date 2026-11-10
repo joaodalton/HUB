@@ -2,6 +2,7 @@ import { createElement } from '../dom';
 import type { BillingInvoice } from '../services/billingCalculationsService';
 import type { FaturaRow } from '../services/faturasService';
 import { t } from '../services/i18nService';
+import type { AuthUser } from '../services/authService';
 import { createStatusBadge, type StatusTone } from './StatusBadge';
 export { formatDate } from '../utils/date';
 
@@ -83,4 +84,25 @@ export function extractionCell(item: BillingInvoice): HTMLElement {
   cell.appendChild(createBadge(t('faturas.page.procErro'), 'danger'));
   item.problemas.forEach((problem) => cell.appendChild(createElement('p', { className: 'faturas-problem', textContent: problem.message })));
   return cell;
+}
+
+// Excecao de teste: plataforma admin pode agir como owner so na empresa de testes (id 1).
+// Nao afeta nenhuma outra empresa real. Remover/revisar se o fluxo de teste mudar.
+const PLATFORM_ADMIN_TEST_EMPRESA_ID = 1;
+export function issuingAccess(user: AuthUser | null): { empresaId?: number; canIssue: boolean; isPlatformAdminTestEmpresa: boolean } {
+  const empresaId = user?.isPlatformAdmin ? user.platformViewEmpresaId ?? undefined : undefined;
+  const isPlatformAdminTestEmpresa = Boolean(user?.isPlatformAdmin && empresaId === PLATFORM_ADMIN_TEST_EMPRESA_ID);
+  const canIssue = isPlatformAdminTestEmpresa ||
+    (!user?.isPlatformAdmin && ['owner', 'admin', 'financial'].includes(user?.role ?? ''));
+  return { empresaId, canIssue, isPlatformAdminTestEmpresa };
+}
+
+export const isHttpsUrl = (url: string | null | undefined): url is string => Boolean(url?.startsWith('https://'));
+
+// Link externo seguro: so abre URLs https (retorna null caso contrario).
+export function createExternalLink(url: string | null | undefined, label: string, className = 'secondary-button'): HTMLAnchorElement | null {
+  if (!isHttpsUrl(url)) return null;
+  const link = createElement('a', { className, textContent: label });
+  link.href = url; link.target = '_blank'; link.rel = 'noopener noreferrer';
+  return link;
 }

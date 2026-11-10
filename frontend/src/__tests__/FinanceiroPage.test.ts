@@ -69,7 +69,7 @@ describe('FinanceiroPage', () => {
     await flush();
     btn(page, 'Calcular')?.click();
     await flush();
-    expect(calculateBillingInvoice).toHaveBeenCalledWith(10);
+    expect(calculateBillingInvoice).toHaveBeenCalledWith(10, undefined);
     expect(toast.success).toHaveBeenCalled();
     expect(getPendentesBoleto).toHaveBeenCalledTimes(2);
   });
@@ -89,7 +89,7 @@ describe('FinanceiroPage', () => {
     await flush();
     btn(page, 'Gerar boleto')?.click();
     await flush();
-    expect(gerarBoletoConcessionaria).toHaveBeenCalledWith(10);
+    expect(gerarBoletoConcessionaria).toHaveBeenCalledWith(10, undefined);
     expect(toast.success.mock.calls[0][0]).toContain('Boleto gerado para Cliente Um');
     expect(openBoletoPanel).toHaveBeenCalledTimes(1);
     const opts = vi.mocked(openBoletoPanel).mock.calls[0][1];
@@ -154,11 +154,37 @@ describe('FinanceiroPage', () => {
     expect(getPendentesBoleto).toHaveBeenCalledTimes(2);
   });
 
-  it('does not call the endpoint for a platform admin', async () => {
-    vi.mocked(getCurrentUser).mockReturnValue({ id: 1, isPlatformAdmin: true } as never);
+  it('platform admin without an empresa sees select-company and no API call', async () => {
+    vi.mocked(getCurrentUser).mockReturnValue({ id: 1, isPlatformAdmin: true, platformViewEmpresaId: null } as never);
     const page = createFinanceiroPage();
     await flush();
     expect(getPendentesBoleto).not.toHaveBeenCalled();
     expect(page.textContent).toContain('Selecione uma empresa.');
+  });
+
+  it('platform admin in the test empresa lists groups and issues with the empresaId', async () => {
+    vi.mocked(getCurrentUser).mockReturnValue({ id: 1, isPlatformAdmin: true, platformViewEmpresaId: 1 } as never);
+    vi.mocked(gerarBoletoConcessionaria).mockResolvedValue({ id: 99, valor: '240.00', mesVencimento: '2026-02-10', billingMode: 'unified' } as never);
+    const page = createFinanceiroPage();
+    await flush();
+    expect(page.textContent).toContain('Usina A');
+    btn(page, 'Gerar boleto')?.click();
+    await flush();
+    expect(gerarBoletoConcessionaria).toHaveBeenCalledWith(10, 1);
+    expect(vi.mocked(openBoletoPanel).mock.calls[0][1].empresaId).toBe(1);
+    expect(btn(page, 'Gerar boleto')?.disabled).toBe(true);
+  });
+
+  it.each([
+    ['platform admin in another empresa', { id: 1, isPlatformAdmin: true, platformViewEmpresaId: 2 }],
+    ['tenant viewer', { id: 1, role: 'viewer' }]
+  ])('%s sees the list without issuing buttons', async (_name, user) => {
+    vi.mocked(getCurrentUser).mockReturnValue(user as never);
+    const page = createFinanceiroPage();
+    await flush();
+    expect(page.textContent).toContain('Usina A');
+    expect(btn(page, 'Gerar boleto')).toBeUndefined();
+    expect(btn(page, 'Retomar emissão')).toBeUndefined();
+    expect(page.querySelector('button[aria-label^="Configurar regra de cobrança"]')).not.toBeNull();
   });
 });

@@ -1,7 +1,7 @@
 // frontend/src/pages/FinanceiroPage.ts
 // Fila de trabalho: clientes com fatura da concessionaria vinculada e sem boleto, por usina.
 import { createDataTable } from '../components/DataTable';
-import { formatCurrency, formatDate, formatReference } from '../components/FaturasUi';
+import { formatCurrency, formatDate, formatReference, issuingAccess } from '../components/FaturasUi';
 import { createIcon } from '../components/Icon';
 import { INVOICES_IMPORTED_EVENT } from '../components/InvoiceImportButton';
 import { createUiState } from '../components/UiState';
@@ -30,8 +30,9 @@ export function createFinanceiroPage(): HTMLElement {
   const toast = useToast();
   const loading = useGlobalLoading();
   const user = getCurrentUser();
-  // Endpoint so de tenant: admin da plataforma sem empresa nao chama a API.
-  const needsCompany = Boolean(user?.isPlatformAdmin);
+  const { empresaId, canIssue } = issuingAccess(user);
+  // Admin da plataforma precisa estar dentro de uma empresa para listar.
+  const needsCompany = Boolean(user?.isPlatformAdmin && !empresaId);
 
   let groups: PendentesUsina[] = [];
   let error = false;
@@ -132,28 +133,7 @@ export function createFinanceiroPage(): HTMLElement {
   function actionsCell(item: PendenteBoleto): HTMLElement {
     const cell = createElement('div', { className: 'faturas-row-actions' });
     const who = `${item.clienteNome} (${formatReference(item.competencia)})`;
-    const label = item.emissaoPendente ? t('financeiro.page.resume') : t('financeiro.page.generate');
-    const generate = createElement('button', { className: 'small-button', type: 'button', textContent: label });
-    generate.setAttribute('aria-label', `${label} - ${who}`);
-    if (isBlocked(item)) {
-      generate.disabled = true;
-      generate.setAttribute('aria-describedby', `financeiro-bloqueio-${item.invoiceId}`);
-    }
-    generate.addEventListener('click', () => {
-      generate.disabled = true;
-      void generateBoleto(item).finally(() => { generate.disabled = false; });
-    });
-    cell.appendChild(generate);
-
-    if (item.bloqueio?.code === 'NOT_CALCULATED' && !item.emissaoPendente) {
-      const calculate = createElement('button', { className: 'secondary-button', type: 'button', textContent: t('financeiro.page.calculate') });
-      calculate.setAttribute('aria-label', `${t('financeiro.page.calculate')} - ${who}`);
-      calculate.addEventListener('click', () => {
-        calculate.disabled = true;
-        void calculateInvoice(item).finally(() => { calculate.disabled = false; });
-      });
-      cell.appendChild(calculate);
-    }
+    if (canIssue) cell.append(...issueButtons(item, who));
 
     const rule = createElement('button', { className: 'icon-button neutral', type: 'button', title: t('financeiro.page.configureRule') });
     rule.setAttribute('aria-label', `${t('financeiro.page.configureRule')} - ${who}`);
@@ -166,20 +146,49 @@ export function createFinanceiroPage(): HTMLElement {
     return cell;
   }
 
-  async function generateBoleto(item: PendenteBoleto): Promise<void> {
+  function issueButtons(item: PendenteBoleto, who: string): HTMLButtonElement[] {
+    const label = item.emissaoPendente ? t('financeiro.page.resume') : t('financeiro.page.generate');
+    const generate = createElement('button', { className: 'small-button', type: 'button', textContent: label });
+    generate.setAttribute('aria-label', `${label} - ${who}`);
+    if (isBlocked(item)) {
+      generate.disabled = true;
+      generate.setAttribute('aria-describedby', `financeiro-bloqueio-${item.invoiceId}`);
+    }
+    generate.addEventListener('click', () => {
+      generate.disabled = true;
+      // Segue desabilitado ate fechar o painel (a lista recarrega); reabilita so em erro.
+      void generateBoleto(item).then((ok) => { if (!ok) generate.disabled = false; });
+    });
+    const buttons = [generate];
+
+    if (item.bloqueio?.code === 'NOT_CALCULATED' && !item.emissaoPendente) {
+      const calculate = createElement('button', { className: 'secondary-button', type: 'button', textContent: t('financeiro.page.calculate') });
+      calculate.setAttribute('aria-label', `${t('financeiro.page.calculate')} - ${who}`);
+      calculate.addEventListener('click', () => {
+        calculate.disabled = true;
+        void calculateInvoice(item).finally(() => { calculate.disabled = false; });
+      });
+      buttons.push(calculate);
+    }
+    return buttons;
+  }
+
+  async function generateBoleto(item: PendenteBoleto): Promise<boolean> {
     try {
-      const fatura = await gerarBoletoConcessionaria(item.invoiceId);
+      const fatura = await gerarBoletoConcessionaria(item.invoiceId, empresaId);
       toast.success(t('financeiro.page.generated')
         .replace('{cliente}', item.clienteNome).replace('{valor}', formatCurrency(fatura.valor)).replace('{data}', formatDate(fatura.mesVencimento)));
-      openBoletoPanel(fatura, { invoiceId: item.invoiceId, onClose: () => { void load(); } });
+      openBoletoPanel(fatura, { invoiceId: item.invoiceId, empresaId, onClose: () => { void load(); } });
+      return true;
     } catch (cause) {
       toast.error(errorMessage(cause));
+      return false;
     }
   }
 
   async function calculateInvoice(item: PendenteBoleto): Promise<void> {
     try {
-      await calculateBillingInvoice(item.invoiceId);
+      await calculateBillingInvoice(item.invoiceId, empresaId);
       toast.success(t('financeiro.page.calculated'));
       await load();
     } catch (cause) {

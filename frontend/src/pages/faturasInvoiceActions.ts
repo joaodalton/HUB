@@ -1,4 +1,4 @@
-import { currentBoleto, formatReference } from '../components/FaturasUi';
+import { createExternalLink, currentBoleto, formatReference, isHttpsUrl } from '../components/FaturasUi';
 import { createModalShell } from '../components/Modal';
 import { createElement } from '../dom';
 import { deleteBillingInvoice, downloadBillingInvoice, reprocessBillingInvoice, type BillingInvoice, type InvoiceProblem } from '../services/billingCalculationsService';
@@ -6,6 +6,7 @@ import { t } from '../services/i18nService';
 
 type InvoiceActionsContext = {
   empresaId?: number;
+  canIssue: boolean;
   toast: { success: (message: string) => void; error: (message: string) => void };
   load: () => Promise<void>;
   clientName: (invoice: BillingInvoice) => string;
@@ -15,7 +16,7 @@ export function createInvoiceActions(ctx: InvoiceActionsContext): {
   invoiceDownloadButton: (invoice: BillingInvoice) => HTMLButtonElement;
   invoiceActionsCell: (item: BillingInvoice) => HTMLElement;
 } {
-  const { empresaId, toast, load, clientName } = ctx;
+  const { empresaId, canIssue, toast, load, clientName } = ctx;
   const fail = (cause: unknown, fallback: string) => toast.error(cause instanceof Error && cause.message ? cause.message : fallback);
   const describe = (item: BillingInvoice) => `${clientName(item)} (${formatReference(item.competencia)})`;
 
@@ -36,6 +37,7 @@ export function createInvoiceActions(ctx: InvoiceActionsContext): {
 
   async function copyLink(url: string): Promise<void> {
     try {
+      if (!isHttpsUrl(url)) throw new Error('invalid link');
       await navigator.clipboard.writeText(url);
       toast.success(t('faturas.page.linkCopied'));
     } catch {
@@ -75,9 +77,8 @@ export function createInvoiceActions(ctx: InvoiceActionsContext): {
     const cell = createElement('div', { className: 'faturas-row-actions' });
     const { boleto, canMutate } = currentBoleto(item.contextualCharges ?? []);
     cell.appendChild(invoiceDownloadButton(item, t('faturas.page.actionPdf')));
-    if (boleto?.boletoUrl?.startsWith('https://')) {
-      const open = createElement('a', { className: 'secondary-button', textContent: t('faturas.page.actionBoleto') });
-      open.href = boleto.boletoUrl; open.target = '_blank'; open.rel = 'noopener noreferrer';
+    const open = createExternalLink(boleto?.boletoUrl, t('faturas.page.actionBoleto'));
+    if (open) {
       open.setAttribute('aria-label', `${t('faturas.page.actionBoleto')} - ${describe(item)}`);
       open.addEventListener('click', (event) => event.stopPropagation());
       open.addEventListener('keydown', (event) => event.stopPropagation());
@@ -85,8 +86,8 @@ export function createInvoiceActions(ctx: InvoiceActionsContext): {
     }
     const link = boleto?.invoiceUrl ?? boleto?.boletoUrl;
     if (link) cell.appendChild(rowButton(t('faturas.page.actionLink'), item, 'secondary-button', () => copyLink(link)));
-    if (canMutate && item.problemas.length) cell.appendChild(rowButton(t('faturas.page.actionReprocess'), item, 'secondary-button', () => reprocess(item)));
-    if (canMutate) cell.appendChild(rowButton(t('faturas.page.deleteAction'), item, 'danger-button', () => confirmDelete(item)));
+    if (canIssue && canMutate && item.problemas.length) cell.appendChild(rowButton(t('faturas.page.actionReprocess'), item, 'secondary-button', () => reprocess(item)));
+    if (canIssue && canMutate) cell.appendChild(rowButton(t('faturas.page.deleteAction'), item, 'danger-button', () => confirmDelete(item)));
     return cell;
   }
 

@@ -200,6 +200,27 @@ describe('FaturasPage', () => {
     expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('https://asaas.test/i/1'));
   });
 
+  it('Link does not copy a non-https url and toasts an error', async () => {
+    const writeText = vi.fn();
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    stubInvoicePage([{ ...invoice, contextualCharges: [{ ...paid, invoiceUrl: 'javascript:alert(1)', boletoUrl: 'http://x' }] }]);
+    const content = createFaturasPage();
+    await flush();
+    button(content, 'Link')!.click();
+    await flush();
+    expect(writeText).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalled();
+  });
+
+  it('platform admin outside the test empresa gets a read-only table: no Reprocessar or Deletar', async () => {
+    vi.mocked(getCurrentUser).mockReturnValue({ id: 1, role: 'platform_admin', isPlatformAdmin: true, platformViewEmpresaId: 2 } as never);
+    stubInvoicePage([{ ...invoice, problemas: [problem] }]);
+    const content = createFaturasPage();
+    await flush();
+    expect(button(content, 'Reprocessar')).toBeUndefined();
+    expect(button(content, 'Deletar')).toBeUndefined();
+  });
+
   it('Deletar asks for confirmation, deletes, toasts and reloads', async () => {
     vi.mocked(deleteBillingInvoice).mockResolvedValue(undefined);
     stubInvoicePage();

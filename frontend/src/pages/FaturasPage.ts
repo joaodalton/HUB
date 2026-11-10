@@ -1,7 +1,7 @@
 import { createDataTable } from '../components/DataTable';
 import { INVOICES_IMPORTED_EVENT } from '../components/InvoiceImportButton';
 import { createIcon } from '../components/Icon';
-import { filterSelect, createBadge, statusLabel, internoLabel, boletoBadge, currentBoleto, extractionCell, kwhLabel, formatCurrency, formatDate, formatReference } from '../components/FaturasUi';
+import { filterSelect, createBadge, statusLabel, internoLabel, boletoBadge, currentBoleto, issuingAccess, extractionCell, kwhLabel, formatCurrency, formatDate, formatReference } from '../components/FaturasUi';
 import { createElement } from '../dom';
 import { useGlobalLoading } from '../hooks/useGlobalLoading';
 import { useToast } from '../hooks/useToast';
@@ -23,12 +23,7 @@ export function createFaturasPage(): HTMLElement {
   const content = createElement('section', { className: 'content-stack faturas-page' });
   const toast = useToast(), loading = useGlobalLoading();
   const user = getCurrentUser();
-  // Exceção de teste: plataforma admin pode agir como owner só na empresa de testes (id 1).
-  // Não afeta nenhuma outra empresa real. Remover/revisar se o fluxo de teste mudar.
-  const PLATFORM_ADMIN_TEST_EMPRESA_ID = 1;
-  const empresaId = user?.isPlatformAdmin ? user.platformViewEmpresaId ?? undefined : undefined;
-  const isPlatformAdminTestEmpresa = Boolean(user?.isPlatformAdmin && empresaId === PLATFORM_ADMIN_TEST_EMPRESA_ID);
-  const canIssue = isPlatformAdminTestEmpresa || (!user?.isPlatformAdmin && ['owner', 'admin', 'financial'].includes(user?.role ?? ''));
+  const { empresaId, canIssue, isPlatformAdminTestEmpresa } = issuingAccess(user);
   const canReadInvoices = Boolean(user?.isPlatformAdmin || canIssue);
   let invoices: BillingInvoice[] = [], charges: FaturaRow[] = [];
   let pendencias: PendenciaRow[] = [], clients: ClientRow[] = [], ucs: UcRow[] = [];
@@ -52,7 +47,7 @@ export function createFaturasPage(): HTMLElement {
     description: t('faturas.page.description')
   });
   const clientName = (item: BillingInvoice) => item.clienteNome ?? clients.find((client) => client.id === item.clientId)?.nome ?? t('faturas.page.noClientLink');
-  const { invoiceDownloadButton, invoiceActionsCell } = createInvoiceActions({ empresaId, toast, load, clientName });
+  const { invoiceDownloadButton, invoiceActionsCell } = createInvoiceActions({ empresaId, canIssue, toast, load, clientName });
   // O router nao desmonta paginas; popstate marca a saida da tela (mesmo padrao de PendenciasPage).
   const onImported = () => { void load(); };
   window.addEventListener(INVOICES_IMPORTED_EVENT, onImported);

@@ -1,5 +1,5 @@
 import { createDataTable } from '../components/DataTable';
-import { createConcessionariaUploadButton } from '../components/ConcessionariaInvoicesPanel';
+import { INVOICES_IMPORTED_EVENT } from '../components/InvoiceImportButton';
 import { createIcon } from '../components/Icon';
 import { createIconStatCard } from '../components/IconStatCard';
 import { filterSelect, createBadge, createChargeCell, statusLabel, extracaoLabel, internoLabel, validacaoLabel, formatCurrency, formatDate, formatReference } from '../components/FaturasUi';
@@ -56,7 +56,13 @@ export function createFaturasPage(): HTMLElement {
     description: t('faturas.page.description')
   });
   const { invoiceDownloadButton, invoicePdfCell } = createInvoiceActions({ empresaId, toast, load, contextualCharges });
+  window.addEventListener(INVOICES_IMPORTED_EVENT, onImported);
   void load(); return layout;
+
+  function onImported(): void {
+    if (!content.isConnected) { window.removeEventListener(INVOICES_IMPORTED_EVENT, onImported); return; }
+    void load();
+  }
 
   async function load(): Promise<void> {
     const current = ++requestId;
@@ -132,8 +138,6 @@ export function createFaturasPage(): HTMLElement {
   function render(): void {
     const toolbar = createElement('section', { className: 'faturas-toolbar' });
     const actions = createElement('div', { className: 'faturas-toolbar-actions' });
-    const upload = createConcessionariaUploadButton(() => void load());
-    if (upload) actions.appendChild(upload);
     if (canIssue) {
       const issue = createElement('button', { className: 'button-with-icon', type: 'button' });
       issue.append(createIcon('plus'), document.createTextNode(t('faturas.page.issueCharge')));

@@ -4,8 +4,9 @@ vi.mock('../layouts/BaseLayout', () => ({
   createBaseLayout: ({ content }: { content: HTMLElement }) => content,
 }));
 
-vi.mock('../components/ConcessionariaInvoicesPanel', () => ({
-  createConcessionariaUploadButton: () => null,
+vi.mock('../components/InvoiceImportButton', () => ({
+  createInvoiceImportButton: () => null,
+  INVOICES_IMPORTED_EVENT: 'hub:invoices-imported',
 }));
 
 vi.mock('../pages/faturasInvoiceDetail', () => ({

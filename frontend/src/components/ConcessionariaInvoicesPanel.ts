@@ -1,12 +1,7 @@
 import { createDataTable } from './DataTable';
-import { createIcon } from './Icon';
 import { createElement } from '../dom';
-import { useToast } from '../hooks/useToast';
 import { getCurrentUser } from '../services/authService';
-import {
-  getBillingInvoices, getTenantBillingInvoices, uploadBillingInvoice,
-  uploadTenantBillingInvoice, type BillingInvoice
-} from '../services/billingCalculationsService';
+import { getBillingInvoices, getTenantBillingInvoices, type BillingInvoice } from '../services/billingCalculationsService';
 import type { ClientRow } from '../services/clientsService';
 import { extracaoLabel, validacaoLabel } from './FaturasUi';
 import { t } from '../services/i18nService';
@@ -56,37 +51,4 @@ export function createConcessionariaInvoicesPanel(clients: ClientRow[]): HTMLEle
     });
     panel.replaceChildren(intro, table);
   }
-}
-
-export function createConcessionariaUploadButton(onUploaded: () => void): HTMLElement | null {
-  const user = getCurrentUser();
-  const empresaId = user?.isPlatformAdmin ? user.platformViewEmpresaId : null;
-  if (user?.isPlatformAdmin ? !empresaId : !['owner', 'admin', 'financial'].includes(user?.role ?? '')) return null;
-  const toast = useToast();
-  const wrap = createElement('span', { className: 'faturas-upload-action' });
-  const button = createElement('button', { className: 'secondary-button button-with-icon', type: 'button' });
-  button.append(createIcon('upload'), document.createTextNode(t('faturas.concessionariaPanel.uploadPdf')));
-  const input = createElement('input');
-  input.type = 'file';
-  input.accept = '.pdf,application/pdf';
-  input.hidden = true;
-  input.setAttribute('aria-label', t('faturas.concessionariaPanel.fileAriaLabel'));
-  button.addEventListener('click', () => input.click());
-  input.addEventListener('change', async () => {
-    const file = input.files?.[0];
-    if (!file) return;
-    button.disabled = true;
-    try {
-      const result = empresaId ? await uploadBillingInvoice(empresaId, file) : await uploadTenantBillingInvoice(file);
-      toast.success(result.duplicate ? t('faturas.concessionariaPanel.alreadyReceived') : t('faturas.concessionariaPanel.received'));
-      onUploaded();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : t('faturas.concessionariaPanel.uploadError'));
-    } finally {
-      button.disabled = false;
-      input.value = '';
-    }
-  });
-  wrap.append(button, input);
-  return wrap;
 }

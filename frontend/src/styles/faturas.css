@@ -92,3 +92,6 @@
   .fatura-detail-section .detail-info-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 520px) { .faturas-filter-panel { grid-template-columns: minmax(0, 1fr); } }
+
+.faturas-import-results { margin: 0 0 var(--space-3, 12px); padding-left: 20px; display: grid; gap: 6px; overflow-wrap: anywhere; }
+.toast-action { margin-left: auto; padding: 4px 10px; border: 1px solid currentColor; border-radius: var(--radius-card); background: transparent; color: inherit; cursor: pointer; font: inherit; white-space: nowrap; }

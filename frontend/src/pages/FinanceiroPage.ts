@@ -1,38 +1,42 @@
 // frontend/src/pages/FinanceiroPage.ts
-import { createElement } from '../dom';
+// Fila de trabalho: clientes com fatura da concessionaria vinculada e sem boleto, por usina.
 import { createDataTable } from '../components/DataTable';
-import { createIconStatCard } from '../components/IconStatCard';
-import { createStatusBadge, type StatusTone } from '../components/StatusBadge';
-import { formatCurrency } from '../components/FaturasUi';
+import { formatCurrency, formatDate, formatReference } from '../components/FaturasUi';
+import { createIcon } from '../components/Icon';
+import { INVOICES_IMPORTED_EVENT } from '../components/InvoiceImportButton';
+import { createUiState } from '../components/UiState';
+import { createElement } from '../dom';
 import { useGlobalLoading } from '../hooks/useGlobalLoading';
 import { useToast } from '../hooks/useToast';
 import { createBaseLayout } from '../layouts/BaseLayout';
-import { getFinanceiroDashboard, type FinanceiroDashboard } from '../services/financeiroService';
-import {
-  getPendencias,
-  prioridadeLabel,
-  prioridadeTone,
-  statusLabel,
-  vinculacaoLabel,
-  type PendenciaRow,
-  type PendenciaStatus
-} from '../services/pendenciasService';
+import { ApiRequestError } from '../services/apiClient';
+import { getCurrentUser } from '../services/authService';
+import { calculateBillingInvoice, gerarBoletoConcessionaria } from '../services/billingCalculationsService';
+import { getPendentesBoleto, type PendenteBoleto, type PendentesUsina } from '../services/financeiroService';
 import { t } from '../services/i18nService';
+import { openBoletoPanel } from './financeiroBoletoPanel';
 
-type FinanceiroTab = 'clientes' | 'usinas';
+// Mensagem do backend; BILLING_CALCULATION_REQUIRED / INVOICE_DATA_INCOMPLETE acrescentam os detalhes.
+function errorMessage(cause: unknown): string {
+  if (!(cause instanceof Error) || !cause.message) return t('financeiro.page.generateError');
+  if (!(cause instanceof ApiRequestError) || !cause.details || typeof cause.details !== 'object') return cause.message;
+  const { stage, blockers, missing } = cause.details as { stage?: string; blockers?: string[]; missing?: string[] };
+  const extra = [stage, ...(blockers ?? []), ...(missing ?? [])].filter(Boolean).join(', ');
+  return extra ? `${cause.message} (${extra})` : cause.message;
+}
 
 export function createFinanceiroPage(): HTMLElement {
-  const content = createElement('section', { className: 'content-stack' });
+  const content = createElement('section', { className: 'content-stack financeiro-page' });
   const toast = useToast();
   const loading = useGlobalLoading();
+  const user = getCurrentUser();
+  // Endpoint so de tenant: admin da plataforma sem empresa nao chama a API.
+  const needsCompany = Boolean(user?.isPlatformAdmin);
 
-  let activeTab: FinanceiroTab = 'clientes';
-  let dashboard: FinanceiroDashboard = { porCliente: [], porUsina: [] };
-  let pendenciasCobrarConcessionaria: PendenciaRow[] = [];
-  let pendenciasFaturaGeracao: PendenciaRow[] = [];
-  let pendenciasRepasseUsineiro: PendenciaRow[] = [];
-  let loadError = false;
-  let isLoading = true;
+  let groups: PendentesUsina[] = [];
+  let error = false;
+  let busy = true;
+  let requestId = 0;
 
   const layout = createBaseLayout({
     content,
@@ -40,146 +44,146 @@ export function createFinanceiroPage(): HTMLElement {
     title: t('financeiro.page.title'),
     description: t('financeiro.page.description')
   });
+  // O router nao desmonta paginas; popstate marca a saida da tela (mesmo padrao de PendenciasPage).
+  const onImported = () => { void load(); };
+  window.addEventListener(INVOICES_IMPORTED_EVENT, onImported);
+  window.addEventListener('popstate', () => window.removeEventListener(INVOICES_IMPORTED_EVENT, onImported), { once: true });
 
-  renderContent();
-  void loadAll();
-
+  void load();
   return layout;
 
-  async function loadAll(): Promise<void> {
-    isLoading = true;
+  async function load(): Promise<void> {
+    if (needsCompany) { busy = false; render(); return; }
+    const current = ++requestId;
+    busy = true; render();
     loading.show();
     try {
-      const [dashboardData, cobrarConcessionaria, faturaGeracao, repasseUsineiro] = await Promise.all([
-        getFinanceiroDashboard(),
-        getPendencias({ origem: 'pagar_concessionaria' }),
-        getPendencias({ origem: 'fatura_geracao_usina' }),
-        getPendencias({ origem: 'repasse_usineiro' })
-      ]);
-      dashboard = dashboardData;
-      pendenciasCobrarConcessionaria = cobrarConcessionaria;
-      pendenciasFaturaGeracao = faturaGeracao;
-      pendenciasRepasseUsineiro = repasseUsineiro;
-      loadError = false;
+      const result = await getPendentesBoleto();
+      if (current !== requestId) return;
+      groups = result; error = false;
     } catch (cause) {
-      loadError = true;
+      if (current !== requestId) return;
+      error = true;
       toast.error(cause instanceof Error ? cause.message : t('financeiro.page.loadError'));
     } finally {
-      isLoading = false;
-      loading.hide();
-      renderContent();
+      if (current === requestId) { busy = false; loading.hide(); render(); }
     }
   }
 
-  function changeTab(tab: FinanceiroTab): void {
-    activeTab = tab;
-    renderContent();
-  }
-
-  function renderContent(): void {
-    const tabs = createElement('div', { className: 'page-actions' });
-    tabs.append(
-      createTabButton('clientes', t('financeiro.page.tabClientes')),
-      createTabButton('usinas', t('financeiro.page.tabUsinas'))
-    );
-    const panel = activeTab === 'clientes' ? renderClientesTab() : renderUsinasTab();
-    content.replaceChildren(tabs, panel);
-  }
-
-  function createTabButton(tab: FinanceiroTab, label: string): HTMLElement {
-    const button = createElement('button', {
-      className: activeTab === tab ? 'secondary-button active' : 'secondary-button',
-      type: 'button',
-      textContent: label
-    });
-    button.addEventListener('click', () => changeTab(tab));
-    return button;
-  }
-
-  function renderClientesTab(): HTMLElement {
-    const fragment = createElement('div', { className: 'content-stack' });
-
-    const totalRecebido = dashboard.porCliente.reduce((sum, item) => sum + Number(item.recebido || 0), 0);
-    const totalPendente = dashboard.porCliente.reduce((sum, item) => sum + Number(item.pendente || 0), 0);
-
-    const grid = createElement('section', { className: 'metric-grid' });
-    grid.append(
-      createIconStatCard({ icon: 'cobrancas', chipColor: 'green', value: formatCurrency(totalRecebido), label: t('financeiro.page.totalRecebido') }),
-      createIconStatCard({ icon: 'pending', chipColor: 'amber', value: formatCurrency(totalPendente), label: t('financeiro.page.totalPendente') })
-    );
-
-    const cobrarLink = createElement('a', { className: 'button-with-icon', textContent: t('financeiro.page.readyToCharge') });
-    cobrarLink.href = '/faturas?cobranca=sem_cobranca';
-    cobrarLink.addEventListener('click', (event) => {
-      event.preventDefault();
-      navigateTo('/faturas?cobranca=sem_cobranca');
-    });
-    const cobrarAction = createElement('div', { className: 'page-actions' });
-    cobrarAction.appendChild(cobrarLink);
-
-    fragment.append(grid, cobrarAction, createPendenciasTable(
-      t('financeiro.page.pendenciasConcessionaria'),
-      pendenciasCobrarConcessionaria
-    ));
-    return fragment;
-  }
-
-  function renderUsinasTab(): HTMLElement {
-    const fragment = createElement('div', { className: 'content-stack' });
-
-    const grid = createElement('section', { className: 'metric-grid' });
-    dashboard.porUsina.forEach((usina) => {
-      const semClientes = 'semClientesConectados' in usina && usina.semClientesConectados === true;
-      const aguardandoPagamentos = 'aguardandoPagamentos' in usina && usina.aguardandoPagamentos === true;
-      const trend = semClientes
-        ? t('financeiro.page.semClientesConectados')
-        : usina.contratoPendente
-          ? t('financeiro.page.contratoPendente')
-          : aguardandoPagamentos
-            ? t('financeiro.page.aguardandoPagamentos')
-            : `${t('financeiro.page.repasse')}: ${formatCurrency(usina.repasseCalculado)}`;
-      grid.appendChild(createIconStatCard({
-        icon: 'plants',
-        chipColor: usina.contratoPendente || semClientes || aguardandoPagamentos ? 'amber' : 'green',
-        value: formatCurrency(usina.recebido),
-        label: usina.usinaNome,
-        trend
+  function render(): void {
+    if (needsCompany) {
+      content.replaceChildren(createUiState({ kind: 'empty', title: t('financeiro.page.selectCompany') }));
+    } else if (busy || error || groups.every((group) => group.itens.length === 0)) {
+      content.replaceChildren(createDataTable<PendenteBoleto>({
+        title: t('financeiro.page.title'),
+        eyebrow: '',
+        rows: [],
+        columns: [{ key: 'clienteNome', label: t('financeiro.page.colClienteUc') }],
+        emptyMessage: t('financeiro.page.empty'),
+        state: busy ? 'loading' : error ? 'error' : 'ready',
+        stateTitle: error ? t('financeiro.page.loadError') : t('financeiro.page.empty'),
+        errorAction: { label: t('common.retry'), onClick: () => void load() }
       }));
-    });
-
-    fragment.append(
-      grid,
-      createPendenciasTable(t('financeiro.page.pendenciasFaturaGeracao'), pendenciasFaturaGeracao),
-      createPendenciasTable(t('financeiro.page.pendenciasRepasseUsineiro'), pendenciasRepasseUsineiro)
-    );
-    return fragment;
+    } else {
+      content.replaceChildren(...groups.filter((group) => group.itens.length).map(createGroup));
+    }
   }
 
-  function createPendenciasTable(title: string, rows: PendenciaRow[]): HTMLElement {
-    return createDataTable<PendenciaRow>({
-      title,
-      eyebrow: isLoading ? t('financeiro.page.loadingShort') : `${rows.length} ${rows.length === 1 ? t('financeiro.page.recordSingular') : t('financeiro.page.recordPlural')}`,
-      rows: loadError || isLoading ? [] : rows,
-      emptyMessage: loadError ? t('financeiro.page.pendenciasLoadError') : t('financeiro.page.pendenciasEmpty'),
-      state: isLoading ? 'loading' : loadError ? 'error' : 'ready',
-      stateTitle: loadError ? t('financeiro.page.pendenciasLoadError') : t('financeiro.page.pendenciasEmpty'),
-      errorAction: { label: t('common.retry'), onClick: () => void loadAll() },
-      onRowClick: (item) => navigateTo(`/pendencias?selecionada=${item.id}`),
+  function createGroup(group: PendentesUsina): HTMLElement {
+    const name = group.usinaNome ?? t('financeiro.page.noPlant');
+    const count = group.itens.length;
+    const panel = createDataTable<PendenteBoleto>({
+      title: name,
+      eyebrow: count === 1 ? t('financeiro.page.waitingOne') : `${count} ${t('financeiro.page.waitingMany')}`,
+      rows: group.itens,
+      storageKey: 'financeiro-pendentes-boleto',
+      emptyMessage: t('financeiro.page.empty'),
       columns: [
-        { key: 'titulo', label: t('financeiro.page.colPendencia') },
-        { key: 'vinculacao', label: t('financeiro.page.colVinculacao'), render: (item) => vinculacaoLabel(item) },
-        { key: 'prioridade', label: t('financeiro.page.colPrioridade'), render: (item) => createStatusBadge(prioridadeLabel(item.prioridade), prioridadeTone(item.prioridade) as StatusTone) },
-        { key: 'status', label: t('financeiro.page.colStatus'), render: (item) => createStatusBadge(statusLabel(item.status), statusTone(item.status)) }
+        { key: 'clienteNome', label: t('financeiro.page.colClienteUc'), render: clientCell },
+        { key: 'competencia', label: t('financeiro.page.colCompetencia'), render: (item) => formatReference(item.competencia) },
+        { key: 'valorConcessionaria', label: t('financeiro.page.colValorCopel'), align: 'right', render: (item) => formatCurrency(item.valorConcessionaria) },
+        { key: 'valorCobrar', label: t('financeiro.page.colValorCobrar'), align: 'right', render: valueCell },
+        { key: 'billingMode', label: t('financeiro.page.colTipo'), render: (item) => item.billingMode === 'unified' ? t('financeiro.page.tipoUnified') : item.billingMode === 'separate' ? t('financeiro.page.tipoSeparate') : '—' },
+        { key: 'acoes', label: '', render: actionsCell }
       ]
     });
+    panel.querySelector('table')?.setAttribute('aria-label', t('financeiro.page.tableLabel').replace('{usina}', name));
+    return panel;
   }
-}
 
-function statusTone(status: PendenciaStatus): StatusTone {
-  return status === 'aberta' ? 'warning' : status === 'resolvida' ? 'success' : 'neutral';
-}
+  function clientCell(item: PendenteBoleto): HTMLElement {
+    const cell = createElement('div', { className: 'faturas-client-cell' });
+    cell.append(createElement('span', { textContent: item.clienteNome }), createElement('small', { textContent: item.ucCodigo }));
+    return cell;
+  }
 
-function navigateTo(path: string): void {
-  window.history.pushState({}, '', path);
-  window.dispatchEvent(new PopStateEvent('popstate'));
+  // emissaoPendente retoma com o valor guardado: mostra o valor mesmo havendo bloqueio.
+  function isBlocked(item: PendenteBoleto): boolean {
+    return Boolean(item.bloqueio) && !item.emissaoPendente;
+  }
+
+  function valueCell(item: PendenteBoleto): HTMLElement | string {
+    if (!isBlocked(item)) return formatCurrency(item.valorCobrar);
+    const reason = createElement('span', { className: 'faturas-problem', textContent: item.bloqueio?.message ?? '' });
+    reason.id = `financeiro-bloqueio-${item.invoiceId}`;
+    return reason;
+  }
+
+  function actionsCell(item: PendenteBoleto): HTMLElement {
+    const cell = createElement('div', { className: 'faturas-row-actions' });
+    const who = `${item.clienteNome} (${formatReference(item.competencia)})`;
+    const label = item.emissaoPendente ? t('financeiro.page.resume') : t('financeiro.page.generate');
+    const generate = createElement('button', { className: 'small-button', type: 'button', textContent: label });
+    generate.setAttribute('aria-label', `${label} - ${who}`);
+    if (isBlocked(item)) {
+      generate.disabled = true;
+      generate.setAttribute('aria-describedby', `financeiro-bloqueio-${item.invoiceId}`);
+    }
+    generate.addEventListener('click', () => {
+      generate.disabled = true;
+      void generateBoleto(item).finally(() => { generate.disabled = false; });
+    });
+    cell.appendChild(generate);
+
+    if (item.bloqueio?.code === 'NOT_CALCULATED' && !item.emissaoPendente) {
+      const calculate = createElement('button', { className: 'secondary-button', type: 'button', textContent: t('financeiro.page.calculate') });
+      calculate.setAttribute('aria-label', `${t('financeiro.page.calculate')} - ${who}`);
+      calculate.addEventListener('click', () => {
+        calculate.disabled = true;
+        void calculateInvoice(item).finally(() => { calculate.disabled = false; });
+      });
+      cell.appendChild(calculate);
+    }
+
+    const rule = createElement('button', { className: 'icon-button neutral', type: 'button', title: t('financeiro.page.configureRule') });
+    rule.setAttribute('aria-label', `${t('financeiro.page.configureRule')} - ${who}`);
+    rule.appendChild(createIcon('settings'));
+    rule.addEventListener('click', () => {
+      window.history.pushState({}, '', `/ucs?ucId=${item.ucId}`);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+    cell.appendChild(rule);
+    return cell;
+  }
+
+  async function generateBoleto(item: PendenteBoleto): Promise<void> {
+    try {
+      const fatura = await gerarBoletoConcessionaria(item.invoiceId);
+      toast.success(t('financeiro.page.generated')
+        .replace('{cliente}', item.clienteNome).replace('{valor}', formatCurrency(fatura.valor)).replace('{data}', formatDate(fatura.mesVencimento)));
+      openBoletoPanel(fatura, { invoiceId: item.invoiceId, onClose: () => { void load(); } });
+    } catch (cause) {
+      toast.error(errorMessage(cause));
+    }
+  }
+
+  async function calculateInvoice(item: PendenteBoleto): Promise<void> {
+    try {
+      await calculateBillingInvoice(item.invoiceId);
+      toast.success(t('financeiro.page.calculated'));
+      await load();
+    } catch (cause) {
+      toast.error(errorMessage(cause));
+    }
+  }
 }

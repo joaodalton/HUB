@@ -368,3 +368,10 @@ label {
   font-weight: 500;
   color: var(--text-dim);
 }
+
+.form-field-checkbox .field-help {
+  display: block;
+  color: var(--text-faint);
+  font-size: 12px;
+  line-height: 1.4;
+}

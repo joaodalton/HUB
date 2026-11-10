@@ -3,6 +3,7 @@
 // PlantCard -- os tres tinham copia identica de createInput/createSelect.
 // Nao duplicar de novo em outro componente, importar daqui.
 import { createElement } from '../dom';
+import { t } from '../services/i18nService';
 
 export function createInput(label: string, type: string, value: string, required = false) {
   const field = createElement('label', { className: 'form-field' });
@@ -46,6 +47,12 @@ export function createCheckboxField(label: string, checked: boolean) {
 
   field.append(input, text);
   return { field, input };
+}
+
+export function createDebitoAutomaticoField(checked: boolean) {
+  const checkbox = createCheckboxField(t('ucs.card.fieldDebitoAutomatico'), checked);
+  checkbox.field.querySelector('span')?.appendChild(createElement('small', { className: 'field-help', textContent: t('ucs.card.debitoAutomaticoHelp') }));
+  return checkbox;
 }
 
 // Par valor/rotulo (ex.: mostrar "Visualizador (so leitura)" mas gravar

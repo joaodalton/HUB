@@ -1,7 +1,7 @@
 import { createElement } from '../dom';
 import { createContextHelp } from './ContextHelp';
 import { createConcessionariaPasswordField } from './ConcessionariaPasswordField';
-import { createCheckboxField, createInput, createSelect } from './formFields';
+import { createCheckboxField, createDebitoAutomaticoField, createInput, createSelect } from './formFields';
 import { cnpjError, cpfError, digits, maskCpfCnpjInput, validateField } from './cadastroFields';
 import { createPlantConnections, createTariffSelect } from './PlantConnectionsField';
 import type { ClientUc } from '../services/clientsService';
@@ -95,6 +95,7 @@ function createUcEditor(uc: ClientUc, availablePlants: PlantRow[], onRemove: () 
     t('clients.uc.discountHelpText')));
   const tipoLigacao = createSelect(t('clients.uc.fieldConnectionLabel'), uc.tipoLigacao, ['Monofasico', 'Bifasico', 'Trifasico']);
   const geracaoPropria = createCheckboxField(t('clients.uc.fieldGeracaoPropria'), uc.geracaoPropria);
+  const debitoAutomatico = createDebitoAutomaticoField(uc.debitoAutomatico ?? false);
   const diaEmissaoFatura = createInput(t('clients.uc.fieldDiaEmissao'), 'number', uc.diaEmissaoFatura != null ? String(uc.diaEmissaoFatura) : '', false);
   const inicioContrato = createInput(t('clients.uc.fieldInicioContrato'), 'date', uc.inicioContrato ?? '', false);
   const terminoContrato = createInput(t('clients.uc.fieldTerminoContrato'), 'date', uc.terminoContrato ?? '', false);
@@ -135,6 +136,7 @@ function createUcEditor(uc: ClientUc, availablePlants: PlantRow[], onRemove: () 
     uc.tipoLigacao = tipoLigacao.select.value as ClientUc['tipoLigacao'];
   });
   geracaoPropria.input.addEventListener('change', () => { uc.geracaoPropria = geracaoPropria.input.checked; });
+  debitoAutomatico.input.addEventListener('change', () => { uc.debitoAutomatico = debitoAutomatico.input.checked; });
   diaEmissaoFatura.input.addEventListener('input', () => {
     const raw = diaEmissaoFatura.input.value.trim();
     uc.diaEmissaoFatura = raw ? Number(raw) : null;
@@ -163,6 +165,7 @@ function createUcEditor(uc: ClientUc, availablePlants: PlantRow[], onRemove: () 
     desconto.field,
     tipoLigacao.field,
     geracaoPropria.field,
+    debitoAutomatico.field,
     diaEmissaoFatura.field,
     inicioContrato.field,
     terminoContrato.field,
@@ -186,6 +189,7 @@ export function createEmptyUc(): ClientUc {
     cep: null,
     concessionaria: null,
     geracaoPropria: false,
+    debitoAutomatico: false,
     diaEmissaoFatura: null,
     consumo: null,
     baseTarifaria: 'B1',

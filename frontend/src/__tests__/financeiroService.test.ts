@@ -5,7 +5,7 @@ vi.mock('../services/apiClient', () => ({
 }));
 
 import { apiRequest } from '../services/apiClient';
-import { getFinanceiroDashboard, type FinanceiroDashboard } from '../services/financeiroService';
+import { getFinanceiroDashboard, getPendentesBoleto, type FinanceiroDashboard, type PendentesUsina } from '../services/financeiroService';
 
 const dashboard: FinanceiroDashboard = {
   porCliente: [{ clienteId: 1, clienteNome: 'Cliente A', recebido: '100.00', pendente: '25.50' }],
@@ -43,5 +43,19 @@ describe('financeiroService', () => {
     vi.mocked(apiRequest).mockRejectedValue(new Error('Falha na comunicacao com a API.'));
 
     await expect(getFinanceiroDashboard('2026-10')).rejects.toThrow('Falha na comunicacao com a API.');
+  });
+
+  it('busca pendentes de boleto agrupados por usina', async () => {
+    const pendentes: PendentesUsina[] = [{ usinaId: 1, usinaNome: 'Usina X', itens: [] }];
+    vi.mocked(apiRequest).mockResolvedValue({ data: pendentes });
+
+    expect(await getPendentesBoleto()).toEqual(pendentes);
+    expect(apiRequest).toHaveBeenCalledWith('/financeiro/pendentes-boleto');
+  });
+
+  it('propaga erro da API em pendentes de boleto', async () => {
+    vi.mocked(apiRequest).mockRejectedValue(new Error('falhou'));
+
+    await expect(getPendentesBoleto()).rejects.toThrow('falhou');
   });
 });

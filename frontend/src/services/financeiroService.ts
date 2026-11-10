@@ -24,6 +24,28 @@ export type FinanceiroDashboard = {
   porUsina: FinanceiroDashboardUsina[];
 };
 
+export type PendenteBoleto = {
+  invoiceId: number;
+  clienteId: number;
+  clienteNome: string;
+  ucId: number;
+  ucCodigo: string;
+  competencia: string;
+  dataVencimento: string | null;
+  valorConcessionaria: string | null;
+  valorHub: string | null;
+  valorCobrar: string | null;
+  billingMode: 'unified' | 'separate' | null;
+  emissaoPendente: boolean;
+  bloqueio: { code: string; message: string } | null;
+};
+
+export type PendentesUsina = { usinaId: number | null; usinaNome: string | null; itens: PendenteBoleto[] };
+
+export async function getPendentesBoleto(): Promise<PendentesUsina[]> {
+  return (await apiRequest<ApiResponse<PendentesUsina[]>>('/financeiro/pendentes-boleto')).data;
+}
+
 export async function getFinanceiroDashboard(competencia?: string): Promise<FinanceiroDashboard> {
   const search = new URLSearchParams();
   if (competencia) search.set('competencia', competencia);

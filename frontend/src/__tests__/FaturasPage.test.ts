@@ -58,7 +58,7 @@ const invoice = {
   statusExtracao: 'extraida', statusValidacao: 'valida', createdAt: '2026-01-01',
   clienteNome: 'Cliente Um', ucCodigo: 'UC-1', usinas: [{ id: 1, nome: 'Usina A' }],
   valorTotalConcessionaria: '150.00', dataVencimento: '2026-01-10',
-  documentoDisponivel: false, temPendencia: false
+  documentoDisponivel: false, temPendencia: false, gdIKwh: null, gdIIKwh: null, problemas: []
 };
 
 function stubInvoicePage(data: typeof invoice[] = [invoice]) {

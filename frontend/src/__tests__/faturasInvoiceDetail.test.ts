@@ -37,6 +37,9 @@ function baseInvoice(overrides: Partial<BillingInvoice> = {}): BillingInvoice {
     documentoId: 1,
     documentoDisponivel: false,
     temPendencia: false,
+    gdIKwh: null,
+    gdIIKwh: null,
+    problemas: [],
     ...overrides,
   };
 }
@@ -47,7 +50,8 @@ function baseCharge(overrides: Partial<FaturaRow> = {}): FaturaRow {
     concessionaria: 'Copel', competencia: '2026-09', valor: '150.00', mesVencimento: '2026-10-10',
     origem: 'automatica', asaasId: 'pay_1', statusInterno: 'emitida', paymentProvider: 'asaas',
     externalReference: null, asaasStatus: 'pending', boletoUrl: null, linhaDigitavel: null,
-    codigoBarras: null, enviadoEm: null, criadoEm: null, ...overrides,
+    codigoBarras: null, enviadoEm: null, criadoEm: null,
+    billingMode: null, invoiceUrl: null, faturaConcessionariaId: null, ...overrides,
   };
 }
 

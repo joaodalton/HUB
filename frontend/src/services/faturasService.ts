@@ -24,6 +24,9 @@ export type FaturaRow = {
   codigoBarras: string | null;
   enviadoEm: string | null;
   criadoEm: string | null;
+  billingMode: 'unified' | 'separate' | null;
+  invoiceUrl: string | null;
+  faturaConcessionariaId: number | null;
 };
 
 export type FaturaPayload = {

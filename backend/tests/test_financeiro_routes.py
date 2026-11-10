@@ -222,6 +222,25 @@ class FinanceiroRoutesTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertEqual(itens[126]['bloqueio']['code'], 'CLIENT_EMAIL_MISSING')
         self.assertIsNone(itens[122]['dataVencimento'])
 
+    def test_pendentes_valor_zero_ou_negativo_e_dado_incompleto(self):
+        self.make_invoice(161, valor='0.00', hub=None, nome='Zero')
+        self.make_invoice(162, valor='-5.00', nome='Negativo')
+        itens = {i['invoiceId']: i for g in self.pendentes() for i in g['itens']}
+        for invoice_id in (161, 162):
+            self.assertEqual(itens[invoice_id]['bloqueio'], {
+                'code': 'INVOICE_DATA_INCOMPLETE', 'message': 'Faltou na fatura: valor.'})
+
+    def test_pendentes_linhas_inconsistentes_nao_derrubam_a_listagem(self):
+        from models.fatura_concessionaria import FaturaConcessionaria
+        self.make_invoice(171, plants=(999,), nome='PlantaOrfa')  # conexao aponta para usina inexistente
+        self.make_invoice(172, nome='UcOrfa')
+        self.make_invoice(173, nome='ClienteOrfao')
+        FaturaConcessionaria.query.filter_by(id=172).update({'consumer_unit_id': 9999})
+        FaturaConcessionaria.query.filter_by(id=173).update({'client_id': 9999})
+        db.session.commit()
+        data = self.pendentes()
+        self.assertEqual([(g['usinaId'], [i['invoiceId'] for i in g['itens']]) for g in data], [(None, [171])])
+
     def test_pendentes_usa_ultima_execucao_mesmo_sem_snapshot(self):
         self.make_invoice(131, nome='Velho')  # execucao 1 calculada
         self.add_execution(131, 10, stage='RULE_RESOLUTION')  # execucao 2 bloqueada, mais recente

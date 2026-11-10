@@ -192,6 +192,30 @@ class InvoiceDeleteReprocessTest(IsolatedTestRuntime, unittest.TestCase):
         with self.app.app_context():
             self.assertIsNone(db.session.get(FaturaConcessionaria, invoice_id).deleted_at)
 
+    def test_reupload_under_other_client_of_same_tenant_conflicts(self):
+        invoice_id, _, _ = self.valid_invoice()
+        with self.app.app_context():
+            db.session.add(Client(id=3, empresa_id=1, nome='Outro', cpf='33333333333', email='o@t.local'))
+            db.session.commit()
+
+        def upload_as_3():
+            return self.http.post('/api/v1/clients/3/invoices/upload', headers=self.h(),
+                data={'arquivo': (io.BytesIO(make_gd_pdf('gd1')), 'f.pdf', 'application/pdf')},
+                content_type='multipart/form-data')
+        try:
+            for deleted in (False, True):
+                if deleted:
+                    self.assertEqual(self.delete(invoice_id).status_code, 200)
+                response = upload_as_3()
+                self.assertEqual((response.status_code, response.json['code']), (409, 'INVOICE_CLIENT_CONFLICT'))
+            with self.app.app_context():
+                invoice = db.session.get(FaturaConcessionaria, invoice_id)
+                self.assertIsNotNone(invoice.deleted_at)  # nao foi restaurada
+        finally:
+            with self.app.app_context():
+                Client.query.filter_by(id=3).delete()
+                db.session.commit()
+
     def test_reupload_after_delete_restores_same_invoice(self):
         invoice_id, _, _ = self.valid_invoice()
         self.assertEqual(self.delete(invoice_id).status_code, 200)

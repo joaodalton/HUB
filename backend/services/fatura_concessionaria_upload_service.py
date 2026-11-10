@@ -117,7 +117,7 @@ def upload_invoice(client_id: int | None, file_storage) -> tuple[dict, bool]:
         client = _client_from_document(file_bytes, empresa_id)
     existing = _find_existing(empresa_id, arquivo_hash)
     if existing:
-        if client_id is None and existing.client_id != client.id:
+        if existing.client_id != client.id:
             _fail('Fatura ja recebida com cliente diferente da UC documental.', 'INVOICE_CLIENT_CONFLICT', 409)
         if existing.deleted_at is not None:
             return _restore(existing, file_bytes), False
@@ -154,7 +154,7 @@ def upload_invoice(client_id: int | None, file_storage) -> tuple[dict, bool]:
         if storage is not None and storage_key is not None:
             _discard_attempt(storage, storage_key)
         if existing:
-            if client_id is None and existing.client_id != client.id:
+            if existing.client_id != client.id:
                 _fail('Fatura ja recebida com cliente diferente da UC documental.', 'INVOICE_CLIENT_CONFLICT', 409)
             return _result(existing, True), True
         raise
@@ -178,7 +178,8 @@ def upload_invoice(client_id: int | None, file_storage) -> tuple[dict, bool]:
 def _auto_calculate(invoice_id: int) -> None:
     """Calcula a cobranca logo apos o vinculo; nunca altera o resultado do upload."""
     try:
-        invoice = db.session.get(FaturaConcessionaria, invoice_id)
+        invoice = FaturaConcessionaria.query.filter_by(
+            id=invoice_id, empresa_id=g.current_empresa_id, deleted_at=None).first()
         if invoice is None or invoice.status_validacao != 'valida':
             return
         from services.billing_calculation_service import BillingCalculationService

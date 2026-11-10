@@ -83,7 +83,7 @@ def load_invoice_pdf(invoice_id: int, empresa_id: int) -> tuple[bytes, str] | No
 def delete_invoice(invoice_id: int, empresa_id: int) -> bool:
     """Exclusão lógica: cálculos/snapshots são imutáveis e permanecem como histórico."""
     invoice = FaturaConcessionaria.query.filter_by(
-        id=invoice_id, empresa_id=empresa_id, deleted_at=None).first()
+        id=invoice_id, empresa_id=empresa_id, deleted_at=None).with_for_update().first()
     if invoice is None:
         return False
     if has_active_boleto(invoice) or has_pending_emission(invoice) is not None:

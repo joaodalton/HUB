@@ -169,7 +169,7 @@ def _bloqueio(invoice, client, execution):
     if not (client.email or '').strip():
         return {'code': 'CLIENT_EMAIL_MISSING', 'message': 'Cliente sem e-mail cadastrado.'}
     missing = [name for name, empty in (('dataVencimento', invoice.data_vencimento is None),
-                                        ('valor', not invoice.valor_total_concessionaria)) if empty]
+                                        ('valor', invoice.valor_total_concessionaria is None or invoice.valor_total_concessionaria <= 0)) if empty]
     if missing:
         return {'code': 'INVOICE_DATA_INCOMPLETE', 'message': f"Faltou na fatura: {', '.join(missing)}."}
     if execution is None:
@@ -209,10 +209,13 @@ def listar_pendentes_boleto(empresa_id: int) -> list[dict]:
     for conn in PlantConnection.query.filter(
             PlantConnection.empresa_id == empresa_id, PlantConnection.consumer_unit_id.in_(uc_ids)
     ).options(selectinload(PlantConnection.plant)):
-        plantas.setdefault(conn.consumer_unit_id, {})[conn.plant_id] = conn.plant.nome
+        if conn.plant is not None:  # conexao orfa cai no grupo "Sem usina"
+            plantas.setdefault(conn.consumer_unit_id, {})[conn.plant_id] = conn.plant.nome
     grupos = {}
     for invoice in invoices:
-        uc, execution = ucs[invoice.consumer_unit_id], execucoes.get(invoice.id)
+        uc, execution = ucs.get(invoice.consumer_unit_id), execucoes.get(invoice.id)
+        if uc is None or invoice.client is None:  # linha inconsistente: nao derruba a listagem
+            continue
         pendente = pendentes.get((invoice.consumer_unit_id, invoice.competencia))
         snapshot = execution.snapshot if execution else None
         valor_hub = valor_cobrar = modo = None

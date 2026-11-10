@@ -255,6 +255,21 @@ def gerar_boleto_concessionaria(fatura_concessionaria_id: int, empresa_id: int, 
     if snapshot is None:
         stage = next((row for row in execution.auditoria.get('stages', []) if row.get('blockers')), {})
         raise CalculoCobrancaPendente({'stage': stage.get('stage'), 'blockers': stage.get('blockers', [])})
+    # O calculo commita (libera locks): so agora serializa por fatura. Ate o commit do Fatura
+    # pendente em emitir() nao ha commit, entao o 2o pedido ve a emissao do 1o.
+    invoice = FaturaConcessionaria.query.filter_by(
+        id=fatura_concessionaria_id, empresa_id=empresa_id, deleted_at=None,
+    ).populate_existing().with_for_update().first()
+    if invoice is None:
+        raise LookupError('Fatura da concessionaria nao encontrada.')
+    pending = has_pending_emission(invoice)
+    if pending is not None:
+        payload.update(valor=str(pending.valor), mesVencimento=pending.mes_vencimento.isoformat(),
+                       billingMode=pending.billing_mode)
+        return _boleto_dict(emitir(payload, empresa_id, user_id), invoice)
+    existing = active_boleto(invoice)
+    if existing is not None:
+        return _boleto_dict(existing.to_dict(), invoice)
     uc = _uc(invoice.consumer_unit_id, empresa_id)
     mode = snapshot_billing_mode(snapshot, bool(uc and uc.debito_automatico))
     valor = snapshot.valor_final

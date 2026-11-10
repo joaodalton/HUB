@@ -6,6 +6,7 @@ import json
 import sys
 import tempfile
 import unittest
+from contextlib import nullcontext
 from dataclasses import replace
 from datetime import date
 from decimal import Decimal
@@ -27,6 +28,7 @@ from models.grupo_regra_cobranca import GrupoRegraCobranca
 from models.regra_cobranca_assignment import RegraCobrancaAssignment
 from models.user import User
 from services import fatura_service
+from services.billing_calculation_service import BillingCalculationService
 from services.asaas_client import AsaasError
 from services.fatura_service import resolve_billing_mode
 from services.invoice_normalization_service import InvoiceNormalizer, json_safe
@@ -236,6 +238,45 @@ class BillingModeEmissaoTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertEqual((first.status_code, second.status_code), (201, 201))
         self.assertEqual(first.json['data']['id'], second.json['data']['id'])
         self.assertEqual((self.posts, Fatura.query.count()), (1, 1))
+
+    def _concurrent_emission_during_calculation(self, succeed):
+        """Outra requisicao emite (valor/modo distintos) enquanto esta recalcula."""
+        real = BillingCalculationService.execute
+        other = {'clienteId': 1, 'ucId': 1, 'competencia': '2030-08', 'valor': '50.00',
+                 'mesVencimento': '2030-09-05', 'billingMode': 'separate'}
+
+        def execute(service, invoice_id):
+            result = real(service, invoice_id)
+            self.fail_post = not succeed
+            with self.assertRaises(AsaasError) if not succeed else nullcontext():
+                fatura_service.emitir(other, 1, 1)
+            self.fail_post = False
+            if not succeed:  # o POST em voo do outro pedido e aceito depois pelo ASAAS
+                pending = Fatura.query.one()
+                self.remote[pending.external_reference] = {
+                    'id': 'pay_other', 'externalReference': pending.external_reference, 'customer': 'cus_1',
+                    'billingType': 'BOLETO', 'value': 50.0, 'dueDate': '2030-09-05', 'status': 'PENDING'}
+                self.posts = 0
+            return result
+        return patch.object(BillingCalculationService, 'execute', execute)
+
+    def test_pending_emission_created_during_calculation_is_retried_not_duplicated(self):
+        self._prepare_invoice()
+        with self._concurrent_emission_during_calculation(succeed=False):
+            response = self._gerar()
+        self.assertEqual(response.status_code, 201, response.json)
+        fatura = Fatura.query.one()
+        self.assertEqual((fatura.valor, fatura.billing_mode, fatura.asaas_id),
+                         (Decimal('50.00'), 'separate', 'pay_other'))
+        self.assertLessEqual(self.posts, 1)
+
+    def test_active_boleto_created_during_calculation_is_returned_not_duplicated(self):
+        self._prepare_invoice()
+        with self._concurrent_emission_during_calculation(succeed=True):
+            response = self._gerar()
+        self.assertEqual(response.status_code, 201, response.json)
+        self.assertEqual((Fatura.query.count(), self.posts), (1, 1))
+        self.assertEqual(response.json['data']['id'], Fatura.query.one().id)
 
     def test_blocked_calculation_returns_stage_and_blockers_without_posting(self):
         self._prepare_invoice()

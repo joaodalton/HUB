@@ -325,6 +325,23 @@ class AsaasWebhookTest(IsolatedTestRuntime, unittest.TestCase):
             self.assertEqual((fatura.boleto_url, fatura.invoice_url),
                              ('https://example.test/fatura', 'https://example.test/fatura'))
 
+    def test_webhook_invoice_url_rejeita_esquema_nao_https(self):
+        original = self.snapshot()
+        for url in ('javascript:alert(1)', 'http://example.test/fatura', 'data:text/html,x', '//example.test'):
+            self.assertEqual(self.post(self.payload(invoiceUrl=url)).status_code, 400, url)
+            self.assertEqual(self.snapshot(), original)
+
+    def test_webhook_invoice_url_nula_nao_apaga_url_gravada(self):
+        with self.app.app_context():
+            fatura = db.session.get(Fatura, 1)
+            fatura.invoice_url, fatura.boleto_url = 'https://example.test/fatura', 'https://example.test/boleto'
+            db.session.commit()
+        self.assertEqual(self.post(self.payload(invoiceUrl=None)).status_code, 200)
+        with self.app.app_context():
+            fatura = db.session.get(Fatura, 1)
+            self.assertEqual((fatura.boleto_url, fatura.invoice_url),
+                             ('https://example.test/boleto', 'https://example.test/fatura'))
+
     def test_webhook_payment_received_verifica_repasse_da_usina_conectada(self):
         with self.app.app_context():
             uc = ConsumerUnit.query.filter_by(empresa_id=1).one()

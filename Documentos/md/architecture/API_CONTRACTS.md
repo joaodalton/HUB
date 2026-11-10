@@ -1362,7 +1362,7 @@ para registros com `asaasId`. Intenções ainda não emitidas não entram nessas
 Pública, sem Bearer. Body ASAAS: `{ "id": "evt_...", "event": "PAYMENT_RECEIVED", "payment": { "id": "pay_...", "externalReference": "hub-...", "status": "RECEIVED" } }`.
 `id` do envelope é a identidade do evento (não o ID do pagamento); aceita IDs ASAAS com `&`.
 Campos adicionais são tolerados, sem persistência do payload completo.
-`payment.invoiceUrl` é gravado em `invoiceUrl` e `bankSlipUrl` em `boletoUrl` (sem
+`payment.invoiceUrl` só é aceito se começar com `https://` (senão 400); `null` não apaga a URL gravada. É gravado em `invoiceUrl` e `bankSlipUrl` em `boletoUrl` (sem
 `bankSlipUrl`, `boletoUrl` mantém o fallback para `invoiceUrl`). Em `PAYMENT_RECEIVED`,
 a pendência `pagar_concessionaria` só é criada quando `billingMode != 'separate'`
 (`null` legado mantém o comportamento anterior).

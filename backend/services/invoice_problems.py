@@ -9,6 +9,10 @@ _EXTRACTION = {
 }
 
 
+EXTRACTION_PROBLEM_STATUSES = tuple(_EXTRACTION)
+VALIDATION_PROBLEM_STATUSES = ('uc_nao_encontrada', 'uc_pertence_outro_cliente', 'revisao_necessaria')
+
+
 def invoice_problems(invoice) -> list[dict]:
     if invoice.status_extracao in _EXTRACTION:
         code, message = _EXTRACTION[invoice.status_extracao]

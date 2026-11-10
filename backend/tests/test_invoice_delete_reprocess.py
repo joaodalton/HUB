@@ -264,6 +264,7 @@ class InvoiceDeleteReprocessTest(IsolatedTestRuntime, unittest.TestCase):
                              'revisao_necessaria')
         result = self.reprocess(invoice_id)
         self.assertEqual(result.status_code, 200, result.json)
+        self.assertEqual([p['code'] for p in result.json['data']['invoice']['problemas']], ['MISSING_FIELDS'])
 
     def test_reprocess_refused_when_valid_or_boleto(self):
         invoice_id, uc_id, comp = self.valid_invoice()
@@ -300,7 +301,9 @@ class InvoiceDeleteReprocessTest(IsolatedTestRuntime, unittest.TestCase):
         self.add_uc()
         self.add_rule()
         before = self.executions(invoice_id)
-        self.assertEqual(self.reprocess(invoice_id).status_code, 200)
+        result = self.reprocess(invoice_id)
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json['data']['invoice']['problemas'], [])
         with self.app.app_context():
             self.assertEqual(db.session.get(FaturaConcessionaria, invoice_id).status_validacao, 'valida')
         self.assertEqual(self.executions(invoice_id), before + 1)

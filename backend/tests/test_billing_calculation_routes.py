@@ -3,7 +3,7 @@ import sys
 import tempfile
 import unittest
 from io import BytesIO
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
@@ -166,6 +166,30 @@ class BillingCalculationRoutesTest(IsolatedTestRuntime, unittest.TestCase):
                          .json['pagination']['total'], 3)
         self.assertEqual(self.client.get(base, headers=self.headers(5)).json['pagination']['total'], 1)
         self.assertEqual(self.client.get(base + '?pageSize=101', headers=self.headers(1)).status_code, 400)
+
+    def test_status_processamento_erro_and_extraida_match_problemas(self):
+        states = {10: ('extraida', 'valida'), 11: ('extraida', 'valida'), 12: ('erro', 'pendente'),
+                  13: ('layout_nao_reconhecido', 'pendente'), 14: ('recebida', 'pendente'),
+                  15: ('extraida', 'uc_nao_encontrada'), 16: ('extraida', 'uc_pertence_outro_cliente'),
+                  17: ('extraida', 'revisao_necessaria'), 18: ('processando', 'pendente')}
+        for identifier, (extraction, validation) in states.items():
+            row = db.session.get(FaturaConcessionaria, identifier) or FaturaConcessionaria(
+                id=identifier, empresa_id=10, client_id=10, document_id=10, arquivo_hash=str(identifier) * 32)
+            row.status_extracao, row.status_validacao = extraction, validation
+            db.session.add(row)
+        db.session.add(FaturaConcessionaria(
+            id=19, empresa_id=10, client_id=10, document_id=10, arquivo_hash='9' * 32,
+            status_extracao='erro', deleted_at=datetime(2026, 1, 1)))
+        db.session.commit()
+        base = '/api/v1/billing-calculations/invoices?pageSize=100&statusProcessamento='
+
+        def ids(status, user=1):
+            return {row['id'] for row in self.client.get(base + status, headers=self.headers(user)).json['data']}
+
+        self.assertEqual(ids('erro'), {12, 13, 14, 15, 16, 17})
+        self.assertEqual(ids('extraida'), {10, 11, 18})
+        self.assertEqual(ids('valida'), {10, 11})  # valor antigo continua aceito
+        self.assertEqual(ids('erro', 5), {20})  # so a propria empresa
 
     def test_invoice_list_contains_only_contextual_charges_from_same_tenant(self):
         for tenant in (10, 20):

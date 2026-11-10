@@ -250,6 +250,22 @@ describe('FaturasPage', () => {
     expect(toast.error).toHaveBeenCalledWith('Fatura com boleto ativo não pode ser excluída.');
   });
 
+  it('Processamento filter offers only Todos, Extraída and Erro (same as the Extração badge)', async () => {
+    stubInvoicePage();
+    const content = createFaturasPage();
+    await flush();
+    const select = Array.from(content.querySelectorAll('label')).find((item) => item.textContent?.startsWith('Processamento'))!.querySelector('select')!;
+    expect(Array.from(select.options).map((item) => [item.value, item.textContent])).toEqual(
+      [['', 'Todos'], ['extraida', 'Extraída'], ['erro', 'Erro']]);
+  });
+
+  it('PDF button only renders when documentoDisponivel is true', async () => {
+    stubInvoicePage([invoice, { ...invoice, id: 11, documentoDisponivel: true }]);
+    const content = createFaturasPage();
+    await flush();
+    expect(Array.from(content.querySelectorAll('button')).filter((item) => item.textContent === 'PDF')).toHaveLength(1);
+  });
+
   it('Reprocessar toasts success and reloads', async () => {
     vi.mocked(reprocessBillingInvoice).mockResolvedValue({ invoiceId: 10, duplicate: false, invoice: { problemas: [] } });
     stubInvoicePage([{ ...invoice, problemas: [problem] }]);

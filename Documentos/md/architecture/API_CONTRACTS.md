@@ -1188,7 +1188,8 @@ senão `unified`); valor = valor HUB (`separate`) ou valor HUB + total da conces
 exigem respectivamente `billing_calculations.read` e `billing_calculations.execute`.
 `GET /billing-calculations/invoices` aceita `page` (padrão 1), `pageSize`
 (padrão 50, máximo 100), `q` (nome do cliente ou código da UC), `usinaId`,
-`competencia`, `statusProcessamento` (extração ou validação),
+`competencia`, `statusProcessamento` (`erro` = fatura com `problemas`; `extraida` = sem `problemas`,
+igual ao selo da coluna Extração; outros valores continuam filtrando por extração ou validação),
 `statusCobranca` (status ASAAS ou `sem_cobranca`) e `comPendencia=true|false`.
 Os filtros são aplicados antes da paginação, sempre na empresa autenticada.
 `data` permanece um array; a resposta acrescenta
@@ -1217,7 +1218,8 @@ par incompleto): nunca soma parcial) e `problemas`:
 `[{ code, message, fields }]` (vazio quando sem problema). Códigos:
 `NOT_PROCESSED`, `EXTRACTION_FAILED`, `LAYOUT_NOT_RECOGNIZED`, `UC_NOT_FOUND`,
 `UC_OTHER_CLIENT`, `MISSING_FIELDS` (`fields` = campos críticos não lidos) e
-`REVIEW_REQUIRED` (revisão sem campo identificável).
+`REVIEW_REQUIRED` (revisão sem campo identificável). O objeto `invoice` devolvido por
+upload, restauração e `POST .../reprocess` também carrega `problemas` (mesmo formato).
 As rotas administrativas equivalentes ficam sob
 `/platform/empresas/<empresaId>/billing-calculations` e exigem
 `is_platform_admin` com empresa explícita. O resultado nunca chama ASAAS.
@@ -1362,7 +1364,7 @@ para registros com `asaasId`. Intenções ainda não emitidas não entram nessas
 Pública, sem Bearer. Body ASAAS: `{ "id": "evt_...", "event": "PAYMENT_RECEIVED", "payment": { "id": "pay_...", "externalReference": "hub-...", "status": "RECEIVED" } }`.
 `id` do envelope é a identidade do evento (não o ID do pagamento); aceita IDs ASAAS com `&`.
 Campos adicionais são tolerados, sem persistência do payload completo.
-`payment.invoiceUrl` só é aceito se começar com `https://` (senão 400); `null` não apaga a URL gravada. É gravado em `invoiceUrl` e `bankSlipUrl` em `boletoUrl` (sem
+`payment.invoiceUrl` só é gravado se for string `https://` de até 2048 caracteres; `null` ou valor inválido é ignorado (a URL gravada fica e o status/pendências do evento seguem processados, sem 400). É gravado em `invoiceUrl` e `bankSlipUrl` em `boletoUrl` (sem
 `bankSlipUrl`, `boletoUrl` mantém o fallback para `invoiceUrl`). Em `PAYMENT_RECEIVED`,
 a pendência `pagar_concessionaria` só é criada quando `billingMode != 'separate'`
 (`null` legado mantém o comportamento anterior).

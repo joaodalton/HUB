@@ -81,6 +81,7 @@ describe('createInvoiceImportButton', () => {
     await pick(createInvoiceImportButton()!, ['a.pdf']);
     expect(events).toHaveLength(0);
     expect(toast.success).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledWith('Nenhuma fatura importada — 1 com erro.');
     expect(document.querySelector('.hub-modal')).not.toBeNull();
   });
 

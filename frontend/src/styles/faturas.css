@@ -15,7 +15,6 @@
 .faturas-toolbar-copy { display: grid; gap: var(--space-1); }
 .faturas-toolbar-copy h2 { font-size: 20px; color: var(--text); }
 .faturas-toolbar-copy p { color: var(--text-dim); font-size: 13px; }
-.faturas-toolbar-actions { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
 
 .faturas-filter-panel {
   display: grid;
@@ -87,8 +86,6 @@
 @media (max-width: 1280px) { .faturas-filter-panel { grid-template-columns: repeat(3, minmax(160px, 1fr)); } }
 @media (max-width: 760px) {
   .faturas-toolbar { align-items: flex-start; flex-direction: column; padding: var(--space-3); }
-  .faturas-toolbar-actions { width: 100%; flex-direction: column; align-items: stretch; }
-  .faturas-toolbar-actions button { width: 100%; justify-content: center; }
   .faturas-filter-panel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .fatura-detail-section .detail-info-grid { grid-template-columns: 1fr; }
 }

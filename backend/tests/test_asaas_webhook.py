@@ -325,11 +325,22 @@ class AsaasWebhookTest(IsolatedTestRuntime, unittest.TestCase):
             self.assertEqual((fatura.boleto_url, fatura.invoice_url),
                              ('https://example.test/fatura', 'https://example.test/fatura'))
 
-    def test_webhook_invoice_url_rejeita_esquema_nao_https(self):
-        original = self.snapshot()
-        for url in ('javascript:alert(1)', 'http://example.test/fatura', 'data:text/html,x', '//example.test'):
-            self.assertEqual(self.post(self.payload(invoiceUrl=url)).status_code, 400, url)
-            self.assertEqual(self.snapshot(), original)
+    def test_webhook_invoice_url_invalida_e_ignorada_e_status_continua(self):
+        with self.app.app_context():
+            Fatura.query.filter_by(id=1).update({'invoice_url': 'https://example.test/original'})
+            db.session.commit()
+        bad = ('javascript:alert(1)', 'http://example.test/fatura', 'data:text/html,x', '//example.test',
+               '', 'https://' + 'a' * 2048)
+        for index, url in enumerate(bad):
+            with self.app.app_context():
+                Fatura.query.filter_by(id=1).update({'asaas_status': 'pending'})
+                db.session.commit()
+            payload = self.payload(event_id=f'evt_bad_{index}', invoiceUrl=url)
+            self.assertEqual(self.post(payload).status_code, 200, url)
+            with self.app.app_context():
+                fatura = db.session.get(Fatura, 1)
+                self.assertEqual(fatura.invoice_url, 'https://example.test/original', url)
+                self.assertEqual(fatura.asaas_status, 'received', url)
 
     def test_webhook_invoice_url_nula_nao_apaga_url_gravada(self):
         with self.app.app_context():

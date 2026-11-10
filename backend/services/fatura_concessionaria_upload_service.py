@@ -17,6 +17,7 @@ from models.fatura_concessionaria import FaturaConcessionaria
 from models.document import Document
 from models.pendencia import Pendencia
 from services.invoice_document_service import has_active_boleto, has_pending_emission, load_invoice_pdf
+from services.invoice_problems import invoice_problems
 from services.invoice_parsers.schemas import IssueSeverity
 from services.object_storage import get_object_storage
 from services.fatura_processing_service import FaturaProcessingService, ProcessingStatus
@@ -288,5 +289,5 @@ def _result(invoice: FaturaConcessionaria, duplicate: bool) -> dict:
     return {
         'duplicate': duplicate,
         'invoiceId': invoice.id,
-        'invoice': invoice.to_dict(),
+        'invoice': {**invoice.to_dict(), 'problemas': invoice_problems(invoice)},
     }

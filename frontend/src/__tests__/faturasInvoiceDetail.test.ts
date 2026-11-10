@@ -15,7 +15,6 @@ vi.mock('../services/faturasService', async () => {
   return { ...actual, cancelFatura: vi.fn(), syncFatura: vi.fn() };
 });
 
-import { ApiRequestError } from '../services/apiClient';
 import { gerarBoletoConcessionaria, type BillingInvoice } from '../services/billingCalculationsService';
 import { cancelFatura, type FaturaRow } from '../services/faturasService';
 import { createFaturaInvoiceDetail } from '../pages/faturasInvoiceDetail';
@@ -55,7 +54,7 @@ function baseCharge(overrides: Partial<FaturaRow> = {}): FaturaRow {
   };
 }
 
-function render(invoice: BillingInvoice, canIssueInvoice: (invoice: BillingInvoice) => boolean, opts: {
+function render(invoice: BillingInvoice, _unused: unknown, opts: {
   toast?: { success: ReturnType<typeof vi.fn>; error: ReturnType<typeof vi.fn> };
   reload?: ReturnType<typeof vi.fn>;
   charges?: FaturaRow[];
@@ -75,88 +74,37 @@ function render(invoice: BillingInvoice, canIssueInvoice: (invoice: BillingInvoi
     contextualCharges: () => opts.charges ?? [],
     relatedPendencias: () => [],
     invoiceDownloadButton: () => document.createElement('button'),
-    canIssueInvoice,
     getSelectedInvoiceId: () => invoice.id,
     reload,
     toast,
     onClose: vi.fn(),
   });
   const buttons = Array.from(content.querySelectorAll('button'));
-  const button = buttons.find((item) => item.textContent === 'Gerar boleto') as HTMLButtonElement;
   const excluirButton = buttons.find((item) => item.textContent === 'Excluir boleto') as HTMLButtonElement | undefined;
-  return { content, button, excluirButton, toast, reload };
+  return { content, excluirButton, toast, reload };
 }
 
-describe('faturasInvoiceDetail - botao Gerar boleto', () => {
+describe('faturasInvoiceDetail - atalho Gerar boleto no Financeiro', () => {
   beforeEach(() => { vi.clearAllMocks(); });
   afterEach(() => { vi.restoreAllMocks(); });
 
-  it('fica desabilitado quando a fatura nao tem dados suficientes', () => {
-    const { button } = render(baseInvoice(), () => false);
-    expect(button.disabled).toBe(true);
-    expect(button.dataset.tooltip).toBeTruthy();
+  it('sem boleto mostra o atalho que navega para /financeiro e nao emite', () => {
+    const popstate = vi.fn();
+    window.addEventListener('popstate', popstate);
+    const { content } = render(baseInvoice(), () => true);
+    expect(Array.from(content.querySelectorAll('button')).some((item) => item.textContent === 'Gerar boleto')).toBe(false);
+    const link = Array.from(content.querySelectorAll('button')).find((item) => item.textContent === 'Gerar boleto no Financeiro')!;
+    link.click();
+    expect(window.location.pathname).toBe('/financeiro');
+    expect(popstate).toHaveBeenCalledTimes(1);
+    expect(gerarBoletoConcessionaria).not.toHaveBeenCalled();
+    window.removeEventListener('popstate', popstate);
   });
 
-  it('ao clicar com sucesso chama o servico, mostra toast e recarrega', async () => {
-    vi.mocked(gerarBoletoConcessionaria).mockResolvedValue({ id: 99 } as never);
-    const { button, toast, reload } = render(baseInvoice(), () => true);
-    expect(button.disabled).toBe(false);
-    button.click();
-    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
-    expect(gerarBoletoConcessionaria).toHaveBeenCalledWith(10, undefined);
-    expect(toast.success).toHaveBeenCalledWith('Boleto gerado.');
-    expect(reload).toHaveBeenCalledTimes(1);
-  });
-
-  it('platform admin testando empresa 1 chama o servico com o empresaId da rota de plataforma', async () => {
-    vi.mocked(gerarBoletoConcessionaria).mockResolvedValue({ id: 99 } as never);
-    const { button } = render(baseInvoice(), () => true, { isPlatformAdmin: true, empresaId: 1 });
-    button.click();
-    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
-    expect(gerarBoletoConcessionaria).toHaveBeenCalledWith(10, 1);
-  });
-
-  it('erro 422 INVOICE_DATA_INCOMPLETE lista os campos faltando traduzidos', async () => {
-    vi.mocked(gerarBoletoConcessionaria).mockRejectedValue(
-      new ApiRequestError(422, 'Dados incompletos.', 'INVOICE_DATA_INCOMPLETE', { missing: ['ucId', 'valor'] })
-    );
-    const { button, toast } = render(baseInvoice(), () => true);
-    button.click();
-    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
-    expect(toast.error).toHaveBeenCalledWith('Dados incompletos para gerar boleto: UC, valor da concessionária.');
-    expect(button.disabled).toBe(false);
-  });
-
-  it('erro 409 EMISSAO_PENDENTE avisa que a emissao ja esta em andamento', async () => {
-    vi.mocked(gerarBoletoConcessionaria).mockRejectedValue(
-      new ApiRequestError(409, 'Emissao pendente.', 'EMISSAO_PENDENTE', { faturaId: 10 })
-    );
-    const { button, toast } = render(baseInvoice(), () => true);
-    button.click();
-    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
-    expect(toast.error).toHaveBeenCalledWith('Emissão deste boleto já está em andamento. Aguarde a conclusão.');
-    expect(button.disabled).toBe(false);
-  });
-
-  it('erro generico (sem code) cai no fallback sem quebrar', async () => {
-    vi.mocked(gerarBoletoConcessionaria).mockRejectedValue(new Error('Sem conexao com o servidor.'));
-    const { button, toast } = render(baseInvoice(), () => true);
-    button.click();
-    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
-    expect(toast.error).toHaveBeenCalledWith('Sem conexao com o servidor.');
-    expect(button.disabled).toBe(false);
-  });
-
-  it('impede duplo clique enquanto a chamada esta em voo', async () => {
-    let resolveCall: (value: FaturaRow) => void = () => {};
-    vi.mocked(gerarBoletoConcessionaria).mockImplementation(() => new Promise((resolve) => { resolveCall = resolve; }));
-    const { button } = render(baseInvoice(), () => true);
-    button.click();
-    expect(button.disabled).toBe(true);
-    button.click();
-    resolveCall({ id: 99 } as FaturaRow);
-    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
-    expect(gerarBoletoConcessionaria).toHaveBeenCalledTimes(1);
+  it('com boleto ou sem permissao o atalho nao aparece', () => {
+    const withBoleto = baseInvoice({ contextualCharges: [{ id: 1, statusInterno: 'emitida', asaasStatus: 'pending', asaasId: 'pay_1', valor: 150, mesVencimento: '2026-10-10', boletoUrl: null, invoiceUrl: null, billingMode: null }] });
+    expect(render(withBoleto, () => true).content.textContent).not.toContain('Gerar boleto no Financeiro');
+    expect(render(baseInvoice(), () => true, { canIssue: false }).content.textContent).not.toContain('Gerar boleto no Financeiro');
   });
 });
 

@@ -1,22 +1,11 @@
 import { createDetailDrawer } from '../components/DetailDrawer';
-import { createBadge, detailSection, extracaoLabel, formatCurrency, formatDate, formatReference, internoLabel, statusLabel, validacaoLabel } from '../components/FaturasUi';
-import { attachTooltip } from '../components/Tooltip';
+import { createBadge, currentBoleto, detailSection, extracaoLabel, formatCurrency, formatDate, formatReference, internoLabel, statusLabel, validacaoLabel } from '../components/FaturasUi';
 import { createElement } from '../dom';
-import { ApiRequestError } from '../services/apiClient';
-import { gerarBoletoConcessionaria, getBillingExecution, getBillingExecutions, type BillingExecution, type BillingInvoice } from '../services/billingCalculationsService';
+import { getBillingExecution, getBillingExecutions, type BillingExecution, type BillingInvoice } from '../services/billingCalculationsService';
 import { cancelFatura, syncFatura, type FaturaRow } from '../services/faturasService';
 import type { ClientRow } from '../services/clientsService';
 import type { PendenciaRow } from '../services/pendenciasService';
 import { t } from '../services/i18nService';
-
-function missingFieldLabel(field: string): string {
-  const map: Record<string, string> = {
-    ucId: t('faturas.detail.missingUc'), valor: t('faturas.detail.missingValor'),
-    dataVencimento: t('faturas.detail.missingVencimento'), competencia: t('faturas.detail.missingCompetencia'),
-    statusValidacao: t('faturas.detail.missingValidacao')
-  };
-  return map[field] ?? field;
-}
 
 interface InvoiceDetailOptions {
   content: HTMLElement;
@@ -27,7 +16,6 @@ interface InvoiceDetailOptions {
   contextualCharges: (invoice: BillingInvoice) => FaturaRow[];
   relatedPendencias: (invoice: BillingInvoice) => PendenciaRow[];
   invoiceDownloadButton: (invoice: BillingInvoice) => HTMLButtonElement;
-  canIssueInvoice: (invoice: BillingInvoice) => boolean;
   getSelectedInvoiceId: () => number | null;
   reload: () => Promise<void>;
   toast: { success: (message: string) => void; error: (message: string) => void };
@@ -37,7 +25,7 @@ interface InvoiceDetailOptions {
 export function createFaturaInvoiceDetail(invoice: BillingInvoice, options: InvoiceDetailOptions): void {
   const {
     content, clients, isPlatformAdmin, canIssue, empresaId, contextualCharges,
-    relatedPendencias, invoiceDownloadButton, canIssueInvoice,
+    relatedPendencias, invoiceDownloadButton,
     getSelectedInvoiceId, reload, toast, onClose
   } = options;
   const body = createElement('div', { className: 'fatura-drawer-content' });
@@ -69,7 +57,7 @@ export function createFaturaInvoiceDetail(invoice: BillingInvoice, options: Invo
     [t('faturas.detail.labelExtracao'), extracaoLabel(invoice.statusExtracao)], [t('faturas.detail.labelValidacao'), validacaoLabel(invoice.statusValidacao)]
   ]);
   if (invoice.documentoDisponivel) utility.appendChild(invoiceDownloadButton(invoice));
-  if (canIssue) utility.appendChild(gerarBoletoButton(invoice));
+  if (canIssue && !currentBoleto(invoice.contextualCharges ?? []).boleto) utility.appendChild(financeiroLink());
   if (canIssue && cancelableCharge) utility.appendChild(cancelChargeButton(cancelableCharge, t('faturas.detail.deleteBoleto')));
   const history = createElement('section', { className: 'fatura-detail-section' });
   history.append(createElement('h3', { textContent: t('faturas.detail.auditHistory') }), createElement('p', { textContent: t('faturas.detail.loadingExecutions') }));
@@ -168,37 +156,18 @@ export function createFaturaInvoiceDetail(invoice: BillingInvoice, options: Invo
     finally { button.disabled = false; }
   }
 
+  function financeiroLink(): HTMLButtonElement {
+    const link = createElement('button', { className: 'secondary-button', type: 'button', textContent: t('faturas.detail.goToFinanceiro') });
+    link.addEventListener('click', () => {
+      window.history.pushState({}, '', '/financeiro');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+    return link;
+  }
+
   function cancelChargeButton(charge: FaturaRow, label: string): HTMLButtonElement {
     const button = createElement('button', { className: 'danger-button', type: 'button', textContent: label });
     button.addEventListener('click', () => { if (window.confirm(t('faturas.detail.confirmCancelCharge'))) void runChargeAction(button, () => cancelFatura(charge.id), t('faturas.detail.chargeCanceled'), drawer); });
-    return button;
-  }
-
-  function gerarBoletoButton(target: BillingInvoice): HTMLButtonElement {
-    const button = createElement('button', { className: 'secondary-button', type: 'button', textContent: t('faturas.detail.generateBoleto') });
-    const enabled = canIssueInvoice(target);
-    button.disabled = !enabled;
-    if (!enabled) attachTooltip(button, t('faturas.detail.generateBoletoTooltip'));
-    button.addEventListener('click', (event) => {
-      event.stopPropagation();
-      button.disabled = true;
-      void gerarBoletoConcessionaria(target.id, isPlatformAdminTestEmpresa ? empresaId : undefined)
-        .then(() => { toast.success(t('faturas.detail.boletoGenerated')); drawer.remove(); return reload(); })
-        .catch((cause) => {
-          if (cause instanceof ApiRequestError && cause.code === 'INVOICE_DATA_INCOMPLETE') {
-            const missing = ((cause.details as { missing?: string[] } | undefined)?.missing ?? []).map((field) => missingFieldLabel(field));
-            toast.error(`${t('faturas.detail.incompleteDataPrefix')} ${missing.join(', ')}.`);
-          } else if (cause instanceof ApiRequestError && cause.code === 'EMISSAO_PENDENTE') {
-            toast.error(t('faturas.detail.emissionPending'));
-          } else if (cause instanceof ApiRequestError && cause.code === 'BILLING_CALCULATION_REQUIRED') {
-            toast.error(t('faturas.detail.calculationRequired'));
-          } else {
-            toast.error(cause instanceof Error ? cause.message : t('faturas.detail.boletoError'));
-          }
-        })
-        .finally(() => { button.disabled = !enabled; });
-    });
-    button.addEventListener('keydown', (event) => event.stopPropagation());
     return button;
   }
 }

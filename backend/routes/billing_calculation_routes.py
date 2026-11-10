@@ -20,7 +20,8 @@ from services.fatura_service import (
 )
 from services.fatura_concessionaria_upload_service import InvoiceUploadError, reprocess_invoice
 from services.invoice_document_service import InvoiceHasBoletoError, delete_invoice, load_invoice_pdf
-from services.invoice_problems import gd_totals, invoice_problems
+from services.invoice_problems import (
+    EXTRACTION_PROBLEM_STATUSES, VALIDATION_PROBLEM_STATUSES, gd_totals, invoice_problems)
 from services.object_storage import ObjectStorageError
 from services.permission_service import require_permission
 from utils.api_response import error_response, success_response
@@ -115,7 +116,12 @@ def _invoices():
         query = query.filter(invoice.competencia == request.args['competencia'])
     if request.args.get('statusProcessamento'):
         status = request.args['statusProcessamento']
-        query = query.filter(or_(invoice.status_extracao == status, invoice.status_validacao == status))
+        has_problem = or_(invoice.status_extracao.in_(EXTRACTION_PROBLEM_STATUSES),
+                          invoice.status_validacao.in_(VALIDATION_PROBLEM_STATUSES))
+        if status in ('erro', 'extraida'):  # mesmo criterio do selo da coluna Extracao (invoice_problems)
+            query = query.filter(has_problem if status == 'erro' else ~has_problem)
+        else:
+            query = query.filter(or_(invoice.status_extracao == status, invoice.status_validacao == status))
     charge_status = request.args.get('statusCobranca')
     if charge_status:
         if charge_status == 'sem_cobranca':

@@ -1,7 +1,7 @@
 import { createExternalLink, currentBoleto, formatReference, isHttpsUrl } from '../components/FaturasUi';
 import { createModalShell } from '../components/Modal';
 import { createElement } from '../dom';
-import { deleteBillingInvoice, downloadBillingInvoice, reprocessBillingInvoice, type BillingInvoice, type InvoiceProblem } from '../services/billingCalculationsService';
+import { deleteBillingInvoice, downloadBillingInvoice, reprocessBillingInvoice, type BillingInvoice } from '../services/billingCalculationsService';
 import { t } from '../services/i18nService';
 
 type InvoiceActionsContext = {
@@ -48,7 +48,7 @@ export function createInvoiceActions(ctx: InvoiceActionsContext): {
   async function reprocess(item: BillingInvoice): Promise<void> {
     try {
       const result = await reprocessBillingInvoice(item.id, empresaId);
-      const problems = (result.invoice as { problemas?: InvoiceProblem[] }).problemas ?? [];
+      const problems = result.invoice.problemas;
       if (problems.length) toast.error(problems[0].message); else toast.success(t('faturas.page.reprocessSuccess'));
       await load();
     } catch (cause) {
@@ -76,7 +76,7 @@ export function createInvoiceActions(ctx: InvoiceActionsContext): {
   function invoiceActionsCell(item: BillingInvoice): HTMLElement {
     const cell = createElement('div', { className: 'faturas-row-actions' });
     const { boleto, canMutate } = currentBoleto(item.contextualCharges ?? []);
-    cell.appendChild(invoiceDownloadButton(item, t('faturas.page.actionPdf')));
+    if (item.documentoDisponivel) cell.appendChild(invoiceDownloadButton(item, t('faturas.page.actionPdf')));
     const open = createExternalLink(boleto?.boletoUrl, t('faturas.page.actionBoleto'));
     if (open) {
       open.setAttribute('aria-label', `${t('faturas.page.actionBoleto')} - ${describe(item)}`);

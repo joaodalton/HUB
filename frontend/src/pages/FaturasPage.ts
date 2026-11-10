@@ -110,12 +110,6 @@ export function createFaturasPage(): HTMLElement {
     void load();
   }
 
-  function canIssueInvoice(invoice: BillingInvoice | null): boolean {
-    return Boolean(canIssue && invoice && invoice.statusValidacao === 'valida' &&
-      invoice.consumerUnitId && invoice.competencia && invoice.valorTotalConcessionaria &&
-      invoice.dataVencimento && !invoice.temPendencia && !relatedPendencias(invoice).length);
-  }
-
   function contextualCharges(invoice: BillingInvoice): FaturaRow[] {
     if (!invoice.consumerUnitId || !invoice.competencia) return [];
     return charges.filter((charge) => charge.ucId === invoice.consumerUnitId && charge.competencia === invoice.competencia);
@@ -163,9 +157,7 @@ export function createFaturasPage(): HTMLElement {
     reference.append(createElement('span', { textContent: t('faturas.page.filterCompetencia') }), referenceInput);
     const processing = filterSelect(t('faturas.page.filterProcessamento'), filters.statusProcessamento ?? '', [
       { value: '', label: t('faturas.page.procAll') },
-      { value: 'recebida', label: t('faturas.page.procRecebida') },
       { value: 'extraida', label: t('faturas.page.procExtraida') },
-      { value: 'valida', label: t('faturas.page.procValida') },
       { value: 'erro', label: t('faturas.page.procErro') }
     ], (value) => applyFilters({ ...filters, statusProcessamento: value }));
     const charge = filterSelect(t('faturas.page.filterCobranca'), filters.statusCobranca ?? '', [
@@ -251,7 +243,7 @@ export function createFaturasPage(): HTMLElement {
     if (updateUrl) writeListState({ selecionada: invoice.id });
     createFaturaInvoiceDetail(invoice, {
       content, clients, isPlatformAdmin: Boolean(user?.isPlatformAdmin), canIssue, empresaId,
-      contextualCharges, relatedPendencias, invoiceDownloadButton, canIssueInvoice,
+      contextualCharges, relatedPendencias, invoiceDownloadButton,
       getSelectedInvoiceId: () => selectedInvoiceId, reload: load, toast,
       onClose: () => {
         selectedInvoice = null; selectedInvoiceId = null; openedSelection = false;

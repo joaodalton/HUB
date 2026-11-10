@@ -136,9 +136,8 @@ def _aplicar(fatura, event_type, payment):
                 raise WebhookError(400)
             setattr(fatura, target, value)
     value = payment.get('invoiceUrl')
-    if 'invoiceUrl' in payment and value is not None:  # null nao apaga a URL gravada
-        if not _text(value, 2048) or not value.startswith('https://'):
-            raise WebhookError(400)
+    # null ou URL invalida (nao https/vazia/longa) e ignorada: nunca perder o evento de pagamento
+    if _text(value, 2048) and value.startswith('https://'):
         fatura.invoice_url = value
         if not payment.get('bankSlipUrl'):
             fatura.boleto_url = value

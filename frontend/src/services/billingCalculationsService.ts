@@ -75,7 +75,7 @@ export type BillingSnapshot = {
   valorFinal: string;
   createdAt: string;
 };
-export type BillingUpload = { invoiceId: number; duplicate: boolean; invoice: Record<string, unknown> };
+export type BillingUpload = { invoiceId: number; duplicate: boolean; invoice: Record<string, unknown> & { problemas: InvoiceProblem[] } };
 
 export async function getBillingClients(empresaId: number): Promise<BillingClient[]> {
   return (await apiRequest<ApiResponse<BillingClient[]>>(`${base(empresaId)}/clients`)).data;

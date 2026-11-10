@@ -81,6 +81,7 @@ export function createInvoiceImportButton(): HTMLElement | null {
       toast.success(parts.join(' '), outside ? goToFaturas : undefined);
       window.dispatchEvent(new CustomEvent<InvoicesImportedDetail>(INVOICES_IMPORTED_EVENT, { detail }));
     }
+    if (detail.failed && !detail.imported && !detail.duplicates) toast.error(t('faturas.import.toastAllFailed').replace('{n}', String(detail.failed)));
     if (detail.failed) openResultModal(results, outside ? goToFaturas : null);
   }
 }

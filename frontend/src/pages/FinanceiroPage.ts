@@ -38,6 +38,8 @@ export function createFinanceiroPage(): HTMLElement {
   let error = false;
   let busy = true;
   let requestId = 0;
+  // Aberto/fechado por usina; so em memoria, sobrevive aos reloads da lista.
+  const openGroups = new Map<string, boolean>();
 
   const layout = createBaseLayout({
     content,
@@ -86,18 +88,20 @@ export function createFinanceiroPage(): HTMLElement {
         errorAction: { label: t('common.retry'), onClick: () => void load() }
       }));
     } else {
-      content.replaceChildren(...groups.filter((group) => group.itens.length).map(createGroup));
+      const visible = groups.filter((group) => group.itens.length);
+      content.replaceChildren(...visible.map((group) => createGroup(group, visible.length === 1)));
     }
   }
 
-  function createGroup(group: PendentesUsina): HTMLElement {
+  function createGroup(group: PendentesUsina, onlyGroup: boolean): HTMLElement {
     const name = group.usinaNome ?? t('financeiro.page.noPlant');
     const count = group.itens.length;
+    const key = group.usinaId === null ? 'sem-usina' : String(group.usinaId);
     const panel = createDataTable<PendenteBoleto>({
       title: name,
       eyebrow: count === 1 ? t('financeiro.page.waitingOne') : `${count} ${t('financeiro.page.waitingMany')}`,
       rows: group.itens,
-      storageKey: 'financeiro-pendentes-boleto',
+      columnChooser: false,
       emptyMessage: t('financeiro.page.empty'),
       columns: [
         { key: 'clienteNome', label: t('financeiro.page.colClienteUc'), render: clientCell },
@@ -109,6 +113,22 @@ export function createFinanceiroPage(): HTMLElement {
       ]
     });
     panel.querySelector('table')?.setAttribute('aria-label', t('financeiro.page.tableLabel').replace('{usina}', name));
+
+    // O h2 do DataTable vira um botao que recolhe/expande a tabela.
+    const body = panel.querySelector('.table-wrap') as HTMLElement;
+    body.id = `financeiro-grupo-${key}`;
+    const toggle = createElement('button', { className: 'financeiro-group-toggle', type: 'button' });
+    toggle.setAttribute('aria-controls', body.id);
+    toggle.append(createElement('span', { textContent: name }), createElement('span', { className: 'financeiro-group-chevron' }));
+    toggle.querySelector('.financeiro-group-chevron')?.setAttribute('aria-hidden', 'true');
+    const apply = (open: boolean) => { toggle.setAttribute('aria-expanded', String(open)); body.hidden = !open; };
+    apply(openGroups.get(key) ?? onlyGroup);
+    toggle.addEventListener('click', () => {
+      const open = toggle.getAttribute('aria-expanded') !== 'true';
+      openGroups.set(key, open);
+      apply(open);
+    });
+    panel.querySelector('h2')?.replaceChildren(toggle);
     return panel;
   }
 

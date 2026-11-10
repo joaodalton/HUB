@@ -31,6 +31,8 @@ const groups = [
 ];
 const btn = (root: ParentNode, text: string) =>
   Array.from(root.querySelectorAll('button')).find((b) => b.textContent === text) as HTMLButtonElement | undefined;
+const expandAll = (root: ParentNode) =>
+  root.querySelectorAll<HTMLButtonElement>('h2 > button[aria-expanded="false"]').forEach((b) => b.click());
 const one = (over: Partial<PendenteBoleto>) => [{ usinaId: 1, usinaNome: 'Usina A', itens: [item(over)] }];
 
 describe('FinanceiroPage', () => {
@@ -49,8 +51,57 @@ describe('FinanceiroPage', () => {
     expect(page.textContent).toContain('2 clientes aguardando boleto');
     expect(page.textContent).toContain('1 cliente aguardando boleto');
     expect(page.querySelectorAll('table')[0].getAttribute('aria-label')).toContain('Usina A');
+    expandAll(page);
     expect(page.textContent).toContain('Unificada');
     expect(page.textContent).toContain('—');
+  });
+
+  it('renders two groups collapsed with counts and hidden rows', async () => {
+    const page = createFinanceiroPage();
+    await flush();
+    const toggles = Array.from(page.querySelectorAll<HTMLButtonElement>('h2 > button'));
+    expect(toggles.map((b) => b.getAttribute('aria-expanded'))).toEqual(['false', 'false']);
+    expect(Array.from(page.querySelectorAll<HTMLElement>('.table-wrap')).every((w) => w.hidden)).toBe(true);
+    expect(page.textContent).toContain('2 clientes aguardando boleto');
+    expect(page.textContent).toContain('1 cliente aguardando boleto');
+  });
+
+  it('a single group starts expanded', async () => {
+    vi.mocked(getPendentesBoleto).mockResolvedValue(one({}));
+    const page = createFinanceiroPage();
+    await flush();
+    expect(page.querySelector('h2 > button')?.getAttribute('aria-expanded')).toBe('true');
+    expect(page.querySelector<HTMLElement>('.table-wrap')?.hidden).toBe(false);
+  });
+
+  it('header toggles expand and collapse', async () => {
+    const page = createFinanceiroPage();
+    await flush();
+    const toggle = page.querySelector('h2 > button') as HTMLButtonElement;
+    const wrap = page.querySelector(`#${toggle.getAttribute('aria-controls')}`) as HTMLElement;
+    toggle.click();
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(wrap.hidden).toBe(false);
+    expect(wrap.textContent).toContain('Cliente Um');
+    toggle.click();
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(wrap.hidden).toBe(true);
+  });
+
+  it('keeps an expanded group expanded after an invoices-imported reload', async () => {
+    const page = createFinanceiroPage();
+    await flush();
+    (page.querySelector('h2 > button') as HTMLButtonElement).click();
+    window.dispatchEvent(new Event('hub:invoices-imported'));
+    await flush();
+    const toggles = Array.from(page.querySelectorAll('h2 > button'));
+    expect(toggles.map((b) => b.getAttribute('aria-expanded'))).toEqual(['true', 'false']);
+  });
+
+  it('renders no column chooser', async () => {
+    const page = createFinanceiroPage();
+    await flush();
+    expect(page.querySelector('button[aria-label="Escolher colunas da tabela"]')).toBeNull();
   });
 
   it('shows the bloqueio message and disables Gerar boleto', async () => {
@@ -125,6 +176,7 @@ describe('FinanceiroPage', () => {
   it('gear button navigates to the UC screen', async () => {
     const page = createFinanceiroPage();
     await flush();
+    expandAll(page);
     (page.querySelector('button[aria-label^="Configurar regra de cobrança"]') as HTMLButtonElement).click();
     expect(window.location.pathname + window.location.search).toBe('/ucs?ucId=7');
   });

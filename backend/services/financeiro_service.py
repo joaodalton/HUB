@@ -4,12 +4,17 @@ from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import selectinload
 
 from extensions import db
+from models.calculo_cobranca import BillingCalculationExecution
+from models.consumer_unit import ConsumerUnit, PlantConnection
 from models.fatura import Fatura
 from models.fatura_concessionaria import FaturaConcessionaria
 from models.pendencia import Pendencia
 from models.plant import Plant
+from services.billing_calculation_service import blocked_stage
+from services.fatura_service import snapshot_billing_mode
 
 ORIGEM_PAGAR_CONCESSIONARIA = 'pagar_concessionaria'
 ORIGEM_REPASSE_USINEIRO = 'repasse_usineiro'
@@ -23,6 +28,7 @@ def criar_pendencia_pagar_concessionaria(fatura: Fatura) -> None:
         empresa_id=fatura.empresa_id,
         consumer_unit_id=fatura.consumer_unit_id,
         competencia=fatura.competencia,
+        deleted_at=None,
     ).first()
     if invoice is None:
         return
@@ -156,6 +162,89 @@ def obter_dashboard(empresa_id: int, competencia: Optional[str] = None) -> dict:
         por_usina.append(item)
 
     return {'porCliente': por_cliente, 'porUsina': por_usina}
+
+
+def _bloqueio(invoice, client, execution):
+    """Primeiro bloqueio aplicavel a fatura (ou None), na ordem do contrato."""
+    if not (client.email or '').strip():
+        return {'code': 'CLIENT_EMAIL_MISSING', 'message': 'Cliente sem e-mail cadastrado.'}
+    missing = [name for name, empty in (('dataVencimento', invoice.data_vencimento is None),
+                                        ('valor', invoice.valor_total_concessionaria is None or invoice.valor_total_concessionaria <= 0)) if empty]
+    if missing:
+        return {'code': 'INVOICE_DATA_INCOMPLETE', 'message': f"Faltou na fatura: {', '.join(missing)}."}
+    if execution is None:
+        return {'code': 'NOT_CALCULATED', 'message': 'Cobrança ainda não calculada.'}
+    if execution.snapshot is None:
+        stage = blocked_stage(execution.auditoria) or {}
+        if stage.get('stage') == 'RULE_RESOLUTION':
+            return {'code': 'RULE_MISSING', 'message': 'Cliente sem regra de cobrança.'}
+        return {'code': 'CALCULATION_BLOCKED',
+                'message': f"Cálculo bloqueado em {stage.get('stage')}: {', '.join(stage.get('blockers', []))}."}
+    return None
+
+
+def listar_pendentes_boleto(empresa_id: int) -> list[dict]:
+    """Faturas validas com UC e sem boleto ativo, agrupadas por usina (sem usina por ultimo)."""
+    invoices = FaturaConcessionaria.query.filter(
+        FaturaConcessionaria.empresa_id == empresa_id, FaturaConcessionaria.deleted_at.is_(None),
+        FaturaConcessionaria.consumer_unit_id.isnot(None), FaturaConcessionaria.status_validacao == 'valida',
+    ).options(selectinload(FaturaConcessionaria.client)).all()
+    if not invoices:
+        return []
+    uc_ids = {i.consumer_unit_id for i in invoices}
+    ucs = {u.id: u for u in ConsumerUnit.query.filter(
+        ConsumerUnit.empresa_id == empresa_id, ConsumerUnit.id.in_(uc_ids))}
+    boletos = Fatura.query.filter(Fatura.empresa_id == empresa_id, Fatura.consumer_unit_id.in_(uc_ids)).all()
+    ativos = {(f.consumer_unit_id, f.competencia) for f in boletos
+              if f.asaas_id is not None and f.asaas_status not in ('canceled', 'refunded')}
+    pendentes = {(f.consumer_unit_id, f.competencia): f for f in boletos
+                 if f.asaas_id is None and f.status_interno in ('aguardando_emissao', 'erro_emissao')}
+    invoices = [i for i in invoices if (i.consumer_unit_id, i.competencia) not in ativos]
+    # Ultima execucao = maior id; uma consulta IN, ordenada para a ultima sobrescrever.
+    execucoes = {e.fatura_concessionaria_id: e for e in BillingCalculationExecution.query.filter(
+        BillingCalculationExecution.empresa_id == empresa_id,
+        BillingCalculationExecution.fatura_concessionaria_id.in_([i.id for i in invoices]),
+    ).options(selectinload(BillingCalculationExecution.snapshot)).order_by(BillingCalculationExecution.id)}
+    plantas = {}
+    for conn in PlantConnection.query.filter(
+            PlantConnection.empresa_id == empresa_id, PlantConnection.consumer_unit_id.in_(uc_ids)
+    ).options(selectinload(PlantConnection.plant)):
+        if conn.plant is not None:  # conexao orfa cai no grupo "Sem usina"
+            plantas.setdefault(conn.consumer_unit_id, {})[conn.plant_id] = conn.plant.nome
+    grupos = {}
+    for invoice in invoices:
+        uc, execution = ucs.get(invoice.consumer_unit_id), execucoes.get(invoice.id)
+        if uc is None or invoice.client is None:  # linha inconsistente: nao derruba a listagem
+            continue
+        pendente = pendentes.get((invoice.consumer_unit_id, invoice.competencia))
+        snapshot = execution.snapshot if execution else None
+        valor_hub = valor_cobrar = modo = None
+        if snapshot is not None:
+            valor_hub = snapshot.valor_final
+            try:
+                modo = snapshot_billing_mode(snapshot, bool(uc.debito_automatico))
+            except ValueError:  # regra com modo invalido: linha sem valor a cobrar
+                modo = None
+            if modo is not None:
+                valor_cobrar = valor_hub + (invoice.valor_total_concessionaria or 0) if modo == 'unified' else valor_hub
+        if pendente is not None:  # o retry reaproveita valor e modo gravados
+            valor_cobrar, modo = pendente.valor, pendente.billing_mode
+        valor = invoice.valor_total_concessionaria
+        item = {
+            'invoiceId': invoice.id, 'clienteId': invoice.client_id, 'clienteNome': invoice.client.nome,
+            'ucId': uc.id, 'ucCodigo': uc.codigo, 'competencia': invoice.competencia,
+            'dataVencimento': invoice.data_vencimento.isoformat() if invoice.data_vencimento else None,
+            'valorConcessionaria': None if valor is None else _formatar_valor(valor),
+            'valorHub': None if valor_hub is None else _formatar_valor(valor_hub),
+            'valorCobrar': None if valor_cobrar is None else _formatar_valor(valor_cobrar),
+            'billingMode': modo, 'emissaoPendente': pendente is not None,
+            'bloqueio': _bloqueio(invoice, invoice.client, execution),
+        }
+        for plant_id, nome in (plantas.get(uc.id) or {None: None}).items():
+            grupos.setdefault((plant_id, nome), []).append(item)
+    ordem = sorted(grupos, key=lambda k: (k[0] is None, k[1] or '', k[0] or 0))
+    return [{'usinaId': k[0], 'usinaNome': k[1], 'itens': sorted(grupos[k], key=lambda i: (i['clienteNome'], i['invoiceId']))}
+            for k in ordem]
 
 
 def verificar_e_criar_pendencia_repasse(plant_id: int, competencia: str) -> None:

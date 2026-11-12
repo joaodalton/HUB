@@ -7,7 +7,7 @@ uma pendência alterada e o que aparece no painel.
 from datetime import datetime, timedelta
 
 from flask import g
-from sqlalchemy import case, func
+from sqlalchemy import and_, case, func
 
 from extensions import db
 from models.client import Client
@@ -73,16 +73,15 @@ def get_resumo_operacional() -> dict:
     abertas = Pendencia.status == 'aberta'
     empresa = Pendencia.empresa_id == g.current_empresa_id
 
-    vencidas = db.session.query(func.count(Pendencia.id)).filter(
-        empresa, abertas, Pendencia.prazo.isnot(None), Pendencia.prazo < agora
-    ).scalar() or 0
-    vencendo_em_sete_dias = db.session.query(func.count(Pendencia.id)).filter(
-        empresa, abertas, Pendencia.prazo.isnot(None),
-        Pendencia.prazo >= agora, Pendencia.prazo <= fim_proximos_sete_dias
-    ).scalar() or 0
-    resolvidas_no_mes = db.session.query(func.count(Pendencia.id)).filter(
-        empresa, Pendencia.status == 'resolvida', Pendencia.resolved_at >= inicio_mes
-    ).scalar() or 0
+    total_abertas, vencidas, vencendo_em_sete_dias, resolvidas_no_mes = db.session.query(
+        func.count(case((abertas, Pendencia.id))),
+        func.count(case((and_(abertas, Pendencia.prazo.isnot(None), Pendencia.prazo < agora), Pendencia.id))),
+        func.count(case((and_(
+            abertas, Pendencia.prazo.isnot(None),
+            Pendencia.prazo >= agora, Pendencia.prazo <= fim_proximos_sete_dias
+        ), Pendencia.id))),
+        func.count(case((and_(Pendencia.status == 'resolvida', Pendencia.resolved_at >= inicio_mes), Pendencia.id))),
+    ).filter(empresa).one()
 
     fila = (
         Pendencia.query.filter(empresa, abertas)
@@ -100,7 +99,7 @@ def get_resumo_operacional() -> dict:
     return {
         'geradoEm': agora.isoformat(),
         'pendencias': {
-            'abertas': db.session.query(func.count(Pendencia.id)).filter(empresa, abertas).scalar() or 0,
+            'abertas': total_abertas,
             'vencidas': vencidas,
             'vencendoEm7Dias': vencendo_em_sete_dias,
             'resolvidasNoMes': resolvidas_no_mes,

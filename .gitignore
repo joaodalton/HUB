@@ -83,6 +83,12 @@ backend/tests/fixtures/invoices/copel/*
 !backend/tests/fixtures/invoices/copel/build_fixture.py
 !backend/tests/fixtures/invoices/copel/core_anon.pdf
 !backend/tests/fixtures/invoices/copel/core_anon.expected.json
+!backend/tests/fixtures/invoices/copel/gd1_anon.pdf
+!backend/tests/fixtures/invoices/copel/gd1_anon.expected.json
+!backend/tests/fixtures/invoices/copel/gd2_anon.pdf
+!backend/tests/fixtures/invoices/copel/gd2_anon.expected.json
+!backend/tests/fixtures/invoices/copel/gd1_gd2_anon.pdf
+!backend/tests/fixtures/invoices/copel/gd1_gd2_anon.expected.json
 !backend/tests/test_regulatory_fio_b_e2e.py
 !backend/tests/test_tariff_selector.py
 !backend/tests/test_billing_calculation_contracts.py

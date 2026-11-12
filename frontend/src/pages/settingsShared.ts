@@ -9,7 +9,8 @@ import { t } from '../services/i18nService';
 export function apiProviderOptions(): Array<{ value: ApiCredentialProvider; label: string; descricao: string; logo: BrandName }> {
   return [
     { value: 'resend', label: t('settings.integrations.resendLabel'), descricao: t('settings.integrations.resendDescricao'), logo: 'resend' },
-    { value: 'asaas', label: t('settings.integrations.asaasLabel'), descricao: t('settings.integrations.asaasDescricao'), logo: 'asaas' }
+    { value: 'asaas', label: t('settings.integrations.asaasLabel'), descricao: t('settings.integrations.asaasDescricao'), logo: 'asaas' },
+    { value: 'piperun', label: t('settings.integrations.piperunLabel'), descricao: t('settings.integrations.piperunDescricao'), logo: 'piperun' }
   ];
 }
 

@@ -47,6 +47,16 @@
 .platform-context-banner strong { color: var(--warning); font-size: 11px; letter-spacing: .08em; }
 .platform-context-banner span { color: var(--text); font-weight: 600; }
 
+.platform-share-list { display: grid; gap: var(--space-4); }
+.platform-share-item { display: grid; gap: var(--space-2); }
+.platform-share-item h3 { margin: 0; font-size: 14px; color: var(--text); }
+.platform-share-bars { display: grid; gap: var(--space-1); }
+.platform-share-bar-row { display: grid; grid-template-columns: 72px 1fr 48px; align-items: center; gap: var(--space-2); }
+.platform-share-bar-row span:first-child { color: var(--text-dim); font-size: 12px; }
+.platform-share-bar-row span:last-child { color: var(--text); font-size: 12px; text-align: right; }
+.platform-share-bar-track { height: 8px; border-radius: var(--radius-pill, 999px); background: var(--border); overflow: hidden; }
+.platform-share-bar-fill { height: 100%; background: var(--info); border-radius: inherit; }
+
 @media (max-width: 768px) {
   .platform-sidebar { position: static; visibility: visible; transform: none; width: 100%; height: auto; }
   .platform-shell .app-body { display: block; }

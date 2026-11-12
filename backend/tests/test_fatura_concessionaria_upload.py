@@ -233,6 +233,7 @@ class FaturaConcessionariaUploadTest(IsolatedTestRuntime, unittest.TestCase):
         self.drive_patch.stop()
         self.store_patch.stop()
         self.read_store_patch.stop()
+        self._auto_calc_cleanup()
         with self.app.app_context():
             FaturaConcessionaria.query.delete()
             Document.query.delete()
@@ -282,6 +283,67 @@ class FaturaConcessionariaUploadTest(IsolatedTestRuntime, unittest.TestCase):
             self.assertEqual((invoice.empresa_id, invoice.client_id, document.client_id), (1, 1, 1))
             self.assertIsNotNone(invoice.consumer_unit_id)
 
+    def _auto_calc_setup(self, with_rule):
+        from models.calculo_cobranca import BillingCalculationExecution
+        from models.grupo_regra_cobranca import GrupoRegraCobranca
+        from models.regra_cobranca_assignment import RegraCobrancaAssignment
+        with self.app.app_context():
+            db.session.add(ConsumerUnit(empresa_id=1, client_id=1, codigo='000000000000001',
+                                        codigo_aneel='570778003105'))
+            if with_rule:
+                from decimal import Decimal
+                db.session.add(GrupoRegraCobranca(
+                    id=901, empresa_id=1, nome='Regra', ativo=True, padrao=False, revision=1,
+                    calculation_method='energia_compensada', tariff_source='invoice',
+                    manual_tariff=Decimal('0.70'), discount_type='none', tariff_basis='compensated',
+                    billing_mode='auto', due_date_basis='invoice_due_date', due_date_offset_days=0))
+                db.session.add(RegraCobrancaAssignment(
+                    empresa_id=1, grupo_regra_cobranca_id=901, scope_type='company', ativo=True))
+            db.session.commit()
+        return BillingCalculationExecution
+
+    def _auto_calc_cleanup(self):
+        from models.calculo_cobranca import BillingCalculationExecution, BillingCalculationSnapshot
+        from models.grupo_regra_cobranca import GrupoRegraCobranca
+        from models.regra_cobranca_assignment import RegraCobrancaAssignment
+        with self.app.app_context():
+            for model in (BillingCalculationExecution, BillingCalculationSnapshot,
+                          RegraCobrancaAssignment, GrupoRegraCobranca):
+                model.query.delete()
+            db.session.commit()
+
+    def test_upload_runs_billing_calculation_once_and_duplicate_does_not_repeat(self):
+        Execution = self._auto_calc_setup(with_rule=True)
+        body = make_pdf()
+        first = self._upload_auto(body)
+        self.assertEqual(first.status_code, 201, first.json)
+        second = self._upload_auto(body)
+        self.assertEqual(second.status_code, 200)
+        with self.app.app_context():
+            invoice = FaturaConcessionaria.query.one()
+            self.assertEqual(Execution.query.filter_by(fatura_concessionaria_id=invoice.id).count(), 1)
+
+    def test_upload_without_rule_still_201_with_non_calculated_execution(self):
+        Execution = self._auto_calc_setup(with_rule=False)
+        response = self._upload_auto(make_pdf())
+        self.assertEqual(response.status_code, 201, response.json)
+        with self.app.app_context():
+            invoice = FaturaConcessionaria.query.one()
+            rows = Execution.query.filter_by(fatura_concessionaria_id=invoice.id).all()
+            self.assertEqual(len(rows), 1)
+            self.assertNotEqual(rows[0].status, 'CALCULATED')
+
+    def test_auto_calculation_failure_is_swallowed(self):
+        self._auto_calc_setup(with_rule=True)
+        with patch('services.billing_calculation_service.BillingCalculationService.execute',
+                   side_effect=RuntimeError('boom')):
+            response = self._upload_auto(make_pdf())
+            self.assertEqual(response.status_code, 201, response.json)
+            follow_up = self._upload_auto(make_pdf())
+        self.assertEqual(follow_up.status_code, 200, follow_up.json)
+        with self.app.app_context():
+            self.assertEqual(FaturaConcessionaria.query.count(), 1)
+
     def test_general_document_upload_falls_back_when_oauth_token_cannot_be_decrypted(self):
         with self.app.app_context():
             db.session.add(ConsumerUnit(empresa_id=1, client_id=1, codigo='000000000000001'))
@@ -324,6 +386,8 @@ class FaturaConcessionariaUploadTest(IsolatedTestRuntime, unittest.TestCase):
             db.session.commit()
         response = self._upload_auto(make_pdf())
         self.assertEqual((response.status_code, response.json['code']), (422, 'UC_NOT_FOUND'))
+        self.assertEqual(response.json['error'],
+                         'UC 000000000000001 não está cadastrada em nenhum cliente. Cadastre a UC e importe de novo.')
         with self.app.app_context():
             self.assertEqual((Document.query.count(), FaturaConcessionaria.query.count()), (0, 0))
 
@@ -360,7 +424,8 @@ class FaturaConcessionariaUploadTest(IsolatedTestRuntime, unittest.TestCase):
                                      path='/api/v1/platform/empresas/1/billing-calculations/invoices/upload')
         self.assertEqual(response.status_code, 422, response.json)
         self.assertEqual(response.json, {
-            'code': 'UC_NOT_FOUND', 'error': 'UC da fatura nao encontrada nesta empresa.',
+            'code': 'UC_NOT_FOUND',
+            'error': 'UC 000000000000001 não está cadastrada em nenhum cliente. Cadastre a UC e importe de novo.',
         })
         with self.app.app_context():
             self.assertEqual((Document.query.count(), FaturaConcessionaria.query.count()), (0, 0))
@@ -380,7 +445,7 @@ class FaturaConcessionariaUploadTest(IsolatedTestRuntime, unittest.TestCase):
 
     def test_auto_upload_rejects_unreadable_uc_and_unknown_layout(self):
         unreadable = self._upload_auto(make_pdf(changes={'uc': '000000000000001 000000000000002'}))
-        self.assertEqual((unreadable.status_code, unreadable.json['code']), (422, 'UC_CODE_UNREADABLE'))
+        self.assertEqual((unreadable.status_code, unreadable.json['code']), (422, 'UC_NOT_READABLE'))
         unknown = self._upload_auto(self._pdf())
         self.assertEqual((unknown.status_code, unknown.json['code']), (422, 'INVOICE_LAYOUT_UNSUPPORTED'))
         with self.app.app_context():

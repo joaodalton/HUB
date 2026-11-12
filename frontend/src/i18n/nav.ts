@@ -21,6 +21,7 @@ export const navDict: Record<string, Translation> = {
   'nav.item.pendencias': { pt: 'Pendências', en: 'Pending items', fr: 'Items en attente' },
   'nav.item.agenda': { pt: 'Agenda', en: 'Calendar', fr: 'Agenda' },
   'nav.item.configuracoes': { pt: 'Configurações', en: 'Settings', fr: 'Paramètres' },
+  'nav.item.crmLeads': { pt: 'Leads CRM', en: 'CRM Leads', fr: 'Leads CRM' },
   'nav.item.usuarios': { pt: 'Usuários', en: 'Users', fr: 'Utilisateurs' },
   'nav.item.platform': { pt: 'HUB Platform', en: 'HUB Platform', fr: 'HUB Platform' },
   'nav.item.funcionarios': { pt: 'Funcionarios', en: 'Staff', fr: 'Employés' },

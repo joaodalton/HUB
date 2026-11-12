@@ -14,11 +14,14 @@ from models.fatura import Fatura
 from models.fatura_concessionaria import FaturaConcessionaria
 from models.pendencia import Pendencia
 from services.asaas_client import AsaasError
-from services.billing_calculation_service import BillingCalculationService
+from services.billing_calculation_service import BillingCalculationService, blocked_stage
 from services.fatura_service import (
     CalculoCobrancaPendente, DadosIncompletosError, EmissaoPendente, gerar_boleto_concessionaria,
 )
-from services.invoice_document_service import InvoiceHasCalculationError, delete_invoice, load_invoice_pdf
+from services.fatura_concessionaria_upload_service import InvoiceUploadError, reprocess_invoice
+from services.invoice_document_service import InvoiceHasBoletoError, delete_invoice, load_invoice_pdf
+from services.invoice_problems import (
+    EXTRACTION_PROBLEM_STATUSES, VALIDATION_PROBLEM_STATUSES, gd_totals, invoice_problems)
 from services.object_storage import ObjectStorageError
 from services.permission_service import require_permission
 from utils.api_response import error_response, success_response
@@ -40,8 +43,7 @@ def _require_tenant_user():
 
 def _execution(row, *, detail=False):
     stages = row.auditoria.get('stages', [])
-    blocked = next((stage for stage in stages if stage['status'] in
-                    ('REVIEW_REQUIRED', 'MISSING_DATA', 'UNSUPPORTED', 'ERROR')), None)
+    blocked = blocked_stage(row.auditoria)
     result = {
         'id': row.id, 'empresaId': row.empresa_id,
         'invoiceId': row.fatura_concessionaria_id, 'snapshotId': row.snapshot_id,
@@ -95,7 +97,7 @@ def _invoices():
         Fatura.consumer_unit_id == invoice.consumer_unit_id,
         Fatura.competencia == invoice.competencia,
     )
-    query = invoice.query.filter(invoice.empresa_id == tenant)
+    query = invoice.query.filter(invoice.empresa_id == tenant, invoice.deleted_at.is_(None))
     search = request.args.get('q', '').strip()
     if search:
         pattern = f'%{search}%'
@@ -114,7 +116,12 @@ def _invoices():
         query = query.filter(invoice.competencia == request.args['competencia'])
     if request.args.get('statusProcessamento'):
         status = request.args['statusProcessamento']
-        query = query.filter(or_(invoice.status_extracao == status, invoice.status_validacao == status))
+        has_problem = or_(invoice.status_extracao.in_(EXTRACTION_PROBLEM_STATUSES),
+                          invoice.status_validacao.in_(VALIDATION_PROBLEM_STATUSES))
+        if status in ('erro', 'extraida'):  # mesmo criterio do selo da coluna Extracao (invoice_problems)
+            query = query.filter(has_problem if status == 'erro' else ~has_problem)
+        else:
+            query = query.filter(or_(invoice.status_extracao == status, invoice.status_validacao == status))
     charge_status = request.args.get('statusCobranca')
     if charge_status:
         if charge_status == 'sem_cobranca':
@@ -146,6 +153,8 @@ def _invoices():
                 'asaasStatus': charge.asaas_status, 'asaasId': charge.asaas_id,
                 'valor': float(charge.valor), 'mesVencimento': charge.mes_vencimento.isoformat(),
                 'boletoUrl': charge.boleto_url,
+                'invoiceUrl': charge.invoice_url,
+                'billingMode': charge.billing_mode,
             })
     pending_ids = {row.fatura_concessionaria_id for row in Pendencia.query.filter(
         Pendencia.empresa_id == tenant, Pendencia.status == 'aberta',
@@ -168,6 +177,7 @@ def _invoices():
                                     and row.document.storage_provider in ('google_drive', 'local', 's3')
                                     and row.document.storage_ref),
         'temPendencia': row.id in pending_ids,
+        **gd_totals(row), 'problemas': invoice_problems(row),
         'contextualCharges': charges_by_context.get((row.consumer_unit_id, row.competencia), []),
         'createdAt': row.created_at.isoformat(),
     } for row in rows]
@@ -212,14 +222,26 @@ def _download_invoice(invoice_id):
 def _delete_invoice(invoice_id):
     try:
         deleted = delete_invoice(invoice_id, g.current_empresa_id)
-    except InvoiceHasCalculationError:
+    except InvoiceHasBoletoError:
         return error_response(
-            'Esta fatura já teve um boleto/cálculo de cobrança gerado e não pode mais ser excluída.',
-            409, code='INVOICE_HAS_CALCULATION',
+            'Esta fatura já tem boleto gerado e não pode ser excluída. Cancele o boleto antes.',
+            409, code='INVOICE_HAS_BOLETO',
         )
     if not deleted:
         return error_response('Fatura não encontrada.', 404)
     return success_response(None, 'Fatura excluída.')
+
+
+def _reprocess_invoice(invoice_id):
+    try:
+        return success_response(reprocess_invoice(invoice_id, g.current_empresa_id), 'Fatura reprocessada.')
+    except LookupError:
+        return error_response('Fatura não encontrada.', 404)
+    except InvoiceUploadError as exc:
+        return error_response(str(exc), exc.status_code, code=exc.code)
+    except ObjectStorageError:
+        return error_response('Armazenamento de documentos indisponivel.', 503,
+                              code='DOCUMENT_STORAGE_UNAVAILABLE')
 
 
 def _gerar_boleto(invoice_id):
@@ -236,7 +258,7 @@ def _gerar_boleto(invoice_id):
     except DadosIncompletosError as exc:
         return error_response(str(exc), 422, code='INVOICE_DATA_INCOMPLETE', details={'missing': exc.missing})
     except CalculoCobrancaPendente as exc:
-        return error_response(str(exc), 422, code='BILLING_CALCULATION_REQUIRED')
+        return error_response(str(exc), 422, code='BILLING_CALCULATION_REQUIRED', details=exc.details)
     except (ValueError, AsaasError) as exc:
         return error_response(str(exc), 400)
 
@@ -290,6 +312,13 @@ def execute(invoice_id):
 @require_permission('faturas.create')
 def gerar_boleto(invoice_id):
     return _gerar_boleto(invoice_id)
+
+
+@billing_calculation_routes.post('/invoices/<int:invoice_id>/reprocess')
+@limiter.limit('10 per minute')
+@require_permission('faturas.create')
+def reprocess(invoice_id):
+    return _reprocess_invoice(invoice_id)
 
 
 @billing_calculation_routes.delete('/invoices/<int:invoice_id>')
@@ -372,6 +401,13 @@ def platform_execute(empresa_id, invoice_id):
 @require_permission('faturas.create')
 def platform_gerar_boleto(empresa_id, invoice_id):
     return _gerar_boleto(invoice_id)
+
+
+@platform_billing_calculation_routes.post('/invoices/<int:invoice_id>/reprocess')
+@limiter.limit('10 per minute')
+@require_permission('faturas.create')
+def platform_reprocess(empresa_id, invoice_id):
+    return _reprocess_invoice(invoice_id)
 
 
 @platform_billing_calculation_routes.delete('/invoices/<int:invoice_id>')

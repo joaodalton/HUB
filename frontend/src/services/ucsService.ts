@@ -14,6 +14,7 @@ export type UcRow = {
   cep: string | null;
   concessionaria: string | null;
   geracaoPropria: boolean;
+  debitoAutomatico?: boolean;
   diaEmissaoFatura: number | null;
   consumo: number | null;
   baseTarifaria: string;
@@ -35,6 +36,7 @@ export type UcPayload = {
   cep: string | null;
   concessionaria: string | null;
   geracaoPropria: boolean;
+  debitoAutomatico: boolean;
   diaEmissaoFatura: number | null;
   consumo: number | null;
   baseTarifaria: string;

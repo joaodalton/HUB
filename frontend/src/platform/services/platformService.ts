@@ -7,7 +7,7 @@ export type PlatformOverview = {
   totalUsuarios: number;
 };
 
-export type PlatformEmpresa = Omit<EmpresaRow, 'totalUsuarios'> & {
+export type PlatformEmpresa = EmpresaRow & {
   totalClientes: number;
   totalUcs: number;
   totalUsinas: number;

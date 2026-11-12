@@ -12,10 +12,11 @@ from sqlalchemy.orm import selectinload
 from extensions import db
 from models.client import Client
 from models.consumer_unit import ConsumerUnit
-from models.calculo_cobranca import BillingCalculationSnapshot
 from models.fatura import Fatura
 from models.fatura_concessionaria import FaturaConcessionaria
 from models.user import User
+from services.billing_calculation_service import BillingCalculationService
+from services.invoice_document_service import active_boleto, has_pending_emission
 from services.asaas_client import AsaasClient, AsaasError, customer_payload, payment_payload
 from services.email_service import send_email
 from services.log_service import LogService
@@ -38,8 +39,21 @@ class DadosIncompletosError(ValueError):
 
 
 class CalculoCobrancaPendente(ValueError):
-    def __init__(self):
+    def __init__(self, details: dict | None = None):
         super().__init__('Calculo de cobranca pendente. Execute o calculo de cobranca antes de gerar o boleto.')
+        self.details = details
+
+
+def resolve_billing_mode(rule_mode: str, debito_automatico: bool) -> str:
+    if rule_mode in ('unified', 'separate'):
+        return rule_mode
+    if rule_mode == 'auto':
+        return 'separate' if debito_automatico else 'unified'
+    raise ValueError('Modo de cobranca da regra invalido.')
+
+
+def snapshot_billing_mode(snapshot, debito_automatico: bool) -> str:
+    return resolve_billing_mode(snapshot.regra_snapshot.get('billing_mode'), debito_automatico)
 
 
 def _autorizar_emissao(empresa_id, user_id):
@@ -81,6 +95,9 @@ def emitir(data: dict, empresa_id: int, user_id: int) -> dict:
     except (InvalidOperation, TypeError, ValueError):
         raise ValueError('Valor ou vencimento inválido.')
     competencia = data.get('competencia', '')
+    billing_mode = data.get('billingMode')
+    if billing_mode not in (None, 'unified', 'separate'):
+        raise ValueError('Modo de cobranca invalido.')
     if (not valor.is_finite() or not 0 < valor <= Decimal('99999999.99')
             or not isinstance(competencia, str)
             or not re.fullmatch(r'[0-9]{4}-(0[1-9]|1[0-2])', competencia)
@@ -94,7 +111,7 @@ def emitir(data: dict, empresa_id: int, user_id: int) -> dict:
         fatura = Fatura(empresa_id=empresa_id, client_id=client.id, consumer_unit_id=uc.id,
                        concessionaria=uc.concessionaria or client.concessionaria,
                        competencia=competencia, valor=valor, mes_vencimento=vencimento,
-                       origem='manual', criado_por_id=user_id, status_interno='aguardando_emissao',
+                       billing_mode=billing_mode, origem='manual', criado_por_id=user_id, status_interno='aguardando_emissao',
                        payment_provider='asaas', external_reference=f'hub-{uuid4().hex}', emission_key=key)
         db.session.add(fatura)
         try:
@@ -203,7 +220,7 @@ def _concluir_emissao(fatura, payment):
 
 def gerar_boleto_concessionaria(fatura_concessionaria_id: int, empresa_id: int, user_id: int) -> dict:
     invoice = FaturaConcessionaria.query.filter_by(
-        id=fatura_concessionaria_id, empresa_id=empresa_id).first()
+        id=fatura_concessionaria_id, empresa_id=empresa_id, deleted_at=None).first()
     if invoice is None:
         raise LookupError('Fatura da concessionaria nao encontrada.')
     missing = []
@@ -219,19 +236,51 @@ def gerar_boleto_concessionaria(fatura_concessionaria_id: int, empresa_id: int, 
         missing.append('statusValidacao')
     if missing:
         raise DadosIncompletosError(missing)
-    snapshot = BillingCalculationSnapshot.query.filter_by(
-        empresa_id=empresa_id, fatura_concessionaria_id=invoice.id,
-    ).order_by(BillingCalculationSnapshot.id.desc()).first()
-    if snapshot is None:
-        raise CalculoCobrancaPendente()
     payload = {
         'clienteId': invoice.client_id,
         'ucId': invoice.consumer_unit_id,
-        'valor': str(snapshot.valor_final),
-        'mesVencimento': invoice.data_vencimento.isoformat(),
         'competencia': invoice.competencia,
     }
-    return emitir(payload, empresa_id, user_id)
+    # Idempotencia: emissao pendente reemite com os dados gravados (mesma emission_key), sem recalcular.
+    pending = has_pending_emission(invoice)
+    if pending is not None:
+        payload.update(valor=str(pending.valor), mesVencimento=pending.mes_vencimento.isoformat(),
+                       billingMode=pending.billing_mode)
+        return _boleto_dict(emitir(payload, empresa_id, user_id), invoice)
+    existing = active_boleto(invoice)
+    if existing is not None:
+        return _boleto_dict(existing.to_dict(), invoice)
+    execution = BillingCalculationService().execute(invoice.id)
+    snapshot = execution.snapshot
+    if snapshot is None:
+        stage = next((row for row in execution.auditoria.get('stages', []) if row.get('blockers')), {})
+        raise CalculoCobrancaPendente({'stage': stage.get('stage'), 'blockers': stage.get('blockers', [])})
+    # O calculo commita (libera locks): so agora serializa por fatura. Ate o commit do Fatura
+    # pendente em emitir() nao ha commit, entao o 2o pedido ve a emissao do 1o.
+    invoice = FaturaConcessionaria.query.filter_by(
+        id=fatura_concessionaria_id, empresa_id=empresa_id, deleted_at=None,
+    ).populate_existing().with_for_update().first()
+    if invoice is None:
+        raise LookupError('Fatura da concessionaria nao encontrada.')
+    pending = has_pending_emission(invoice)
+    if pending is not None:
+        payload.update(valor=str(pending.valor), mesVencimento=pending.mes_vencimento.isoformat(),
+                       billingMode=pending.billing_mode)
+        return _boleto_dict(emitir(payload, empresa_id, user_id), invoice)
+    existing = active_boleto(invoice)
+    if existing is not None:
+        return _boleto_dict(existing.to_dict(), invoice)
+    uc = _uc(invoice.consumer_unit_id, empresa_id)
+    mode = snapshot_billing_mode(snapshot, bool(uc and uc.debito_automatico))
+    valor = snapshot.valor_final
+    if mode == 'unified':
+        valor += invoice.valor_total_concessionaria
+    payload.update(valor=str(valor), mesVencimento=invoice.data_vencimento.isoformat(), billingMode=mode)
+    return _boleto_dict(emitir(payload, empresa_id, user_id), invoice)
+
+
+def _boleto_dict(fatura: dict, invoice: FaturaConcessionaria) -> dict:
+    return {**fatura, 'faturaConcessionariaId': invoice.id}
 
 
 def listar(empresa_id: int, filtros: dict) -> list[dict]:
@@ -280,5 +329,7 @@ def resumo(empresa_id: int) -> dict:
 def _apply_payment(fatura: Fatura, payment: dict) -> None:
     fatura.asaas_status = STATUS_MAP.get(payment.get('status', '').upper(), 'pending')
     fatura.boleto_url = payment.get('bankSlipUrl') or payment.get('invoiceUrl')
+    if 'invoiceUrl' in payment:
+        fatura.invoice_url = payment['invoiceUrl']
     fatura.linha_digitavel = payment.get('identificationField')
     fatura.codigo_barras = payment.get('nossoNumero')

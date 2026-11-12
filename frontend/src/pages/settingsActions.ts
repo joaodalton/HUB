@@ -264,7 +264,7 @@ export function createSettingsActions(
   async function handleTestApiCredential(credential: ApiCredentialRow): Promise<void> {
     try {
       const result = await testApiCredential(credential.id);
-      toast.success(result.modo === 'asaas-api' ? t('settings.actions.asaasApiKeyValidated') : t('settings.actions.credentialVerifiedLocally'));
+      toast.success(result.modo === 'asaas-api' ? t('settings.actions.asaasApiKeyValidated') : result.modo.endsWith('-api') ? t('settings.actions.apiConnectionValidated') : t('settings.actions.credentialVerifiedLocally'));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t('settings.actions.credentialValidateError'));
     }

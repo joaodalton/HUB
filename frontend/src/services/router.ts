@@ -9,6 +9,7 @@ import { createPendenciasPage } from '../pages/PendenciasPage';
 import { createPlantsPage } from '../pages/PlantsPage';
 import { createRateioPage } from '../pages/RateioPage';
 import { createSettingsPage } from '../pages/SettingsPage';
+import { createCrmLeadsPage } from '../pages/CrmLeadsPage';
 import { createUcsPage } from '../pages/UcsPage';
 import { createUsersPage } from '../pages/UsersPage';
 import { createEmpresasPage } from '../pages/EmpresasPage';
@@ -55,6 +56,7 @@ export function createRouter(root: HTMLElement) {
     { path: '/relatorios', render: createReportsPage },
     { path: '/trocar-senha', render: createChangePasswordPage },
     { path: '/configuracoes', render: createSettingsPage },
+    { path: '/crm-leads', render: createCrmLeadsPage },
     { path: '/integracoes', render: createSettingsPage },
     { path: '/platform', render: createPlatformOverviewPage },
     { path: '/platform/companies', render: createPlatformCompaniesPage },

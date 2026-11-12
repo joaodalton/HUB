@@ -72,7 +72,7 @@ class SQLiteMigrationsTest(unittest.TestCase):
             self.assertEqual(upgraded.returncode, 0, upgraded.stdout + upgraded.stderr)
             with closing(sqlite3.connect(path)) as connection:
                 self.assertEqual(connection.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='payment_webhook_events'").fetchone()[0], tenant_schema)
-                self.assertEqual(connection.execute('SELECT version_num FROM alembic_version').fetchone()[0], 'c5d7e9f1a3b5')
+                self.assertEqual(connection.execute('SELECT version_num FROM alembic_version').fetchone()[0], 'd2e3f4a5b6c7')
                 connection.execute("INSERT INTO platform_asaas_webhook_events (event_id,event_type,external_payment_id,payload_hash,received_at) VALUES ('evt_1','PAYMENT_RECEIVED','pay_1',?,CURRENT_TIMESTAMP)", ('a' * 64,))
                 connection.commit()
                 with self.assertRaises(sqlite3.IntegrityError):
@@ -251,7 +251,9 @@ class SQLiteMigrationsTest(unittest.TestCase):
                 result = self._flask(path, command, target)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 with closing(sqlite3.connect(path)) as connection:
-                    self.assertEqual(connection.execute('SELECT * FROM faturas').fetchall(), original)
+                    # colunas aditivas (billing_mode, invoice_url) ficam ao final e nulas nos legados
+                    rows = connection.execute('SELECT * FROM faturas').fetchall()
+                    self.assertEqual([row[:len(original[0])] for row in rows], original)
             with closing(sqlite3.connect(path)) as connection, connection:
                 indexes = {r[1] for r in connection.execute('PRAGMA index_list(payment_webhook_events)')}
                 self.assertTrue({'ix_payment_webhook_events_empresa_id', 'ix_payment_webhook_events_fatura_id'} <= indexes)
@@ -409,7 +411,7 @@ class SQLiteMigrationsTest(unittest.TestCase):
                 preview_indexes = {row[1] for row in connection.execute("PRAGMA index_list('import_previews')")}
             finally:
                 connection.close()
-            self.assertEqual(revision, 'c5d7e9f1a3b5')
+            self.assertEqual(revision, 'd2e3f4a5b6c7')
             self.assertTrue({'empresa_id', 'fatura_concessionaria_id', 'fingerprint',
                              'regra_snapshot', 'entrada_normalizada', 'resultado',
                              'valor_final'}.issubset(snapshot_columns))
@@ -572,7 +574,26 @@ class SQLiteMigrationsTest(unittest.TestCase):
                     'SELECT empresa_id,titulo,fatura_concessionaria_id FROM pendencias WHERE id=91'
                 ).fetchone(), (91, 'Existente', None))
                 self.assertEqual(connection.execute('SELECT version_num FROM alembic_version').fetchone()[0],
-                                 'c5d7e9f1a3b5')
+                                 'd2e3f4a5b6c7')
+
+    def test_billing_mode_columns_upgrade_and_downgrade(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'billing-mode.db'
+            self.assertEqual(self._flask(path, 'upgrade').returncode, 0)
+            with closing(sqlite3.connect(path)) as connection, connection:
+                connection.execute("INSERT INTO clients (id,nome,cpf,email,concessionaria,status,empresa_id) VALUES (100,'A','12345678901','a@test.local','Copel','ativo',1)")
+                connection.execute("INSERT INTO consumer_units (id,client_id,codigo,empresa_id,base_tarifaria,tipo_ligacao) VALUES (100,100,'UC',1,'B1','Monofasico')")
+                self.assertEqual(connection.execute(
+                    'SELECT debito_automatico FROM consumer_units WHERE id=100').fetchone(), (0,))
+                self.assertTrue({'billing_mode', 'invoice_url'}.issubset(
+                    {row[1] for row in connection.execute('PRAGMA table_info(faturas)')}))
+            result = self._flask(path, 'downgrade', 'c1d2e3f4a5b6')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            with closing(sqlite3.connect(path)) as connection:
+                self.assertTrue({'billing_mode', 'invoice_url'}.isdisjoint(
+                    {row[1] for row in connection.execute('PRAGMA table_info(faturas)')}))
+                self.assertNotIn('debito_automatico',
+                                 {row[1] for row in connection.execute('PRAGMA table_info(consumer_units)')})
 
     def test_fatura_concessionaria_downgrade_preserves_source_records(self):
         with tempfile.TemporaryDirectory() as folder:

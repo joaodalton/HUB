@@ -413,6 +413,12 @@ Categoria: Financeiro
 
 Origem: Automática
 
+Pendência "Pagar concessionária" (`origem = pagar_concessionaria`):
+
+Criada na confirmação do pagamento apenas quando o `billing_mode` da cobrança não é `separate` (unificada, ou legado NULL). No modo separado o cliente paga a concessionária diretamente.
+
+Pendências de erro de processamento de uma fatura são encerradas quando um reprocessamento tem sucesso. As pendências de uma fatura são removidas quando ela é excluída.
+
 11.2 Primeiro boleto com desconto
 
 Quando o primeiro boleto importado possuir desconto:

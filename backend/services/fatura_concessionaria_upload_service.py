@@ -16,9 +16,11 @@ from models.consumer_unit import ConsumerUnit
 from models.fatura_concessionaria import FaturaConcessionaria
 from models.document import Document
 from models.pendencia import Pendencia
+from services.invoice_document_service import has_active_boleto, has_pending_emission, load_invoice_pdf
+from services.invoice_problems import invoice_problems
 from services.invoice_parsers.schemas import IssueSeverity
 from services.object_storage import get_object_storage
-from services.fatura_processing_service import FaturaProcessingService
+from services.fatura_processing_service import FaturaProcessingService, ProcessingStatus
 from services.invoice_parsers.extraction import MinimalExtractor
 from services.invoice_parsers.registry import default_registry
 from services.uc_code import find_document_ucs
@@ -85,16 +87,17 @@ def _client_from_document(file_bytes: bytes, empresa_id: int) -> Client:
         parsed = selection.parser.parse(file_bytes)
         code = parsed.identificacao_fiscal.get('codigo_uc')
         if code is None or code.status != 'found' or not isinstance(code.value, str):
-            _fail('UC da fatura ausente ou ilegivel.', 'UC_CODE_UNREADABLE', 422)
+            _fail('Não foi possível ler o código da UC no PDF.', 'UC_NOT_READABLE', 422)
     except InvoiceUploadError:
         raise
     except Exception:
-        _fail('Nao foi possivel extrair a UC da fatura.', 'UC_CODE_UNREADABLE', 422)
+        _fail('Não foi possível ler o código da UC no PDF.', 'UC_NOT_READABLE', 422)
 
     concessionaria = parsed.identificacao_fiscal.get('concessionaria')
     matches = find_document_ucs(empresa_id, code.value, concessionaria.value if concessionaria else None).limit(2).all()
     if not matches:
-        _fail('UC da fatura nao encontrada nesta empresa.', 'UC_NOT_FOUND', 422)
+        _fail(f'UC {code.value} não está cadastrada em nenhum cliente. Cadastre a UC e importe de novo.',
+              'UC_NOT_FOUND', 422)
     if len(matches) != 1:
         _fail('Mais de uma UC corresponde a fatura.', 'UC_MATCH_AMBIGUOUS', 409)
     client = Client.query.filter_by(id=matches[0].client_id, empresa_id=empresa_id).first()
@@ -115,8 +118,10 @@ def upload_invoice(client_id: int | None, file_storage) -> tuple[dict, bool]:
         client = _client_from_document(file_bytes, empresa_id)
     existing = _find_existing(empresa_id, arquivo_hash)
     if existing:
-        if client_id is None and existing.client_id != client.id:
+        if existing.client_id != client.id:
             _fail('Fatura ja recebida com cliente diferente da UC documental.', 'INVOICE_CLIENT_CONFLICT', 409)
+        if existing.deleted_at is not None:
+            return _restore(existing, file_bytes), False
         return _result(existing, True), True
 
     document = None
@@ -150,7 +155,7 @@ def upload_invoice(client_id: int | None, file_storage) -> tuple[dict, bool]:
         if storage is not None and storage_key is not None:
             _discard_attempt(storage, storage_key)
         if existing:
-            if client_id is None and existing.client_id != client.id:
+            if existing.client_id != client.id:
                 _fail('Fatura ja recebida com cliente diferente da UC documental.', 'INVOICE_CLIENT_CONFLICT', 409)
             return _result(existing, True), True
         raise
@@ -167,7 +172,87 @@ def upload_invoice(client_id: int | None, file_storage) -> tuple[dict, bool]:
             _registrar_pendencia_erro_processamento(invoice, resultado)
     except Exception:
         current_app.logger.error('Falha ao disparar extracao automatica da fatura: %s', invoice.id)
+    _auto_calculate(invoice.id)
     return _result(invoice, False), False
+
+
+def _auto_calculate(invoice_id: int) -> None:
+    """Calcula a cobranca logo apos o vinculo; nunca altera o resultado do upload."""
+    try:
+        invoice = FaturaConcessionaria.query.filter_by(
+            id=invoice_id, empresa_id=g.current_empresa_id, deleted_at=None).first()
+        if invoice is None or invoice.status_validacao != 'valida':
+            return
+        from services.billing_calculation_service import BillingCalculationService
+        BillingCalculationService().execute(invoice_id)
+    except Exception:
+        db.session.rollback()
+        current_app.logger.error('Falha no calculo automatico da fatura: %s', invoice_id)
+
+
+_EXTRACTION_FIELDS = (
+    'parser_name', 'parser_version', 'layout_name', 'layout_version', 'dados_brutos_extraidos',
+    'dados_normalizados', 'consumer_unit_id', 'codigo_uc_extraido', 'chave_acesso', 'competencia',
+    'concessionaria', 'numero_nota_fiscal', 'serie_nota_fiscal', 'data_emissao',
+    'data_leitura_anterior', 'data_leitura_atual', 'data_proxima_leitura', 'data_vencimento',
+    'consumo_kwh', 'energia_compensada_kwh', 'injecao_gd1_kwh', 'injecao_gd2_kwh',
+    'saldo_creditos_kwh', 'valor_total_concessionaria',
+)
+
+
+def _restore(invoice: FaturaConcessionaria, file_bytes: bytes) -> dict:
+    """Reimporta PDF de fatura excluida logicamente: reativa e reprocessa."""
+    invoice.deleted_at = None
+    if has_active_boleto(invoice) or has_pending_emission(invoice) is not None:
+        db.session.commit()
+        return _result(invoice, False)
+    return _run_reprocess(invoice, file_bytes)
+
+
+def reprocess_invoice(invoice_id: int, empresa_id: int) -> dict:
+    invoice = FaturaConcessionaria.query.filter_by(
+        id=invoice_id, empresa_id=empresa_id, deleted_at=None).first()
+    if invoice is None:
+        raise LookupError('Fatura nao encontrada.')
+    reprocessable = (invoice.status_extracao in ('recebida', 'erro', 'layout_nao_reconhecido')
+                     or invoice.status_validacao in ('uc_nao_encontrada', 'uc_pertence_outro_cliente',
+                                                     'revisao_necessaria'))
+    if (not reprocessable or has_active_boleto(invoice)
+            or has_pending_emission(invoice) is not None):
+        _fail('Esta fatura nao pode ser reprocessada.', 'REPROCESS_NOT_ALLOWED', 409)
+    loaded = load_invoice_pdf(invoice_id, empresa_id)
+    if loaded is None:
+        raise LookupError('Fatura nao encontrada.')
+    return _run_reprocess(invoice, loaded[0])
+
+
+def _run_reprocess(invoice: FaturaConcessionaria, file_bytes: bytes) -> dict:
+    """Zera a extracao e reprocessa; calculos/snapshots antigos ficam como historico."""
+    for name in _EXTRACTION_FIELDS:
+        setattr(invoice, name, None)
+    invoice.status_extracao, invoice.status_validacao = 'recebida', 'pendente'
+    db.session.commit()
+    try:
+        resultado = FaturaProcessingService().process(invoice.id, document=file_bytes)
+    except Exception:
+        # Como no upload: nao expoe PDF; fatura fica em 'recebida' (reprocessavel).
+        db.session.rollback()
+        current_app.logger.error('Falha ao reprocessar a fatura: %s', invoice.id)
+        return _result(invoice, False)
+    critical = any(issue.severity == IssueSeverity.CRITICAL for issue in resultado.issues)
+    existing = Pendencia.query.filter_by(empresa_id=invoice.empresa_id,
+        fatura_concessionaria_id=invoice.id, origem=ORIGEM_ERRO_PROCESSAMENTO).first()
+    if critical and existing is None:
+        _registrar_pendencia_erro_processamento(invoice, resultado)
+    elif critical:
+        existing.status, existing.resolved_at = 'aberta', None
+        db.session.commit()
+    elif existing is not None and resultado.status == ProcessingStatus.PARSED:
+        existing.status, existing.resolved_at = 'resolvida', datetime.utcnow()
+        db.session.commit()
+    _auto_calculate(invoice.id)
+    db.session.refresh(invoice)
+    return _result(invoice, False)
 
 
 def _registrar_pendencia_erro_processamento(invoice: FaturaConcessionaria, resultado) -> None:
@@ -204,5 +289,5 @@ def _result(invoice: FaturaConcessionaria, duplicate: bool) -> dict:
     return {
         'duplicate': duplicate,
         'invoiceId': invoice.id,
-        'invoice': invoice.to_dict(),
+        'invoice': {**invoice.to_dict(), 'problemas': invoice_problems(invoice)},
     }

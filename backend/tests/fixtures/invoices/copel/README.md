@@ -38,3 +38,12 @@ injeção, compensação e saldo continuam not_present com aviso de suporte ause
 Isso não comprova ausência de GD na instalação. Não existe fixture GD real;
 os casos adversariais do teste F6 não são evidência de um novo layout.
 Descobertas e exemplos documentais faltantes em FATURAS_E_COBRANCAS.md, F6.
+
+## Fixtures GD
+
+`gd1_anon.pdf`, `gd2_anon.pdf` e `gd1_gd2_anon.pdf` (com `*.expected.json`) são
+fictícias, geradas por `make_gd_pdf(case)` a partir de `GD_CASES` (as quatro
+linhas de `ITEMS` mais linhas `ENERGIA INJ. OUC MPT` com tarifas de
+`gd_events_sanitized.json`). Cada caso tem UC, NF, chave e total próprios para
+poder ser enviado pelo upload real sem colidir. Rodar `python build_fixture.py`
+regrava PDFs e JSONs. Não são evidência de layout GD real.

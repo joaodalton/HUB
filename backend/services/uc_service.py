@@ -16,6 +16,14 @@ from services.uc_code import normalize_uc_code
 from services.cad_identity import normalize_document
 from utils.pagination import paginate
 
+
+class InvalidDebitoAutomatico(ValueError):
+    code = 'INVALID_DEBITO_AUTOMATICO'
+
+    def __init__(self):
+        super().__init__('debitoAutomatico deve ser booleano (true ou false).')
+
+
 def _uc(uc_id): return ConsumerUnit.query.filter_by(id=uc_id, empresa_id=g.current_empresa_id).first()
 def _client(client_id): return Client.query.filter_by(id=client_id, empresa_id=g.current_empresa_id).first()
 def _plant(plant_id): return Plant.query.filter_by(id=plant_id, empresa_id=g.current_empresa_id).first()
@@ -157,6 +165,10 @@ def apply_uc_fields(uc: ConsumerUnit, data: dict) -> None:
     uc.documentacao_completa = bool(data.get('documentacaoCompleta', uc.documentacao_completa))
     uc.sem_pendencia_financeira = bool(data.get('semPendenciaFinanceira', uc.sem_pendencia_financeira))
     uc.cliente_estrategico = bool(data.get('clienteEstrategico', uc.cliente_estrategico))
+    if 'debitoAutomatico' in data:
+        if type(data['debitoAutomatico']) is not bool:
+            raise InvalidDebitoAutomatico()
+        uc.debito_automatico = data['debitoAutomatico']
     if 'bufferPercentual' in data:
         uc.buffer_percentual = data['bufferPercentual']
 

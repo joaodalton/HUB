@@ -21,9 +21,11 @@ Exclusivo de Platform Admin. Retorna contagens globais baratas:
 ### `GET /platform/empresas`
 
 Exclusivo de Platform Admin. Retorna a lista administrativa mínima, ordenada por
-nome, com `id`, `nome`, `slug`, `status`, `totalUsuarios` e `createdAt`. A
-contagem de usuários é agregada na mesma consulta; o contrato não expõe
-documentos, credenciais, referências de storage ou dados cadastrais adicionais.
+nome, com `id`, `nome`, `slug`, `status`, `totalClientes`, `totalUcs`,
+`totalUsinas`, `totalUsuarios` e `createdAt`. Cada contagem (clientes, UCs,
+usinas, usuários) é agregada por `empresa_id` na mesma consulta; o contrato
+não expõe documentos, credenciais, referências de storage ou dados
+cadastrais adicionais.
 
 ### `POST /platform/empresas/<empresaId>/entrar`
 
@@ -274,6 +276,9 @@ Paginado (ver "Convenções gerais" acima). `data` = array de `ConsumerUnit`:
 `null`/vazio significa sem desconto. Novos valores fora desse formato são
 rejeitados no CRUD de UC/Cliente e no preview de importação. Valores legados
 inválidos bloqueiam novas execuções financeiras para revisão.
+`debitoAutomatico` (boolean, padrão `false`) indica débito automático da UC e
+decide o modo `auto` da regra na emissão; no `POST`/`PUT` aceita somente boolean JSON,
+outro tipo retorna `400` com `code: "INVALID_DEBITO_AUTOMATICO"`.
 `senhaConcessionariaConfigurada` indica se existe senha salva para a UC; a senha não aparece nas respostas comuns.
 
 ### `GET /ucs/<id>`
@@ -378,9 +383,26 @@ Erros: 400 (sem arquivo / sem categoria), 409 (cliente, UC ou categoria informad
 
 Upload da página de Faturas sem seleção de cliente. Requer `faturas.create` e exatamente um campo `arquivo` (PDF); o tenant vem da autenticação. Após validar o PDF, o backend extrai o código documental da UC pelo parser suportado e procura correspondência exata em `ConsumerUnit.codigo` **dentro da empresa**. Apenas uma UC correspondente autoriza vincular o documento ao cliente proprietário dessa UC. Não recebe cliente, UC ou empresa do corpo da requisição. O vínculo persistido no upload é com o cliente; `consumerUnitId` só é preenchido pelo processamento/validação F7.
 
-Para administrador da plataforma, a rota equivalente é `POST /platform/empresas/<empresaId>/billing-calculations/invoices/upload`, com empresa explícita e a mesma permissão. Erros antes do armazenamento: `INVOICE_LAYOUT_UNSUPPORTED` ou `UC_CODE_UNREADABLE` (422), `UC_NOT_FOUND` (422), `UC_MATCH_AMBIGUOUS` (409) e `CLIENT_NOT_FOUND` (404). Falha de vínculo não cria Documento nem fatura. Validação de arquivo, resposta e limites seguem o contrato abaixo. Uma duplicata por hash é conferida contra a UC atual: cliente divergente retorna `INVOICE_CLIENT_CONFLICT` (409), sem alterar a fonte histórica; cliente igual retorna a fonte imutável existente.
+Para administrador da plataforma, a rota equivalente é `POST /platform/empresas/<empresaId>/billing-calculations/invoices/upload`, com empresa explícita e a mesma permissão. Erros antes do armazenamento: `INVOICE_LAYOUT_UNSUPPORTED` ou `UC_NOT_READABLE` (422, "Não foi possível ler o código da UC no PDF."), `UC_NOT_FOUND` (422, mensagem com o código da UC lida), `UC_MATCH_AMBIGUOUS` (409) e `CLIENT_NOT_FOUND` (404). Falha de vínculo não cria Documento nem fatura. Validação de arquivo, resposta e limites seguem o contrato abaixo. Uma duplicata por hash é conferida contra a UC atual: cliente divergente retorna `INVOICE_CLIENT_CONFLICT` (409), sem alterar a fonte histórica; cliente igual retorna a fonte imutável existente.
 
 O campo legado `codigoAneel` permanece no banco para preservar valores anteriores, mas não participa da correspondência e não é exposto e, se enviado, é ignorado no CRUD de UC. Para o layout Copel suportado, `codigo` deve conter o mesmo identificador documental de 15 dígitos do PDF. Ausência de compensação GD não impede o upload; afeta a elegibilidade posterior para cobrança.
+
+### `DELETE /billing-calculations/invoices/<invoiceId>` e `POST .../<invoiceId>/reprocess`
+
+Ambos exigem `faturas.create`; equivalentes em `/platform/empresas/<empresaId>/billing-calculations/...`.
+Fatura de outra empresa, inexistente ou já excluída: `404`.
+
+- `DELETE`: exclusão **lógica** (`faturas_concessionarias.deleted_at`). Recusa com `409 INVOICE_HAS_BOLETO`
+  ("Esta fatura já tem boleto gerado e não pode ser excluída. Cancele o boleto antes.") quando existe `Fatura`
+  da mesma empresa/UC/competência com `asaas_id` e `asaas_status` fora de `canceled`/`refunded`, ou emissão
+  pendente (`asaas_id` nulo e `status_interno` `aguardando_emissao`/`erro_emissao`). Cálculos e snapshots
+  (imutáveis) e o PDF permanecem; pendências da fatura são removidas. A fatura some de listagem, download,
+  cálculo, boleto e processamento. Reenviar o mesmo PDF restaura a fatura (mesmo id, `duplicate: false`) e a reprocessa.
+- `POST .../reprocess` (10/min): só para fatura sem boleto ativo/emissão pendente e com `statusExtracao` em
+  `recebida|erro|layout_nao_reconhecido` ou `statusValidacao` em
+  `uc_nao_encontrada|uc_pertence_outro_cliente|revisao_necessaria`; caso contrário `409 REPROCESS_NOT_ALLOWED`.
+  Zera a extração, reprocessa o PDF armazenado e fecha a pendência de erro de processamento em caso de sucesso.
+  Resposta igual ao upload (`invoiceId`, `invoice`, `duplicate: false`). Falha de storage: `503 DOCUMENT_STORAGE_UNAVAILABLE`.
 
 ### `GET /billing-calculations/invoices/<invoiceId>/download`
 
@@ -513,6 +535,22 @@ Executa todas as regras automáticas de pendências. Body: nenhum. Retorna:
 
 ### `GET /pendencias/regras`
 Lista as regras automáticas disponíveis. Retorna array de regras com `id`, `nome`, `descricao`, `categoria` e `ativa`.
+
+---
+
+## Financeiro (`/financeiro`)
+
+### `GET /financeiro/pendentes-boleto` — `billing_calculations.read`, escopo do tenant
+Faturas da concessionária válidas (`status_validacao = valida`, não excluídas, com UC) sem boleto ativo (`asaas_id` nulo ou `asaas_status` `canceled`/`refunded`), agrupadas por usina conectada à UC (UC em N usinas aparece nos N grupos). Grupo sem usina (`usinaId`/`usinaNome` nulos) por último; demais por nome; itens por nome do cliente. Sem paginação. `data`:
+```json
+[{"usinaId": 3, "usinaNome": "Usina Norte", "itens": [{
+  "invoiceId": 12, "clienteId": 5, "clienteNome": "Ana Reis", "ucId": 9, "ucCodigo": "000555444333222",
+  "competencia": "2026-10", "dataVencimento": "2026-11-20",
+  "valorConcessionaria": "71.05", "valorHub": "168.75", "valorCobrar": "239.80",
+  "billingMode": "unified", "emissaoPendente": false, "bloqueio": null}]}]
+```
+- Valores em string com 2 casas. `valorHub`/`billingMode`/`valorCobrar` vêm da execução de cálculo mais recente (snapshot); `unified` = hub + Copel, `separate` = hub. Sem snapshot, os três são `null`. `emissaoPendente: true` (Fatura sem `asaas_id` em `aguardando_emissao`/`erro_emissao`): `valorCobrar` e `billingMode` vêm dessa Fatura.
+- `bloqueio` (`{code, message}` ou `null`, primeiro que se aplicar): `CLIENT_EMAIL_MISSING`, `INVOICE_DATA_INCOMPLETE` (campos `dataVencimento`, `valor`), `NOT_CALCULATED`, `RULE_MISSING` (última execução bloqueada em `RULE_RESOLUTION`), `CALCULATION_BLOCKED` (outra etapa).
 
 ---
 
@@ -684,7 +722,7 @@ Sem body. Remove a conta do banco (**não revoga** o acesso do lado do Google �
 
 ## Credenciais de API (`/api-credentials`)
 
-Credenciais de integrações pertencem à empresa autenticada e requerem `settings.read` para consulta ou `settings.update` para alteração. Providers iniciais: `resend`, `whatsapp`, `asaas` e `concessionaria`. O segredo é criptografado com `SECRET_ENCRYPTION_KEY` antes de persistir e **nunca** aparece em resposta, erro ou auditoria.
+Credenciais de integrações pertencem à empresa autenticada e requerem `settings.read` para consulta ou `settings.update` para alteração. Providers iniciais: `resend`, `whatsapp`, `asaas`, `concessionaria` e `piperun`. O segredo é criptografado com `SECRET_ENCRYPTION_KEY` antes de persistir e **nunca** aparece em resposta, erro ou auditoria.
 
 ## WhatsApp Meta Cloud API (`/whatsapp`)
 
@@ -718,7 +756,19 @@ Body obrigatório: `{ "provider": "resend", "nome": "Principal", "segredo": "...
 
 ### `POST /api-credentials/<id>/testar`
 
-Para API keys Asaas, executa uma consulta autenticada a `/myAccount` usando a chave API cifrada selecionada para o ambiente ativo e retorna `{ "ok": true, "modo": "asaas-api", "provider": "asaas" }`, sem retornar a chave. Credenciais Asaas `webhook_token*` e os demais provedores executam somente dry-run local: verificam que a cifra existe e pode ser lida, sem fazer HTTP, e retornam `modo: "dry-run"`.
+Para API keys Asaas, executa uma consulta autenticada a `/myAccount` usando a chave API cifrada selecionada para o ambiente ativo e retorna `{ "ok": true, "modo": "asaas-api", "provider": "asaas" }`, sem retornar a chave. Para credenciais `piperun`, consulta `GET https://api.pipe.run/v1` com o token no header `token` e retorna `{ "ok": true, "modo": "piperun-api", "provider": "piperun" }`. Credenciais Asaas `webhook_token*` e os demais provedores executam somente dry-run local: verificam que a cifra existe e pode ser lida, sem fazer HTTP, e retornam `modo: "dry-run"`.
+
+## CRM — leads PipeRun (`/crm-leads`)
+
+Leitura local de negócios ("deals") importados por polling manual do PipeRun; **não cria nem atualiza `Client`** automaticamente — decisão deliberada da v1. Requer uma `ApiCredential` com `provider=piperun` já cadastrada (ver `/api-credentials`).
+
+### `GET /crm-leads`
+
+Exige `settings.read`. Lista os leads da empresa (`provider=piperun` por ora), ordenados por `atualizadoEmOrigem` desc. Cada item: `{ id, provider, externalId, titulo, status, valor, pipelineNome, etapaNome, criadoEmOrigem, atualizadoEmOrigem, importadoEm, atualizadoEm }`. `valor` é string decimal ou `null`. `status` é o código bruto do PipeRun (`0`=aberta, `1`=ganha, `3`=perdida).
+
+### `POST /crm-leads/sincronizar`
+
+Exige `settings.update`; limitado a 5 chamadas/minuto. Pagina `GET /deals` no PipeRun via cursor (até 50 páginas por chamada) e faz upsert por `(empresa_id, provider, externalId)`. Retorna `{ "total_importados": N, "total_atualizados": M }`. Sem credencial `piperun` cadastrada: `400`. Falha de rede ou autenticação no PipeRun: `503`.
 
 ---
 
@@ -1119,12 +1169,27 @@ inclui distribuidora, dimensões e vigência; conteúdo idêntico é no-op e div
 
 ### C5.5 — Diagnóstico de cálculo
 
+`POST /billing-calculations/invoices/<id>/gerar-boleto` (e a variante de plataforma)
+aplica o modo de cobrança da regra na emissão. Ordem: (1) dados faltantes
+→ `422 INVOICE_DATA_INCOMPLETE`; (2) se existe emissão pendente da mesma empresa + UC
++ competência (`asaasId` nulo, `aguardando_emissao`/`erro_emissao`), reemite com
+`valor`, `mesVencimento` e `billingMode` já gravados nela (mesma chave de emissão,
+sem recalcular, nunca cria segunda Fatura); (3) se há boleto ativo, devolve-o sem novo
+POST; (4) senão recalcula (`BillingCalculationService`) e, se o cálculo não gerar
+snapshot, devolve `422 BILLING_CALCULATION_REQUIRED` com
+`details: { stage, blockers: [...] }` da execução; (5) modo = `unified` ou
+`separate` conforme a regra (`auto` → `separate` se a UC tem `debitoAutomatico`,
+senão `unified`); valor = valor HUB (`separate`) ou valor HUB + total da concessionária
+(`unified`); (6) emite. A resposta é a Fatura (ver `/faturas`) mais
+`faturaConcessionariaId`.
+
 `GET /billing-calculations`, `GET /billing-calculations/invoices`,
 `POST /billing-calculations/invoices/<id>/execute`, e detalhes de execução/snapshot
 exigem respectivamente `billing_calculations.read` e `billing_calculations.execute`.
 `GET /billing-calculations/invoices` aceita `page` (padrão 1), `pageSize`
 (padrão 50, máximo 100), `q` (nome do cliente ou código da UC), `usinaId`,
-`competencia`, `statusProcessamento` (extração ou validação),
+`competencia`, `statusProcessamento` (`erro` = fatura com `problemas`; `extraida` = sem `problemas`,
+igual ao selo da coluna Extração; outros valores continuam filtrando por extração ou validação),
 `statusCobranca` (status ASAAS ou `sem_cobranca`) e `comPendencia=true|false`.
 Os filtros são aplicados antes da paginação, sempre na empresa autenticada.
 `data` permanece um array; a resposta acrescenta
@@ -1133,7 +1198,8 @@ Os filtros são aplicados antes da paginação, sempre na empresa autenticada.
 `valorTotalConcessionaria`, `dataVencimento`, `documentoId`,
 `documentoDisponivel`, `temPendencia` e `contextualCharges`, além dos campos
 anteriores. `contextualCharges` é um array de zero ou mais
-`{ id, statusInterno, asaasStatus, asaasId, valor, mesVencimento, boletoUrl }`
+`{ id, statusInterno, asaasStatus, asaasId, valor, mesVencimento, boletoUrl, invoiceUrl, billingMode }`
+(`invoiceUrl`/`billingMode` são `null` em cobranças legadas ou manuais)
 da mesma empresa, UC e competência. Valor e
 vencimento podem ser nulos até a extração. `temPendencia` considera somente
 pendência aberta vinculada à fatura original. A associação com cobranças
@@ -1141,6 +1207,19 @@ ASAAS por UC e competência é contextual; não existe vínculo persistido entre
 os dois documentos, e pode haver várias cobranças no mesmo contexto.
 `documentoDisponivel` não é uma URL de acesso; esta lista não concede
 visualização ou download do PDF original.
+
+Cada item também traz `gdIKwh` e `gdIIKwh` (string Decimal ou `null`: soma do
+valor absoluto, em kWh, dos eventos GD I / GD II da fatura: injeção própria
+`ENERGIA INJETADA` e compensação `ENERGIA INJ. OUC MPT`; evento = classe + mês
++ contexto, TE/TUSD do mesmo evento contam uma vez, meses distintos somam;
+`null` sem evento, sem extração ou quando algum evento da classe não pode ser
+contado (quantidade ausente, unidade diferente de kWh, TE/TUSD divergentes ou
+par incompleto): nunca soma parcial) e `problemas`:
+`[{ code, message, fields }]` (vazio quando sem problema). Códigos:
+`NOT_PROCESSED`, `EXTRACTION_FAILED`, `LAYOUT_NOT_RECOGNIZED`, `UC_NOT_FOUND`,
+`UC_OTHER_CLIENT`, `MISSING_FIELDS` (`fields` = campos críticos não lidos) e
+`REVIEW_REQUIRED` (revisão sem campo identificável). O objeto `invoice` devolvido por
+upload, restauração e `POST .../reprocess` também carrega `problemas` (mesmo formato).
 As rotas administrativas equivalentes ficam sob
 `/platform/empresas/<empresaId>/billing-calculations` e exigem
 `is_platform_admin` com empresa explícita. O resultado nunca chama ASAAS.
@@ -1241,7 +1320,9 @@ Todas as rotas autenticadas são isoladas pela empresa atual. `owner`, `admin` e
 
 Lista ou consulta a intenção/espelho local da cobrança ASAAS. IDs de outra empresa retornam 404.
 Campos adicionais: `statusInterno` (`aguardando_emissao|emitida|erro_emissao|cancelada|null`),
-`paymentProvider` (`asaas|null`) e `externalReference` (`string|null`). `asaasId` agora
+`paymentProvider` (`asaas|null`), `externalReference` (`string|null`),
+`billingMode` (`unified|separate|null`; nulo em cobranças manuais/legadas) e
+`invoiceUrl` (`string|null`, link de pagamento do ASAAS, separado de `boletoUrl`). `asaasId` agora
 aceita `null` antes da conclusão. Campos novos ficam nulos nos legados. `asaasStatus`
 mantém o contrato/default `pending`, mas só representa confirmação remota quando
 `asaasId` está presente. Nenhum segredo, hash do comando ou cabeçalho ASAAS é retornado.
@@ -1283,6 +1364,10 @@ para registros com `asaasId`. Intenções ainda não emitidas não entram nessas
 Pública, sem Bearer. Body ASAAS: `{ "id": "evt_...", "event": "PAYMENT_RECEIVED", "payment": { "id": "pay_...", "externalReference": "hub-...", "status": "RECEIVED" } }`.
 `id` do envelope é a identidade do evento (não o ID do pagamento); aceita IDs ASAAS com `&`.
 Campos adicionais são tolerados, sem persistência do payload completo.
+`payment.invoiceUrl` só é gravado se for string `https://` de até 2048 caracteres; `null` ou valor inválido é ignorado (a URL gravada fica e o status/pendências do evento seguem processados, sem 400). É gravado em `invoiceUrl` e `bankSlipUrl` em `boletoUrl` (sem
+`bankSlipUrl`, `boletoUrl` mantém o fallback para `invoiceUrl`). Em `PAYMENT_RECEIVED`,
+a pendência `pagar_concessionaria` só é criada quando `billingMode != 'separate'`
+(`null` legado mantém o comportamento anterior).
 
 Resolve uma única Fatura por `externalReference`, ou por `payment.id` como fallback
 não ambíguo. Referências contraditórias são rejeitadas; legados sem referência local

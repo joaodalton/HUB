@@ -38,6 +38,8 @@ class Fatura(TenantMixin, db.Model):
     asaas_id = db.Column(db.String(100), nullable=True)
     asaas_status = db.Column(db.String(20), nullable=False, default='pending')
     boleto_url = db.Column(db.String(2048), nullable=True)
+    invoice_url = db.Column(db.String(2048), nullable=True)
+    billing_mode = db.Column(db.String(20), nullable=True)  # 'unified'|'separate'; nulo nos legados/manuais
     linha_digitavel = db.Column(db.String(100), nullable=True)
     codigo_barras = db.Column(db.String(100), nullable=True)
     criado_por_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
@@ -68,6 +70,8 @@ class Fatura(TenantMixin, db.Model):
             'externalReference': self.external_reference,
             'asaasStatus': self.asaas_status,
             'boletoUrl': self.boleto_url,
+            'invoiceUrl': self.invoice_url,
+            'billingMode': self.billing_mode,
             'linhaDigitavel': self.linha_digitavel,
             'codigoBarras': self.codigo_barras,
             'criadoPorId': self.criado_por_id,

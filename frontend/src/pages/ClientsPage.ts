@@ -60,6 +60,21 @@ export function createClientsPage(): HTMLElement {
  search.addEventListener('input', () => applySearch(search.value));
  const filters = createElement('div', { className: 'page-actions' }); filters.appendChild(search);
 
+ const pageActions = createElement('div', { className: 'page-actions' });
+ const newClientButton = createElement('button', { textContent: t('clients.actions.new'), type: 'button' });
+ const importButton = createElement('button', { className: 'secondary-button', textContent: t('clients.actions.import'), type: 'button' });
+ newClientButton.addEventListener('click', () => { selectedClient = null; isCreating = true; renderContent(); });
+ importButton.addEventListener('click', () => document.body.appendChild(createImportacoesModal(() => void loadClients())));
+ pageActions.append(importButton, newClientButton);
+ const dashboardHost = createElement('div');
+ const editorHost = createElement('div');
+ const tableHost = createElement('div');
+ const paginationHost = createElement('div');
+ const drawerHost = createElement('div');
+ let renderedEditorKey: ClientRow | 'new' | null = null;
+ let renderedDrawerClient: ClientRow | null = null;
+ content.replaceChildren(pageActions, filters, dashboardHost, editorHost, tableHost, paginationHost, drawerHost);
+
   renderContent();
   loadClients();
 
@@ -83,9 +98,6 @@ export function createClientsPage(): HTMLElement {
   }
 
  function renderContent(): void {
-    const pageActions = createElement('div', { className: 'page-actions' });
-    const newClientButton = createElement('button', { textContent: t('clients.actions.new'), type: 'button' });
-    const importButton = createElement('button', { className: 'secondary-button', textContent: t('clients.actions.import'), type: 'button' });
     const filteredClients = clients.filter((client) => matchesListSearch(searchTerm, `${client.nome} ${client.cpf} ${client.email} ${client.uc} ${client.usina} ${client.status}`));
     const paged = pageSlice(filteredClients, page, PAGE_SIZE);
     page = paged.page;
@@ -116,26 +128,20 @@ export function createClientsPage(): HTMLElement {
         { key: 'dataNascimento', label: t('clients.columns.birthDate'), defaultVisible: false, render: (client) => formatClientBirthDate(client.dataNascimento) }
       ]
     });
-    // `search` e `filters` vivem fora do renderContent (ver topo): recria-los a
-    // cada render destruia o input com foco no meio da digitacao.
     if (search.value !== searchTerm) search.value = searchTerm;
-    const blocks: HTMLElement[] = [pageActions, filters, createDashboardCards(getClientMetrics(clients)), table, createPagination(page, paged.pages, filteredClients.length, (nextPage) => { page = nextPage; writeListState({ pagina: page }); renderContent(); })];
+    dashboardHost.replaceChildren(createDashboardCards(getClientMetrics(clients)));
+    tableHost.replaceChildren(table);
+    paginationHost.replaceChildren(createPagination(page, paged.pages, filteredClients.length, (nextPage) => { page = nextPage; writeListState({ pagina: page }); renderContent(); }));
 
-    newClientButton.addEventListener('click', () => {
-      selectedClient = null;
-      isCreating = true;
-      renderContent();
-    });
-    importButton.addEventListener('click', () => document.body.appendChild(createImportacoesModal(() => void loadClients())));
-
-    pageActions.append(importButton, newClientButton);
-
-    if (isCreating || selectedClient) {
-      blocks.push(createClientEditor());
+    const editorKey = selectedClient ?? (isCreating ? 'new' as const : null);
+    if (editorKey !== renderedEditorKey) {
+      renderedEditorKey = editorKey;
+      editorHost.replaceChildren(...(isCreating || selectedClient ? [createClientEditor()] : []));
     }
-
-    content.replaceChildren(...blocks);
-    if (viewingClient) content.appendChild(createClientDrawer(viewingClient));
+    if (viewingClient !== renderedDrawerClient) {
+      renderedDrawerClient = viewingClient;
+      drawerHost.replaceChildren(...(viewingClient ? [createClientDrawer(viewingClient)] : []));
+    }
   }
 
   function createClientEditor(): HTMLElement {

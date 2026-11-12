@@ -5,6 +5,7 @@ import type { FaturaRow, FaturaStatus } from './faturasService';
 const base = (empresaId: number) => `/platform/empresas/${empresaId}/billing-calculations`;
 
 export type BillingClient = { id: number; nome: string };
+export type InvoiceProblem = { code: string; message: string; fields: string[] };
 export type BillingInvoice = {
   id: number;
   clientId: number;
@@ -21,9 +22,13 @@ export type BillingInvoice = {
   documentoId?: number | null;
   documentoDisponivel?: boolean;
   temPendencia?: boolean;
+  gdIKwh: string | null;
+  gdIIKwh: string | null;
+  problemas: InvoiceProblem[];
   contextualCharges?: Array<{
     id: number; statusInterno: string | null; asaasStatus: FaturaStatus; asaasId: string | null;
     valor: number; mesVencimento: string; boletoUrl: string | null;
+    invoiceUrl: string | null; billingMode: 'unified' | 'separate' | null;
   }>;
 };
 export type BillingInvoiceFilters = {
@@ -70,7 +75,7 @@ export type BillingSnapshot = {
   valorFinal: string;
   createdAt: string;
 };
-export type BillingUpload = { invoiceId: number; duplicate: boolean; invoice: Record<string, unknown> };
+export type BillingUpload = { invoiceId: number; duplicate: boolean; invoice: Record<string, unknown> & { problemas: InvoiceProblem[] } };
 
 export async function getBillingClients(empresaId: number): Promise<BillingClient[]> {
   return (await apiRequest<ApiResponse<BillingClient[]>>(`${base(empresaId)}/clients`)).data;
@@ -149,6 +154,20 @@ export async function uploadBillingInvoice(empresaId: number, file: File): Promi
 
 export async function executeBillingCalculation(empresaId: number, invoiceId: number): Promise<BillingExecution> {
   return (await apiRequest<ApiResponse<BillingExecution>>(`${base(empresaId)}/invoices/${invoiceId}/execute`, { method: 'POST' })).data;
+}
+
+export async function reprocessBillingInvoice(invoiceId: number, empresaId?: number): Promise<BillingUpload> {
+  const path = empresaId
+    ? `${base(empresaId)}/invoices/${invoiceId}/reprocess`
+    : `/billing-calculations/invoices/${invoiceId}/reprocess`;
+  return (await apiRequest<ApiResponse<BillingUpload>>(path, { method: 'POST' })).data;
+}
+
+export async function calculateBillingInvoice(invoiceId: number, empresaId?: number): Promise<BillingExecution> {
+  const path = empresaId
+    ? `${base(empresaId)}/invoices/${invoiceId}/execute`
+    : `/billing-calculations/invoices/${invoiceId}/execute`;
+  return (await apiRequest<ApiResponse<BillingExecution>>(path, { method: 'POST' })).data;
 }
 
 export async function getBillingExecutions(empresaId: number | undefined, invoiceId?: number): Promise<BillingExecution[]> {

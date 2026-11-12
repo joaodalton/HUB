@@ -3,7 +3,7 @@ import re
 
 from flask import Blueprint, g, request
 
-from services.financeiro_service import obter_dashboard
+from services.financeiro_service import listar_pendentes_boleto, obter_dashboard
 from services.permission_service import require_permission
 from utils.api_response import error_response, success_response
 
@@ -19,3 +19,9 @@ def dashboard():
     if competencia and not COMPETENCIA_RE.match(competencia):
         return error_response('Parâmetro competencia inválido, use o formato AAAA-MM.', 400)
     return success_response(obter_dashboard(g.current_empresa_id, competencia))
+
+
+@financeiro_routes.get('/pendentes-boleto')
+@require_permission('billing_calculations.read')
+def pendentes_boleto():
+    return success_response(listar_pendentes_boleto(g.current_empresa_id))

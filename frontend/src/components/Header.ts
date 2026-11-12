@@ -1,4 +1,5 @@
 import { createElement } from '../dom';
+import { createInvoiceImportButton } from './InvoiceImportButton';
 import { createLanguageSwitcher } from './LanguageSwitcher';
 import { createThemeToggle } from './ThemeToggle';
 
@@ -24,6 +25,8 @@ export function createHeader({
   text.append(eyebrow, heading);
   if (context) text.appendChild(context);
   const controls = createElement('div', { className: 'header-controls' });
+  const importButton = createInvoiceImportButton();
+  if (importButton) controls.appendChild(importButton);
   controls.append(createThemeToggle(), createLanguageSwitcher());
   header.append(mark, text, controls);
   return header;

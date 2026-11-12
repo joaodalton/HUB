@@ -35,6 +35,12 @@ _DECIMALS = InvoiceNormalizer.DECIMALS | {
 }
 
 
+def blocked_stage(auditoria):
+    """Primeira etapa que bloqueou a execucao (ou None)."""
+    return next((stage for stage in auditoria.get('stages', []) if stage['status'] in
+                 ('REVIEW_REQUIRED', 'MISSING_DATA', 'UNSUPPORTED', 'ERROR')), None)
+
+
 class _Blocked(Exception):
     def __init__(self, status, code):
         self.status, self.code = status, code
@@ -145,7 +151,7 @@ class BillingCalculationService:
             raise LookupError('Fatura não encontrada.')
         if db.session.new or db.session.dirty or db.session.deleted:
             raise ValueError('Execução exige sessão limpa.')
-        invoice = FaturaConcessionaria.query.filter_by(id=invoice_id, empresa_id=empresa_id).populate_existing().first()
+        invoice = FaturaConcessionaria.query.filter_by(id=invoice_id, empresa_id=empresa_id, deleted_at=None).populate_existing().first()
         if invoice is None:
             raise LookupError('Fatura não encontrada.')
 

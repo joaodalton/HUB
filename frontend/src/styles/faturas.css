@@ -15,7 +15,6 @@
 .faturas-toolbar-copy { display: grid; gap: var(--space-1); }
 .faturas-toolbar-copy h2 { font-size: 20px; color: var(--text); }
 .faturas-toolbar-copy p { color: var(--text-dim); font-size: 13px; }
-.faturas-toolbar-actions { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
 
 .faturas-filter-panel {
   display: grid;
@@ -61,11 +60,18 @@
 .faturas-filter-field input[type="month"]:hover { border-color: var(--border-soft); }
 .faturas-filter-field input[type="month"]:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-bg); }
 .faturas-page .data-panel-scroll { min-height: 300px; }
-.fatura-charge-cell { display: flex; gap: 4px; flex-wrap: wrap; }
+.faturas-client-cell, .faturas-extraction-cell { display: grid; gap: 4px; }
+.faturas-client-cell small { color: var(--text-faint); }
+.financeiro-group-toggle { display: inline-flex; align-items: center; gap: var(--space-2, 8px); padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; text-align: left; }
+.financeiro-group-toggle:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-bg); border-radius: 4px; }
+.financeiro-group-chevron { width: 8px; height: 8px; border-right: 2px solid var(--text-faint); border-bottom: 2px solid var(--text-faint); transform: rotate(-45deg); transition: transform 0.15s; }
+.financeiro-group-toggle[aria-expanded="true"] .financeiro-group-chevron { transform: rotate(45deg); }
+.financeiro-page .table-wrap[hidden] { display: none; }
+.faturas-problem { margin: 0; color: var(--danger); font-size: 12px; line-height: 1.4; }
+.faturas-row-actions { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+.faturas-row-actions .secondary-button, .faturas-row-actions .danger-button { min-height: 28px; padding: 0 10px; font-size: 12px; text-decoration: none; display: inline-flex; align-items: center; }
 .faturas-pagination { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-2); color: var(--text-dim); }
 .faturas-pagination.pagination-left { justify-content: flex-start; }
-.fatura-modal { width: min(840px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow: auto; }
-.fatura-modal .modal-body { display: grid; gap: var(--space-3); }
 .fatura-detail-section { display: grid; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--panel-soft); }
 .fatura-detail-section h3 { margin: 0; color: var(--text); font-size: 15px; }
 .fatura-detail-section p { margin: 0; color: var(--text-dim); font-size: 13px; }
@@ -81,14 +87,14 @@
 .fatura-timeline strong { color: var(--text); font-size: 13px; }
 .fatura-timeline span { color: var(--text-faint); font-size: 12px; }
 .fatura-history-empty { padding-top: var(--space-2); }
-.fatura-notice { margin: 0; padding: 12px 14px; border: 1px solid var(--hub-primary-border); border-radius: var(--radius-input); background: var(--hub-primary-subtle); color: var(--hub-text-muted); font-size: 12px; line-height: 1.5; }
 
 @media (max-width: 1280px) { .faturas-filter-panel { grid-template-columns: repeat(3, minmax(160px, 1fr)); } }
 @media (max-width: 760px) {
   .faturas-toolbar { align-items: flex-start; flex-direction: column; padding: var(--space-3); }
-  .faturas-toolbar-actions { width: 100%; flex-direction: column; align-items: stretch; }
-  .faturas-toolbar-actions button { width: 100%; justify-content: center; }
   .faturas-filter-panel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .fatura-detail-section .detail-info-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 520px) { .faturas-filter-panel { grid-template-columns: minmax(0, 1fr); } }
+
+.faturas-import-results { margin: 0 0 var(--space-3, 12px); padding-left: 20px; display: grid; gap: 6px; overflow-wrap: anywhere; }
+.toast-action { margin-left: auto; padding: 4px 10px; border: 1px solid currentColor; border-radius: var(--radius-card); background: transparent; color: inherit; cursor: pointer; font: inherit; white-space: nowrap; }

@@ -16,7 +16,8 @@ ORIGIN = 'GD_COMPENSATION_UNVERIFIED'
 
 def register(invoice_id, normalized, validation):
     """No-op unless the persisted invoice has an exact UC and proven expectation."""
-    invoice = FaturaConcessionaria.query.filter_by(id=invoice_id, empresa_id=normalized.empresa_id).first()
+    invoice = FaturaConcessionaria.query.filter_by(
+        id=invoice_id, empresa_id=normalized.empresa_id, deleted_at=None).first()
     if invoice is None or validation.consumer_unit_id is None or invoice.consumer_unit_id != validation.consumer_unit_id:
         return None
     energy = normalized.billing_energy_input

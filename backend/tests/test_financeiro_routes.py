@@ -119,6 +119,152 @@ class FinanceiroRoutesTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertEqual(self.client.get(url, headers=self.headers(3)).status_code, 403)
         self.assertEqual(self.client.get(url, headers=self.headers(2)).status_code, 200)
 
+    # ---- GET /financeiro/pendentes-boleto ----
+    URL = '/api/v1/financeiro/pendentes-boleto'
+
+    def make_invoice(self, n, *, tenant=10, plants=(), email='c@example.test', nome=None, mode='unified',
+                     debito=False, valor='71.05', vencimento=date(2026, 11, 20), hub='168.75',
+                     validacao='valida', stage=None, deleted=None, uc=True):
+        """Cliente+UC+fatura da concessionaria com (opcionalmente) calculo. stage: etapa bloqueada."""
+        from datetime import datetime
+        from decimal import Decimal
+        from models.document import Document
+        from models.fatura_concessionaria import FaturaConcessionaria
+        db.session.add(Client(id=n, empresa_id=tenant, nome=nome or f'Cli {n}', cpf=str(n), email=email))
+        db.session.add(Document(id=n, empresa_id=tenant, client_id=n, nome='c.pdf', storage_provider='google_drive'))
+        db.session.add(ConsumerUnit(id=n, empresa_id=tenant, client_id=n, codigo=f'UC{n}', debito_automatico=debito))
+        for plant_id in plants:
+            db.session.add(PlantConnection(empresa_id=tenant, consumer_unit_id=n, plant_id=plant_id, percentual=50))
+        db.session.add(FaturaConcessionaria(
+            id=n, empresa_id=tenant, client_id=n, consumer_unit_id=n if uc else None, document_id=n,
+            arquivo_hash=str(n) * 32, competencia='2026-10', data_vencimento=vencimento,
+            valor_total_concessionaria=None if valor is None else Decimal(valor),
+            status_validacao=validacao, deleted_at=deleted and datetime.utcnow()))
+        db.session.commit()
+        if hub is not None:
+            self.add_execution(n, tenant, hub=hub, mode=mode)
+        elif stage:
+            self.add_execution(n, tenant, stage=stage)
+
+    def add_execution(self, n, tenant, *, hub=None, mode='unified', stage=None):
+        from decimal import Decimal
+        from models.calculo_cobranca import BillingCalculationExecution, BillingCalculationSnapshot
+        snapshot_id = None
+        if hub is not None:
+            snapshot = BillingCalculationSnapshot(
+                empresa_id=tenant, fatura_concessionaria_id=n, fingerprint=f'{n}{hub}{mode}'.ljust(64, 'f'),
+                regra_snapshot={'billing_mode': mode}, entrada_normalizada={}, resultado={},
+                valor_final=Decimal(hub))
+            db.session.add(snapshot)
+            db.session.flush()
+            snapshot_id = snapshot.id
+        stages = [{'stage': stage, 'status': 'MISSING_DATA', 'blockers': ['X_MISSING', 'Y_MISSING']}] if stage else []
+        db.session.add(BillingCalculationExecution(
+            empresa_id=tenant, fatura_concessionaria_id=n, snapshot_id=snapshot_id,
+            status='CALCULATED' if hub is not None else 'MISSING_DATA', auditoria={'stages': stages}))
+        db.session.commit()
+
+    def pendentes(self, user_id=1):
+        response = self.client.get(self.URL, headers=self.headers(user_id))
+        self.assertEqual(response.status_code, 200)
+        return response.json['data']
+
+    def test_pendentes_agrupa_por_usina_e_sem_usina_por_ultimo(self):
+        self.make_invoice(101, plants=(10, 11), nome='Zeca')
+        self.make_invoice(102, nome='Ana')
+        self.make_invoice(103, plants=(10,), nome='Ana B', debito=True, mode='auto')
+        data = self.pendentes()
+        self.assertEqual([(g['usinaId'], g['usinaNome']) for g in data],
+                         [(10, 'Usina 10'), (11, 'Usina sem conexao'), (None, None)])
+        self.assertEqual([i['clienteNome'] for i in data[0]['itens']], ['Ana B', 'Zeca'])
+        self.assertEqual([i['invoiceId'] for i in data[1]['itens']], [101])
+        zeca = data[0]['itens'][1]
+        self.assertEqual(zeca, {
+            'invoiceId': 101, 'clienteId': 101, 'clienteNome': 'Zeca', 'ucId': 101, 'ucCodigo': 'UC101',
+            'competencia': '2026-10', 'dataVencimento': '2026-11-20', 'valorConcessionaria': '71.05',
+            'valorHub': '168.75', 'valorCobrar': '239.80', 'billingMode': 'unified',
+            'emissaoPendente': False, 'bloqueio': None})
+        ana_b = data[0]['itens'][0]  # auto + debito automatico => separate => so valor Hub
+        self.assertEqual((ana_b['billingMode'], ana_b['valorCobrar']), ('separate', '168.75'))
+
+    def test_pendentes_filtra_boleto_ativo_validacao_e_exclusao(self):
+        from datetime import datetime
+        self.make_invoice(111, nome='Pago')
+        self.make_invoice(112, nome='Cancelado')
+        self.make_invoice(113, nome='Revisao', validacao='revisao_necessaria')
+        self.make_invoice(114, nome='Excluida', deleted=True)
+        self.make_invoice(115, nome='SemUc', uc=False)
+        for fid, n, status in ((1111, 111, 'pending'), (1112, 112, 'canceled')):
+            db.session.add(Fatura(id=fid, empresa_id=10, client_id=n, consumer_unit_id=n, concessionaria='Copel',
+                                  competencia='2026-10', valor=10, mes_vencimento=date(2026, 11, 20),
+                                  asaas_id=f'pay_{n}', asaas_status=status))
+        db.session.commit()
+        ids = [i['invoiceId'] for g in self.pendentes() for i in g['itens']]
+        self.assertEqual(ids, [112])
+
+    def test_pendentes_bloqueios_na_ordem_da_tabela(self):
+        self.make_invoice(121, email='  ', nome='A')
+        self.make_invoice(122, vencimento=None, valor=None, nome='B')
+        self.make_invoice(123, hub=None, nome='C')
+        self.make_invoice(124, hub=None, stage='RULE_RESOLUTION', nome='D')
+        self.make_invoice(125, hub=None, stage='NORMALIZATION', nome='E')
+        self.make_invoice(126, vencimento=None, valor='0.00', hub=None, email='', nome='F')
+        itens = {i['invoiceId']: i for g in self.pendentes() for i in g['itens']}
+        self.assertEqual(itens[121]['bloqueio'], {'code': 'CLIENT_EMAIL_MISSING', 'message': 'Cliente sem e-mail cadastrado.'})
+        self.assertEqual(itens[122]['bloqueio'], {'code': 'INVOICE_DATA_INCOMPLETE',
+                                                  'message': 'Faltou na fatura: dataVencimento, valor.'})
+        self.assertEqual(itens[123]['bloqueio'], {'code': 'NOT_CALCULATED', 'message': 'Cobrança ainda não calculada.'})
+        self.assertEqual((itens[123]['valorHub'], itens[123]['valorCobrar'], itens[123]['billingMode']),
+                         (None, None, None))
+        self.assertEqual(itens[124]['bloqueio'], {'code': 'RULE_MISSING', 'message': 'Cliente sem regra de cobrança.'})
+        self.assertEqual(itens[125]['bloqueio'], {
+            'code': 'CALCULATION_BLOCKED', 'message': 'Cálculo bloqueado em NORMALIZATION: X_MISSING, Y_MISSING.'})
+        self.assertEqual(itens[126]['bloqueio']['code'], 'CLIENT_EMAIL_MISSING')
+        self.assertIsNone(itens[122]['dataVencimento'])
+
+    def test_pendentes_valor_zero_ou_negativo_e_dado_incompleto(self):
+        self.make_invoice(161, valor='0.00', hub=None, nome='Zero')
+        self.make_invoice(162, valor='-5.00', nome='Negativo')
+        itens = {i['invoiceId']: i for g in self.pendentes() for i in g['itens']}
+        for invoice_id in (161, 162):
+            self.assertEqual(itens[invoice_id]['bloqueio'], {
+                'code': 'INVOICE_DATA_INCOMPLETE', 'message': 'Faltou na fatura: valor.'})
+
+    def test_pendentes_linhas_inconsistentes_nao_derrubam_a_listagem(self):
+        from models.fatura_concessionaria import FaturaConcessionaria
+        self.make_invoice(171, plants=(999,), nome='PlantaOrfa')  # conexao aponta para usina inexistente
+        self.make_invoice(172, nome='UcOrfa')
+        self.make_invoice(173, nome='ClienteOrfao')
+        FaturaConcessionaria.query.filter_by(id=172).update({'consumer_unit_id': 9999})
+        FaturaConcessionaria.query.filter_by(id=173).update({'client_id': 9999})
+        db.session.commit()
+        data = self.pendentes()
+        self.assertEqual([(g['usinaId'], [i['invoiceId'] for i in g['itens']]) for g in data], [(None, [171])])
+
+    def test_pendentes_usa_ultima_execucao_mesmo_sem_snapshot(self):
+        self.make_invoice(131, nome='Velho')  # execucao 1 calculada
+        self.add_execution(131, 10, stage='RULE_RESOLUTION')  # execucao 2 bloqueada, mais recente
+        item = self.pendentes()[0]['itens'][0]
+        self.assertEqual(item['bloqueio']['code'], 'RULE_MISSING')
+        self.assertIsNone(item['valorHub'])
+
+    def test_pendentes_emissao_pendente_reusa_valor_e_modo_gravados(self):
+        self.make_invoice(141, nome='Retry')
+        db.session.add(Fatura(id=1141, empresa_id=10, client_id=141, consumer_unit_id=141, concessionaria='Copel',
+                              competencia='2026-10', valor=300, mes_vencimento=date(2026, 11, 20),
+                              status_interno='erro_emissao', billing_mode='separate'))
+        db.session.commit()
+        item = self.pendentes()[0]['itens'][0]
+        self.assertTrue(item['emissaoPendente'])
+        self.assertEqual((item['valorCobrar'], item['billingMode'], item['valorHub']), ('300.00', 'separate', '168.75'))
+
+    def test_pendentes_isolamento_e_permissao(self):
+        self.make_invoice(151, tenant=20)
+        self.assertEqual(self.pendentes(1), [])
+        self.assertEqual(len(self.pendentes(4)), 1)
+        self.assertEqual(self.client.get(self.URL).status_code, 401)
+        self.assertEqual(self.client.get(self.URL, headers=self.headers(3)).status_code, 403)
+
 
 if __name__ == '__main__':
     unittest.main()

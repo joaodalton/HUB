@@ -3,9 +3,10 @@ import sys
 import tempfile
 import unittest
 from io import BytesIO
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -62,6 +63,18 @@ class BillingCalculationRoutesTest(IsolatedTestRuntime, unittest.TestCase):
                                 role=role, is_platform_admin=platform))
         db.session.commit()
         self.client = self.app.test_client()
+        # A emissao recalcula; aqui o calculo e simulado a partir do snapshot semeado (o real e coberto
+        # em test_billing_mode_emissao).
+        calc = patch.object(service, 'BillingCalculationService')
+        calc.start().return_value.execute.side_effect = self._fake_execute
+        self.addCleanup(calc.stop)
+
+    @staticmethod
+    def _fake_execute(invoice_id):
+        snapshot = BillingCalculationSnapshot.query.filter_by(
+            fatura_concessionaria_id=invoice_id).order_by(BillingCalculationSnapshot.id.desc()).first()
+        stages = [{'stage': 'EXTRACTION', 'blockers': ['EXTRACTION_UNAVAILABLE']}]
+        return SimpleNamespace(snapshot=snapshot, auditoria={'stages': stages})
 
     def tearDown(self):
         db.session.rollback()
@@ -154,6 +167,30 @@ class BillingCalculationRoutesTest(IsolatedTestRuntime, unittest.TestCase):
         self.assertEqual(self.client.get(base, headers=self.headers(5)).json['pagination']['total'], 1)
         self.assertEqual(self.client.get(base + '?pageSize=101', headers=self.headers(1)).status_code, 400)
 
+    def test_status_processamento_erro_and_extraida_match_problemas(self):
+        states = {10: ('extraida', 'valida'), 11: ('extraida', 'valida'), 12: ('erro', 'pendente'),
+                  13: ('layout_nao_reconhecido', 'pendente'), 14: ('recebida', 'pendente'),
+                  15: ('extraida', 'uc_nao_encontrada'), 16: ('extraida', 'uc_pertence_outro_cliente'),
+                  17: ('extraida', 'revisao_necessaria'), 18: ('processando', 'pendente')}
+        for identifier, (extraction, validation) in states.items():
+            row = db.session.get(FaturaConcessionaria, identifier) or FaturaConcessionaria(
+                id=identifier, empresa_id=10, client_id=10, document_id=10, arquivo_hash=str(identifier) * 32)
+            row.status_extracao, row.status_validacao = extraction, validation
+            db.session.add(row)
+        db.session.add(FaturaConcessionaria(
+            id=19, empresa_id=10, client_id=10, document_id=10, arquivo_hash='9' * 32,
+            status_extracao='erro', deleted_at=datetime(2026, 1, 1)))
+        db.session.commit()
+        base = '/api/v1/billing-calculations/invoices?pageSize=100&statusProcessamento='
+
+        def ids(status, user=1):
+            return {row['id'] for row in self.client.get(base + status, headers=self.headers(user)).json['data']}
+
+        self.assertEqual(ids('erro'), {12, 13, 14, 15, 16, 17})
+        self.assertEqual(ids('extraida'), {10, 11, 18})
+        self.assertEqual(ids('valida'), {10, 11})  # valor antigo continua aceito
+        self.assertEqual(ids('erro', 5), {20})  # so a propria empresa
+
     def test_invoice_list_contains_only_contextual_charges_from_same_tenant(self):
         for tenant in (10, 20):
             db.session.add(ConsumerUnit(id=tenant, empresa_id=tenant, client_id=tenant,
@@ -172,7 +209,11 @@ class BillingCalculationRoutesTest(IsolatedTestRuntime, unittest.TestCase):
         charges = response.json['data'][0]['contextualCharges']
         self.assertEqual(len(charges), 1)
         self.assertEqual(charges[0]['valor'], 40.0)
+        self.assertEqual((charges[0]['invoiceUrl'], charges[0]['billingMode']), (None, None))
         self.assertEqual(response.json['data'][0]['ucCodigo'], 'UC-10')
+        row = response.json['data'][0]
+        self.assertEqual((row['gdIKwh'], row['gdIIKwh']), (None, None))
+        self.assertEqual([p['code'] for p in row['problemas']], ['NOT_PROCESSED'])
 
     def test_gerar_boleto_validates_completeness_then_emits(self):
         url = '/api/v1/billing-calculations/invoices/10/gerar-boleto'
@@ -196,10 +237,11 @@ class BillingCalculationRoutesTest(IsolatedTestRuntime, unittest.TestCase):
         no_snapshot = self.client.post(url, headers=self.headers(1))
         self.assertEqual(no_snapshot.status_code, 422)
         self.assertEqual(no_snapshot.json['code'], 'BILLING_CALCULATION_REQUIRED')
+        self.assertEqual(no_snapshot.json['details']['blockers'], ['EXTRACTION_UNAVAILABLE'])
 
         db.session.add(BillingCalculationSnapshot(
             empresa_id=10, fatura_concessionaria_id=10, fingerprint='a' * 64,
-            regra_snapshot={}, entrada_normalizada={}, resultado={}, valor_final=Decimal('50.00')))
+            regra_snapshot={'billing_mode': 'separate'}, entrada_normalizada={}, resultado={}, valor_final=Decimal('50.00')))
         db.session.commit()
 
         with patch.object(service, 'AsaasClient') as asaas_cls:
@@ -228,7 +270,7 @@ class BillingCalculationRoutesTest(IsolatedTestRuntime, unittest.TestCase):
         db.session.get(Client, 10).asaas_customer_id = 'cus_10'
         db.session.add(BillingCalculationSnapshot(
             empresa_id=10, fatura_concessionaria_id=10, fingerprint='c' * 64,
-            regra_snapshot={}, entrada_normalizada={}, resultado={}, valor_final=Decimal('45.50')))
+            regra_snapshot={'billing_mode': 'separate'}, entrada_normalizada={}, resultado={}, valor_final=Decimal('45.50')))
         db.session.commit()
 
         with patch.object(service, 'AsaasClient') as asaas_cls:
@@ -255,7 +297,7 @@ class BillingCalculationRoutesTest(IsolatedTestRuntime, unittest.TestCase):
         db.session.get(Client, 20).asaas_customer_id = 'cus_20'
         db.session.add(BillingCalculationSnapshot(
             empresa_id=20, fatura_concessionaria_id=20, fingerprint='d' * 64,
-            regra_snapshot={}, entrada_normalizada={}, resultado={}, valor_final=Decimal('50.00')))
+            regra_snapshot={'billing_mode': 'separate'}, entrada_normalizada={}, resultado={}, valor_final=Decimal('50.00')))
         db.session.commit()
 
         with patch.object(service, 'AsaasClient') as asaas_cls:
@@ -293,19 +335,19 @@ class BillingCalculationRoutesTest(IsolatedTestRuntime, unittest.TestCase):
                                             headers=self.headers(1)).status_code, 404)
         response = self.client.delete(url, headers=self.headers(1))
         self.assertEqual(response.status_code, 200, response.json)
-        self.assertIsNone(db.session.get(FaturaConcessionaria, 10))
-        self.assertIsNone(db.session.get(Document, 10))
+        self.assertIsNotNone(db.session.get(FaturaConcessionaria, 10).deleted_at)
+        self.assertIsNotNone(db.session.get(Document, 10))
 
-    def test_delete_invoice_blocked_after_calculation_executed(self):
+    def test_delete_invoice_allowed_after_calculation_executed_without_boleto(self):
         execution = BillingCalculationExecution(empresa_id=10, fatura_concessionaria_id=10,
             status='MISSING_DATA', auditoria={'stages': []})
         db.session.add(execution)
         db.session.commit()
         response = self.client.delete('/api/v1/billing-calculations/invoices/10',
                                       headers=self.headers(1))
-        self.assertEqual(response.status_code, 409)
-        self.assertEqual(response.json['code'], 'INVOICE_HAS_CALCULATION')
-        self.assertIsNotNone(db.session.get(FaturaConcessionaria, 10))
+        self.assertEqual(response.status_code, 200, response.json)
+        self.assertIsNotNone(db.session.get(FaturaConcessionaria, 10).deleted_at)
+        self.assertEqual(BillingCalculationExecution.query.filter_by(fatura_concessionaria_id=10).count(), 1)
 
 
 if __name__ == '__main__':

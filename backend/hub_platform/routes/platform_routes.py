@@ -62,6 +62,9 @@ def listar_empresas():
         usinas_por_empresa = dict(
             db.session.query(Plant.empresa_id, func.count(Plant.id)).group_by(Plant.empresa_id).all()
         )
+        usuarios_por_empresa = dict(
+            db.session.query(User.empresa_id, func.count(User.id)).group_by(User.empresa_id).all()
+        )
 
     return success_response([{
         'id': empresa.id,
@@ -71,6 +74,7 @@ def listar_empresas():
         'totalClientes': clientes_por_empresa.get(empresa.id, 0),
         'totalUcs': ucs_por_empresa.get(empresa.id, 0),
         'totalUsinas': usinas_por_empresa.get(empresa.id, 0),
+        'totalUsuarios': usuarios_por_empresa.get(empresa.id, 0),
         'createdAt': empresa.created_at.isoformat() if empresa.created_at else None,
     } for empresa in empresas])
 

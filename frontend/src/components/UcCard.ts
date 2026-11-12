@@ -1,7 +1,7 @@
 import { createElement } from '../dom';
 import { createContextHelp } from './ContextHelp';
 import { createConcessionariaPasswordField } from './ConcessionariaPasswordField';
-import { createCheckboxField, createFormSection, createInput } from './formFields';
+import { createCheckboxField, createDebitoAutomaticoField, createFormSection, createInput } from './formFields';
 import { cnpjError, cpfError, digits, ucError, validateField } from './cadastroFields';
 import { createPlantConnections, createTariffSelect } from './PlantConnectionsField';
 import type { ClientRow, PlantConnection } from '../services/clientsService';
@@ -56,6 +56,7 @@ export function createUcCard({ uc, clients, availablePlants, onSave, onCancel, o
     t('ucs.card.discountHelpText')));
   const tipoLigacao = createLigacaoSelect(uc?.tipoLigacao ?? 'Monofasico');
   const geracaoPropria = createCheckboxField(t('ucs.card.fieldGeracaoPropria'), uc?.geracaoPropria ?? false);
+  const debitoAutomatico = createDebitoAutomaticoField(uc?.debitoAutomatico ?? false);
   const diaEmissaoFatura = createInput(t('ucs.card.fieldDiaEmissaoFatura'), 'number', uc?.diaEmissaoFatura != null ? String(uc.diaEmissaoFatura) : '', false);
   const inicioContrato = createInput(t('ucs.card.fieldInicioContrato'), 'date', uc?.inicioContrato ?? '', false);
   const terminoContrato = createInput(t('ucs.card.fieldTerminoContrato'), 'date', uc?.terminoContrato ?? '', false);
@@ -130,6 +131,7 @@ export function createUcCard({ uc, clients, availablePlants, onSave, onCancel, o
       cep: cep.input.value.trim() || null,
       concessionaria: concessionaria.input.value.trim() || null,
       geracaoPropria: geracaoPropria.input.checked,
+      debitoAutomatico: debitoAutomatico.input.checked,
       diaEmissaoFatura: diaEmissaoFatura.input.value.trim() ? Number(diaEmissaoFatura.input.value) : null,
       consumo: consumo.input.value.trim() ? Number(consumo.input.value) : null,
       baseTarifaria: baseTarifaria.select.value,
@@ -146,7 +148,7 @@ export function createUcCard({ uc, clients, availablePlants, onSave, onCancel, o
   form.append(
     header,
     createFormSection(t('ucs.card.sectionDados'), cliente.field, codigo.field, apelido.field, documento.field, senhaConcessionaria.field, concessionaria.field),
-    createFormSection(t('ucs.card.sectionEnderecoConsumo'), endereco.field, cep.field, consumo.field, baseTarifaria.field, desconto.field, tipoLigacao.field, geracaoPropria.field, diaEmissaoFatura.field),
+    createFormSection(t('ucs.card.sectionEnderecoConsumo'), endereco.field, cep.field, consumo.field, baseTarifaria.field, desconto.field, tipoLigacao.field, geracaoPropria.field, debitoAutomatico.field, diaEmissaoFatura.field),
     createFormSection(t('ucs.card.sectionContrato'), inicioContrato.field, terminoContrato.field, carenciaMeses.field, percentualDescontoCarencia.field),
     plantArea,
     actions

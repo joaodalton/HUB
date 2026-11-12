@@ -33,6 +33,8 @@ type DataTableOptions<T> = {
   onRowClick?: (row: T) => void;
   // Chave de persistencia das colunas no localStorage; default = slug(title).
   storageKey?: string;
+  // false remove o seletor de colunas e ignora preferencia salva; default = true.
+  columnChooser?: boolean;
 };
 
 function slugify(value: string): string {
@@ -91,7 +93,8 @@ export function createDataTable<T extends Record<string, unknown>>({
   emptyAction,
   errorAction,
   onRowClick,
-  storageKey
+  storageKey,
+  columnChooser = true
 }: DataTableOptions<T>): HTMLElement {
   const panel = createElement('section', { className: 'data-panel data-panel-scroll' });
   const panelTitle = createElement('div', { className: 'panel-title' });
@@ -108,8 +111,10 @@ export function createDataTable<T extends Record<string, unknown>>({
   const togglableColumns = columns.filter(isTogglable);
   // Primeira coluna e a coluna status nunca entram no reordenamento, so no
   // toggle de visibilidade.
-  const reorderableColumns = togglableColumns.filter((column) => column.key !== firstColumn?.key && column.key !== statusColumn?.key);
-  let columnPrefs = loadColumnPrefs(resolvedStorageKey);
+  const reorderableColumns = columnChooser
+    ? togglableColumns.filter((column) => column.key !== firstColumn?.key && column.key !== statusColumn?.key)
+    : [];
+  let columnPrefs: ColumnPrefs = columnChooser ? loadColumnPrefs(resolvedStorageKey) : { visible: {}, order: [] };
 
   // Primeira coluna e coluna status sao permanentemente visiveis, sem
   // controle do usuario -- nunca consultam prefs.visible.

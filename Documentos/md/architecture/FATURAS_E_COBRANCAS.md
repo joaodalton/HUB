@@ -151,6 +151,8 @@ automações das seções futuras deste documento. B2/webhook permanece etapa se
 
 A fatura é importada dentro da página do Cliente.
 
+Desde o redesenho 2026-11 a importação também está disponível no cabeçalho de toda tela autenticada e vincula o cliente automaticamente pela UC lida do PDF.
+
 ```text
 Cliente
 ├── UCs
@@ -840,7 +842,7 @@ etapas nem chamadas externas. O serviço é dono da transação; chamador deve
 fornecer sessão dedicada/sem alterações pendentes (dirty/new/deleted rejeitados)
 e não trazer alterações previamente flushadas de outra operação.
 
-**Reprocessamento:** enquanto não houver histórico versionado, persistência é
+**Reprocessamento:** *(a regra abaixo vale para o processamento F7 isolado; para faturas sem boleto ela foi superada pelo redesenho 2026-11 — ver "Redesenho 2026-11 — operação de faturas".)* Enquanto não houver histórico versionado, persistência é
 recusada se houver snapshot, identidade de parser/layout, identificação/vínculo
 extraído prévio ou status extraida/processando. Bloqueia também antes de existir
 cobrança, portanto não sobrescreve silenciosamente uma extração usada por ela.
@@ -1593,6 +1595,8 @@ ConsumerUnit.debito_automatico = false
 → unificada
 ```
 
+A resolução de `auto` está implementada na emissão. `ConsumerUnit.debito_automatico` é um checkbox manual na UC (padrão `false`). O modo resolvido (`separate`/`unified`) é gravado em `Fatura.billing_mode` no momento da emissão; telas posteriores usam o valor gravado. Cobranças legadas ou manuais têm `billing_mode` NULL.
+
 Overrides explícitos de `unificada` ou `separada` prevalecem sobre `auto`.
 
 Caso seja forçada `unificada` em UC marcada manualmente como débito automático, gerar warning:
@@ -1611,6 +1615,8 @@ valor_total = valor_hub
 
 O valor da concessionária permanece apenas como referência.
 
+Valor emitido: o valor HUB. Em `gerar_boleto_concessionaria` o valor sai do snapshot da última execução de cálculo, que é reexecutado imediatamente antes da emissão.
+
 ---
 
 ## 34. Cobrança unificada
@@ -1621,19 +1627,19 @@ valor_total = valor_concessionaria + valor_hub
 
 A memória de cálculo deve manter os dois componentes separados.
 
+Valor emitido: valor HUB + `valor_total_concessionaria` da fatura, calculado em `gerar_boleto_concessionaria` a partir do snapshot da última execução de cálculo (reexecutado imediatamente antes da emissão).
+
 ---
 
-## 35. Fatura da concessionária sempre disponível
+## 35. Fatura da concessionária junto do boleto
 
-A regra padrão do HUB é:
+Regra (decisão de produto de 2026-11-09):
 
-> Toda cobrança deve disponibilizar a fatura original da concessionária ao cliente.
+> O PDF da fatura da concessionária é oferecido junto do boleto HUB apenas no modo de cobrança unificada. No modo separado ele não é oferecido junto do boleto.
 
-Isso vale para cobrança unificada e separada.
+O PDF da concessionária nunca é mesclado com o boleto do provider.
 
-V1 não precisa mesclar o PDF da concessionária com o boleto do provider.
-
-Na experiência do cliente devem existir:
+Na cobrança unificada, a experiência do cliente deve ter:
 
 - link/ação para pagamento da cobrança HUB;
 - link/ação para visualizar a fatura original.
@@ -2096,6 +2102,19 @@ Implementar:
 - serialização.
 
 Sem parser e sem financeiro.
+
+---
+
+## Redesenho 2026-11 — operação de faturas
+
+- Upload executa a extração e, em seguida, o cálculo de cobrança automaticamente.
+- PDF cuja UC não está cadastrada é rejeitado e não é salvo (`UC_NOT_FOUND`; `UC_NOT_READABLE` quando o código da UC não é legível).
+- Exclusão é lógica (`faturas_concessionarias.deleted_at`) e só é permitida sem boleto ativo e sem emissão pendente (`409 INVOICE_HAS_BOLETO`). Execuções e snapshots de cálculo nunca são apagados. Reimportar o mesmo PDF restaura e reprocessa a fatura.
+- Reprocessamento: `POST /billing-calculations/invoices/<id>/reprocess` (também na rota de Platform Admin por empresa). Permitido sem boleto ativo/emissão pendente e com `status_extracao` em `recebida|erro|layout_nao_reconhecido` ou `status_validacao` em `uc_nao_encontrada|uc_pertence_outro_cliente|revisao_necessaria`; senão `409 REPROCESS_NOT_ALLOWED`. Isso supera a regra F7 "reprocessamento bloqueado" para faturas sem boleto.
+- Idempotência da emissão: emissão pendente é retomada com o valor/modo gravados, nunca recalculada para uma nova cobrança; boleto ativo é devolvido como está; há lock por fatura (`SELECT ... FOR UPDATE` no PostgreSQL).
+- `Fatura.invoice_url` é a página de pagamento do ASAAS (somente https); `Fatura.boleto_url` é o PDF do boleto bancário.
+- A listagem de faturas traz `gdIKwh`, `gdIIKwh` e `problemas`.
+- `GET /api/v1/financeiro/pendentes-boleto` lista faturas válidas sem boleto ativo, agrupadas por usina.
 
 ---
 

@@ -101,6 +101,8 @@ export const ucsDict: Record<string, Translation> = {
   'ucs.card.fieldDesconto': { pt: 'Desconto (%)', en: 'Discount (%)', fr: 'Remise (%)' },
   'ucs.card.discountHelpLabel': { pt: 'Desconto comercial da UC', en: "Unit's commercial discount", fr: "Remise commerciale de l'unité" },
   'ucs.card.discountHelpText': { pt: 'Percentual usado nas novas cobranças dos métodos compatíveis. Exemplo: 20 ou 20% reduz em 20%; vazio não aplica desconto. Tarifa específica não soma outro desconto.', en: 'Percentage used in new charges for compatible methods. Example: 20 or 20% reduces by 20%; empty applies no discount. A specific tariff does not stack with another discount.', fr: "Pourcentage utilisé dans les nouvelles facturations des méthodes compatibles. Exemple : 20 ou 20 % réduit de 20 % ; vide n'applique aucune remise. Un tarif spécifique ne s'ajoute pas à une autre remise." },
+  'ucs.card.fieldDebitoAutomatico': { pt: 'Débito automático na concessionária', en: 'Automatic debit at the utility', fr: 'Prélèvement automatique chez le distributeur' },
+  'ucs.card.debitoAutomaticoHelp': { pt: 'Marcada: o boleto do HUB não inclui o valor da fatura da concessionária (cobrança separada).', en: 'Checked: the HUB boleto does not include the utility invoice amount (separate billing).', fr: "Cochée : le boleto du HUB n'inclut pas le montant de la facture du distributeur (facturation séparée)." },
   'ucs.card.fieldGeracaoPropria': { pt: 'Geração própria', en: 'Own generation', fr: 'Production propre' },
   'ucs.card.fieldDiaEmissaoFatura': { pt: 'Dia de emissão da fatura', en: 'Invoice issue day', fr: "Jour d'émission de la facture" },
   'ucs.card.fieldInicioContrato': { pt: 'Início do contrato', en: 'Contract start', fr: 'Début du contrat' },

@@ -9,11 +9,16 @@ Uso:
     from services.email_service import send_email
     send_email(to='cliente@exemplo.com', subject='...', html='...', text='...')
 """
+import time
+
 from flask import g
 import resend
 
 from config import Config
 from services.log_service import LogService
+
+MAX_RETRIES = 3
+BACKOFF_BASE = 1
 
 _configured = False
 
@@ -65,22 +70,31 @@ def send_email(to: str, subject: str, html: str, text: str | None = None) -> boo
     if text:
         params['text'] = text
 
-    try:
-        resend.Emails.send(params)
-        LogService.info(acao='email_sent', mensagem=f'E-mail "{subject}" enviado para {to}', entidade='Email')
-        return True
-    except Exception as exc:
-        LogService.error(
-            acao='email_failed',
-            mensagem=f'Falha ao enviar e-mail "{subject}" para {to}: {_mensagem_amigavel_envio(exc)}.',
-            entidade='Email',
-            metadados={'erro': str(exc)}
-        )
-        # So registra Pendencia com tenant conhecido -- send_email tambem roda
-        # em fluxos publicos (reset de senha, convite) sem empresa na sessao.
-        if getattr(g, 'current_empresa_id', None) is not None:
-            _registrar_pendencia_envio_falhou(to, subject)
-        return False
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            resend.Emails.send(params)
+            LogService.info(acao='email_sent', mensagem=f'E-mail "{subject}" enviado para {to}', entidade='Email')
+            return True
+        except Exception as exc:
+            if attempt < MAX_RETRIES:
+                delay = BACKOFF_BASE * 2 ** (attempt - 1)
+                LogService.warning(
+                    acao='email_retry',
+                    mensagem=f'Tentativa {attempt}/{MAX_RETRIES} falhou para "{subject}" -> {to}, retentando em {delay}s',
+                    entidade='Email',
+                    metadados={'erro': str(exc), 'tentativa': attempt}
+                )
+                time.sleep(delay)
+            else:
+                LogService.error(
+                    acao='email_failed',
+                    mensagem=f'Falha ao enviar e-mail "{subject}" para {to}: {_mensagem_amigavel_envio(exc)}.',
+                    entidade='Email',
+                    metadados={'erro': str(exc)}
+                )
+                if getattr(g, 'current_empresa_id', None) is not None:
+                    _registrar_pendencia_envio_falhou(to, subject)
+    return False
 
 
 def _registrar_pendencia_envio_falhou(to: str, subject: str) -> None:

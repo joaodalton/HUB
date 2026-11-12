@@ -16,7 +16,9 @@ export function createToastContainer(): HTMLElement {
   return container;
 }
 
-export function showToast(message: string, type: ToastType = 'info'): void {
+export type ToastAction = { label: string; onClick: () => void };
+
+export function showToast(message: string, type: ToastType = 'info', action?: ToastAction): void {
   if (!toastState.container) return;
 
   const toast = createElement('div', {
@@ -27,7 +29,12 @@ export function showToast(message: string, type: ToastType = 'info'): void {
     createElement('span', { className: 'toast-symbol', textContent: toastIcons[type] }),
     createElement('span', { className: 'toast-message', textContent: message })
   );
+  if (action) {
+    const link = createElement('button', { className: 'toast-action', type: 'button', textContent: action.label });
+    link.addEventListener('click', () => { toast.remove(); action.onClick(); });
+    toast.appendChild(link);
+  }
 
   toastState.container.appendChild(toast);
-  window.setTimeout(() => toast.remove(), 4200);
+  window.setTimeout(() => toast.remove(), action ? 10000 : 4200);
 }

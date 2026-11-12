@@ -60,7 +60,8 @@ def store():
     try:
         uc = create_uc(data)
     except ValueError as exc:
-        return error_response(str(exc), 404 if str(exc) == 'Cliente informado nao existe.' else 400)
+        return error_response(str(exc), 404 if str(exc) == 'Cliente informado nao existe.' else 400,
+                              code=getattr(exc, 'code', None))
 
     return success_response(uc, 'UC cadastrada.', 201)
 
@@ -76,7 +77,8 @@ def update(uc_id: int):
     try:
         uc = update_uc(uc_id, data)
     except ValueError as exc:
-        return error_response(str(exc), 404 if str(exc) == 'Cliente informado nao existe.' else 400)
+        return error_response(str(exc), 404 if str(exc) == 'Cliente informado nao existe.' else 400,
+                              code=getattr(exc, 'code', None))
 
     if not uc:
         return error_response('UC nao encontrada.', 404)

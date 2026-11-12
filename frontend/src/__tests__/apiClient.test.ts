@@ -47,6 +47,13 @@ describe('apiClient', () => {
     await expect(apiRequest('/clients', { method: 'POST', body: {} })).rejects.toMatchObject({ status: 400, message: 'CPF invalido' });
   });
 
+  it('erro da API expoe message, code e details do backend', async () => {
+    mockFetch(422, { message: 'Dados incompletos', code: 'INVOICE_DATA_INCOMPLETE', details: { missing: ['gdIKwh'] } });
+    await expect(apiRequest('/x', { method: 'POST' })).rejects.toMatchObject({
+      status: 422, message: 'Dados incompletos', code: 'INVOICE_DATA_INCOMPLETE', details: { missing: ['gdIKwh'] },
+    });
+  });
+
   it('403 PASSWORD_CHANGE_REQUIRED dispara o evento global', async () => {
     mockFetch(403, { code: 'PASSWORD_CHANGE_REQUIRED', error: 'troca obrigatoria' });
     const listener = vi.fn();

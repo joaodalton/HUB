@@ -1,7 +1,7 @@
 import { apiRequest, type ApiResponse } from './apiClient';
 
 
-export type ApiCredentialProvider = 'resend' | 'whatsapp' | 'asaas' | 'concessionaria';
+export type ApiCredentialProvider = 'resend' | 'whatsapp' | 'asaas' | 'concessionaria' | 'piperun';
 
 /** Metadata only. The API deliberately never returns the configured secret. */
 export type ApiCredentialRow = {
@@ -20,7 +20,7 @@ export type ApiCredentialPayload = {
 };
 
 export type ApiCredentialUpdatePayload = Pick<ApiCredentialPayload, 'nome' | 'segredo'>;
-export type ApiCredentialTestResult = { ok: boolean; modo: 'dry-run' | 'asaas-api'; provider: ApiCredentialProvider };
+export type ApiCredentialTestResult = { ok: boolean; modo: 'dry-run' | 'asaas-api' | 'piperun-api'; provider: ApiCredentialProvider };
 
 export async function getApiCredentials(): Promise<ApiCredentialRow[]> {
   const response = await apiRequest<ApiResponse<ApiCredentialRow[]>>('/api-credentials');
